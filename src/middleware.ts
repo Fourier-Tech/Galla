@@ -9,8 +9,21 @@ export function middleware(request: NextRequest) {
     request.cookies.get("__Secure-next-auth.session-token")?.value;
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/register");
+  const isLoginPage = pathname.startsWith("/login");
   const isDashboardPage = pathname.startsWith("/dashboard");
+
+  // Galla has no public landing page. Direct to /dashboard if logged in, else /login
+  if (pathname === "/") {
+    if (token) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Redirect any legacy /register requests straight to /login
+  if (pathname.startsWith("/register")) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
 
   if (isDashboardPage && !token) {
     const loginUrl = new URL("/login", request.url);
@@ -18,7 +31,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthPage && token) {
+  if (isLoginPage && token) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -26,5 +39,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/register"],
+  matcher: ["/", "/dashboard/:path*", "/login", "/register"],
 };

@@ -6,6 +6,20 @@ import { User } from "@/lib/db/models/user.model";
 import { registerSchema } from "@/lib/validations/auth";
 
 export async function POST(request: Request) {
+  // Galla is a closed multi-tenant platform. Self-serve registration is disabled.
+  const adminSecret = request.headers.get("x-admin-provisioning-secret");
+  const configuredSecret = process.env.ADMIN_PROVISIONING_SECRET;
+
+  if (!configuredSecret || adminSecret !== configuredSecret) {
+    return NextResponse.json(
+      {
+        error:
+          "Public registration is closed. Salon accounts are provisioned exclusively by FourierTech administration.",
+      },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json();
     const result = registerSchema.safeParse(body);

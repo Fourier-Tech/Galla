@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit, Inter, Geist_Mono } from "next/font/google";
+import { Providers } from "@/components/shared/providers";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -41,7 +42,7 @@ export default function RootLayout({
       className={`${outfit.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-galla-paper text-galla-ink font-sans">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

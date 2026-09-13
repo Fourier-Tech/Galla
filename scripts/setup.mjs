@@ -14,7 +14,7 @@ console.log("=============================================================\n");
 
 // 1. Ensure all npm dependencies are installed
 if (!fs.existsSync(nodeModulesPath)) {
-  console.log("📦 Installing all project dependencies (Mongoose, NextAuth, Pusher, Tailwind, shadcn)...");
+  console.log("📦 Installing all project dependencies (Mongoose, NextAuth, Pusher, Recharts, Tailwind, shadcn)...");
   try {
     execSync("npm install", { stdio: "inherit", cwd: rootDir });
     console.log("✅ Dependencies installed successfully.\n");
