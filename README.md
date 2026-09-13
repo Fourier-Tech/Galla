@@ -76,9 +76,31 @@ Organized for a scalable multi-tenant SaaS architecture:
 └── README.md
 ```
 
+## ⚡ Quickstart for Teammates
+
+For any team member cloning this repo on their PC (Windows, macOS, or Linux):
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/Fourier-Tech/Galla.git
+cd Galla
+
+# 2. Install dependencies
+npm install
+
+# 3. Run the automated workspace setup
+# (Auto-creates .env.local from .env.example and generates a cryptographically secure AUTH_SECRET)
+npm run setup
+
+# 4. Open .env.local and add your MONGODB_URI and Pusher keys
+
+# 5. Start the development server
+npm run dev
+```
+
 ---
 
-## 🚀 Getting Started
+## 🚀 Manual Getting Started Steps
 
 ### 1. Prerequisites
 - **Node.js**: v18.18+ (Node v20 or v22 recommended)
