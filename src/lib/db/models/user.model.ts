@@ -2,11 +2,15 @@ import mongoose, { Document, Model, Schema, Types } from "mongoose";
 
 export interface IUser extends Document {
   tenantId: Types.ObjectId;
-  name: string;
-  email: string;
-  passwordHash: string;
-  role: "owner" | "staff";
-  activeSessionId?: string | null;
+  ownerEmail: string;
+  ownerCodeHash: string;
+  staffCodeHash: string;
+  previousOwnerCodeHash?: string | null;
+  previousStaffCodeHash?: string | null;
+  codeExpiresAt: Date;
+  graceExpiresAt?: Date | null;
+  ownerActiveSessionId?: string | null;
+  staffActiveSessionId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,32 +21,51 @@ const UserSchema = new Schema<IUser>(
       type: Schema.Types.ObjectId,
       ref: "Tenant",
       required: [true, "Tenant ID is required"],
+      unique: true,
       index: true,
       immutable: true,
     },
-    name: {
+    ownerEmail: {
       type: String,
-      required: [true, "Name is required"],
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, "Email is required"],
-      unique: true,
+      required: [true, "Owner email is required"],
       lowercase: true,
       trim: true,
       index: true,
     },
-    passwordHash: {
+    ownerCodeHash: {
       type: String,
-      required: [true, "Password hash is required"],
+      required: [true, "Owner code hash is required"],
+      index: true,
     },
-    role: {
+    staffCodeHash: {
       type: String,
-      enum: ["owner", "staff"],
-      default: "owner",
+      required: [true, "Staff code hash is required"],
+      index: true,
     },
-    activeSessionId: {
+    previousOwnerCodeHash: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    previousStaffCodeHash: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    codeExpiresAt: {
+      type: Date,
+      required: [true, "Code expiration date is required"],
+      index: true,
+    },
+    graceExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    ownerActiveSessionId: {
+      type: String,
+      default: null,
+    },
+    staffActiveSessionId: {
       type: String,
       default: null,
     },
@@ -52,7 +75,10 @@ const UserSchema = new Schema<IUser>(
   }
 );
 
-export const User: Model<IUser> =
-  mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
+if (mongoose.models.User) {
+  delete (mongoose.models as Record<string, unknown>).User;
+}
+
+export const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
 
 export default User;

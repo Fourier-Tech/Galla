@@ -29,6 +29,7 @@ import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
 
 interface SessionLike {
   user?: {
+    id?: string;
     tenantId?: string;
     email?: string | null;
     role?: string;
@@ -54,11 +55,8 @@ async function resolveTenantId(session: SessionLike): Promise<Types.ObjectId | n
     if (exists) return new Types.ObjectId(tenantIdStr);
   }
 
-  if (session?.user?.email) {
-    const cleanEmail = session.user.email.trim().toLowerCase();
-    const dbUser = await User.findOne({
-      $or: [{ email: cleanEmail }, { email: `${cleanEmail}@gmail.com` }],
-    });
+  if (session?.user?.id && Types.ObjectId.isValid(session.user.id)) {
+    const dbUser = await User.findById(new Types.ObjectId(session.user.id));
     if (dbUser && dbUser.tenantId) {
       return dbUser.tenantId;
     }
@@ -100,8 +98,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       input.orderType === "Service booking"
         ? "service_booking"
         : input.orderType === "Package sale"
-        ? "package_sale"
-        : "product_sale";
+          ? "package_sale"
+          : "product_sale";
 
     const isFullPayment = input.paidAmount >= input.totalAmount;
     const amountPending = Math.max(0, input.totalAmount - input.paidAmount);
@@ -121,8 +119,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             dbOrderType === "service_booking"
               ? "service"
               : dbOrderType === "package_sale"
-              ? "package"
-              : "product",
+                ? "package"
+                : "product",
           itemId: new Types.ObjectId(),
           name: `${input.orderType} — ${input.customerName}`,
           unitPrice: input.totalAmount,
@@ -143,13 +141,13 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       payments:
         input.paidAmount > 0
           ? [
-              {
-                amount: input.paidAmount,
-                mode: "cash",
-                recordedAt: new Date(),
-                recordedBy: session.user.role === "staff" ? "staff" : "owner",
-              },
-            ]
+            {
+              amount: input.paidAmount,
+              mode: "cash",
+              recordedAt: new Date(),
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            },
+          ]
           : [],
       recordedBy: session.user.role === "staff" ? "staff" : "owner",
     });
@@ -283,8 +281,8 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       order.orderType === "service_booking"
         ? "Service booking"
         : order.orderType === "package_sale"
-        ? "Package sale"
-        : "Product sale";
+          ? "Package sale"
+          : "Product sale";
 
     return {
       success: true,
@@ -357,14 +355,14 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     // Determine if refund happened on the same calendar day the order was created
     const isSameDay = order.createdAt
       ? (() => {
-          const d = new Date(order.createdAt);
-          const now = new Date();
-          return (
-            d.getDate() === now.getDate() &&
-            d.getMonth() === now.getMonth() &&
-            d.getFullYear() === now.getFullYear()
-          );
-        })()
+        const d = new Date(order.createdAt);
+        const now = new Date();
+        return (
+          d.getDate() === now.getDate() &&
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
+      })()
       : true;
 
     // Record formal refund details in order
@@ -434,8 +432,8 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       order.orderType === "service_booking"
         ? "Service booking"
         : order.orderType === "package_sale"
-        ? "Package sale"
-        : "Product sale";
+          ? "Package sale"
+          : "Product sale";
 
     const result: {
       success: boolean;
@@ -661,10 +659,10 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
       return { success: false, error: "Failed to find tenant to update" };
     }
 
-    if (input.ownerName && session.user.email) {
+    if (input.email) {
       await User.findOneAndUpdate(
-        { email: session.user.email },
-        { $set: { name: input.ownerName } }
+        { tenantId },
+        { $set: { ownerEmail: input.email.trim().toLowerCase() } }
       );
     }
 
@@ -677,14 +675,14 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
         id: updatedTenant._id.toString(),
         name: updatedTenant.name,
         slug: updatedTenant.slug,
-        email: session.user.email || "",
+        email: input.email || "",
         phone: updatedTenant.phone || "",
         address: updatedTenant.address || "",
         profileImageUrl: updatedTenant.profileImageUrl || "",
         profileImagePublicId: updatedTenant.profileImagePublicId || "",
         status: updatedTenant.status,
         currency: updatedTenant.settings?.currency || "INR",
-        ownerName: input.ownerName || session.user.name || "",
+        ownerName: input.ownerName || updatedTenant.name || "Owner",
       },
     };
   } catch (error) {

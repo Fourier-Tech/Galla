@@ -151,15 +151,9 @@ export default async function DashboardPage() {
       tenant = await Tenant.findById(new Types.ObjectId(tenantId)).lean();
     }
 
-    // 2. If not found (e.g. database reseeded while session cookie remained active), resolve fresh from user record
-    if (!tenant && session.user.email) {
-      const cleanEmail = session.user.email.trim().toLowerCase();
-      const dbUser = await User.findOne({
-        $or: [
-          { email: cleanEmail },
-          { email: `${cleanEmail}@gmail.com` },
-        ],
-      }).lean();
+    // 2. If not found, resolve fresh from user record
+    if (!tenant && session.user.id && Types.ObjectId.isValid(session.user.id)) {
+      const dbUser = await User.findById(new Types.ObjectId(session.user.id)).lean();
       if (dbUser && dbUser.tenantId) {
         tenantId = dbUser.tenantId.toString();
         tenant = await Tenant.findById(dbUser.tenantId).lean();
@@ -231,21 +225,20 @@ export default async function DashboardPage() {
 
       const ownerUser = await User.findOne({
         tenantId: tenantObjectId,
-        role: "owner",
       }).lean();
 
       initialSalonProfile = {
         id: tenant._id.toString(),
         name: tenant.name || "",
         slug: tenant.slug || "",
-        email: ownerUser?.email || session.user.email || "",
+        email: ownerUser?.ownerEmail || "",
         phone: tenant.phone || "",
         address: tenant.address || "",
         profileImageUrl: tenant.profileImageUrl || "",
         profileImagePublicId: tenant.profileImagePublicId || "",
         status: tenant.status || "active",
         currency: tenant.settings?.currency || "INR",
-        ownerName: ownerUser?.name || session.user.name || "",
+        ownerName: tenant.name || "Owner",
       };
     }
   } catch (error) {

@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
@@ -82,35 +82,49 @@ async function seed() {
     await db.collection("tenants").insertOne(tenant);
     console.log("✅ Created Tenant: ShreeHari (slug: shreehari, ID: 65f000000000000000000001)");
 
-    // 4. Create Owner User
-    const passwordHash = await bcrypt.hash("123456", 10);
+    // 4. Create Single Salon User Record with 8-Digit Access Codes
+    let authSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+    if (!authSecret && fs.existsSync(envLocalPath)) {
+      const content = fs.readFileSync(envLocalPath, "utf8");
+      const match = content.match(/AUTH_SECRET=["']?([^"'\r\n]+)/);
+      if (match) authSecret = match[1];
+    }
+    if (!authSecret) authSecret = "galla-secret-access-code-salt-2026";
+    const hashAccessCode = (code) =>
+      crypto.createHmac("sha256", authSecret).update(code.trim()).digest("hex");
+
+    const ownerCode = "88888888";
+    const staffCode = "12345678";
+
+    const now = new Date();
+    const target = new Date(now);
+    if (now.getHours() < 13) {
+      target.setDate(target.getDate() + 6);
+    } else {
+      target.setDate(target.getDate() + 7);
+    }
+    target.setHours(7, 0, 0, 0);
+
     const user = {
       _id: new mongoose.Types.ObjectId("65f000000000000000000002"),
       tenantId: tenantId,
-      name: "Jignesh Patel",
-      email: "shreehari@gmail.com",
-      passwordHash: passwordHash,
-      role: "owner",
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      ownerEmail: "shreehari@gmail.com",
+      ownerCodeHash: hashAccessCode(ownerCode),
+      staffCodeHash: hashAccessCode(staffCode),
+      previousOwnerCodeHash: null,
+      previousStaffCodeHash: null,
+      codeExpiresAt: target,
+      graceExpiresAt: null,
+      ownerActiveSessionId: null,
+      staffActiveSessionId: null,
+      createdAt: now,
+      updatedAt: now,
     };
     await db.collection("users").insertOne(user);
-    console.log("✅ Created Owner User: shreehari@gmail.com (Password: 123456)");
-
-    // 4b. Create Staff User
-    const staffUser = {
-      _id: new mongoose.Types.ObjectId("65f000000000000000000003"),
-      tenantId: tenantId,
-      name: "Counter Staff",
-      email: "staff@gmail.com",
-      passwordHash: passwordHash,
-      role: "staff",
-      activeSessionId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    await db.collection("users").insertOne(staffUser);
-    console.log("✅ Created Staff User: staff@gmail.com (Password: 123456)");
+    console.log("✅ Created Single Salon User Record for ShreeHari:");
+    console.log(`   👑 Owner 8-Digit Code: ${ownerCode}`);
+    console.log(`   🏷️  Staff 8-Digit Code: ${staffCode}`);
+    console.log(`   📅 Next 7 AM Rotation: ${target.toLocaleString("en-IN")}`);
 
     // 5. Create Initial Products
     const products = [

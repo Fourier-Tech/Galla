@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
-import { registerSchema } from "@/lib/validations/auth";
+import {
+  generateUnique8DigitCode,
+  calculateRotationDate,
+  calculateGraceExpiry,
+} from "@/lib/auth/code-service";
+import { sendAccessCodesEmail } from "@/lib/email/email-service";
 
 export async function POST(request: Request) {
-  // Galla is a closed multi-tenant platform. Self-serve registration is disabled.
   const adminSecret = request.headers.get("x-admin-provisioning-secret");
   const configuredSecret = process.env.ADMIN_PROVISIONING_SECRET;
 
@@ -22,23 +25,22 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const result = registerSchema.safeParse(body);
+    const { salonName, ownerEmail } = body;
 
-    if (!result.success) {
+    if (!salonName || !ownerEmail) {
       return NextResponse.json(
-        { error: "Validation failed", issues: result.error.flatten().fieldErrors },
+        { error: "salonName and ownerEmail are required" },
         { status: 400 }
       );
     }
 
-    const { name, email, password, salonName } = result.data;
-
     await connectToDatabase();
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const cleanEmail = ownerEmail.toLowerCase().trim();
+    const existingUser = await User.findOne({ ownerEmail: cleanEmail });
     if (existingUser) {
       return NextResponse.json(
-        { error: "An account with this email already exists" },
+        { error: "A salon account with this owner email already exists" },
         { status: 409 }
       );
     }
@@ -59,28 +61,43 @@ export async function POST(request: Request) {
       status: "active",
     });
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const now = new Date();
+    const rotationDate = calculateRotationDate(now);
+    const graceExpiresAt = calculateGraceExpiry(rotationDate);
 
-    // Create User linked to Tenant
-    const user = await User.create({
+    // Generate unique 8-digit codes for Owner and Staff
+    const exclude = new Set<string>();
+    const ownerGen = await generateUnique8DigitCode(exclude);
+    const staffGen = await generateUnique8DigitCode(exclude);
+
+    // Create single User record for the salon
+    await User.create({
       tenantId: tenant._id,
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      passwordHash,
-      role: "owner",
+      ownerEmail: cleanEmail,
+      ownerCodeHash: ownerGen.hash,
+      staffCodeHash: staffGen.hash,
+      codeExpiresAt: rotationDate,
+      graceExpiresAt: null,
+    });
+
+    // Send initial access codes email
+    await sendAccessCodesEmail({
+      to: cleanEmail,
+      ownerCode: ownerGen.code,
+      staffCode: staffGen.code,
+      rotationDate: now,
+      graceExpiresAt,
     });
 
     return NextResponse.json(
       {
-        message: "Account and salon workspace created successfully",
-        user: {
-          id: user._id.toString(),
-          name: user.name,
-          email: user.email,
-          tenantId: tenant._id.toString(),
-          role: user.role,
-        },
+        message: "Salon workspace provisioned successfully with 8-digit access codes",
+        tenantId: tenant._id.toString(),
+        salonName: tenant.name,
+        ownerEmail: cleanEmail,
+        ownerCode: ownerGen.code,
+        staffCode: staffGen.code,
+        codeExpiresAt: rotationDate.toISOString(),
       },
       { status: 201 }
     );

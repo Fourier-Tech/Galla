@@ -49,6 +49,7 @@ export type TransferStockInput = z.infer<typeof transferStockSchema>;
 
 export const updateSalonProfileSchema = z.object({
   name: z.string().min(1, "Salon name is required").trim(),
+  email: z.string().email().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
   profileImageUrl: z.string().optional(),

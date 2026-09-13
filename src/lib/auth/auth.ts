@@ -1,93 +1,139 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { User } from "@/lib/db/models/user.model";
-import { loginSchema } from "@/lib/validations/auth";
+import { accessCodeSchema } from "@/lib/validations/auth";
+import { hashAccessCode } from "@/lib/auth/code-service";
+import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/auth/rate-limiter";
 
-import { Tenant } from "@/lib/db/models/tenant.model";
+export class RateLimitedError extends CredentialsSignin {
+  code = "rate_limited";
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   trustHost: true,
   session: {
     strategy: "jwt",
+    maxAge: 7 * 24 * 60 * 60, // 7 days session duration
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   providers: [
     Credentials({
-      name: "Credentials",
+      name: "AccessCode",
       credentials: {
-        email: { label: "Email or Shop ID", type: "text" },
-        password: { label: "Password", type: "password" },
+        code: { label: "8-Digit Shop Access Code", type: "text" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         try {
-          const parsed = loginSchema.safeParse(credentials);
+          const parsed = accessCodeSchema.safeParse(credentials);
           if (!parsed.success) {
-            console.warn("[Auth] Validation failed:", parsed.error.format());
+            console.warn("[Auth] Invalid code format:", parsed.error.format());
             return null;
           }
 
-          const { email, password } = parsed.data;
+          const rawIp =
+            req?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+            "127.0.0.1";
+
+          const rateCheck = checkRateLimit(rawIp);
+          if (!rateCheck.allowed) {
+            console.warn(`[Auth] Rate limit exceeded for IP: ${rawIp}`);
+            throw new RateLimitedError();
+          }
+
+          const { code } = parsed.data;
+          const codeHash = hashAccessCode(code);
 
           await connectToDatabase();
-          const cleanIdentifier = email.trim().toLowerCase();
 
-          // 1. Direct email match or auto-appended @gmail.com
-          let user = await User.findOne({
+          const rawUser = await User.collection.findOne({
             $or: [
-              { email: cleanIdentifier },
-              { email: `${cleanIdentifier}@gmail.com` },
+              { ownerCodeHash: codeHash },
+              { staffCodeHash: codeHash },
+              { previousOwnerCodeHash: codeHash },
+              { previousStaffCodeHash: codeHash },
             ],
           });
 
-          // 2. Lookup by Salon Name or Tenant Slug if not found by email
-          if (!user) {
-            const tenant = await Tenant.findOne({
-              $or: [
-                { slug: new RegExp(`^${cleanIdentifier}`, "i") },
-                { name: new RegExp(`^${cleanIdentifier}$`, "i") },
-              ],
-            });
+          if (!rawUser) {
+            const fail = recordFailedAttempt(rawIp);
+            console.warn(
+              `[Auth] Invalid access code attempt from IP ${rawIp}. Remaining attempts: ${fail.remainingAttempts}`
+            );
+            return null;
+          }
 
-            if (tenant) {
-              user = await User.findOne({ tenantId: tenant._id, role: "owner" });
+          const now = new Date();
+          let role: "owner" | "staff" | null = null;
+          let codeType: "current" | "grace" = "current";
+
+          if (rawUser.ownerCodeHash === codeHash) {
+            role = "owner";
+            codeType = "current";
+          } else if (rawUser.staffCodeHash === codeHash) {
+            role = "staff";
+            codeType = "current";
+          } else if (rawUser.previousOwnerCodeHash === codeHash) {
+            if (!rawUser.graceExpiresAt || now > new Date(rawUser.graceExpiresAt)) {
+              console.warn("[Auth] Expired grace owner code attempt");
+              recordFailedAttempt(rawIp);
+              return null;
             }
+            role = "owner";
+            codeType = "grace";
+          } else if (rawUser.previousStaffCodeHash === codeHash) {
+            if (!rawUser.graceExpiresAt || now > new Date(rawUser.graceExpiresAt)) {
+              console.warn("[Auth] Expired grace staff code attempt");
+              recordFailedAttempt(rawIp);
+              return null;
+            }
+            role = "staff";
+            codeType = "grace";
           }
 
-          if (!user || !user.passwordHash) {
-            console.warn(`[Auth] No account found matching: "${cleanIdentifier}"`);
+          if (!role) {
+            console.error("[Auth] Unrecognized code hash match in user document");
             return null;
           }
 
-          const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);
-          if (!isPasswordMatch) {
-            console.warn(`[Auth] Incorrect password for account: "${user.email}"`);
-            return null;
-          }
+          // Successful authentication -> reset rate limiter
+          resetRateLimit(rawIp);
 
+          // Generate single-device session ID
           const activeSessionId = crypto.randomUUID();
+          const updateField =
+            role === "owner"
+              ? { ownerActiveSessionId: activeSessionId }
+              : { staffActiveSessionId: activeSessionId };
+
           await User.collection.updateOne(
-            { _id: user._id },
-            { $set: { activeSessionId } }
+            { _id: rawUser._id },
+            { $set: updateField }
           );
 
-          console.log(`[Auth] User authenticated successfully: "${user.email}" (${user.role}) [session: ${activeSessionId}]`);
+          console.log(
+            `[Auth] Access granted for salon ${rawUser.tenantId}: Role=${role}, CodeType=${codeType}, Session=${activeSessionId}`
+          );
+
           return {
-            id: user._id.toString(),
-            name: user.name,
-            email: user.email,
-            tenantId: user.tenantId.toString(),
-            role: user.role,
+            id: rawUser._id.toString(),
+            tenantId: rawUser.tenantId.toString(),
+            role,
             activeSessionId,
+            codeType,
+            graceExpiresAt: rawUser.graceExpiresAt ? new Date(rawUser.graceExpiresAt).toISOString() : null,
           };
         } catch (error) {
-          console.error("[Auth] Database connection or authorize error:", error);
+          console.error("[Auth] Authorization error:", error);
+          if (error instanceof CredentialsSignin) {
+            throw error;
+          }
           return null;
         }
       },
@@ -100,22 +146,49 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.tenantId = user.tenantId;
         token.role = user.role;
         token.activeSessionId = user.activeSessionId;
+        token.codeType = user.codeType;
+        token.graceExpiresAt = user.graceExpiresAt;
         return token;
       }
 
-      // Validate session on every token evaluation
+      // Check session validity
       if (token.id) {
         try {
           await connectToDatabase();
           const dbUser = await User.collection.findOne(
             { _id: new Types.ObjectId(token.id as string) },
-            { projection: { activeSessionId: 1 } }
+            {
+              projection: {
+                ownerActiveSessionId: 1,
+                staffActiveSessionId: 1,
+                graceExpiresAt: 1,
+              },
+            }
           );
 
-          // Invalidate if user no longer exists, token has no session ID, or session ID in DB changed (new login elsewhere)
-          if (!dbUser || !token.activeSessionId || dbUser.activeSessionId !== token.activeSessionId) {
-            console.warn(`[Auth] Invalidation: token session "${token.activeSessionId}" !== DB session "${dbUser?.activeSessionId}"`);
-            return null; // NextAuth automatically cleans sessionStore cookies and invalidates session!
+          if (!dbUser) {
+            return null;
+          }
+
+          // Single-device validation
+          const currentDbSession =
+            token.role === "owner"
+              ? dbUser.ownerActiveSessionId
+              : dbUser.staffActiveSessionId;
+
+          if (!token.activeSessionId || currentDbSession !== token.activeSessionId) {
+            console.warn(
+              `[Auth] Invalidation: token session ${token.activeSessionId} !== DB session ${currentDbSession}`
+            );
+            return null;
+          }
+
+          // Grace period expiration: if logged in with a grace code and grace window has passed
+          if (token.codeType === "grace" && dbUser.graceExpiresAt) {
+            if (new Date() > new Date(dbUser.graceExpiresAt)) {
+              console.warn("[Auth] Invalidation: Grace period expired for session");
+              return null;
+            }
           }
         } catch (e) {
           console.error("[Auth] Token validation error:", e);
@@ -128,8 +201,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user && token) {
         session.user.id = token.id as string;
         session.user.tenantId = token.tenantId as string;
-        session.user.role = token.role as string;
-        session.user.activeSessionId = token.activeSessionId as string | undefined;
+        session.user.role = token.role as "owner" | "staff";
+        session.user.activeSessionId = token.activeSessionId as string | null | undefined;
+        session.user.codeType = token.codeType as "current" | "grace" | undefined;
+        session.user.graceExpiresAt = token.graceExpiresAt as string | null | undefined;
       }
       return session;
     },
