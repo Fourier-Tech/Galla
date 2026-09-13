@@ -105,9 +105,9 @@ export function Sidebar({
               <button
                 key={item.id}
                 onClick={() => onSelectTab(item.id)}
-                className={`flex items-center gap-2.5 px-[13px] py-[8px] rounded-[5px] text-[13.5px] font-sans text-left transition-all cursor-pointer ${
+                className={`flex items-center gap-2.5 px-[13px] py-[8px] rounded-[5px] text-[13.5px] font-sans font-medium text-left transition-all cursor-pointer ${
                   isActive
-                    ? "bg-galla-teal-soft text-galla-teal font-medium border-l-[3px] border-galla-teal"
+                    ? "bg-galla-teal-soft text-galla-teal font-semibold border-l-[3px] border-galla-teal"
                     : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 border-l-[3px] border-transparent"
                 }`}
               >
@@ -156,7 +156,7 @@ export function Sidebar({
 
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="w-full flex items-center gap-2 px-[13px] py-[8px] rounded-[5px] text-[13px] font-sans text-galla-ink-soft hover:text-red-700 hover:bg-red-50/60 transition-colors cursor-pointer"
+          className="w-full flex items-center gap-2 px-[13px] py-[8px] rounded-[5px] text-[13px] font-sans font-medium text-galla-ink-soft hover:text-red-700 hover:bg-red-50/60 transition-colors cursor-pointer"
         >
           <LogOut className="h-4 w-4" />
           <span>Sign Out</span>

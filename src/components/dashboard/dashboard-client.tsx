@@ -19,7 +19,9 @@ import { AnalyticsTab } from "@/components/dashboard/tabs/analytics-tab";
 import { ProfileTab } from "@/components/dashboard/tabs/profile-tab";
 import { NewOrderModal } from "@/components/dashboard/modals/new-order-modal";
 import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal";
-import { transferStockAction } from "@/app/dashboard/actions";
+import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
+import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
+import { calculatePendingAmount } from "@/lib/utils";
 import { DashboardSalonProfile } from "@/types/dashboard";
 
 interface DashboardClientProps {
@@ -65,13 +67,11 @@ export function DashboardClient({
 
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);
+  const [refundOrder, setRefundOrder] = useState<DashboardOrder | null>(null);
 
   const todayExpenses = expenses.filter((e) => e.isToday !== false);
   const expensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const pendingAmount = orders.reduce(
-    (sum, o) => sum + Math.max(0, o.amount - o.paid),
-    0
-  );
+  const pendingAmount = calculatePendingAmount(orders);
 
   const handleAddOrder = (order: DashboardOrder) => {
     setOrders((prev) => [order, ...prev]);
@@ -79,6 +79,12 @@ export function DashboardClient({
 
   const handleAddExpense = (expense: DashboardExpense) => {
     setExpenses((prev) => [expense, ...prev]);
+  };
+
+  const handleRefundSuccess = (updatedOrder: DashboardOrder) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
+    );
   };
 
   const handleMoveStock = async (id: number | string) => {
@@ -94,6 +100,27 @@ export function DashboardClient({
       }
     } catch (err) {
       console.error("Failed to move stock:", err);
+    }
+  };
+
+  const handleCompleteOrder = async (orderId: string) => {
+    try {
+      const res = await completeOrderAction({ orderId });
+      if (res.success && res.order) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  status: "completed",
+                  paid: o.amount,
+                }
+              : o
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to complete order:", err);
     }
   };
 
@@ -129,6 +156,8 @@ export function DashboardClient({
               expensesTotal={expensesTotal}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
+              onCompleteOrder={handleCompleteOrder}
+              onOpenRefund={(order) => setRefundOrder(order)}
             />
           )}
 
@@ -136,6 +165,8 @@ export function DashboardClient({
             <OrdersTab
               orders={orders}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
+              onCompleteOrder={handleCompleteOrder}
+              onOpenRefund={(order) => setRefundOrder(order)}
             />
           )}
 
@@ -176,6 +207,14 @@ export function DashboardClient({
         isOpen={isNewExpenseOpen}
         onClose={() => setIsNewExpenseOpen(false)}
         onAddExpense={handleAddExpense}
+      />
+
+      <RefundOrderModal
+        key={refundOrder?.id || "refund-modal"}
+        order={refundOrder}
+        isOpen={Boolean(refundOrder)}
+        onClose={() => setRefundOrder(null)}
+        onRefundSuccess={handleRefundSuccess}
       />
     </div>
   );

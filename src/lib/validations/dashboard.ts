@@ -18,6 +18,21 @@ export const createOrderSchema = z.object({
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
+export const completeOrderSchema = z.object({
+  orderId: z.string().min(1, "Order ID is required"),
+});
+
+export type CompleteOrderInput = z.infer<typeof completeOrderSchema>;
+
+export const refundOrderSchema = z.object({
+  orderId: z.string().min(1, "Order ID is required"),
+  refundAmount: z.number().positive("Refund amount must be greater than 0"),
+  refundMode: z.enum(["cash", "upi", "card"]).default("cash"),
+  refundReason: z.string().optional(),
+});
+
+export type RefundOrderInput = z.infer<typeof refundOrderSchema>;
+
 export const createExpenseSchema = z.object({
   desc: z.string().min(1, "Description is required").trim(),
   amount: z.number().positive("Amount must be greater than 0"),

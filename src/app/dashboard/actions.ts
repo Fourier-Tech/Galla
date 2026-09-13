@@ -12,6 +12,8 @@ import { Expense } from "@/lib/db/models/expense.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import {
   createOrderSchema,
+  completeOrderSchema,
+  refundOrderSchema,
   createExpenseSchema,
   transferStockSchema,
   updateSalonProfileSchema,
@@ -21,6 +23,7 @@ import {
   DashboardExpense,
   DashboardProduct,
   DashboardSalonProfile,
+  OrderType,
 } from "@/types/dashboard";
 
 interface SessionLike {
@@ -185,6 +188,206 @@ export async function createOrderAction(rawInput: unknown): Promise<{
   } catch (error) {
     console.error("Failed to create order:", error);
     return { success: false, error: "Failed to persist order to database" };
+  }
+}
+
+export async function completeOrderAction(rawInput: unknown): Promise<{
+  success: boolean;
+  order?: DashboardOrder;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = completeOrderSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const { orderId } = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    // Match order by orderNumber (e.g. "#1042") or by ObjectId
+    const query = Types.ObjectId.isValid(orderId)
+      ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
+      : { tenantId, orderNumber: orderId };
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    // Settle remaining balance if any (e.g. from advance_paid)
+    const remainingDue = Math.max(0, order.totalAmount - order.amountPaid);
+    if (remainingDue > 0) {
+      order.amountPaid = order.totalAmount;
+      order.amountPending = 0;
+      order.payments.push({
+        amount: remainingDue,
+        mode: "cash",
+        recordedAt: new Date(),
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+      });
+
+      // Update customer stats
+      if (order.customerSnapshot?.phone) {
+        await Customer.findOneAndUpdate(
+          { tenantId, phone: order.customerSnapshot.phone },
+          {
+            $inc: {
+              "stats.totalSpend": remainingDue,
+              "stats.outstandingBalance": -remainingDue,
+            },
+          }
+        );
+      }
+    }
+
+    // Mark line items fulfilled and status completed
+    order.status = "completed";
+    if (order.lineItems && order.lineItems.length > 0) {
+      order.lineItems.forEach((item) => {
+        item.fulfilled = true;
+      });
+    }
+
+    await order.save();
+    revalidatePath("/dashboard");
+
+    const mappedType: OrderType =
+      order.orderType === "service_booking"
+        ? "Service booking"
+        : order.orderType === "package_sale"
+        ? "Package sale"
+        : "Product sale";
+
+    return {
+      success: true,
+      order: {
+        id: order.orderNumber,
+        customer: order.customerSnapshot?.name || "Walk-in Customer",
+        type: mappedType,
+        amount: order.totalAmount,
+        paid: order.amountPaid,
+        status: "completed",
+        time: "Today, Just now",
+        isToday: true,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to complete order:", error);
+    return { success: false, error: "Failed to mark order as completed" };
+  }
+}
+
+export async function refundOrderAction(rawInput: unknown): Promise<{
+  success: boolean;
+  order?: DashboardOrder;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = refundOrderSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const { orderId, refundAmount, refundMode, refundReason } = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const query = Types.ObjectId.isValid(orderId)
+      ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
+      : { tenantId, orderNumber: orderId };
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    if (order.status === "cancelled_refunded") {
+      return { success: false, error: "This order is already marked as refunded" };
+    }
+
+    if (refundAmount > order.amountPaid) {
+      return {
+        success: false,
+        error: `Refund amount (₹${refundAmount}) cannot exceed total amount paid (₹${order.amountPaid})`,
+      };
+    }
+
+    const prevPending = order.amountPending || 0;
+
+    // Record formal refund details in order
+    order.refundDetails = {
+      refundAmount,
+      refundMode,
+      refundReason: refundReason || "Customer refund at counter",
+      refundedAt: new Date(),
+      refundedBy: session.user.role === "staff" ? "staff" : "owner",
+    };
+
+    // Update financial amounts and cancel status
+    order.amountPaid = Math.max(0, order.amountPaid - refundAmount);
+    order.amountPending = 0;
+    order.status = "cancelled_refunded";
+
+    await order.save();
+
+    // Adjust customer spend stats
+    if (order.customerSnapshot?.phone) {
+      await Customer.findOneAndUpdate(
+        { tenantId, phone: order.customerSnapshot.phone },
+        {
+          $inc: {
+            "stats.totalSpend": -refundAmount,
+            "stats.outstandingBalance": -prevPending,
+          },
+        }
+      );
+    }
+
+    revalidatePath("/dashboard");
+
+    const mappedType: OrderType =
+      order.orderType === "service_booking"
+        ? "Service booking"
+        : order.orderType === "package_sale"
+        ? "Package sale"
+        : "Product sale";
+
+    return {
+      success: true,
+      order: {
+        id: order.orderNumber,
+        customer: order.customerSnapshot?.name || "Walk-in Customer",
+        type: mappedType,
+        amount: order.totalAmount,
+        paid: order.amountPaid,
+        status: "cancelled_refunded",
+        time: "Today, Just now",
+        isToday: true,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to refund order:", error);
+    return { success: false, error: "Failed to process refund in database" };
   }
 }
 
