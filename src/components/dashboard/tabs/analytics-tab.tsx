@@ -29,7 +29,7 @@ const WEEK_DATA = [
 
 export function AnalyticsTab({ pendingAmount }: AnalyticsTabProps) {
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 w-full">
       {/* Header */}
       <div>
         <div className="inline-flex items-center gap-2 px-[10px] py-[3px] rounded-[3px] bg-galla-teal-soft text-galla-teal text-[11px] font-heading font-semibold uppercase tracking-wider mb-2">

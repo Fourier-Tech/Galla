@@ -1,6 +1,7 @@
 export type OrderStatus =
   | "completed"
   | "paid_full"
+  | "fulfilled"
   | "advance_paid"
   | "cancelled_refunded"
   | "cancelled_converted"
@@ -16,6 +17,7 @@ export interface DashboardOrder {
   paid: number;
   status: OrderStatus;
   time: string;
+  isToday?: boolean;
 }
 
 export interface DashboardProduct {
@@ -39,6 +41,21 @@ export interface DashboardExpense {
   amount: number;
   category: "Inventory purchase" | "Day-to-day" | "Salary" | "Rent";
   time: string;
+  isToday?: boolean;
+}
+
+export interface DashboardSalonProfile {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  phone: string;
+  address: string;
+  profileImageUrl?: string;
+  profileImagePublicId?: string;
+  status: string;
+  currency: string;
+  ownerName: string;
 }
 
 export type TabId =
@@ -47,6 +64,7 @@ export type TabId =
   | "inventory"
   | "customers"
   | "expenses"
-  | "analytics";
+  | "analytics"
+  | "profile";
 
 export type UserRole = "owner" | "staff";

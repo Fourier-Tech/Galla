@@ -12,7 +12,7 @@ interface InventoryTabProps {
 
 export function InventoryTab({ products, onMoveStock }: InventoryTabProps) {
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 w-full">
       {/* Header */}
       <div>
         <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">

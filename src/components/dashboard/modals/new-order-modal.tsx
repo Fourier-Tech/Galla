@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { X } from "lucide-react";
 import { DashboardOrder, OrderType } from "@/types/dashboard";
+import { createOrderAction } from "@/app/dashboard/actions";
 
 interface NewOrderModalProps {
   isOpen: boolean;
@@ -16,34 +17,59 @@ export function NewOrderModal({
   onAddOrder,
 }: NewOrderModalProps) {
   const [customer, setCustomer] = useState("");
+  const [phone, setPhone] = useState("");
   const [type, setType] = useState<OrderType>("Product sale");
   const [amount, setAmount] = useState("");
+  const [advance, setAdvance] = useState("");
   const [paidNow, setPaidNow] = useState<"full" | "advance">("full");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     if (!customer.trim() || !amount) return;
 
     const parsedAmount = Number(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) return;
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setErrorMsg("Please enter a valid total amount");
+      return;
+    }
 
-    const newOrder: DashboardOrder = {
-      id: "#" + (1046 + Math.floor(Math.random() * 900)),
-      customer: customer.trim(),
-      type,
-      amount: parsedAmount,
-      paid: paidNow === "full" ? parsedAmount : 0,
-      status: paidNow === "full" ? "paid_full" : "advance_paid",
-      time: "Just now",
-    };
+    const isPaidFull = paidNow === "full";
+    const parsedAdvance = advance ? Number(advance) : Math.round(parsedAmount * 0.3);
+    const paidAmount = isPaidFull ? parsedAmount : parsedAdvance;
+    const status = isPaidFull ? "paid_full" : "advance_paid";
 
-    onAddOrder(newOrder);
-    setCustomer("");
-    setAmount("");
-    setPaidNow("full");
-    onClose();
+    setIsSubmitting(true);
+    try {
+      const res = await createOrderAction({
+        customerName: customer.trim(),
+        customerPhone: phone.trim() || undefined,
+        orderType: type,
+        totalAmount: parsedAmount,
+        paidAmount: paidAmount,
+        status: status,
+      });
+
+      if (res.success && res.order) {
+        onAddOrder(res.order);
+        setCustomer("");
+        setPhone("");
+        setAmount("");
+        setAdvance("");
+        setPaidNow("full");
+        onClose();
+      } else {
+        setErrorMsg(res.error || "Failed to save order");
+      }
+    } catch {
+      setErrorMsg("Network error occurred while creating order");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -52,7 +78,7 @@ export function NewOrderModal({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
     >
       <div className="w-full max-w-[377px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
@@ -63,11 +89,18 @@ export function NewOrderModal({
           <button
             onClick={onClose}
             type="button"
-            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors"
+            disabled={isSubmitting}
+            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-red-700 text-[12px] rounded-[4px]">
+            {errorMsg}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -80,6 +113,19 @@ export function NewOrderModal({
               value={customer}
               onChange={(e) => setCustomer(e.target.value)}
               placeholder="e.g. Priya Shah"
+              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              Customer Phone (Optional)
+            </label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. 98250 12345"
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />
           </div>
@@ -143,12 +189,28 @@ export function NewOrderModal({
             </div>
           </div>
 
+          {paidNow === "advance" && (
+            <div>
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+                Advance Amount Paid (₹)
+              </label>
+              <input
+                type="text"
+                value={advance}
+                onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
+                placeholder={`e.g. ${amount ? Math.round(Number(amount) * 0.3) : "300"}`}
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              />
+            </div>
+          )}
+
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium py-[10px] rounded-[5px] shadow-sm transition-opacity cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium py-[10px] rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
             >
-              Save Order
+              {isSubmitting ? "Saving to Database..." : "Save Order"}
             </button>
           </div>
         </form>

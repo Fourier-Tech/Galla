@@ -3,6 +3,7 @@ import { OrderStatus } from "@/types/dashboard";
 
 interface StatusPillProps {
   status: OrderStatus;
+  className?: string;
 }
 
 const STATUS_CONFIG: Record<
@@ -11,6 +12,10 @@ const STATUS_CONFIG: Record<
 > = {
   completed: {
     label: "Completed",
+    className: "bg-green-50 text-green-800 border border-green-300",
+  },
+  fulfilled: {
+    label: "Fulfilled",
     className: "bg-green-50 text-green-800 border border-green-300",
   },
   paid_full: {
@@ -35,12 +40,12 @@ const STATUS_CONFIG: Record<
   },
 };
 
-export function StatusPill({ status }: StatusPillProps) {
+export function StatusPill({ status, className = "" }: StatusPillProps) {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.created;
 
   return (
     <span
-      className={`inline-flex items-center rounded-[3px] px-2 py-0.5 font-heading text-[12px] font-semibold uppercase tracking-[0.05em] ${config.className}`}
+      className={`inline-flex items-center justify-center text-center w-[105px] shrink-0 rounded-[3px] py-0.5 font-heading text-[12px] font-semibold uppercase tracking-[0.05em] ${config.className} ${className}`}
     >
       {config.label}
     </span>

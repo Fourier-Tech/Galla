@@ -14,6 +14,8 @@ export interface ITenant extends Document {
   staffPinHash?: string;
   phone?: string;
   address?: string;
+  profileImageUrl?: string;
+  profileImagePublicId?: string;
   settings: ITenantSettings;
   createdAt: Date;
   updatedAt: Date;
@@ -54,6 +56,16 @@ const TenantSchema = new Schema<ITenant>(
       default: null,
     },
     address: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    profileImageUrl: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    profileImagePublicId: {
       type: String,
       trim: true,
       default: null,

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { X } from "lucide-react";
 import { DashboardExpense } from "@/types/dashboard";
+import { createExpenseAction } from "@/app/dashboard/actions";
 
 interface NewExpenseModalProps {
   isOpen: boolean;
@@ -20,28 +21,44 @@ export function NewExpenseModal({
     "Day-to-day" | "Inventory purchase" | "Salary" | "Rent"
   >("Day-to-day");
   const [amount, setAmount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     if (!desc.trim() || !amount) return;
 
     const parsedAmount = Number(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) return;
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setErrorMsg("Please enter a valid expense amount");
+      return;
+    }
 
-    const newExpense: DashboardExpense = {
-      desc: desc.trim(),
-      category,
-      amount: parsedAmount,
-      time: "Just now",
-    };
+    setIsSubmitting(true);
+    try {
+      const res = await createExpenseAction({
+        desc: desc.trim(),
+        category,
+        amount: parsedAmount,
+      });
 
-    onAddExpense(newExpense);
-    setDesc("");
-    setAmount("");
-    setCategory("Day-to-day");
-    onClose();
+      if (res.success && res.expense) {
+        onAddExpense(res.expense);
+        setDesc("");
+        setAmount("");
+        setCategory("Day-to-day");
+        onClose();
+      } else {
+        setErrorMsg(res.error || "Failed to record expense");
+      }
+    } catch {
+      setErrorMsg("Network error occurred while recording expense");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -50,7 +67,7 @@ export function NewExpenseModal({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
     >
       <div className="w-full max-w-[377px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
@@ -61,11 +78,18 @@ export function NewExpenseModal({
           <button
             onClick={onClose}
             type="button"
-            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors"
+            disabled={isSubmitting}
+            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-red-700 text-[12px] rounded-[4px]">
+            {errorMsg}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -123,9 +147,10 @@ export function NewExpenseModal({
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium py-[10px] rounded-[5px] shadow-sm transition-opacity cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium py-[10px] rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
             >
-              Save Expense
+              {isSubmitting ? "Recording to Database..." : "Save Expense"}
             </button>
           </div>
         </form>

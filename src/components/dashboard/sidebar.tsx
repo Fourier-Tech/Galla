@@ -12,6 +12,7 @@ import {
   BarChart3,
   LogOut,
   LucideIcon,
+  Store,
 } from "lucide-react";
 import { TabId, UserRole } from "@/types/dashboard";
 
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "customers", label: "Customers", icon: Users, ownerOnly: false },
   { id: "expenses", label: "Expenses", icon: Wallet, ownerOnly: false },
   { id: "analytics", label: "Analytics", icon: BarChart3, ownerOnly: true },
+  { id: "profile", label: "Salon Profile", icon: Store, ownerOnly: false },
 ];
 
 interface SidebarProps {
@@ -37,6 +39,7 @@ interface SidebarProps {
   role: UserRole;
   onRoleChange: (role: UserRole) => void;
   salonName?: string;
+  profileImageUrl?: string;
 }
 
 export function Sidebar({
@@ -44,27 +47,52 @@ export function Sidebar({
   onSelectTab,
   role,
   onRoleChange,
-  salonName = "Kiran Beauty Parlour",
+  salonName = "ShreeHari",
+  profileImageUrl,
 }: SidebarProps) {
   // Gated navigation: Staff cannot see Analytics tab
   const visibleNav = NAV_ITEMS.filter((item) => !item.ownerOnly || role === "owner");
 
   return (
-    <aside className="w-[233px] shrink-0 min-h-screen bg-galla-surface border-r border-galla-sidebar-border flex flex-col justify-between py-6">
+    <aside className="w-[233px] shrink-0 h-screen sticky top-0 bg-galla-surface border-r border-galla-sidebar-border flex flex-col justify-between py-6">
       <div>
         {/* Brand Header */}
-        <div className="px-6 mb-[34px]">
-          <div className="relative h-9 w-28">
+        <div className="px-5 mb-6">
+          {/* Galla Platform Logo */}
+          <div className="relative h-8 w-24 mb-3.5">
             <Image
               src="/logo.png"
               alt="Galla"
               fill
               className="object-contain object-left"
               priority
+              sizes="96px"
             />
           </div>
-          <div className="font-heading text-[11px] font-medium tracking-[0.03em] uppercase text-galla-ink-soft mt-1.5 truncate">
-            {salonName}
+
+          {/* Shop Identity: Salon Image + Shop Name (No outlines, enlarged image) */}
+          <div className="flex items-center gap-3 py-1 border border-galla-line rounded-[5px] px-3 mt-8">
+            {profileImageUrl ? (
+              <div className="h-11 w-11 rounded-[8px] overflow-hidden shrink-0 bg-galla-paper shadow-xs flex items-center justify-center">
+                <Image
+                  src={profileImageUrl}
+                  alt={salonName}
+                  width={5} 
+                  height={5}
+                  className="h-full w-full object-cover"
+                  unoptimized
+                />
+              </div>
+            ) : (
+              <div className="h-12 w-12 rounded-[8px] shrink-0 bg-galla-paper flex items-center justify-center text-galla-ink-soft">
+                <Store className="h-6 w-6" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="font-heading text-[20px] font-semibold text-galla-ink tracking-tight truncate">
+                {salonName}
+              </div>
+            </div>
           </div>
         </div>
 

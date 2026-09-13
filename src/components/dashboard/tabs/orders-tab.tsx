@@ -26,7 +26,7 @@ export function OrdersTab({ orders, onOpenNewOrder }: OrdersTabProps) {
     filter === "all" ? orders : orders.filter((o) => o.status === filter);
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 w-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -68,41 +68,55 @@ export function OrdersTab({ orders, onOpenNewOrder }: OrdersTabProps) {
       </div>
 
       {/* Order List */}
-      <div className="bg-galla-surface border border-galla-line rounded-[5px] divide-y divide-galla-line overflow-hidden">
-        {filteredOrders.map((order) => (
-          <div
-            key={order.id}
-            className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <span className="font-mono text-[13px] text-galla-ink-soft w-14 shrink-0">
+      <div className="bg-galla-surface border border-galla-line rounded-[5px] overflow-hidden">
+        {/* Table Header */}
+        <div className="grid grid-cols-[80px_1fr_120px_120px] gap-x-8 items-center px-[21px] py-[10px] bg-galla-paper/50 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.05em]">
+          <span>Order</span>
+          <span>Customer &amp; Service</span>
+          <span className="text-right">Settlement</span>
+          <span className="text-right">Status</span>
+        </div>
+
+        <div className="divide-y divide-galla-line">
+          {filteredOrders.map((order) => (
+            <div
+              key={order.id}
+              className="grid grid-cols-[80px_1fr_120px_120px] gap-x-8 items-center px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
+            >
+              <span className="font-mono text-[13px] text-galla-ink-soft">
                 {order.id}
               </span>
-              <div>
-                <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug">
+
+              <div className="min-w-0 pr-4">
+                <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
                   {order.customer}
                 </div>
-                <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
+                <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
                   {order.type} &bull; {order.time}
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-5">
               <div className="text-right">
                 <div className="font-heading font-semibold text-[16px] text-galla-ink tabular-nums">
                   {formatRupee(order.amount)}
                 </div>
-                {order.paid < order.amount && (
+                {order.paid < order.amount ? (
                   <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
                     {formatRupee(order.amount - order.paid)} due
                   </div>
+                ) : (
+                  <div className="font-sans text-[11px] text-galla-ink-soft/70">
+                    Settled
+                  </div>
                 )}
               </div>
-              <StatusPill status={order.status} />
+
+              <div className="flex justify-end">
+                <StatusPill status={order.status} />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
 
         {filteredOrders.length === 0 && (
           <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">
