@@ -17,6 +17,7 @@ const UserSchema = new Schema<IUser>(
       ref: "Tenant",
       required: [true, "Tenant ID is required"],
       index: true,
+      immutable: true,
     },
     name: {
       type: String,
