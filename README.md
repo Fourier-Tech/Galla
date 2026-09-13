@@ -85,16 +85,13 @@ For any team member cloning this repo on their PC (Windows, macOS, or Linux):
 git clone https://github.com/Fourier-Tech/Galla.git
 cd Galla
 
-# 2. Install dependencies
-npm install
-
-# 3. Run the automated workspace setup
-# (Auto-creates .env.local from .env.example and generates a cryptographically secure AUTH_SECRET)
+# 2. Run the one-command setup
+# (Installs all dependencies, creates .env.local, and auto-generates secure AUTH_SECRET)
 npm run setup
 
-# 4. Open .env.local and add your MONGODB_URI and Pusher keys
+# 3. Open .env.local and add your MONGODB_URI and Pusher keys
 
-# 5. Start the development server
+# 4. Start the development server
 npm run dev
 ```
 

@@ -1,20 +1,38 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { execSync } from "node:child_process";
 
 const rootDir = process.cwd();
 const envExamplePath = path.join(rootDir, ".env.example");
 const envLocalPath = path.join(rootDir, ".env.local");
+const nodeModulesPath = path.join(rootDir, "node_modules");
 
-console.log("\n🚀 Setting up Galla workspace for local development...\n");
+console.log("\n=============================================================");
+console.log("🚀 Galla — Automated Teammate Setup");
+console.log("=============================================================\n");
 
-// 1. Check if .env.example exists
+// 1. Ensure all npm dependencies are installed
+if (!fs.existsSync(nodeModulesPath)) {
+  console.log("📦 Installing all project dependencies (Mongoose, NextAuth, Pusher, Tailwind, shadcn)...");
+  try {
+    execSync("npm install", { stdio: "inherit", cwd: rootDir });
+    console.log("✅ Dependencies installed successfully.\n");
+  } catch (error) {
+    console.error("❌ Failed to install dependencies:", error.message);
+    process.exit(1);
+  }
+} else {
+  console.log("✅ Dependencies already installed (node_modules present).");
+}
+
+// 2. Check if .env.example exists
 if (!fs.existsSync(envExamplePath)) {
   console.error("❌ Error: .env.example file not found!");
   process.exit(1);
 }
 
-// 2. Handle .env.local creation
+// 3. Handle .env.local creation and secret generation
 if (fs.existsSync(envLocalPath)) {
   console.log("ℹ️  .env.local already exists. Preserving your existing configuration.");
 } else {
