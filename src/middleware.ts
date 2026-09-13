@@ -32,6 +32,14 @@ export function middleware(request: NextRequest) {
   }
 
   if (isLoginPage && token) {
+    if (request.nextUrl.searchParams.has("error") || request.nextUrl.searchParams.has("expired")) {
+      const response = NextResponse.next();
+      response.cookies.delete("authjs.session-token");
+      response.cookies.delete("__Secure-authjs.session-token");
+      response.cookies.delete("next-auth.session-token");
+      response.cookies.delete("__Secure-next-auth.session-token");
+      return response;
+    }
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

@@ -4,6 +4,7 @@ import { OrderStatus } from "@/types/dashboard";
 interface StatusPillProps {
   status: OrderStatus;
   className?: string;
+  customLabel?: string;
 }
 
 const STATUS_CONFIG: Record<
@@ -40,14 +41,15 @@ const STATUS_CONFIG: Record<
   },
 };
 
-export function StatusPill({ status, className = "" }: StatusPillProps) {
+export function StatusPill({ status, className = "", customLabel }: StatusPillProps) {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.created;
+  const label = customLabel || config.label;
 
   return (
     <span
-      className={`inline-flex items-center justify-center text-center w-[105px] shrink-0 rounded-[3px] py-0.5 font-heading text-[12px] font-semibold uppercase tracking-[0.05em] ${config.className} ${className}`}
+      className={`inline-flex items-center justify-center text-center min-w-[105px] px-2.5 shrink-0 rounded-[3px] py-0.5 font-heading text-[12px] font-semibold uppercase tracking-[0.05em] ${config.className} ${className}`}
     >
-      {config.label}
+      {label}
     </span>
   );
 }

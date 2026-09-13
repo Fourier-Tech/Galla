@@ -97,6 +97,21 @@ async function seed() {
     await db.collection("users").insertOne(user);
     console.log("✅ Created Owner User: shreehari@gmail.com (Password: 123456)");
 
+    // 4b. Create Staff User
+    const staffUser = {
+      _id: new mongoose.Types.ObjectId("65f000000000000000000003"),
+      tenantId: tenantId,
+      name: "Counter Staff",
+      email: "staff@gmail.com",
+      passwordHash: passwordHash,
+      role: "staff",
+      activeSessionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await db.collection("users").insertOne(staffUser);
+    console.log("✅ Created Staff User: staff@gmail.com (Password: 123456)");
+
     // 5. Create Initial Products
     const products = [
       {

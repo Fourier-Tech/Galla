@@ -30,14 +30,14 @@ const NAV_ITEMS: NavItem[] = [
   { id: "customers", label: "Customers", icon: Users, ownerOnly: false },
   { id: "expenses", label: "Expenses", icon: Wallet, ownerOnly: false },
   { id: "analytics", label: "Analytics", icon: BarChart3, ownerOnly: true },
-  { id: "profile", label: "Salon Profile", icon: Store, ownerOnly: false },
+  { id: "profile", label: "Salon Profile", icon: Store, ownerOnly: true },
 ];
 
 interface SidebarProps {
   activeTab: TabId;
   onSelectTab: (tab: TabId) => void;
   role: UserRole;
-  onRoleChange: (role: UserRole) => void;
+  onRoleChange?: (role: UserRole) => void;
   salonName?: string;
   profileImageUrl?: string;
 }
@@ -46,7 +46,6 @@ export function Sidebar({
   activeTab,
   onSelectTab,
   role,
-  onRoleChange,
   salonName = "ShreeHari",
   profileImageUrl,
 }: SidebarProps) {
@@ -119,39 +118,21 @@ export function Sidebar({
         </nav>
       </div>
 
-      {/* Footer Area: Role Switcher & Account */}
-      <div className="px-4 space-y-4">
-        <div>
-          <div className="font-heading text-[11px] font-medium text-galla-ink-soft uppercase tracking-wider px-1 mb-2">
-            Counter Role
-          </div>
-          <div className="grid grid-cols-2 p-0.5 bg-galla-paper border border-galla-line rounded-[5px]">
-            <button
-              onClick={() => onRoleChange("owner")}
-              className={`text-[12px] font-sans font-medium py-1.5 rounded-[4px] transition-all cursor-pointer ${
-                role === "owner"
-                  ? "bg-galla-teal text-white shadow-xs"
-                  : "text-galla-ink-soft hover:text-galla-ink"
-              }`}
-            >
-              Owner
-            </button>
-            <button
-              onClick={() => {
-                onRoleChange("staff");
-                if (activeTab === "analytics") {
-                  onSelectTab("overview");
-                }
-              }}
-              className={`text-[12px] font-sans font-medium py-1.5 rounded-[4px] transition-all cursor-pointer ${
-                role === "staff"
-                  ? "bg-galla-teal text-white shadow-xs"
-                  : "text-galla-ink-soft hover:text-galla-ink"
-              }`}
-            >
-              Staff
-            </button>
-          </div>
+      {/* Footer Area: Account Role & Sign Out */}
+      <div className="px-4 space-y-3">
+        <div className="bg-galla-paper/80 border border-galla-line rounded-[5px] px-3 py-2 flex items-center justify-between shadow-2xs">
+          <span className="font-heading text-[11px] font-medium text-galla-ink-soft uppercase tracking-wider">
+            Logged In As
+          </span>
+          <span
+            className={`text-[11px] font-sans font-semibold px-2 py-0.5 rounded-[3px] uppercase tracking-wide ${
+              role === "owner"
+                ? "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
+                : "bg-galla-brass-soft text-galla-brass border border-galla-brass/20"
+            }`}
+          >
+            {role === "owner" ? "Owner" : "Staff"}
+          </span>
         </div>
 
         <button

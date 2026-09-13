@@ -18,6 +18,9 @@ export interface DashboardOrder {
   status: OrderStatus;
   time: string;
   isToday?: boolean;
+  isLast24Hours?: boolean;
+  createdAt?: string;
+  refundAmount?: number;
 }
 
 export interface DashboardProduct {

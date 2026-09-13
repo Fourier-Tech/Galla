@@ -38,6 +38,13 @@ function checkIsToday(date: Date | string | undefined): boolean {
   );
 }
 
+function checkIsLast24Hours(date: Date | string | undefined): boolean {
+  if (!date) return true;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return true;
+  return Date.now() - d.getTime() <= 24 * 60 * 60 * 1000;
+}
+
 function formatOrderTime(date: Date | string | undefined): string {
   if (!date) return "Today, Just now";
   const d = new Date(date);
@@ -110,10 +117,11 @@ export default async function DashboardPage() {
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect("/login?error=session_expired");
   }
 
   let salonName = "";
+  let resolvedTenantId = session.user.tenantId || "";
   let initialOrders: DashboardOrder[] = [];
   let initialProducts: DashboardProduct[] = [];
   let initialCustomers: DashboardCustomer[] = [];
@@ -135,7 +143,7 @@ export default async function DashboardPage() {
   try {
     await connectToDatabase();
 
-    let tenantId = session.user.tenantId;
+    let tenantId = resolvedTenantId;
     let tenant = null;
 
     // 1. Try finding tenant by session's tenantId
@@ -167,6 +175,7 @@ export default async function DashboardPage() {
     }
 
     if (tenant && tenantId) {
+      resolvedTenantId = tenantId;
       salonName = tenant.name;
       const tenantObjectId = new Types.ObjectId(tenantId);
 
@@ -191,6 +200,9 @@ export default async function DashboardPage() {
         status: o.status as OrderStatus,
         time: formatOrderTime(o.createdAt),
         isToday: checkIsToday(o.createdAt),
+        isLast24Hours: checkIsLast24Hours(o.createdAt),
+        createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
+        refundAmount: o.refundDetails?.refundAmount,
       }));
 
       initialProducts = rawProducts.map((p) => ({
@@ -245,6 +257,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
+      tenantId={resolvedTenantId}
       salonName={salonName}
       initialRole={initialRole}
       initialOrders={initialOrders}

@@ -97,49 +97,78 @@ export function OrdersTab({
         </div>
 
         <div className="divide-y divide-galla-line">
-          {filteredOrders.map((order) => (
-            <div
-              key={order.id}
-              className="grid grid-cols-[70px_1fr_140px_150px_175px] gap-x-6 items-center px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
-            >
-              <span className="font-mono text-[13px] text-galla-ink-soft">
-                {order.id}
-              </span>
+          {filteredOrders.map((order) => {
+            const isPartialRefund =
+              order.status === "cancelled_refunded" &&
+              Boolean(order.refundAmount && order.paid > 0);
 
-              <div className="min-w-0 pr-4">
-                <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
-                  {order.customer}
-                </div>
-                <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
-                  {order.type} &bull; {order.time}
-                </div>
-              </div>
+            return (
+              <div
+                key={order.id}
+                className="grid grid-cols-[70px_1fr_140px_150px_175px] gap-x-6 items-center px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
+              >
+                <span className="font-mono text-[13px] text-galla-ink-soft">
+                  {order.id}
+                </span>
 
-              <div className="text-right">
-                <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
-                  {formatRupee(order.amount)}
+                <div className="min-w-0 pr-4">
+                  <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
+                    {order.customer}
+                  </div>
+                  <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
+                    {order.type} &bull; {order.time}
+                  </div>
                 </div>
-                {order.paid < order.amount ? (
-                  <div className="space-y-0.5 mt-0.5">
-                    {order.paid > 0 && (
-                      <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                        {formatRupee(order.paid)} adv. paid
+
+                <div className="text-right">
+                  <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                    {formatRupee(order.amount)}
+                  </div>
+                  {order.status === "cancelled_refunded" ? (
+                    <div className="space-y-0.5 mt-0.5">
+                      <div className="font-sans text-[12px] text-red-700 font-medium tabular-nums">
+                        {isPartialRefund && order.refundAmount
+                          ? `${formatRupee(order.refundAmount)} refunded`
+                          : "Refunded"}
                       </div>
-                    )}
-                    <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
-                      {formatRupee(order.amount - order.paid)} due
+                      {isPartialRefund && (
+                        <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
+                          {formatRupee(order.paid)} kept
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="font-sans text-[12px] text-galla-ink-soft/70 mt-0.5">
-                    Settled
-                  </div>
-                )}
-              </div>
+                  ) : order.status === "cancelled_converted" ? (
+                    <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
+                      Converted
+                    </div>
+                  ) : order.paid < order.amount ? (
+                    <div className="space-y-0.5 mt-0.5">
+                      {order.paid > 0 && (
+                        <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
+                          {formatRupee(order.paid)} adv. paid
+                        </div>
+                      )}
+                      <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
+                        {formatRupee(order.amount - order.paid)} due
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="font-sans text-[12px] text-galla-ink-soft/70 mt-0.5">
+                      Settled
+                    </div>
+                  )}
+                </div>
 
-              <div className="flex justify-center">
-                <StatusPill status={order.status} />
-              </div>
+                <div className="flex justify-center">
+                  <StatusPill
+                    status={order.status}
+                    customLabel={
+                      isPartialRefund && order.refundAmount
+                        ? `${formatRupee(order.refundAmount)} Refunded`
+                        : undefined
+                    }
+                  />
+                </div>
 
               <div className="flex items-center justify-end gap-2">
                 {order.status === "completed" ? (
@@ -216,8 +245,9 @@ export function OrdersTab({
                 )}
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
         {filteredOrders.length === 0 && (
           <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">

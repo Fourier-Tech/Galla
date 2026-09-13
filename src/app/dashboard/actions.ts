@@ -25,6 +25,7 @@ import {
   DashboardSalonProfile,
   OrderType,
 } from "@/types/dashboard";
+import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
 
 interface SessionLike {
   user?: {
@@ -32,6 +33,18 @@ interface SessionLike {
     email?: string | null;
     role?: string;
   };
+}
+
+async function broadcastUpdate(tenantId: Types.ObjectId | string, actionType: string) {
+  try {
+    await triggerTenantEvent({
+      tenantId: tenantId.toString(),
+      event: "data_updated",
+      data: { action: actionType, timestamp: Date.now() },
+    });
+  } catch (err) {
+    console.warn("[Realtime] broadcastUpdate warning:", err);
+  }
 }
 
 async function resolveTenantId(session: SessionLike): Promise<Types.ObjectId | null> {
@@ -171,6 +184,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
     }
 
     revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "order_created");
 
     return {
       success: true,
@@ -183,6 +197,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         status: newDoc.status,
         time: "Today, Just now",
         isToday: true,
+        isLast24Hours: true,
+        createdAt: newDoc.createdAt ? new Date(newDoc.createdAt).toISOString() : new Date().toISOString(),
       },
     };
   } catch (error) {
@@ -261,6 +277,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
 
     await order.save();
     revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "order_completed");
 
     const mappedType: OrderType =
       order.orderType === "service_booking"
@@ -280,6 +297,8 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         status: "completed",
         time: "Today, Just now",
         isToday: true,
+        isLast24Hours: true,
+        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
       },
     };
   } catch (error) {
@@ -291,6 +310,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
 export async function refundOrderAction(rawInput: unknown): Promise<{
   success: boolean;
   order?: DashboardOrder;
+  newExpense?: DashboardExpense;
   error?: string;
 }> {
   try {
@@ -334,6 +354,19 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 
     const prevPending = order.amountPending || 0;
 
+    // Determine if refund happened on the same calendar day the order was created
+    const isSameDay = order.createdAt
+      ? (() => {
+          const d = new Date(order.createdAt);
+          const now = new Date();
+          return (
+            d.getDate() === now.getDate() &&
+            d.getMonth() === now.getMonth() &&
+            d.getFullYear() === now.getFullYear()
+          );
+        })()
+      : true;
+
     // Record formal refund details in order
     order.refundDetails = {
       refundAmount,
@@ -343,14 +376,41 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       refundedBy: session.user.role === "staff" ? "staff" : "owner",
     };
 
-    // Update financial amounts and cancel status
+    // Deduct refunded amount from order.amountPaid so it reflects the net retained amount
     order.amountPaid = Math.max(0, order.amountPaid - refundAmount);
+
+    let newExpense: DashboardExpense | undefined = undefined;
+
+    if (!isSameDay) {
+      // Next-day (or later) refund: past day's income stays closed, and an outflow Expense is recorded for TODAY
+      // so today's counter cash drawer reconciles with physical cash handed out
+      const expenseDoc = await Expense.create({
+        tenantId,
+        title: `Customer Refund — Order ${order.orderNumber} (${order.customerSnapshot?.name || "Customer"})`,
+        category: "other",
+        amount: refundAmount,
+        paymentMode: refundMode,
+        notes: refundReason || `Refund processed for order ${order.orderNumber}`,
+        expenseDate: new Date(),
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+      });
+
+      newExpense = {
+        id: expenseDoc._id.toString(),
+        desc: expenseDoc.title,
+        amount: expenseDoc.amount,
+        category: "Day-to-day",
+        time: "Today, Just now",
+        isToday: true,
+      };
+    }
+
     order.amountPending = 0;
     order.status = "cancelled_refunded";
 
     await order.save();
 
-    // Adjust customer spend stats
+    // Adjust customer lifetime stats
     if (order.customerSnapshot?.phone) {
       await Customer.findOneAndUpdate(
         { tenantId, phone: order.customerSnapshot.phone },
@@ -363,7 +423,12 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       );
     }
 
-    revalidatePath("/dashboard");
+    try {
+      revalidatePath("/dashboard");
+      broadcastUpdate(tenantId, "order_refunded");
+    } catch (revalErr) {
+      console.warn("revalidatePath warning:", revalErr);
+    }
 
     const mappedType: OrderType =
       order.orderType === "service_booking"
@@ -372,7 +437,11 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         ? "Package sale"
         : "Product sale";
 
-    return {
+    const result: {
+      success: boolean;
+      order: DashboardOrder;
+      newExpense?: DashboardExpense;
+    } = {
       success: true,
       order: {
         id: order.orderNumber,
@@ -382,9 +451,18 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         paid: order.amountPaid,
         status: "cancelled_refunded",
         time: "Today, Just now",
-        isToday: true,
+        isToday: isSameDay,
+        isLast24Hours: true,
+        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+        refundAmount: refundAmount,
       },
     };
+
+    if (newExpense) {
+      result.newExpense = newExpense;
+    }
+
+    return result;
   } catch (error) {
     console.error("Failed to refund order:", error);
     return { success: false, error: "Failed to process refund in database" };
@@ -435,6 +513,7 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
     });
 
     revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "expense_created");
 
     return {
       success: true,
@@ -511,6 +590,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
     });
 
     revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "stock_transferred");
 
     return {
       success: true,
@@ -545,6 +625,10 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
     const session = await auth();
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
+    }
+
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only the shop owner can edit the salon profile" };
     }
 
     const parseResult = updateSalonProfileSchema.safeParse(rawInput);
@@ -585,6 +669,7 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
     }
 
     revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "profile_updated");
 
     return {
       success: true,

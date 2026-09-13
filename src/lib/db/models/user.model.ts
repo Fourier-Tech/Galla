@@ -6,6 +6,7 @@ export interface IUser extends Document {
   email: string;
   passwordHash: string;
   role: "owner" | "staff";
+  activeSessionId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +41,10 @@ const UserSchema = new Schema<IUser>(
       type: String,
       enum: ["owner", "staff"],
       default: "owner",
+    },
+    activeSessionId: {
+      type: String,
+      default: null,
     },
   },
   {

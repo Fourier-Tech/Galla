@@ -26,6 +26,9 @@ function LoginFormContent() {
     if (urlError === "AccessDenied") {
       return "Access denied. Your salon account is not active.";
     }
+    if (urlError === "session_expired") {
+      return "You were logged out because this account was opened on another device.";
+    }
     if (urlError === "Configuration") {
       return "Server or database configuration error. Please verify MongoDB connection.";
     }

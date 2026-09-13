@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   DashboardOrder,
   DashboardProduct,
@@ -23,8 +24,10 @@ import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-mod
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
 import { calculatePendingAmount } from "@/lib/utils";
 import { DashboardSalonProfile } from "@/types/dashboard";
+import { useTenantSubscription } from "@/lib/realtime/pusher-client";
 
 interface DashboardClientProps {
+  tenantId?: string;
   salonName?: string;
   initialRole?: UserRole;
   initialOrders?: DashboardOrder[];
@@ -35,6 +38,7 @@ interface DashboardClientProps {
 }
 
 export function DashboardClient({
+  tenantId,
   salonName = "ShreeHari",
   initialRole = "owner",
   initialOrders = [],
@@ -43,11 +47,14 @@ export function DashboardClient({
   initialExpenses = [],
   initialSalonProfile,
 }: DashboardClientProps) {
-  const [role, setRole] = useState<UserRole>(initialRole);
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const router = useRouter();
+  const role: UserRole = initialRole;
+  const activeTabDefault: TabId = "overview";
+  const [activeTab, setActiveTab] = useState<TabId>(activeTabDefault);
+
   const [orders, setOrders] = useState<DashboardOrder[]>(initialOrders);
   const [products, setProducts] = useState<DashboardProduct[]>(initialProducts);
-  const [customers] = useState<DashboardCustomer[]>(initialCustomers);
+  const [customers, setCustomers] = useState<DashboardCustomer[]>(initialCustomers);
   const [expenses, setExpenses] = useState<DashboardExpense[]>(initialExpenses);
   const [salonProfile, setSalonProfile] = useState<DashboardSalonProfile>(
     initialSalonProfile || {
@@ -63,6 +70,75 @@ export function DashboardClient({
       ownerName: "",
     }
   );
+
+  // Synchronize state during render when server sends fresh data without cascading effects
+  const [prevInitialOrders, setPrevInitialOrders] = useState(initialOrders);
+  if (initialOrders !== prevInitialOrders) {
+    setPrevInitialOrders(initialOrders);
+    setOrders(initialOrders);
+  }
+
+  const [prevInitialProducts, setPrevInitialProducts] = useState(initialProducts);
+  if (initialProducts !== prevInitialProducts) {
+    setPrevInitialProducts(initialProducts);
+    setProducts(initialProducts);
+  }
+
+  const [prevInitialExpenses, setPrevInitialExpenses] = useState(initialExpenses);
+  if (initialExpenses !== prevInitialExpenses) {
+    setPrevInitialExpenses(initialExpenses);
+    setExpenses(initialExpenses);
+  }
+
+  const [prevInitialCustomers, setPrevInitialCustomers] = useState(initialCustomers);
+  if (initialCustomers !== prevInitialCustomers) {
+    setPrevInitialCustomers(initialCustomers);
+    setCustomers(initialCustomers);
+  }
+
+  const [prevInitialProfile, setPrevInitialProfile] = useState(initialSalonProfile);
+  if (initialSalonProfile !== prevInitialProfile) {
+    setPrevInitialProfile(initialSalonProfile);
+    if (initialSalonProfile) {
+      setSalonProfile(initialSalonProfile);
+    }
+  }
+
+  // Real-time Pusher updates across open devices (Owner & Staff)
+  useTenantSubscription({
+    tenantId,
+    event: "data_updated",
+    onEvent: () => {
+      router.refresh();
+    },
+  });
+
+  // Revalidate session and data when user switches back to tab or device unlocks
+  useEffect(() => {
+    const handleFocus = () => {
+      router.refresh();
+    };
+    window.addEventListener("focus", handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        router.refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // Passive 30-second background sync fallback
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        router.refresh();
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      clearInterval(interval);
+    };
+  }, [router]);
 
 
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
@@ -81,10 +157,16 @@ export function DashboardClient({
     setExpenses((prev) => [expense, ...prev]);
   };
 
-  const handleRefundSuccess = (updatedOrder: DashboardOrder) => {
+  const handleRefundSuccess = (
+    updatedOrder: DashboardOrder,
+    newExpense?: DashboardExpense
+  ) => {
     setOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
     );
+    if (newExpense) {
+      setExpenses((prev) => [newExpense, ...prev]);
+    }
   };
 
   const handleMoveStock = async (id: number | string) => {
@@ -131,7 +213,6 @@ export function DashboardClient({
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         role={role}
-        onRoleChange={setRole}
         salonName={salonProfile.name || salonName}
         profileImageUrl={salonProfile.profileImageUrl}
       />
@@ -187,7 +268,7 @@ export function DashboardClient({
             <AnalyticsTab pendingAmount={pendingAmount} />
           )}
 
-          {activeTab === "profile" && (
+          {activeTab === "profile" && role === "owner" && (
             <ProfileTab
               salonProfile={salonProfile}
               onUpdateProfile={setSalonProfile}

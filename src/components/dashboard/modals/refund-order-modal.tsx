@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { X, AlertCircle } from "lucide-react";
-import { DashboardOrder } from "@/types/dashboard";
+import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
 import { refundOrderAction } from "@/app/dashboard/actions";
 import { formatRupee } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ interface RefundOrderModalProps {
   order: DashboardOrder | null;
   isOpen: boolean;
   onClose: () => void;
-  onRefundSuccess: (updatedOrder: DashboardOrder) => void;
+  onRefundSuccess: (updatedOrder: DashboardOrder, newExpense?: DashboardExpense) => void;
 }
 
 export function RefundOrderModal({
@@ -52,7 +52,7 @@ export function RefundOrderModal({
       });
 
       if (res.success && res.order) {
-        onRefundSuccess(res.order);
+        onRefundSuccess(res.order, res.newExpense);
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to process refund");
@@ -121,20 +121,56 @@ export function RefundOrderModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-              Refund Amount (₹)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft">
+                Refund Amount (₹)
+              </label>
+              <button
+                type="button"
+                onClick={() => setRefundAmount(String(order.paid))}
+                className="text-[11px] font-sans text-galla-teal hover:underline cursor-pointer font-medium"
+              >
+                Set Full ({formatRupee(order.paid)})
+              </button>
+            </div>
             <input
               type="text"
               required
               value={refundAmount}
               onChange={(e) => setRefundAmount(e.target.value.replace(/\D/g, ""))}
-              placeholder="e.g. 500"
+              placeholder="Enter amount to refund"
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
             />
-            <p className="text-[11px] text-galla-ink-soft mt-1">
-              Maximum refundable: {formatRupee(order.paid)}
-            </p>
+            <div className="flex items-center justify-between text-[11px] text-galla-ink-soft mt-1">
+              <span>Max refundable: {formatRupee(order.paid)}</span>
+              {Number(refundAmount) > 0 && Number(refundAmount) < order.paid && (
+                <span className="text-galla-teal font-medium">
+                  Shop keeps: {formatRupee(order.paid - Number(refundAmount))}
+                </span>
+              )}
+            </div>
+
+            {/* Live Accounting Deduction Preview */}
+            {Number(refundAmount) > 0 && Number(refundAmount) <= order.paid && (
+              <div className="mt-2.5 p-2.5 bg-galla-paper border border-galla-line rounded-[4px] text-[11.5px] font-sans space-y-1">
+                <div className="flex justify-between text-red-700 font-medium">
+                  <span>Cash Outflow (Given to Customer):</span>
+                  <span className="tabular-nums">−{formatRupee(Number(refundAmount))}</span>
+                </div>
+                {Number(refundAmount) < order.paid && (
+                  <div className="flex justify-between text-galla-teal font-medium">
+                    <span>Retained by Salon (Shop Keeps):</span>
+                    <span className="tabular-nums">+{formatRupee(order.paid - Number(refundAmount))}</span>
+                  </div>
+                )}
+                {order.paid < order.amount && (
+                  <div className="flex justify-between text-galla-brass font-medium">
+                    <span>Pending Debt Cleared:</span>
+                    <span className="tabular-nums">−{formatRupee(order.amount - order.paid)}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>

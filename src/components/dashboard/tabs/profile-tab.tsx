@@ -147,7 +147,7 @@ export function ProfileTab({
           Salon Profile &amp; Branding
         </h2>
         <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
-          Manage parlour identity, Cloudinary profile image &amp; registered store details
+          Manage parlour identity &amp; registered store details
         </p>
       </div>
 
