@@ -23,7 +23,7 @@ export default function Home() {
       <header className="border-b bg-card/50 backdrop-blur px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-primary">
           <Layers className="h-6 w-6" />
-          <span>Vantly</span>
+          <span>Galla</span>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login" className={buttonVariants({ variant: "ghost" })}>
@@ -116,7 +116,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t py-6 px-6 text-center text-xs text-muted-foreground">
-        &copy; {new Date().getFullYear()} Vantly SaaS. All rights reserved.
+        &copy; {new Date().getFullYear()} Galla SaaS. All rights reserved.
       </footer>
     </div>
   );

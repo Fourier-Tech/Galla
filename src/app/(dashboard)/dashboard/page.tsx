@@ -6,11 +6,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Database, LayoutGrid } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Database } from "lucide-react";
 
 export const metadata = {
-  title: "Dashboard - Vantly",
+  title: "Dashboard - Galla",
   description: "Salon management workspace dashboard",
 };
 
@@ -65,16 +64,12 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Domain Features</CardTitle>
-            <LayoutGrid className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium">Realtime Engine</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs font-normal">
-                PRD Pending
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Ready for feature work</p>
+            <div className="text-lg font-bold">Pusher Channels</div>
+            <p className="text-xs text-muted-foreground mt-1">Tenant-scoped events</p>
           </CardContent>
         </Card>
       </div>

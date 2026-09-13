@@ -1,8 +1,8 @@
-# Vantly — Salon & Parlour Management SaaS
+# Galla — Salon & Parlour Management SaaS
 
 A multi-tenant, subscription-based SaaS platform designed to streamline salon and beauty parlour shop operations: inventory intake, stock tracking, order and service lifecycles (advance bookings, conversions, refunds), service/package management, and role-gated analytics.
 
-> **Status:** Project Scaffold Complete. Ready for feature implementation once the full PRD is supplied.
+> **Status:** Project Structure & Scaffold Complete. Ready for feature implementation.
 
 ---
 
@@ -11,6 +11,7 @@ A multi-tenant, subscription-based SaaS platform designed to streamline salon an
 - **Framework:** [Next.js](https://nextjs.org/) (App Router, TypeScript)
 - **Database & ORM:** MongoDB Atlas with [Mongoose](https://mongoosejs.com/) (connection-cached pattern for serverless/Vercel)
 - **Authentication:** [NextAuth.js / Auth.js](https://authjs.dev/) (Credentials provider with bcrypt password hashing, JWT session strategy)
+- **Realtime:** [Pusher Channels](https://pusher.com/channels) (`pusher` server + `pusher-js` client for tenant-scoped realtime events)
 - **Validation:** [Zod](https://zod.dev/) for strict schema validation at API boundaries
 - **Styling & Components:** [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
 - **Deployment Target:** [Vercel](https://vercel.com/)
@@ -35,6 +36,8 @@ Organized for a scalable multi-tenant SaaS architecture:
 │   │   │   ├── auth/
 │   │   │   │   ├── [...nextauth]/  # NextAuth catch-all API route
 │   │   │   │   └── register/       # Tenant + Owner registration API
+│   │   │   ├── realtime/
+│   │   │   │   └── auth/           # Pusher private channel auth endpoint
 │   │   │   └── tenants/            # Tenant management API placeholder
 │   │   ├── layout.tsx              # Root HTML layout with SessionProvider
 │   │   ├── page.tsx                # Marketing / landing page
@@ -53,6 +56,10 @@ Organized for a scalable multi-tenant SaaS architecture:
 │   │   │       ├── tenant.model.ts # Multi-tenant isolation model
 │   │   │       ├── user.model.ts   # User model referencing Tenant
 │   │   │       └── index.ts
+│   │   ├── realtime/               # Pusher realtime engine
+│   │   │   ├── pusher-server.ts    # Server SDK + triggerTenantEvent helper
+│   │   │   ├── pusher-client.ts    # Client SDK + useTenantSubscription hook
+│   │   │   └── index.ts
 │   │   ├── validations/            # Zod input validation schemas
 │   │   │   └── auth.ts
 │   │   └── utils.ts                # Styling utilities (cn helper)
@@ -60,6 +67,7 @@ Organized for a scalable multi-tenant SaaS architecture:
 │   │   └── next-auth.d.ts          # Augmented session & JWT types (tenantId, role)
 │   ├── auth.ts                     # NextAuth root export helper
 │   └── middleware.ts               # Edge session protection & route redirection
+├── .aria/                          # ARIA developer memory & system invariants
 ├── .env.example                    # Environment variable template
 ├── components.json                 # shadcn/ui configuration
 ├── next.config.ts                  # Next.js configuration
@@ -75,6 +83,7 @@ Organized for a scalable multi-tenant SaaS architecture:
 ### 1. Prerequisites
 - **Node.js**: v18.18+ (Node v20 or v22 recommended)
 - **MongoDB Atlas**: A MongoDB connection string
+- **Pusher**: A Pusher Channels app (App ID, Key, Secret, Cluster)
 
 ### 2. Install Dependencies
 ```bash
@@ -87,12 +96,18 @@ Copy `.env.example` to `.env.local`:
 cp .env.example .env.local
 ```
 
-Update `.env.local` with your MongoDB URI and Auth secret:
+Update `.env.local` with your MongoDB URI, Auth secret, and Pusher keys:
 ```env
-MONGODB_URI="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/vantly?retryWrites=true&w=majority"
+MONGODB_URI="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/galla?retryWrites=true&w=majority"
 AUTH_SECRET="your-generated-32-character-secret"
 NEXTAUTH_SECRET="your-generated-32-character-secret"
 NEXTAUTH_URL="http://localhost:3000"
+
+# Pusher Channels
+PUSHER_APP_ID="your_pusher_app_id"
+PUSHER_SECRET="your_pusher_secret"
+NEXT_PUBLIC_PUSHER_KEY="your_pusher_key"
+NEXT_PUBLIC_PUSHER_CLUSTER="ap2"
 ```
 
 To generate a secure secret:
@@ -120,15 +135,5 @@ Open [http://localhost:3000](http://localhost:3000) in your browser:
 1. **Workspace Creation:** When a shop owner registers at `/register`, a dedicated `Tenant` record is generated with a unique slug alongside the owner's `User` record containing the referenced `tenantId`.
 2. **Session Context:** Upon login via `NextAuth`, the JWT and session payload include `tenantId`, `role`, and user identifiers.
 3. **Database Caching:** `src/lib/db/mongodb.ts` implements global connection caching to prevent connection starvation or re-connection overhead in serverless environments like Vercel.
-4. **Data Isolation:** All subsequent domain entities (orders, inventory, packages) will enforce `tenantId` indexing and filtering.
-
----
-
-## 📋 Scaffold Boundaries (Explicitly Deferred)
-
-Per instructions, domain business logic is intentionally deferred pending the full PRD:
-- ❌ No order or service lifecycle state machines
-- ❌ No inventory intake or stock tracking models
-- ❌ No package / service schemas
-- ❌ No analytics or role code logic (beyond baseline owner/staff placeholders)
-- ❌ No Redis or Socket.io
+4. **Realtime Isolation:** Realtime updates use tenant-prefixed channels (`tenant-${tenantId}` or `private-tenant-${tenantId}`) so shops never see each other's live events.
+5. **Data Isolation:** All subsequent domain entities (orders, inventory, packages) enforce immutable `tenantId` indexing and filtering.

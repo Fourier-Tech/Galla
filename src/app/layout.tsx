@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vantly — Salon & Parlour Management SaaS",
+  title: "Galla — Salon & Parlour Management SaaS",
   description: "Subscription-based multi-tenant SaaS for salon and beauty parlour operations",
 };
 

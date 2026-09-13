@@ -49,7 +49,7 @@ export function DashboardSidebar() {
         <div className="px-2">
           <div className="flex items-center gap-2 font-bold text-lg text-primary tracking-tight">
             <Layers className="h-5 w-5" />
-            <span>Vantly</span>
+            <span>Galla</span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">SaaS Management</p>
         </div>

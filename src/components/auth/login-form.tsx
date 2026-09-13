@@ -52,7 +52,7 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md shadow-lg border">
       <CardHeader className="space-y-1 text-center">
-        <CardTitle className="text-2xl font-bold tracking-tight">Sign in to Vantly</CardTitle>
+        <CardTitle className="text-2xl font-bold tracking-tight">Sign in to Galla</CardTitle>
         <CardDescription>
           Enter your credentials to access your salon workspace
         </CardDescription>
