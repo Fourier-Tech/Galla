@@ -1,17 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { AlertTriangle, Lock, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { AlertTriangle, Lock, User, ArrowRight, Loader2 } from "lucide-react";
 
-export function LoginForm() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
+function LoginFormContent() {
+  const searchParams = useSearchParams();
+  const urlError = searchParams.get("error");
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Map NextAuth error query codes to human-readable error messages
+  const getErrorMessage = () => {
+    if (error) return error;
+    if (urlError === "CredentialsSignin") {
+      return "Invalid shop account ID or password. Please verify your credentials.";
+    }
+    if (urlError === "AccessDenied") {
+      return "Access denied. Your salon account is not active.";
+    }
+    if (urlError === "Configuration") {
+      return "Server or database configuration error. Please verify MongoDB connection.";
+    }
+    if (urlError) {
+      return "Authentication failed. Please verify your credentials.";
+    }
+    return null;
+  };
+
+  const activeError = getErrorMessage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,22 +42,18 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const res = await signIn("credentials", {
-        email: email.trim().toLowerCase(),
+      // In NextAuth v5 client, signIn with redirect: true handles cookie setting
+      // and redirects directly to callbackUrl (/dashboard) on success,
+      // or to /login?error=CredentialsSignin on failure!
+      await signIn("credentials", {
+        email: identifier.trim(),
         password,
-        redirect: false,
+        callbackUrl: callbackUrl.startsWith("/") ? callbackUrl : "/dashboard",
+        redirect: true,
       });
-
-      if (res?.error) {
-        setError("Invalid email or password. Please verify your shop credentials.");
-        setLoading(false);
-        return;
-      }
-
-      router.push("/dashboard");
-      router.refresh();
-    } catch {
-      setError("An unexpected error occurred while connecting. Please try again.");
+    } catch (err) {
+      console.error("[Login] Sign in exception:", err);
+      setError("An unexpected connection error occurred. Please try again.");
       setLoading(false);
     }
   };
@@ -66,14 +85,17 @@ export function LoginForm() {
         </p>
       </div>
 
-      {/* Error Alert (Decoupled Pure Red) */}
-      {error && (
+      {/* Decoupled Pure Red Failure Status Banner */}
+      {activeError && (
         <div
           role="alert"
-          className="mb-5 p-[13px] rounded-[5px] bg-red-50 border border-red-300 text-red-900 text-[13px] flex items-start gap-2.5 leading-snug"
+          className="mb-5 p-[13px] rounded-[5px] bg-red-50 border border-red-300 text-red-900 text-[13px] flex items-start gap-2.5 leading-snug shadow-xs"
         >
           <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <div className="flex-1">
+            <div className="font-semibold text-red-900">Sign In Failed</div>
+            <div className="text-[12px] text-red-800 mt-0.5">{activeError}</div>
+          </div>
         </div>
       )}
 
@@ -81,23 +103,24 @@ export function LoginForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label
-            htmlFor="email"
+            htmlFor="identifier"
             className="block font-sans text-[13px] font-medium text-galla-ink mb-1.5"
           >
-            Shop Email
+            Shop Email or Account ID
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-galla-ink-soft">
-              <Mail className="h-4 w-4" />
+              <User className="h-4 w-4" />
             </div>
             <input
-              id="email"
-              type="email"
+              id="identifier"
+              name="identifier"
+              type="text"
               required
               disabled={loading}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="shop@parlour.com"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="e.g. shreehari or shreehari@gmail.com"
               className="w-full bg-galla-paper/60 border border-galla-line rounded-[5px] pl-9 pr-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />
           </div>
@@ -116,6 +139,7 @@ export function LoginForm() {
             </div>
             <input
               id="password"
+              name="password"
               type="password"
               required
               disabled={loading}
@@ -154,5 +178,19 @@ export function LoginForm() {
         </p>
       </div>
     </div>
+  );
+}
+
+export function LoginForm() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full max-w-[377px] bg-galla-surface border border-galla-line rounded-[5px] p-[34px] flex items-center justify-center min-h-[300px]">
+          <Loader2 className="h-6 w-6 animate-spin text-galla-teal" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
   );
 }

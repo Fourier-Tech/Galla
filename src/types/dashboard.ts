@@ -1,0 +1,52 @@
+export type OrderStatus =
+  | "completed"
+  | "paid_full"
+  | "advance_paid"
+  | "cancelled_refunded"
+  | "cancelled_converted"
+  | "created";
+
+export type OrderType = "Product sale" | "Service booking" | "Package sale";
+
+export interface DashboardOrder {
+  id: string;
+  customer: string;
+  type: OrderType;
+  amount: number;
+  paid: number;
+  status: OrderStatus;
+  time: string;
+}
+
+export interface DashboardProduct {
+  id: number | string;
+  name: string;
+  sell: number;
+  use: number;
+  price: number;
+}
+
+export interface DashboardCustomer {
+  phone: string;
+  name: string;
+  visits: number;
+  lastVisit: string;
+}
+
+export interface DashboardExpense {
+  id?: string;
+  desc: string;
+  amount: number;
+  category: "Inventory purchase" | "Day-to-day" | "Salary" | "Rent";
+  time: string;
+}
+
+export type TabId =
+  | "overview"
+  | "orders"
+  | "inventory"
+  | "customers"
+  | "expenses"
+  | "analytics";
+
+export type UserRole = "owner" | "staff";
