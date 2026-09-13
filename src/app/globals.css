@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --font-heading: var(--font-outfit), sans-serif;
+  --font-sans: var(--font-inter), sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+
+  --color-galla-paper: #FAF8F9;
+  --color-galla-surface: #FFFFFF;
+  --color-galla-sidebar: #FFFFFF;
+  --color-galla-sidebar-border: #F0E4E8;
+  --color-galla-ink: #1E1217;
+  --color-galla-ink-soft: #7A666E;
+  --color-galla-teal: #B83A5D;
+  --color-galla-teal-soft: #FDF2F5;
+  --color-galla-brass: #B86A28;
+  --color-galla-brass-soft: #FEF7EC;
+  --color-galla-brick: #C23B4E;
+  --color-galla-brick-soft: #FFF1F2;
+  --color-galla-sage: #107B53;
+  --color-galla-sage-soft: #EAF7F1;
+  --color-galla-line: #EFE5E9;
+}
+
+:root {
+  --galla-paper: #FAF8F9;
+  --galla-surface: #FFFFFF;
+  --galla-sidebar: #FFFFFF;
+  --galla-sidebar-border: #F0E4E8;
+  --galla-ink: #1E1217;
+  --galla-ink-soft: #7A666E;
+  --galla-teal: #B83A5D;
+  --galla-teal-soft: #FDF2F5;
+  --galla-brass: #B86A28;
+  --galla-brass-soft: #FEF7EC;
+  --galla-brick: #C23B4E;
+  --galla-brick-soft: #FFF1F2;
+  --galla-sage: #107B53;
+  --galla-sage-soft: #EAF7F1;
+  --galla-line: #EFE5E9;
+
+  /* Global background & text matching Clean Luxury Editorial */
+  --background: #FAF8F9;
+  --foreground: #1E1217;
+}
+
+body {
+  background-color: var(--galla-paper);
+  color: var(--galla-ink);
+  font-family: var(--font-inter), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-outfit), sans-serif;
+}
