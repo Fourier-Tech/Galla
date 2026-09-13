@@ -8,6 +8,8 @@ import { loginSchema } from "@/lib/validations/auth";
 import { Tenant } from "@/lib/db/models/tenant.model";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  trustHost: true,
   session: {
     strategy: "jwt",
   },
@@ -77,7 +79,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           };
         } catch (error) {
           console.error("[Auth] Database connection or authorize error:", error);
-          throw error;
+          return null;
         }
       },
     }),
