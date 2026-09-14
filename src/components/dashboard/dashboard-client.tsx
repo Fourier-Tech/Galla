@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DashboardOrder,
@@ -133,34 +133,6 @@ export function DashboardClient({
       router.refresh();
     },
   });
-
-  // Revalidate session and data when user switches back to tab or device unlocks
-  useEffect(() => {
-    const handleFocus = () => {
-      router.refresh();
-    };
-    window.addEventListener("focus", handleFocus);
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        router.refresh();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    // Passive 30-second background sync fallback
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        router.refresh();
-      }
-    }, 30000);
-
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      clearInterval(interval);
-    };
-  }, [router]);
-
 
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);

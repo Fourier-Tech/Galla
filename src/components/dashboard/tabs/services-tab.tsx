@@ -194,6 +194,7 @@ export function ServicesTab({
         {/* View Switcher Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-galla-surface border border-galla-line rounded-[6px] shadow-2xs self-start sm:self-auto">
           <button
+            type="button"
             onClick={() => {
               setSubView("services");
               setSearchQuery("");
@@ -209,6 +210,7 @@ export function ServicesTab({
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setSubView("packages");
               setSearchQuery("");
@@ -304,6 +306,7 @@ export function ServicesTab({
         <div>
           {subView === "services" ? (
             <button
+              type="button"
               onClick={() => {
                 setServiceToEdit(null);
                 setIsServiceModalOpen(true);
@@ -315,6 +318,7 @@ export function ServicesTab({
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => {
                 setPackageToEdit(null);
                 setIsPackageModalOpen(true);
@@ -332,6 +336,7 @@ export function ServicesTab({
       {subView === "services" && existingCategories.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
+            type="button"
             onClick={() => setSelectedCategory("all")}
             className={`px-3 py-1 rounded-[4px] text-[12px] font-sans transition-colors cursor-pointer ${
               selectedCategory === "all"
@@ -346,6 +351,7 @@ export function ServicesTab({
             const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
             return (
               <button
+                type="button"
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-3 py-1 rounded-[4px] text-[12px] font-sans transition-colors cursor-pointer ${
