@@ -127,3 +127,77 @@ export function formatDisplayDate(dateStr: string): string {
     day: "numeric",
   });
 }
+
+export function formatBookingDate(date: Date | string | undefined): string {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export type BookingUrgencyTone = "today" | "tomorrow" | "in_2_days" | "future" | "overdue";
+
+export interface BookingUrgency {
+  daysAway: number;
+  tone: BookingUrgencyTone;
+  label: string;
+}
+
+export function getBookingUrgency(dateInput: Date | string | undefined): BookingUrgency | null {
+  if (!dateInput) return null;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return null;
+
+  // ponytail: Midnight comparison uses local date. Upgrade path: pass tenant timezone offset if multi-country support is needed.
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const targetMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((targetMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return { daysAway: 0, tone: "today", label: "Today" };
+  }
+  if (diffDays === 1) {
+    return { daysAway: 1, tone: "tomorrow", label: "Tomorrow" };
+  }
+  if (diffDays === 2) {
+    return { daysAway: 2, tone: "in_2_days", label: "In 2 Days" };
+  }
+  if (diffDays < 0) {
+    return { daysAway: diffDays, tone: "overdue", label: `${Math.abs(diffDays)}d ago` };
+  }
+  return { daysAway: diffDays, tone: "future", label: `In ${diffDays} days` };
+}
+
+export function getWhatsAppReminderUrl(options: {
+  phone?: string;
+  customerName: string;
+  salonName: string;
+  bookingDate: Date | string | undefined;
+}): string | null {
+  if (!options.phone) return null;
+  const cleaned = options.phone.replace(/\D/g, "");
+  if (!cleaned) return null;
+
+  // ponytail: Assumes Indian 10-digit mobile numbers (+91). Upgrade path: Add country code support to tenant profile if expanding internationally.
+  const standardNumber =
+    cleaned.length === 10
+      ? `91${cleaned}`
+      : cleaned.startsWith("0") && cleaned.length === 11
+      ? `91${cleaned.slice(1)}`
+      : cleaned;
+
+  const formattedDate = formatBookingDate(options.bookingDate);
+
+  const message =
+    `Hello ${options.customerName}! 👋\n\n` +
+    `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate}).\n\n` +
+    `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
+    `We look forward to welcoming you!`;
+
+  return `https://wa.me/${standardNumber}?text=${encodeURIComponent(message)}`;
+}

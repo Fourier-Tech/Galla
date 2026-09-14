@@ -214,6 +214,9 @@ export default async function DashboardPage() {
           initialOrderStatusCounts[item._id] = item.count;
         }
       });
+      // Combine paid_full into advance_paid for unified Advance Bookings count
+      initialOrderStatusCounts.advance_paid =
+        (initialOrderStatusCounts.advance_paid || 0) + (initialOrderStatusCounts.paid_full || 0);
 
       initialOrders = rawOrders.map((o) => ({
         id: o.orderNumber,
@@ -226,6 +229,8 @@ export default async function DashboardPage() {
         isToday: checkIsToday(o.createdAt),
         isLast24Hours: checkIsLast24Hours(o.createdAt),
         createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
+        scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
+        customerPhone: o.customerSnapshot?.phone || undefined,
         refundAmount: o.refundDetails?.refundAmount,
         refundReason: o.refundDetails?.refundReason,
         paymentMode: (o.paymentMode || o.payments?.[0]?.mode) as DashboardPaymentMode | undefined,

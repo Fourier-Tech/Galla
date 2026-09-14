@@ -19,6 +19,7 @@ export const createOrderSchema = z.object({
   discountValue: z.number().optional(),
   discountAmount: z.number().optional(),
   paymentMode: z.enum(["cash", "upi", "card"]).default("cash"),
+  bookingDate: z.string().optional(),
   lineItems: z
     .array(
       z.object({
@@ -37,9 +38,19 @@ export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
 export const completeOrderSchema = z.object({
   orderId: z.string().min(1, "Order ID is required"),
+  remainingAmount: z.number().min(0, "Remaining amount cannot be negative").optional(),
+  paymentMode: z.enum(["cash", "upi", "card"]).default("cash"),
+  notes: z.string().optional(),
 });
 
 export type CompleteOrderInput = z.infer<typeof completeOrderSchema>;
+
+export const rescheduleOrderSchema = z.object({
+  orderId: z.string().min(1, "Order ID is required"),
+  newDate: z.string().min(1, "New booking date is required"),
+});
+
+export type RescheduleOrderInput = z.infer<typeof rescheduleOrderSchema>;
 
 export const refundOrderSchema = z.object({
   orderId: z.string().min(1, "Order ID is required"),

@@ -15,6 +15,7 @@ import {
   QrCode,
   CreditCard,
   Plus,
+  Calendar,
 } from "lucide-react";
 import {
   DashboardCustomer,
@@ -23,7 +24,7 @@ import {
   DashboardPackage,
 } from "@/types/dashboard";
 import { createOrderAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, formatRupee } from "@/lib/utils";
+import { formatPhoneNumber, formatRupee, formatBookingDate } from "@/lib/utils";
 
 function getPhoneDigits(val: string): string {
   const digits = val.replace(/\D/g, "");
@@ -75,6 +76,7 @@ export function NewOrderModal({
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
   const [settlementMode, setSettlementMode] = useState<"completed" | "paid_full" | "advance">("completed");
   const [advance, setAdvance] = useState("");
+  const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().split("T")[0]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -210,6 +212,7 @@ export function NewOrderModal({
     setPaymentMode("cash");
     setSettlementMode("completed");
     setAdvance("");
+    setBookingDate(new Date().toISOString().split("T")[0]);
     setErrorMsg(null);
     setShowSuggestions(false);
   };
@@ -321,6 +324,11 @@ export function NewOrderModal({
       }
     }
 
+    if ((settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
+      setErrorMsg("Please select the appointment / booking date for this advance booking");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const formattedPhone = phone.trim() ? formatPhoneNumber(phone) : undefined;
@@ -342,6 +350,7 @@ export function NewOrderModal({
         discountValue: discountPercent,
         discountAmount: calculatedDiscountAmount,
         paymentMode: paymentMode,
+        bookingDate: (settlementMode === "advance" || settlementMode === "paid_full") ? bookingDate : undefined,
         lineItems: selectedItems.map((item) => ({
           itemId: item.id,
           itemType: item.type,
@@ -438,7 +447,7 @@ export function NewOrderModal({
                   if (e.key === "Escape") setShowSuggestions(false);
                 }}
                 autoComplete="off"
-                placeholder="e.g. Krish Butani"
+                placeholder="Enter customer name"
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
               />
 
@@ -483,7 +492,7 @@ export function NewOrderModal({
                 onBlur={() => {
                   if (phone.trim()) setPhone(formatPhoneNumber(phone));
                 }}
-                placeholder="e.g. +91 98250 12345"
+                placeholder="Enter mobile number"
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
               />
 
@@ -1039,24 +1048,83 @@ export function NewOrderModal({
                 </button>
               </div>
 
-              {/* Advance Amount Paid Input if 'advance' selected */}
-              {settlementMode === "advance" && (
-                <div className="mt-2.5 p-2.5 bg-galla-brass-soft/40 border border-galla-brass/30 rounded-[5px] space-y-1.5">
-                  <div className="flex items-center justify-between text-[11.5px]">
-                    <span className="font-medium text-galla-ink">Advance Amount Paid (₹)</span>
-                    {advance.trim() !== "" && Number(advance) > 0 && (
-                      <span className="text-galla-ink-soft">
-                        Remaining Due: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
+              {/* Advance Booking Details (Date & Deposit) */}
+              {(settlementMode === "advance" || settlementMode === "paid_full") && (
+                <div
+                  className={`mt-2.5 p-3 rounded-[6px] space-y-2.5 border ${
+                    settlementMode === "advance"
+                      ? "bg-galla-brass-soft/40 border-galla-brass/30"
+                      : "bg-galla-teal-soft/40 border-galla-teal/30"
+                  }`}
+                >
+                  <div
+                    className={`grid gap-2.5 ${
+                      settlementMode === "advance" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
+                    }`}
+                  >
+                    {/* Advance Amount (only for partial deposit) */}
+                    {settlementMode === "advance" && (
+                      <div className="space-y-1">
+                        <label className="block text-[11.5px] font-medium text-galla-ink">
+                          Advance Paid (₹)
+                        </label>
+                        <input
+                          type="text"
+                          value={advance}
+                          onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
+                          placeholder="e.g. 500"
+                          className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
+                        />
+                      </div>
+                    )}
+
+                    {/* Booking Date */}
+                    <div className="space-y-1">
+                      <label className="block text-[11.5px] font-medium text-galla-ink">
+                        Appointment / Booking Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={bookingDate}
+                        min={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
+                          settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    className={`flex items-center justify-between text-[11.5px] pt-1.5 border-t text-galla-ink-soft ${
+                      settlementMode === "advance" ? "border-galla-brass/25" : "border-galla-teal/20"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar
+                        className={`h-3 w-3 shrink-0 ${
+                          settlementMode === "advance" ? "text-galla-brass" : "text-galla-teal"
+                        }`}
+                      />
+                      <span>
+                        Booked for:{" "}
+                        <strong className="text-galla-ink">
+                          {formatBookingDate(bookingDate) || "Not set"}
+                        </strong>
+                      </span>
+                    </span>
+                    {settlementMode === "advance" ? (
+                      advance.trim() !== "" && Number(advance) > 0 ? (
+                        <span>
+                          Remaining: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
+                        </span>
+                      ) : null
+                    ) : (
+                      <span className="text-galla-teal font-medium">
+                        Paid in Full ({formatRupee(finalTotal)})
                       </span>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    value={advance}
-                    onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Enter advance amount (e.g. 500)"
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
-                  />
                 </div>
               )}
             </div>

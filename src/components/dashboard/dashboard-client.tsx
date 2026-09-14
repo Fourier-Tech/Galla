@@ -22,12 +22,14 @@ import { ServicesTab } from "@/components/dashboard/tabs/services-tab";
 import { NewOrderModal } from "@/components/dashboard/modals/new-order-modal";
 import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal";
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
+import { SettleOrderModal } from "@/components/dashboard/modals/settle-order-modal";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
 import { calculatePendingAmount, formatPhoneNumber } from "@/lib/utils";
 import {
   DashboardSalonProfile,
   DashboardService,
   DashboardPackage,
+  OrderStatus,
 } from "@/types/dashboard";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
 
@@ -70,6 +72,22 @@ export function DashboardClient({
   const role: UserRole = initialRole;
   const activeTabDefault: TabId = "overview";
   const [activeTab, setActiveTab] = useState<TabId>(activeTabDefault);
+  const [ordersFilter, setOrdersFilter] = useState<OrderStatus | "all">("all");
+  const [ordersNavKey, setOrdersNavKey] = useState(0);
+
+  const handleNavigateToAdvanceOrders = () => {
+    setOrdersFilter("advance_paid");
+    setOrdersNavKey((k) => k + 1);
+    setActiveTab("orders");
+  };
+
+  const handleSelectTab = (tab: TabId) => {
+    if (tab === "orders") {
+      setOrdersFilter("all");
+      setOrdersNavKey((k) => k + 1);
+    }
+    setActiveTab(tab);
+  };
 
   const [orders, setOrders] = useState<DashboardOrder[]>(initialOrders);
   const [products, setProducts] = useState<DashboardProduct[]>(initialProducts);
@@ -137,13 +155,15 @@ export function DashboardClient({
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);
   const [refundOrder, setRefundOrder] = useState<DashboardOrder | null>(null);
+  const [settleOrder, setSettleOrder] = useState<DashboardOrder | null>(null);
 
   const todayExpenses = expenses.filter((e) => e.isToday !== false);
   const expensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
   const pendingAmount = calculatePendingAmount(orders);
 
   const handleAddOrder = (order: DashboardOrder, customerPhone?: string) => {
-    setOrders((prev) => [order, ...prev]);
+    const enrichedOrder = customerPhone && !order.customerPhone ? { ...order, customerPhone } : order;
+    setOrders((prev) => [enrichedOrder, ...prev]);
     if (order.customer && order.customer !== "Walk-in Guest") {
       const phone = customerPhone ? formatPhoneNumber(customerPhone) : "";
       setCustomers((prev) => {
@@ -190,6 +210,18 @@ export function DashboardClient({
     if (newExpense) {
       setExpenses((prev) => [newExpense, ...prev]);
     }
+  };
+
+  const handleRescheduleOrder = (updatedOrder: DashboardOrder) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+    );
+  };
+
+  const handleSettleSuccess = (updatedOrder: DashboardOrder) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
+    );
   };
 
   const handleMoveStock = async (id: number | string) => {
@@ -262,7 +294,7 @@ export function DashboardClient({
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         role={role}
         salonName={salonProfile.name || salonName}
         profileImageUrl={salonProfile.profileImageUrl}
@@ -288,20 +320,27 @@ export function DashboardClient({
               expensesTotal={expensesTotal}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
+              onNavigateToAdvanceOrders={handleNavigateToAdvanceOrders}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}
+              onOpenSettle={(order) => setSettleOrder(order)}
               onNavigateToInventory={() => setActiveTab("inventory")}
             />
           )}
 
           {activeTab === "orders" && (
             <OrdersTab
+              key={ordersNavKey}
               orders={orders}
               initialTotalCount={initialTotalOrdersCount}
               initialStatusCounts={initialOrderStatusCounts}
+              initialFilter={ordersFilter}
+              salonName={salonProfile.name}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}
+              onRescheduleOrder={handleRescheduleOrder}
+              onOpenSettle={(order) => setSettleOrder(order)}
             />
           )}
 
@@ -370,6 +409,14 @@ export function DashboardClient({
         isOpen={Boolean(refundOrder)}
         onClose={() => setRefundOrder(null)}
         onRefundSuccess={handleRefundSuccess}
+      />
+
+      <SettleOrderModal
+        key={settleOrder?.id || "settle-modal"}
+        order={settleOrder}
+        isOpen={Boolean(settleOrder)}
+        onClose={() => setSettleOrder(null)}
+        onSettleSuccess={handleSettleSuccess}
       />
     </div>
   );

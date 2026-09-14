@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Plus,
   Check,
@@ -11,29 +11,38 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Phone,
+  MessageSquare,
 } from "lucide-react";
 import { DashboardOrder, OrderStatus } from "@/types/dashboard";
 import { StatusPill } from "@/components/dashboard/status-pill";
+import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import {
   formatRupee,
   getLocalDateString,
   getFirstDayOfCurrentMonth,
   formatDisplayDate,
+  formatBookingDate,
+  getBookingUrgency,
+  getWhatsAppReminderUrl,
 } from "@/lib/utils";
 
 interface OrdersTabProps {
   orders: DashboardOrder[];
   initialTotalCount?: number;
   initialStatusCounts?: Record<string, number>;
+  initialFilter?: OrderStatus | "all";
+  salonName?: string;
   onOpenNewOrder: () => void;
   onCompleteOrder?: (orderId: string) => Promise<void> | void;
   onOpenRefund?: (order: DashboardOrder) => void;
+  onRescheduleOrder?: (updatedOrder: DashboardOrder) => void;
+  onOpenSettle?: (order: DashboardOrder) => void;
 }
 
 const FILTER_OPTIONS: { id: "all" | OrderStatus; label: string }[] = [
   { id: "all", label: "All Orders" },
-  { id: "advance_paid", label: "Advance Paid" },
-  { id: "paid_full", label: "Paid in Full" },
+  { id: "advance_paid", label: "Advance Bookings" },
   { id: "completed", label: "Completed" },
   { id: "cancelled_refunded", label: "Refunded" },
 ];
@@ -43,11 +52,17 @@ export function OrdersTab({
   orders,
   initialTotalCount,
   initialStatusCounts,
+  initialFilter,
+  salonName,
   onOpenNewOrder,
   onCompleteOrder,
   onOpenRefund,
+  onRescheduleOrder,
+  onOpenSettle,
 }: OrdersTabProps) {
-  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+  const [filter, setFilter] = useState<"all" | OrderStatus>(initialFilter || "all");
+  const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
+  const [reschedulingOrder, setReschedulingOrder] = useState<DashboardOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -65,8 +80,7 @@ export function OrdersTab({
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>(
     initialStatusCounts || {
       all: initialTotalCount !== undefined ? initialTotalCount : orders.length,
-      advance_paid: orders.filter((o) => o.status === "advance_paid").length,
-      paid_full: orders.filter((o) => o.status === "paid_full").length,
+      advance_paid: orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full").length,
       completed: orders.filter((o) => o.status === "completed").length,
       cancelled_refunded: orders.filter((o) => o.status === "cancelled_refunded").length,
     }
@@ -80,11 +94,34 @@ export function OrdersTab({
   const [prevInitialTotalCount, setPrevInitialTotalCount] = useState(initialTotalCount);
   const [prevInitialStatusCounts, setPrevInitialStatusCounts] = useState(initialStatusCounts);
 
+  // Sync with initialFilter prop when navigated from Dashboard
+  if (initialFilter !== undefined && initialFilter !== prevInitialFilter) {
+    setPrevInitialFilter(initialFilter);
+    setFilter(initialFilter);
+    if (!searchQuery && !startDate && !endDate) {
+      if (initialFilter === "all") {
+        setDisplayedOrders(orders);
+      } else if (initialFilter === "advance_paid") {
+        const inMemory = orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full");
+        setDisplayedOrders(inMemory);
+      } else {
+        const inMemory = orders.filter((o) => o.status === initialFilter);
+        setDisplayedOrders(inMemory);
+      }
+    }
+  }
+
   const isDefaultView =
     page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest";
 
   if (orders !== prevOrders) {
     setPrevOrders(orders);
+    setStatusCounts({
+      all: orders.length,
+      advance_paid: orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full").length,
+      completed: orders.filter((o) => o.status === "completed").length,
+      cancelled_refunded: orders.filter((o) => o.status === "cancelled_refunded").length,
+    });
     if (isDefaultView) {
       setDisplayedOrders(orders);
     } else {
@@ -121,9 +158,12 @@ export function OrdersTab({
       setStatusCounts((prev) => {
         const order = displayedOrders.find((o) => o.id === id);
         const prevStatus = order?.status;
+        const isAdvance = prevStatus === "advance_paid" || prevStatus === "paid_full";
         return {
           ...prev,
-          ...(prevStatus && prev[prevStatus] !== undefined
+          ...(isAdvance
+            ? { advance_paid: Math.max(0, (prev.advance_paid || 1) - 1) }
+            : prevStatus && prev[prevStatus] !== undefined
             ? { [prevStatus]: Math.max(0, prev[prevStatus] - 1) }
             : {}),
           completed: (prev.completed || 0) + 1,
@@ -132,6 +172,13 @@ export function OrdersTab({
     } finally {
       setLoadingId(null);
     }
+  };
+
+  const handleRescheduleSuccess = (updatedOrder: DashboardOrder) => {
+    setDisplayedOrders((prev) =>
+      prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+    );
+    onRescheduleOrder?.(updatedOrder);
   };
 
   // On-demand fast GET fetch for pagination and filters (with auto-abort of previous in-flight queries)
@@ -216,6 +263,9 @@ export function OrdersTab({
     if (!searchQuery && !startDate && !endDate) {
       if (newFilter === "all") {
         setDisplayedOrders(orders);
+      } else if (newFilter === "advance_paid") {
+        const inMemory = orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full");
+        setDisplayedOrders(inMemory);
       } else {
         const inMemory = orders.filter((o) => o.status === newFilter);
         setDisplayedOrders(inMemory);
@@ -224,6 +274,44 @@ export function OrdersTab({
   };
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+  // Priority sorting for Advance Paid orders: 1st Today -> 2nd 1 Day Before -> 3rd 2 Days Before -> all other
+  const sortedOrders = useMemo(() => {
+    if (filter !== "advance_paid" || searchQuery || startDate || endDate) {
+      return displayedOrders;
+    }
+
+    return [...displayedOrders].sort((a, b) => {
+      const urgencyA = getBookingUrgency(a.scheduledFor);
+      const urgencyB = getBookingUrgency(b.scheduledFor);
+
+      const getTier = (u: ReturnType<typeof getBookingUrgency>) => {
+        if (!u) return 6;
+        if (u.daysAway === 0) return 1; // 1st priority: Today
+        if (u.daysAway === 1) return 2; // 2nd priority: 1 day before (Tomorrow)
+        if (u.daysAway === 2) return 3; // 3rd priority: 2 days before
+        if (u.daysAway > 2) return 4;  // Later future dates
+        if (u.daysAway < 0) return 5;  // Overdue
+        return 6;                      // Unscheduled
+      };
+
+      const tierA = getTier(urgencyA);
+      const tierB = getTier(urgencyB);
+
+      if (tierA !== tierB) {
+        return tierA - tierB;
+      }
+
+      // Within same tier, sort nearest first
+      if (urgencyA && urgencyB && urgencyA.daysAway !== urgencyB.daysAway) {
+        return urgencyA.daysAway - urgencyB.daysAway;
+      }
+
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+  }, [displayedOrders, filter, searchQuery, startDate, endDate]);
 
   return (
     <div className="space-y-6 w-full">
@@ -429,10 +517,13 @@ export function OrdersTab({
         </div>
 
         <div className={`divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
-          {displayedOrders.map((order) => {
+          {sortedOrders.map((order) => {
             const isPartialRefund =
               order.status === "cancelled_refunded" &&
               Boolean(order.refundAmount && order.paid > 0);
+            const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+            // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
+            const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
             return (
               <div
@@ -450,6 +541,120 @@ export function OrdersTab({
                   <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
                     {order.type} &bull; {order.time}
                   </div>
+                  {order.scheduledFor && (() => {
+                    if (!urgency) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setReschedulingOrder(order)}
+                          className="inline-flex items-center gap-1 font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] mt-1 font-medium hover:opacity-85 transition-all cursor-pointer group"
+                          title="Click to reschedule appointment date"
+                        >
+                          <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                          <span>Booked for: {formatBookingDate(order.scheduledFor)}</span>
+                          <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                            Reschedule
+                          </span>
+                        </button>
+                      );
+                    }
+
+                    const isToday = urgency.tone === "today";
+                    const isTomorrow = urgency.tone === "tomorrow";
+                    const isIn2Days = urgency.tone === "in_2_days";
+
+                    const badgeStyle = isToday
+                      ? "text-rose-800 bg-rose-50 border-rose-200"
+                      : isTomorrow
+                      ? "text-amber-900 bg-amber-50 border-amber-300"
+                      : isIn2Days
+                      ? "text-blue-800 bg-blue-50 border-blue-200"
+                      : urgency.tone === "overdue"
+                      ? "text-gray-700 bg-gray-100 border-gray-300"
+                      : "text-amber-800 bg-amber-50/90 border-amber-200/80";
+
+                    const dateStr = formatBookingDate(order.scheduledFor);
+
+                    const badgeLabel = isToday
+                      ? `🚨 Today (${dateStr})`
+                      : isTomorrow
+                      ? `⏰ Tomorrow (${dateStr})`
+                      : isIn2Days
+                      ? `📅 In 2 Days (${dateStr})`
+                      : urgency.tone === "overdue"
+                      ? `⚠️ Overdue (${dateStr})`
+                      : `Booked for: ${dateStr}`;
+
+                    const waUrl = isTomorrow
+                      ? getWhatsAppReminderUrl({
+                          phone: order.customerPhone,
+                          customerName: order.customer,
+                          salonName: salonName || "our salon",
+                          bookingDate: order.scheduledFor,
+                        })
+                      : null;
+
+                    return (
+                      <div className="mt-1.5 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setReschedulingOrder(order)}
+                            className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] font-medium shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${badgeStyle}`}
+                            title="Click to reschedule appointment date"
+                          >
+                            <Calendar className="h-3 w-3 shrink-0" />
+                            <span>{badgeLabel}</span>
+                            <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                              Reschedule
+                            </span>
+                          </button>
+
+                          {/* 2 Days Before: Internal Notice for Staff & Salon Owner */}
+                          {isIn2Days && (
+                            <span className="inline-flex items-center text-[11px] font-sans font-medium text-blue-700 bg-blue-50/80 border border-blue-200 px-1.5 py-0.5 rounded">
+                              Staff &amp; Owner Prep
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 1 Day Before (Tomorrow): Direct Call & WhatsApp Action Buttons */}
+                        {isTomorrow && (
+                          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                            {order.customerPhone ? (
+                              <a
+                                href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                title={`Call client: ${order.customerPhone}`}
+                              >
+                                <Phone className="h-3 w-3 text-amber-800 shrink-0" />
+                                <span>Call</span>
+                              </a>
+                            ) : null}
+
+                            {waUrl ? (
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
+                                title="Send reminder via WhatsApp"
+                              >
+                                <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
+                                <span>WhatsApp Reminder</span>
+                              </a>
+                            ) : null}
+
+                            {!order.customerPhone && (
+                              <span className="text-[11px] text-galla-ink-soft/70 italic">
+                                No phone recorded
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {order.status === "cancelled_refunded" &&
                     order.refundReason &&
                     order.refundReason !== "Customer requested refund" &&
@@ -555,22 +760,24 @@ export function OrdersTab({
                   )
                 ) : order.status === "paid_full" ? (
                   <>
-                    <button
-                      onClick={() => handleComplete(order.id)}
-                      disabled={loadingId === order.id}
-                      className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                      title="Mark service as completed"
-                    >
-                      {loadingId === order.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                      ) : (
-                        <>
-                          <span>Mark Done</span>
-                          <Check className="h-3.5 w-3.5 text-green-700" />
-                        </>
-                      )}
-                    </button>
-                    {onOpenRefund && (
+                    {isAppointmentDue && (
+                      <button
+                        onClick={() => handleComplete(order.id)}
+                        disabled={loadingId === order.id}
+                        className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                        title="Mark service as completed"
+                      >
+                        {loadingId === order.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                        ) : (
+                          <>
+                            <span>Mark Done</span>
+                            <Check className="h-3.5 w-3.5 text-green-700" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {onOpenRefund ? (
                       <button
                         onClick={() => onOpenRefund(order)}
                         className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -578,26 +785,30 @@ export function OrdersTab({
                       >
                         Refund
                       </button>
-                    )}
+                    ) : !isAppointmentDue ? (
+                      <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                    ) : null}
                   </>
                 ) : order.status === "advance_paid" ? (
                   <>
-                    <button
-                      onClick={() => handleComplete(order.id)}
-                      disabled={loadingId === order.id}
-                      className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                      title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
-                    >
-                      {loadingId === order.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                      ) : (
-                        <>
-                          <span>Settle &amp; Done</span>
-                          <Check className="h-3.5 w-3.5 text-green-700" />
-                        </>
-                      )}
-                    </button>
-                    {onOpenRefund && (
+                    {isAppointmentDue && (
+                      <button
+                        onClick={() => (onOpenSettle ? onOpenSettle(order) : handleComplete(order.id))}
+                        disabled={loadingId === order.id}
+                        className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                        title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
+                      >
+                        {loadingId === order.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                        ) : (
+                          <>
+                            <span>Settle &amp; Done</span>
+                            <Check className="h-3.5 w-3.5 text-green-700" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {onOpenRefund ? (
                       <button
                         onClick={() => onOpenRefund(order)}
                         className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -605,7 +816,9 @@ export function OrdersTab({
                       >
                         Refund
                       </button>
-                    )}
+                    ) : !isAppointmentDue ? (
+                      <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                    ) : null}
                   </>
                 ) : (
                   <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
@@ -697,6 +910,14 @@ export function OrdersTab({
           </div>
         </div>
       </div>
+
+      {/* Reschedule Booking Modal */}
+      <RescheduleOrderModal
+        order={reschedulingOrder}
+        isOpen={Boolean(reschedulingOrder)}
+        onClose={() => setReschedulingOrder(null)}
+        onRescheduleSuccess={handleRescheduleSuccess}
+      />
     </div>
   );
 }

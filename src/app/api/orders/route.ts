@@ -61,7 +61,11 @@ export async function GET(request: Request) {
 
     // Status filter
     if (status && status !== "all") {
-      query.status = status;
+      if (status === "advance_paid") {
+        query.status = { $in: ["advance_paid", "paid_full"] };
+      } else {
+        query.status = status;
+      }
     }
 
     // Date range filter
@@ -93,11 +97,15 @@ export async function GET(request: Request) {
     }
 
     const sortDirection = sortOrder === "oldest" ? 1 : -1;
+    const sortQuery: Record<string, 1 | -1> =
+      status === "advance_paid" && !searchParams.get("sortOrder")
+        ? { scheduledFor: 1, createdAt: -1 }
+        : { createdAt: sortDirection };
 
     const [totalCount, rawOrders, statusAgg, overallTotal] = await Promise.all([
       Order.countDocuments(query),
       Order.find(query)
-        .sort({ createdAt: sortDirection })
+        .sort(sortQuery)
         .skip((page - 1) * pageSize)
         .limit(pageSize)
         .lean(),
@@ -120,10 +128,13 @@ export async function GET(request: Request) {
         statusCounts[item._id] = item.count;
       }
     });
+    // Combine paid_full into advance_paid for unified Advance Bookings count
+    statusCounts.advance_paid = (statusCounts.advance_paid || 0) + (statusCounts.paid_full || 0);
 
     const orders: DashboardOrder[] = rawOrders.map((o) => ({
       id: o.orderNumber,
       customer: o.customerSnapshot?.name || "Walk-in Customer",
+      customerPhone: o.customerSnapshot?.phone || undefined,
       type:
         o.orderType === "service_booking"
           ? "Service booking"
@@ -137,6 +148,7 @@ export async function GET(request: Request) {
       isToday: checkIsToday(o.createdAt),
       isLast24Hours: checkIsLast24Hours(o.createdAt),
       createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
+      scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
       refundAmount: o.refundDetails?.refundAmount,
       refundReason: o.refundDetails?.refundReason,
       paymentMode: (o.paymentMode || o.payments?.[0]?.mode) as DashboardPaymentMode | undefined,

@@ -28,6 +28,8 @@ export interface DashboardOrder {
   paymentMode?: DashboardPaymentMode;
   refundMode?: DashboardRefundMode;
   advanceAmount?: number;
+  scheduledFor?: string;
+  customerPhone?: string;
 }
 
 export interface DashboardProduct {

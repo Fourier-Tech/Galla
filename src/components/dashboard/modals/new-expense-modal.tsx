@@ -101,7 +101,7 @@ export function NewExpenseModal({
               required
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="e.g. Tea & snacks, Sharma Dealers"
+              placeholder="e.g. Tea & snacks, shop supplies, utilities"
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />
           </div>

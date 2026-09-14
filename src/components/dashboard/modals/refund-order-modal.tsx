@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, AlertCircle } from "lucide-react";
 import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
 import { refundOrderAction } from "@/app/dashboard/actions";
-import { formatRupee } from "@/lib/utils";
+import { formatRupee, formatBookingDate } from "@/lib/utils";
 
 interface RefundOrderModalProps {
   order: DashboardOrder | null;
@@ -82,6 +82,7 @@ export function RefundOrderModal({
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft">
               {order.id} &bull; {order.customer}
+              {order.scheduledFor ? ` • Booked: ${formatBookingDate(order.scheduledFor)}` : ""}
             </p>
           </div>
           <button

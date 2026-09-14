@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight } from "lucide-react";
+import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar } from "lucide-react";
 import { DashboardOrder, DashboardProduct } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, getBookingUrgency } from "@/lib/utils";
 
 interface OverviewTabProps {
   orders: DashboardOrder[];
@@ -13,9 +13,11 @@ interface OverviewTabProps {
   expensesTotal: number;
   onOpenNewOrder: () => void;
   onOpenNewExpense: () => void;
+  onNavigateToAdvanceOrders?: () => void;
   onCompleteOrder?: (orderId: string) => Promise<void> | void;
   onOpenRefund?: (order: DashboardOrder) => void;
   onNavigateToInventory?: () => void;
+  onOpenSettle?: (order: DashboardOrder) => void;
 }
 
 export function OverviewTab({
@@ -24,9 +26,11 @@ export function OverviewTab({
   expensesTotal,
   onOpenNewOrder,
   onOpenNewExpense,
+  onNavigateToAdvanceOrders,
   onCompleteOrder,
   onOpenRefund,
   onNavigateToInventory,
+  onOpenSettle,
 }: OverviewTabProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -68,6 +72,16 @@ export function OverviewTab({
     });
   }, [orders, searchQuery]);
 
+  // Advance bookings due near (Today, Tomorrow, or Day after tomorrow)
+  const upcomingAdvanceOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if ((o.status !== "advance_paid" && o.status !== "paid_full") || !o.scheduledFor) return false;
+      const urgency = getBookingUrgency(o.scheduledFor);
+      if (!urgency) return false;
+      return urgency.daysAway >= 0 && urgency.daysAway <= 2;
+    });
+  }, [orders]);
+
   return (
     <div className="flex flex-col h-full min-h-0 space-y-3.5 w-full">
       {/* Section Header (Fixed) */}
@@ -82,6 +96,41 @@ export function OverviewTab({
         </div>
 
         <div className="flex items-center gap-2.5">
+          {onNavigateToAdvanceOrders && (
+            <button
+              onClick={onNavigateToAdvanceOrders}
+              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${
+                upcomingAdvanceOrders.length > 0
+                  ? "bg-amber-50/90 hover:bg-amber-100 border-amber-300 text-amber-900 ring-2 ring-amber-400/40"
+                  : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
+              }`}
+              title={
+                upcomingAdvanceOrders.length > 0
+                  ? `${upcomingAdvanceOrders.length} advance booking(s) near (Today - 2 days)`
+                  : "View Advance Bookings"
+              }
+            >
+              <div className="relative flex items-center justify-center">
+                <Calendar className={`h-4 w-4 ${upcomingAdvanceOrders.length > 0 ? "text-amber-700" : "text-galla-ink-soft"}`} />
+                {upcomingAdvanceOrders.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                  </span>
+                )}
+              </div>
+              <span>Advance Bookings</span>
+              {upcomingAdvanceOrders.length > 0 && (
+                <span
+                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-amber-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${
+                    upcomingAdvanceOrders.length > 9 ? "min-w-5 px-1.5" : "w-5"
+                  }`}
+                >
+                  {upcomingAdvanceOrders.length}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={onOpenNewExpense}
             className="inline-flex items-center gap-1.5 bg-galla-surface hover:bg-galla-paper border border-galla-line text-galla-ink font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-colors cursor-pointer"
@@ -215,6 +264,9 @@ export function OverviewTab({
               const isPartialRefund =
                 order.status === "cancelled_refunded" &&
                 Boolean(order.refundAmount && order.paid > 0);
+              const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+              // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
+              const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
               return (
                 <div
@@ -232,6 +284,34 @@ export function OverviewTab({
                     <div className="font-sans text-[12px] text-galla-ink-soft truncate">
                       {order.type} &bull; {order.time}
                     </div>
+                    {order.scheduledFor && (() => {
+                      const isToday = urgency?.tone === "today";
+                      const isTomorrow = urgency?.tone === "tomorrow";
+                      const isIn2Days = urgency?.tone === "in_2_days";
+
+                      const badgeStyle = isToday
+                        ? "text-rose-800 bg-rose-50/90 border-rose-200"
+                        : isTomorrow
+                        ? "text-amber-800 bg-amber-50/90 border-amber-200"
+                        : isIn2Days
+                        ? "text-blue-800 bg-blue-50/90 border-blue-200"
+                        : "text-amber-800 bg-amber-50/90 border-amber-200/80";
+
+                      return (
+                        <div className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] mt-0.5 font-medium ${badgeStyle}`}>
+                          <Calendar className="h-3 w-3 shrink-0" />
+                          <span>
+                            {urgency?.tone === "today"
+                              ? "🚨 Today"
+                              : urgency?.tone === "tomorrow"
+                              ? "⏰ Tomorrow"
+                              : urgency?.tone === "in_2_days"
+                              ? "📅 In 2 Days"
+                              : `Booked: ${formatBookingDate(order.scheduledFor)}`}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     {order.status === "cancelled_refunded" &&
                       order.refundReason &&
                       order.refundReason !== "Customer requested refund" &&
@@ -337,22 +417,24 @@ export function OverviewTab({
                     )
                   ) : order.status === "paid_full" ? (
                     <>
-                      <button
-                        onClick={() => handleComplete(order.id)}
-                        disabled={loadingId === order.id}
-                        className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                        title="Mark service as completed"
-                      >
-                        {loadingId === order.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                        ) : (
-                          <>
-                            <span>Mark Done</span>
-                            <Check className="h-3.5 w-3.5 text-green-700" />
-                          </>
-                        )}
-                      </button>
-                      {onOpenRefund && (
+                      {isAppointmentDue && (
+                        <button
+                          onClick={() => handleComplete(order.id)}
+                          disabled={loadingId === order.id}
+                          className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                          title="Mark service as completed"
+                        >
+                          {loadingId === order.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                          ) : (
+                            <>
+                              <span>Mark Done</span>
+                              <Check className="h-3.5 w-3.5 text-green-700" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                      {onOpenRefund ? (
                         <button
                           onClick={() => onOpenRefund(order)}
                           className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -360,26 +442,30 @@ export function OverviewTab({
                         >
                           Refund
                         </button>
-                      )}
+                      ) : !isAppointmentDue ? (
+                        <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                      ) : null}
                     </>
                   ) : order.status === "advance_paid" ? (
                     <>
-                      <button
-                        onClick={() => handleComplete(order.id)}
-                        disabled={loadingId === order.id}
-                        className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                        title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
-                      >
-                        {loadingId === order.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                        ) : (
-                          <>
-                            <span>Settle &amp; Done</span>
-                            <Check className="h-3.5 w-3.5 text-green-700" />
-                          </>
-                        )}
-                      </button>
-                      {onOpenRefund && (
+                      {isAppointmentDue && (
+                        <button
+                          onClick={() => (onOpenSettle ? onOpenSettle(order) : handleComplete(order.id))}
+                          disabled={loadingId === order.id}
+                          className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                          title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
+                        >
+                          {loadingId === order.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                          ) : (
+                            <>
+                              <span>Settle &amp; Done</span>
+                              <Check className="h-3.5 w-3.5 text-green-700" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                      {onOpenRefund ? (
                         <button
                           onClick={() => onOpenRefund(order)}
                           className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -387,7 +473,9 @@ export function OverviewTab({
                         >
                           Refund
                         </button>
-                      )}
+                      ) : !isAppointmentDue ? (
+                        <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                      ) : null}
                     </>
                   ) : (
                     <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>

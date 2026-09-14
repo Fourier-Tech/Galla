@@ -15,6 +15,7 @@ import { PackageTemplate, type IPackageTemplate } from "@/lib/db/models/package-
 import {
   createOrderSchema,
   completeOrderSchema,
+  rescheduleOrderSchema,
   refundOrderSchema,
   createExpenseSchema,
   transferStockSchema,
@@ -167,6 +168,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       amountPaid: input.paidAmount,
       amountPending: amountPending,
       paymentMode: input.paymentMode || "cash",
+      scheduledFor: input.bookingDate ? new Date(input.bookingDate) : undefined,
       payments:
         input.paidAmount > 0
           ? [
@@ -251,6 +253,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         createdAt: newDoc.createdAt ? new Date(newDoc.createdAt).toISOString() : new Date().toISOString(),
         paymentMode: newDoc.paymentMode,
         advanceAmount: newDoc.status === "advance_paid" ? newDoc.amountPaid : undefined,
+        scheduledFor: newDoc.scheduledFor ? new Date(newDoc.scheduledFor).toISOString() : undefined,
+        customerPhone: formattedPhone || undefined,
       },
     };
   } catch (error) {
@@ -275,7 +279,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { orderId } = parseResult.data;
+    const { orderId, remainingAmount, paymentMode, notes } = parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -293,40 +297,59 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Order not found" };
     }
 
-    // Settle remaining balance if any (e.g. from advance_paid)
-    const remainingDue = Math.max(0, order.totalAmount - order.amountPaid);
-    if (remainingDue > 0) {
-      order.amountPaid = order.totalAmount;
-      order.amountPending = 0;
+    // Default remaining balance from current total and paid
+    const defaultRemaining = Math.max(0, order.totalAmount - order.amountPaid);
+    const amountToCollect = remainingAmount !== undefined ? remainingAmount : defaultRemaining;
+
+    // If counter adjusted the remaining price (e.g. concession discount or add-on)
+    if (remainingAmount !== undefined && remainingAmount !== defaultRemaining) {
+      if (amountToCollect < defaultRemaining) {
+        const concession = defaultRemaining - amountToCollect;
+        order.discountAmount = (order.discountAmount || 0) + concession;
+      }
+      order.totalAmount = order.amountPaid + amountToCollect;
+    }
+
+    if (amountToCollect > 0) {
+      order.amountPaid += amountToCollect;
       order.payments.push({
-        amount: remainingDue,
-        mode: "cash",
+        amount: amountToCollect,
+        mode: paymentMode,
         recordedAt: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
       });
+      order.paymentMode = paymentMode;
+    }
 
-      // Update customer stats
-      if (order.customerSnapshot?.phone) {
-        const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
-        const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
-        await Customer.findOneAndUpdate(
-          {
-            tenantId,
-            $or: [
-              { phone: cleanPhone },
-              ...(rawDigits.length === 10
-                ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
-                : [{ phone: order.customerSnapshot.phone }]),
-            ],
+    order.amountPending = 0;
+    order.status = "completed";
+    order.completedAt = new Date();
+
+    if (notes?.trim()) {
+      order.notes = order.notes ? `${order.notes} | ${notes.trim()}` : notes.trim();
+    }
+
+    // Update customer stats
+    if (order.customerSnapshot?.phone) {
+      const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
+      const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
+      await Customer.findOneAndUpdate(
+        {
+          tenantId,
+          $or: [
+            { phone: cleanPhone },
+            ...(rawDigits.length === 10
+              ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
+              : [{ phone: order.customerSnapshot.phone }]),
+          ],
+        },
+        {
+          $inc: {
+            "stats.totalSpend": amountToCollect,
+            "stats.outstandingBalance": -defaultRemaining,
           },
-          {
-            $inc: {
-              "stats.totalSpend": remainingDue,
-              "stats.outstandingBalance": -remainingDue,
-            },
-          }
-        );
-      }
+        }
+      );
     }
 
     // Mark line items fulfilled and status completed
@@ -362,11 +385,89 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         isLast24Hours: true,
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
         paymentMode: order.paymentMode,
+        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        customerPhone: order.customerSnapshot?.phone || undefined,
       },
     };
   } catch (error) {
     console.error("Failed to complete order:", error);
     return { success: false, error: "Failed to mark order as completed" };
+  }
+}
+
+export async function rescheduleOrderAction(rawInput: unknown): Promise<{
+  success: boolean;
+  order?: DashboardOrder;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = rescheduleOrderSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const { orderId, newDate } = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const query = Types.ObjectId.isValid(orderId)
+      ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
+      : { tenantId, orderNumber: orderId };
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    const parsedScheduledDate = new Date(newDate);
+    if (isNaN(parsedScheduledDate.getTime())) {
+      return { success: false, error: "Invalid booking date" };
+    }
+
+    order.scheduledFor = parsedScheduledDate;
+    await order.save();
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "order_updated");
+
+    const mappedType: OrderType =
+      order.orderType === "service_booking"
+        ? "Service booking"
+        : order.orderType === "package_sale"
+          ? "Package sale"
+          : "Product sale";
+
+    return {
+      success: true,
+      order: {
+        id: order.orderNumber,
+        customer: order.customerSnapshot?.name || "Walk-in Customer",
+        customerPhone: order.customerSnapshot?.phone || undefined,
+        type: mappedType,
+        amount: order.totalAmount,
+        paid: order.amountPaid,
+        status: order.status,
+        time: "Today, Just now",
+        isToday: true,
+        isLast24Hours: true,
+        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+        paymentMode: order.paymentMode,
+        advanceAmount: order.status === "advance_paid" ? order.amountPaid : undefined,
+        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to reschedule order:", error);
+    return { success: false, error: "Failed to update booking date in database" };
   }
 }
 
@@ -537,6 +638,8 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         paymentMode: order.paymentMode,
         refundMode: refundMode,
         advanceAmount: advancePaidAmount,
+        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        customerPhone: order.customerSnapshot?.phone || undefined,
       },
     };
 
