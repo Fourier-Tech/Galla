@@ -49,6 +49,7 @@ export function OrdersTab({
 }: OrdersTabProps) {
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
@@ -191,19 +192,36 @@ export function OrdersTab({
     [pageSize]
   );
 
-  // Debounced search / filter fetcher
+  // Debounce ONLY text-based search input (300ms) to prevent excessive requests while typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Execute immediately (0ms delay) on button clicks (status, dates, sort), or when debounced search resolves
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
 
-    const timer = setTimeout(() => {
-      fetchPage(1, filter, searchQuery, startDate, endDate, sortOrder);
-    }, 300);
+    fetchPage(1, filter, debouncedSearch, startDate, endDate, sortOrder);
+  }, [filter, debouncedSearch, startDate, endDate, sortOrder, fetchPage]);
 
-    return () => clearTimeout(timer);
-  }, [filter, searchQuery, startDate, endDate, sortOrder, fetchPage]);
+  // Instant in-memory filter on button click (0ms visual feedback)
+  const handleFilterClick = (newFilter: "all" | OrderStatus) => {
+    setFilter(newFilter);
+    if (!searchQuery && !startDate && !endDate) {
+      if (newFilter === "all") {
+        setDisplayedOrders(orders);
+      } else {
+        const inMemory = orders.filter((o) => o.status === newFilter);
+        setDisplayedOrders(inMemory);
+      }
+    }
+  };
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -368,7 +386,7 @@ export function OrdersTab({
             return (
               <button
                 key={opt.id}
-                onClick={() => setFilter(opt.id)}
+                onClick={() => handleFilterClick(opt.id)}
                 className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
                   isActive
                     ? "bg-galla-teal text-white border-galla-teal shadow-xs"
@@ -386,9 +404,11 @@ export function OrdersTab({
             type="button"
             onClick={() => {
               setSearchQuery("");
+              setDebouncedSearch("");
               setStartDate("");
               setEndDate("");
               setFilter("all");
+              setDisplayedOrders(orders);
             }}
             className="text-[12px] font-sans text-galla-teal hover:underline font-medium cursor-pointer"
           >
