@@ -18,12 +18,17 @@ import { CustomersTab } from "@/components/dashboard/tabs/customers-tab";
 import { ExpensesTab } from "@/components/dashboard/tabs/expenses-tab";
 import { AnalyticsTab } from "@/components/dashboard/tabs/analytics-tab";
 import { ProfileTab } from "@/components/dashboard/tabs/profile-tab";
+import { ServicesTab } from "@/components/dashboard/tabs/services-tab";
 import { NewOrderModal } from "@/components/dashboard/modals/new-order-modal";
 import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal";
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
 import { calculatePendingAmount } from "@/lib/utils";
-import { DashboardSalonProfile } from "@/types/dashboard";
+import {
+  DashboardSalonProfile,
+  DashboardService,
+  DashboardPackage,
+} from "@/types/dashboard";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
 
 interface DashboardClientProps {
@@ -36,6 +41,8 @@ interface DashboardClientProps {
   initialCustomers?: DashboardCustomer[];
   initialExpenses?: DashboardExpense[];
   initialSalonProfile?: DashboardSalonProfile;
+  initialServices?: DashboardService[];
+  initialPackages?: DashboardPackage[];
 }
 
 export function DashboardClient({
@@ -48,6 +55,8 @@ export function DashboardClient({
   initialCustomers = [],
   initialExpenses = [],
   initialSalonProfile,
+  initialServices = [],
+  initialPackages = [],
 }: DashboardClientProps) {
   const router = useRouter();
   const role: UserRole = initialRole;
@@ -58,6 +67,8 @@ export function DashboardClient({
   const [products, setProducts] = useState<DashboardProduct[]>(initialProducts);
   const [customers, setCustomers] = useState<DashboardCustomer[]>(initialCustomers);
   const [expenses, setExpenses] = useState<DashboardExpense[]>(initialExpenses);
+  const [services, setServices] = useState<DashboardService[]>(initialServices);
+  const [packages, setPackages] = useState<DashboardPackage[]>(initialPackages);
   const [salonProfile, setSalonProfile] = useState<DashboardSalonProfile>(
     initialSalonProfile || {
       id: "",
@@ -208,6 +219,34 @@ export function DashboardClient({
     }
   };
 
+  const handleAddService = (newService: DashboardService) => {
+    setServices((prev) => [newService, ...prev]);
+  };
+
+  const handleUpdateService = (updatedService: DashboardService) => {
+    setServices((prev) =>
+      prev.map((s) => (s.id === updatedService.id ? updatedService : s))
+    );
+  };
+
+  const handleDeleteService = (serviceId: string) => {
+    setServices((prev) => prev.filter((s) => s.id !== serviceId));
+  };
+
+  const handleAddPackage = (newPkg: DashboardPackage) => {
+    setPackages((prev) => [newPkg, ...prev]);
+  };
+
+  const handleUpdatePackage = (updatedPkg: DashboardPackage) => {
+    setPackages((prev) =>
+      prev.map((p) => (p.id === updatedPkg.id ? updatedPkg : p))
+    );
+  };
+
+  const handleDeletePackage = (packageId: string) => {
+    setPackages((prev) => prev.filter((p) => p.id !== packageId));
+  };
+
   return (
     <div className="flex w-full min-h-screen bg-galla-paper text-galla-ink">
       {/* Sidebar Navigation */}
@@ -252,6 +291,20 @@ export function DashboardClient({
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}
+            />
+          )}
+
+          {activeTab === "services" && (
+            <ServicesTab
+              services={services}
+              packages={packages}
+              products={products}
+              onAddService={handleAddService}
+              onUpdateService={handleUpdateService}
+              onDeleteService={handleDeleteService}
+              onAddPackage={handleAddPackage}
+              onUpdatePackage={handleUpdatePackage}
+              onDeletePackage={handleDeletePackage}
             />
           )}
 

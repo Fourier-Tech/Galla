@@ -10,6 +10,8 @@ import { Order } from "@/lib/db/models/order.model";
 import { Product } from "@/lib/db/models/product.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { Customer } from "@/lib/db/models/customer.model";
+import { Service, type IService } from "@/lib/db/models/service.model";
+import { PackageTemplate, type IPackageTemplate } from "@/lib/db/models/package-template.model";
 import {
   createOrderSchema,
   completeOrderSchema,
@@ -17,12 +19,18 @@ import {
   createExpenseSchema,
   transferStockSchema,
   updateSalonProfileSchema,
+  createServiceSchema,
+  updateServiceSchema,
+  createPackageSchema,
+  updatePackageSchema,
 } from "@/lib/validations/dashboard";
 import {
   DashboardOrder,
   DashboardExpense,
   DashboardProduct,
   DashboardSalonProfile,
+  DashboardService,
+  DashboardPackage,
   OrderType,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
@@ -921,6 +929,418 @@ export async function getOrdersAction(params: {
   } catch (error) {
     console.error("Failed to fetch paginated orders:", error);
     return { success: false, orders: [], totalCount: 0, page: 1, totalPages: 0, error: "Failed to fetch orders" };
+  }
+}
+
+export async function createServiceAction(rawInput: unknown): Promise<{
+  success: boolean;
+  service?: DashboardService;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = createServiceSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const newDoc = (await Service.create({
+      tenantId: new Types.ObjectId(tenantId),
+      name: input.name,
+      category: input.category,
+      price: input.price,
+      durationMinutes: input.durationMinutes,
+      description: input.description || undefined,
+      isActive: true,
+    })) as unknown as IService;
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "service_created");
+
+    return {
+      success: true,
+      service: {
+        id: newDoc._id.toString(),
+        name: newDoc.name,
+        category: newDoc.category,
+        price: newDoc.price,
+        durationMinutes: newDoc.durationMinutes || 30,
+        description: newDoc.description || "",
+        isActive: newDoc.isActive,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to create service:", error);
+    return { success: false, error: "Failed to persist service in database" };
+  }
+}
+
+export async function updateServiceAction(rawInput: unknown): Promise<{
+  success: boolean;
+  service?: DashboardService;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = updateServiceSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const updated = (await Service.findOneAndUpdate(
+      { _id: new Types.ObjectId(input.id), tenantId: new Types.ObjectId(tenantId) },
+      {
+        $set: {
+          name: input.name,
+          category: input.category,
+          price: input.price,
+          durationMinutes: input.durationMinutes,
+          description: input.description || undefined,
+          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        },
+      },
+      { new: true }
+    ).lean()) as IService | null;
+
+    if (!updated) {
+      return { success: false, error: "Service not found or permission denied" };
+    }
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "service_updated");
+
+    return {
+      success: true,
+      service: {
+        id: updated._id.toString(),
+        name: updated.name,
+        category: updated.category,
+        price: updated.price,
+        durationMinutes: updated.durationMinutes || 30,
+        description: updated.description || "",
+        isActive: updated.isActive,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to update service:", error);
+    return { success: false, error: "Failed to update service in database" };
+  }
+}
+
+export async function toggleServiceStatusAction(serviceId: string): Promise<{
+  success: boolean;
+  isActive?: boolean;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found" };
+    }
+
+    const doc = await Service.findOne({
+      _id: new Types.ObjectId(serviceId),
+      tenantId: new Types.ObjectId(tenantId),
+    });
+    if (!doc) {
+      return { success: false, error: "Service not found" };
+    }
+
+    doc.isActive = !doc.isActive;
+    await doc.save();
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "service_updated");
+
+    return { success: true, isActive: doc.isActive };
+  } catch (error) {
+    console.error("Failed to toggle service status:", error);
+    return { success: false, error: "Failed to toggle service status" };
+  }
+}
+
+export async function deleteServiceAction(serviceId: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found" };
+    }
+
+    const deleted = await Service.findOneAndDelete({
+      _id: new Types.ObjectId(serviceId),
+      tenantId: new Types.ObjectId(tenantId),
+    });
+    if (!deleted) {
+      return { success: false, error: "Service not found or permission denied" };
+    }
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "service_deleted");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete service:", error);
+    return { success: false, error: "Failed to delete service" };
+  }
+}
+
+export async function createPackageAction(rawInput: unknown): Promise<{
+  success: boolean;
+  package?: DashboardPackage;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = createPackageSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const services = input.services.map((s) => ({
+      serviceId: new Types.ObjectId(s.serviceId),
+      name: s.name,
+      componentPrice: s.componentPrice,
+    }));
+
+    const products = input.products.map((p) => ({
+      productId: new Types.ObjectId(p.productId),
+      name: p.name,
+      quantity: p.quantity,
+      componentPrice: p.componentPrice,
+    }));
+
+    const newDoc = (await PackageTemplate.create({
+      tenantId: new Types.ObjectId(tenantId),
+      name: input.name,
+      description: input.description || undefined,
+      pricingType: input.pricingType,
+      packagePrice: input.packagePrice,
+      services,
+      products,
+      isActive: true,
+    })) as unknown as IPackageTemplate;
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "package_created");
+
+    return {
+      success: true,
+      package: {
+        id: newDoc._id.toString(),
+        name: newDoc.name,
+        description: newDoc.description || "",
+        pricingType: newDoc.pricingType,
+        packagePrice: newDoc.packagePrice,
+        services: input.services,
+        products: input.products,
+        isActive: newDoc.isActive,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to create package:", error);
+    return { success: false, error: "Failed to persist package in database" };
+  }
+}
+
+export async function updatePackageAction(rawInput: unknown): Promise<{
+  success: boolean;
+  package?: DashboardPackage;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = updatePackageSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const services = input.services.map((s) => ({
+      serviceId: new Types.ObjectId(s.serviceId),
+      name: s.name,
+      componentPrice: s.componentPrice,
+    }));
+
+    const products = input.products.map((p) => ({
+      productId: new Types.ObjectId(p.productId),
+      name: p.name,
+      quantity: p.quantity,
+      componentPrice: p.componentPrice,
+    }));
+
+    const updated = (await PackageTemplate.findOneAndUpdate(
+      { _id: new Types.ObjectId(input.id), tenantId: new Types.ObjectId(tenantId) },
+      {
+        $set: {
+          name: input.name,
+          description: input.description || undefined,
+          pricingType: input.pricingType,
+          packagePrice: input.packagePrice,
+          services,
+          products,
+          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        },
+      },
+      { new: true }
+    ).lean()) as IPackageTemplate | null;
+
+    if (!updated) {
+      return { success: false, error: "Package not found or permission denied" };
+    }
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "package_updated");
+
+    return {
+      success: true,
+      package: {
+        id: updated._id.toString(),
+        name: updated.name,
+        description: updated.description || "",
+        pricingType: updated.pricingType,
+        packagePrice: updated.packagePrice,
+        services: input.services,
+        products: input.products,
+        isActive: updated.isActive,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to update package:", error);
+    return { success: false, error: "Failed to update package in database" };
+  }
+}
+
+export async function togglePackageStatusAction(packageId: string): Promise<{
+  success: boolean;
+  isActive?: boolean;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found" };
+    }
+
+    const doc = await PackageTemplate.findOne({
+      _id: new Types.ObjectId(packageId),
+      tenantId: new Types.ObjectId(tenantId),
+    });
+    if (!doc) {
+      return { success: false, error: "Package not found" };
+    }
+
+    doc.isActive = !doc.isActive;
+    await doc.save();
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "package_updated");
+
+    return { success: true, isActive: doc.isActive };
+  } catch (error) {
+    console.error("Failed to toggle package status:", error);
+    return { success: false, error: "Failed to toggle package status" };
+  }
+}
+
+export async function deletePackageAction(packageId: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found" };
+    }
+
+    const deleted = await PackageTemplate.findOneAndDelete({
+      _id: new Types.ObjectId(packageId),
+      tenantId: new Types.ObjectId(tenantId),
+    });
+    if (!deleted) {
+      return { success: false, error: "Package not found or permission denied" };
+    }
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "package_deleted");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete package:", error);
+    return { success: false, error: "Failed to delete package" };
   }
 }
 

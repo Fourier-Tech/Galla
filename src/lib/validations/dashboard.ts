@@ -57,3 +57,62 @@ export const updateSalonProfileSchema = z.object({
 });
 
 export type UpdateSalonProfileInput = z.infer<typeof updateSalonProfileSchema>;
+
+export const createServiceSchema = z.object({
+  name: z.string().min(1, "Service name is required").trim(),
+  category: z.string().min(1, "Category is required").trim().default("General"),
+  price: z.number().min(0, "Price cannot be negative"),
+  durationMinutes: z.number().min(0, "Duration must be 0 or more").default(30),
+  description: z.string().optional(),
+});
+
+export type CreateServiceInput = z.infer<typeof createServiceSchema>;
+
+export const updateServiceSchema = z.object({
+  id: z.string().min(1, "Service ID is required"),
+  name: z.string().min(1, "Service name is required").trim(),
+  category: z.string().min(1, "Category is required").trim().default("General"),
+  price: z.number().min(0, "Price cannot be negative"),
+  durationMinutes: z.number().min(0, "Duration must be 0 or more").default(30),
+  description: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
+
+export const packageServiceItemSchema = z.object({
+  serviceId: z.string().min(1, "Service ID is required"),
+  name: z.string().min(1, "Service name is required"),
+  componentPrice: z.number().min(0),
+});
+
+export const packageProductItemSchema = z.object({
+  productId: z.string().min(1, "Product ID is required"),
+  name: z.string().min(1, "Product name is required"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1").default(1),
+  componentPrice: z.number().min(0),
+});
+
+export const createPackageSchema = z.object({
+  name: z.string().min(1, "Package name is required").trim(),
+  description: z.string().optional(),
+  pricingType: z.enum(["fixed", "sum_of_items"]).default("fixed"),
+  packagePrice: z.number().min(0, "Package price cannot be negative"),
+  services: z.array(packageServiceItemSchema).default([]),
+  products: z.array(packageProductItemSchema).default([]),
+});
+
+export type CreatePackageInput = z.infer<typeof createPackageSchema>;
+
+export const updatePackageSchema = z.object({
+  id: z.string().min(1, "Package ID is required"),
+  name: z.string().min(1, "Package name is required").trim(),
+  description: z.string().optional(),
+  pricingType: z.enum(["fixed", "sum_of_items"]).default("fixed"),
+  packagePrice: z.number().min(0, "Package price cannot be negative"),
+  services: z.array(packageServiceItemSchema).default([]),
+  products: z.array(packageProductItemSchema).default([]),
+  isActive: z.boolean().optional(),
+});
+
+export type UpdatePackageInput = z.infer<typeof updatePackageSchema>;

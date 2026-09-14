@@ -63,9 +63,44 @@ export interface DashboardSalonProfile {
   ownerName: string;
 }
 
+export interface DashboardService {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  durationMinutes: number;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface DashboardPackageServiceItem {
+  serviceId: string;
+  name: string;
+  componentPrice: number;
+}
+
+export interface DashboardPackageProductItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  componentPrice: number;
+}
+
+export interface DashboardPackage {
+  id: string;
+  name: string;
+  description?: string;
+  pricingType: "fixed" | "sum_of_items";
+  packagePrice: number;
+  services: DashboardPackageServiceItem[];
+  products: DashboardPackageProductItem[];
+  isActive: boolean;
+}
+
 export type TabId =
   | "overview"
   | "orders"
+  | "services"
   | "inventory"
   | "customers"
   | "expenses"

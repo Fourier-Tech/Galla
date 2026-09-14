@@ -9,6 +9,8 @@ import { Order } from "@/lib/db/models/order.model";
 import { Product } from "@/lib/db/models/product.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Expense } from "@/lib/db/models/expense.model";
+import { Service } from "@/lib/db/models/service.model";
+import { PackageTemplate } from "@/lib/db/models/package-template.model";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import {
   formatPhoneNumber,
@@ -22,6 +24,8 @@ import {
   DashboardOrder,
   DashboardProduct,
   DashboardSalonProfile,
+  DashboardService,
+  DashboardPackage,
   OrderStatus,
   OrderType,
   UserRole,
@@ -89,6 +93,8 @@ export default async function DashboardPage() {
   let initialProducts: DashboardProduct[] = [];
   let initialCustomers: DashboardCustomer[] = [];
   let initialExpenses: DashboardExpense[] = [];
+  let initialServices: DashboardService[] = [];
+  let initialPackages: DashboardPackage[] = [];
   let initialSalonProfile: DashboardSalonProfile = {
     id: "",
     name: "",
@@ -136,18 +142,27 @@ export default async function DashboardPage() {
       salonName = tenant.name;
       const tenantObjectId = new Types.ObjectId(tenantId);
 
-      const [rawOrders, rawProducts, rawCustomers, rawExpenses, count] =
-        await Promise.all([
-          Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
-          Product.find({ tenantId: tenantObjectId, isActive: true }).sort({ createdAt: 1 }).lean(),
-          Customer.find({ tenantId: tenantObjectId, isActive: true })
-            .sort({ "stats.lastVisitAt": -1, updatedAt: -1 })
-            .lean(),
-          Expense.find({ tenantId: tenantObjectId })
-            .sort({ expenseDate: -1, createdAt: -1 })
-            .lean(),
-          Order.countDocuments({ tenantId: tenantObjectId }),
-        ]);
+      const [
+        rawOrders,
+        rawProducts,
+        rawCustomers,
+        rawExpenses,
+        count,
+        rawServices,
+        rawPackages,
+      ] = await Promise.all([
+        Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
+        Product.find({ tenantId: tenantObjectId, isActive: true }).sort({ createdAt: 1 }).lean(),
+        Customer.find({ tenantId: tenantObjectId, isActive: true })
+          .sort({ "stats.lastVisitAt": -1, updatedAt: -1 })
+          .lean(),
+        Expense.find({ tenantId: tenantObjectId })
+          .sort({ expenseDate: -1, createdAt: -1 })
+          .lean(),
+        Order.countDocuments({ tenantId: tenantObjectId }),
+        Service.find({ tenantId: tenantObjectId }).sort({ category: 1, name: 1 }).lean(),
+        PackageTemplate.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).lean(),
+      ]);
 
       initialTotalOrdersCount = count;
 
@@ -208,6 +223,36 @@ export default async function DashboardPage() {
           : undefined,
       }));
 
+      initialServices = rawServices.map((s) => ({
+        id: s._id.toString(),
+        name: s.name,
+        category: s.category || "General",
+        price: s.price,
+        durationMinutes: s.durationMinutes || 30,
+        description: s.description || "",
+        isActive: s.isActive ?? true,
+      }));
+
+      initialPackages = rawPackages.map((pkg) => ({
+        id: pkg._id.toString(),
+        name: pkg.name,
+        description: pkg.description || "",
+        pricingType: (pkg.pricingType as "fixed" | "sum_of_items") || "fixed",
+        packagePrice: pkg.packagePrice,
+        services: (pkg.services || []).map((s) => ({
+          serviceId: s.serviceId.toString(),
+          name: s.name,
+          componentPrice: s.componentPrice,
+        })),
+        products: (pkg.products || []).map((p) => ({
+          productId: p.productId.toString(),
+          name: p.name,
+          quantity: p.quantity,
+          componentPrice: p.componentPrice,
+        })),
+        isActive: pkg.isActive ?? true,
+      }));
+
       const ownerUser = await User.findOne({
         tenantId: tenantObjectId,
       }).lean();
@@ -244,6 +289,8 @@ export default async function DashboardPage() {
       initialCustomers={initialCustomers}
       initialExpenses={initialExpenses}
       initialSalonProfile={initialSalonProfile}
+      initialServices={initialServices}
+      initialPackages={initialPackages}
     />
   );
 }
