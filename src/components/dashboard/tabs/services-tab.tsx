@@ -15,6 +15,7 @@ import {
   Tag,
   AlertTriangle,
   Percent,
+  X,
 } from "lucide-react";
 import {
   DashboardService,
@@ -57,6 +58,7 @@ export function ServicesTab({
   const [subView, setSubView] = useState<"services" | "packages">("services");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [packageFilter, setPackageFilter] = useState<"all" | "active" | "fixed">("all");
 
   // Modals state
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -99,18 +101,22 @@ export function ServicesTab({
   // Filter packages
   const filteredPackages = useMemo(() => {
     return packages.filter((pkg) => {
-      return (
+      const matchesFilter =
+        packageFilter === "all" ||
+        (packageFilter === "active" && pkg.isActive) ||
+        (packageFilter === "fixed" && pkg.pricingType === "fixed");
+
+      const matchesSearch =
         !searchQuery.trim() ||
         pkg.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (pkg.description && pkg.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         pkg.services.some((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        pkg.products.some((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
+        pkg.products.some((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesFilter && matchesSearch;
     });
-  }, [packages, searchQuery]);
+  }, [packages, packageFilter, searchQuery]);
 
   // Quick stats
-  const activeServicesCount = services.filter((s) => s.isActive).length;
   const activePackagesCount = packages.filter((p) => p.isActive).length;
 
   // Handlers for Services
@@ -179,8 +185,8 @@ export function ServicesTab({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
+    <div className="space-y-6 w-full">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
@@ -191,18 +197,74 @@ export function ServicesTab({
           </p>
         </div>
 
+        {subView === "services" ? (
+          <button
+            type="button"
+            onClick={() => {
+              setServiceToEdit(null);
+              setIsServiceModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Service</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setPackageToEdit(null);
+              setIsPackageModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Package</span>
+          </button>
+        )}
+      </div>
+
+      {/* Search Bar & View Switcher Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Search Bar */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line w-full md:w-72 focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all shadow-xs">
+          <Search className="h-4 w-4 text-galla-ink-soft shrink-0" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={
+              subView === "services"
+                ? "Search services by name, category..."
+                : "Search packages by bundle title..."
+            }
+            className="w-full bg-transparent font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 outline-none"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="text-galla-ink-soft hover:text-galla-ink cursor-pointer p-0.5"
+              title="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
         {/* View Switcher Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-galla-surface border border-galla-line rounded-[6px] shadow-2xs self-start sm:self-auto">
+        <div className="flex items-center gap-1.5 p-1 bg-galla-surface border border-galla-line rounded-[5px] shadow-xs self-start md:self-auto">
           <button
             type="button"
             onClick={() => {
               setSubView("services");
               setSearchQuery("");
+              setSelectedCategory("all");
             }}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-[4px] text-[12.5px] font-sans font-medium transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-[4px] text-[12.5px] font-sans font-medium transition-all cursor-pointer ${
               subView === "services"
                 ? "bg-galla-teal text-white shadow-xs"
-                : "text-galla-ink-soft hover:text-galla-ink"
+                : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60"
             }`}
           >
             <Scissors className="h-3.5 w-3.5" />
@@ -214,11 +276,12 @@ export function ServicesTab({
             onClick={() => {
               setSubView("packages");
               setSearchQuery("");
+              setPackageFilter("all");
             }}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-[4px] text-[12.5px] font-sans font-medium transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-[4px] text-[12.5px] font-sans font-medium transition-all cursor-pointer ${
               subView === "packages"
                 ? "bg-galla-teal text-white shadow-xs"
-                : "text-galla-ink-soft hover:text-galla-ink"
+                : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60"
             }`}
           >
             <Package className="h-3.5 w-3.5" />
@@ -227,143 +290,92 @@ export function ServicesTab({
         </div>
       </div>
 
-      {/* KPI Stats Block */}
+      {/* Filter Pills & Reset Action */}
       {subView === "services" ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-galla-line border border-galla-line rounded-[5px] overflow-hidden">
-          <div className="bg-galla-surface p-4">
-            <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
-              Total Services
-            </div>
-            <div className="text-[22px] font-heading font-semibold text-galla-ink mt-1">
-              {services.length}
-            </div>
-          </div>
-          <div className="bg-galla-surface p-4">
-            <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
-              Active on Counter
-            </div>
-            <div className="text-[22px] font-heading font-semibold text-emerald-700 mt-1">
-              {activeServicesCount}
-            </div>
-          </div>
-          <div className="bg-galla-surface p-4">
-            <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
-              Categories
-            </div>
-            <div className="text-[22px] font-heading font-semibold text-galla-ink mt-1">
-              {existingCategories.length}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-galla-line border border-galla-line rounded-[5px] overflow-hidden">
-          <div className="bg-galla-surface p-4">
-            <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
-              Total Packages
-            </div>
-            <div className="text-[22px] font-heading font-semibold text-galla-ink mt-1">
-              {packages.length}
-            </div>
-          </div>
-          <div className="bg-galla-surface p-4">
-            <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
-              Active Packages
-            </div>
-            <div className="text-[22px] font-heading font-semibold text-emerald-700 mt-1">
-              {activePackagesCount}
-            </div>
-          </div>
-          <div className="bg-galla-surface p-4">
-            <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
-              Custom Fixed Deals
-            </div>
-            <div className="text-[22px] font-heading font-semibold text-galla-brass mt-1">
-              {packages.filter((p) => p.pricingType === "fixed").length}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Action Bar (Search, Category Filters, Primary Add Button) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={
-              subView === "services"
-                ? "Search services by name, category, notes..."
-                : "Search packages by bundle title or item..."
-            }
-            className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-9 pr-3 py-[7px] text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
-          />
-        </div>
-
-        {/* Primary Action Button */}
-        <div>
-          {subView === "services" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => {
-                setServiceToEdit(null);
-                setIsServiceModalOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium px-4 py-2 rounded-[5px] shadow-sm transition-all cursor-pointer"
+              onClick={() => setSelectedCategory("all")}
+              className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
+                selectedCategory === "all"
+                  ? "bg-galla-teal text-white border-galla-teal shadow-xs"
+                  : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
+              }`}
             >
-              <Plus className="h-4 w-4" />
-              <span>Add Service</span>
+              All Categories ({services.length})
             </button>
-          ) : (
+            {existingCategories.map((cat) => {
+              const count = services.filter((s) => s.category === cat).length;
+              const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
+              return (
+                <button
+                  type="button"
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
+                    isSelected
+                      ? "bg-galla-teal text-white border-galla-teal shadow-xs"
+                      : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
+                  }`}
+                >
+                  {cat} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {(searchQuery || selectedCategory !== "all") && (
             <button
               type="button"
               onClick={() => {
-                setPackageToEdit(null);
-                setIsPackageModalOpen(true);
+                setSelectedCategory("all");
+                setSearchQuery("");
               }}
-              className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium px-4 py-2 rounded-[5px] shadow-sm transition-all cursor-pointer"
+              className="text-[12px] font-sans text-galla-ink-soft hover:text-galla-ink underline cursor-pointer"
             >
-              <Plus className="h-4 w-4" />
-              <span>Create Package</span>
+              Reset filters
             </button>
           )}
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "all", label: `All Packages (${packages.length})` },
+              { id: "active", label: `Active Deals (${activePackagesCount})` },
+              { id: "fixed", label: `Fixed Deals (${packages.filter((p) => p.pricingType === "fixed").length})` },
+            ].map((opt) => {
+              const isActive = packageFilter === opt.id;
+              return (
+                <button
+                  type="button"
+                  key={opt.id}
+                  onClick={() => setPackageFilter(opt.id as "all" | "active" | "fixed")}
+                  className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
+                    isActive
+                      ? "bg-galla-teal text-white border-galla-teal shadow-xs"
+                      : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Category Pills (Only for Services view) */}
-      {subView === "services" && existingCategories.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setSelectedCategory("all")}
-            className={`px-3 py-1 rounded-[4px] text-[12px] font-sans transition-colors cursor-pointer ${
-              selectedCategory === "all"
-                ? "bg-galla-teal text-white font-medium shadow-2xs"
-                : "bg-galla-surface hover:bg-galla-paper border border-galla-line text-galla-ink-soft"
-            }`}
-          >
-            All Categories ({services.length})
-          </button>
-          {existingCategories.map((cat) => {
-            const count = services.filter((s) => s.category === cat).length;
-            const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
-            return (
-              <button
-                type="button"
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1 rounded-[4px] text-[12px] font-sans transition-colors cursor-pointer ${
-                  isSelected
-                    ? "bg-galla-teal text-white font-medium shadow-2xs"
-                    : "bg-galla-surface hover:bg-galla-paper border border-galla-line text-galla-ink-soft"
-                }`}
-              >
-                {cat} ({count})
-              </button>
-            );
-          })}
+          {(searchQuery || packageFilter !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setPackageFilter("all");
+                setSearchQuery("");
+              }}
+              className="text-[12px] font-sans text-galla-ink-soft hover:text-galla-ink underline cursor-pointer"
+            >
+              Reset filters
+            </button>
+          )}
         </div>
       )}
 
