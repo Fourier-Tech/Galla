@@ -10,7 +10,12 @@ import { Product } from "@/lib/db/models/product.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { connectToDatabase } from "@/lib/db/mongodb";
-import { formatPhoneNumber } from "@/lib/utils";
+import {
+  formatPhoneNumber,
+  checkIsToday,
+  checkIsLast24Hours,
+  formatOrderTime,
+} from "@/lib/utils";
 import {
   DashboardCustomer,
   DashboardExpense,
@@ -27,54 +32,6 @@ export const metadata: Metadata = {
   description: "Live parlour counter operations, orders, split inventory & owner analytics",
 };
 
-function checkIsToday(date: Date | string | undefined): boolean {
-  if (!date) return true;
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return true;
-  const now = new Date();
-  return (
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear()
-  );
-}
-
-function checkIsLast24Hours(date: Date | string | undefined): boolean {
-  if (!date) return true;
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return true;
-  return Date.now() - d.getTime() <= 24 * 60 * 60 * 1000;
-}
-
-function formatOrderTime(date: Date | string | undefined): string {
-  if (!date) return "Today, Just now";
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return "Today, Just now";
-  const now = new Date();
-  const isToday =
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear();
-
-  const timeStr = d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-
-  if (isToday) return `Today, ${timeStr}`;
-
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterday =
-    d.getDate() === yesterday.getDate() &&
-    d.getMonth() === yesterday.getMonth() &&
-    d.getFullYear() === yesterday.getFullYear();
-
-  if (isYesterday) return `Yesterday, ${timeStr}`;
-
-  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
-}
 
 function formatCustomerVisit(date: Date | string | undefined): string {
   if (!date) return "Never";

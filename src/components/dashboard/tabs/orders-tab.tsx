@@ -88,9 +88,12 @@ export function OrdersTab({
   const [prevOrders, setPrevOrders] = useState(orders);
   const [prevInitialTotalCount, setPrevInitialTotalCount] = useState(initialTotalCount);
 
+  const isDefaultView =
+    page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest";
+
   if (orders !== prevOrders) {
     setPrevOrders(orders);
-    if (page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest") {
+    if (isDefaultView) {
       setDisplayedOrders(orders);
     } else {
       setDisplayedOrders((prev) =>
@@ -98,9 +101,10 @@ export function OrdersTab({
       );
     }
   }
-  if (page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest") {
-    if (initialTotalCount !== undefined && initialTotalCount !== prevInitialTotalCount) {
-      setPrevInitialTotalCount(initialTotalCount);
+
+  if (initialTotalCount !== undefined && initialTotalCount !== prevInitialTotalCount) {
+    setPrevInitialTotalCount(initialTotalCount);
+    if (isDefaultView) {
       setTotalCount(initialTotalCount);
     }
   }

@@ -26,7 +26,12 @@ import {
   OrderType,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
-import { formatPhoneNumber } from "@/lib/utils";
+import {
+  formatPhoneNumber,
+  formatOrderTime,
+  checkIsToday,
+  checkIsLast24Hours,
+} from "@/lib/utils";
 
 interface SessionLike {
   user?: {
@@ -804,54 +809,6 @@ export async function uploadSalonProfileImageAction(formData: FormData): Promise
   }
 }
 
-function checkIsTodayHelper(date: Date | string | undefined): boolean {
-  if (!date) return true;
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return true;
-  const now = new Date();
-  return (
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear()
-  );
-}
-
-function checkIsLast24HoursHelper(date: Date | string | undefined): boolean {
-  if (!date) return true;
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return true;
-  return Date.now() - d.getTime() <= 24 * 60 * 60 * 1000;
-}
-
-function formatOrderTimeHelper(date: Date | string | undefined): string {
-  if (!date) return "Today, Just now";
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return "Today, Just now";
-  const now = new Date();
-  const isToday =
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear();
-
-  const timeStr = d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-
-  if (isToday) return `Today, ${timeStr}`;
-
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterday =
-    d.getDate() === yesterday.getDate() &&
-    d.getMonth() === yesterday.getMonth() &&
-    d.getFullYear() === yesterday.getFullYear();
-
-  if (isYesterday) return `Yesterday, ${timeStr}`;
-
-  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
-}
 
 export async function getOrdersAction(params: {
   page?: number;
@@ -901,7 +858,6 @@ export async function getOrdersAction(params: {
         dateFilter.$lte = new Date(`${to}T23:59:59.999`);
       } else if (params.startDate) {
         dateFilter.$gte = new Date(`${params.startDate}T00:00:00`);
-        dateFilter.$lte = new Date(`${params.startDate}T23:59:59.999`);
       } else if (params.endDate) {
         dateFilter.$lte = new Date(`${params.endDate}T23:59:59.999`);
       }
@@ -943,9 +899,9 @@ export async function getOrdersAction(params: {
       amount: o.totalAmount,
       paid: o.amountPaid,
       status: o.status,
-      time: formatOrderTimeHelper(o.createdAt),
-      isToday: checkIsTodayHelper(o.createdAt),
-      isLast24Hours: checkIsLast24HoursHelper(o.createdAt),
+      time: formatOrderTime(o.createdAt),
+      isToday: checkIsToday(o.createdAt),
+      isLast24Hours: checkIsLast24Hours(o.createdAt),
       createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
       refundAmount: o.refundDetails?.refundAmount,
       refundReason: o.refundDetails?.refundReason,
