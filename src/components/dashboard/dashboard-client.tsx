@@ -44,6 +44,9 @@ interface DashboardClientProps {
   initialServices?: DashboardService[];
   initialPackages?: DashboardPackage[];
   initialOrderStatusCounts?: Record<string, number>;
+  initialTotalExpensesCount?: number;
+  initialExpenseCategoryCounts?: Record<string, number>;
+  initialExpensesTotalAmount?: number;
 }
 
 export function DashboardClient({
@@ -59,6 +62,9 @@ export function DashboardClient({
   initialServices = [],
   initialPackages = [],
   initialOrderStatusCounts,
+  initialTotalExpensesCount,
+  initialExpenseCategoryCounts,
+  initialExpensesTotalAmount,
 }: DashboardClientProps) {
   const router = useRouter();
   const role: UserRole = initialRole;
@@ -350,6 +356,9 @@ export function DashboardClient({
           {activeTab === "expenses" && (
             <ExpensesTab
               expenses={expenses}
+              initialTotalCount={initialTotalExpensesCount}
+              initialCategoryCounts={initialExpenseCategoryCounts}
+              initialTotalAmount={initialExpensesTotalAmount}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
             />
           )}

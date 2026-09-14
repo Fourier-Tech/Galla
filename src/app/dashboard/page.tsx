@@ -93,6 +93,16 @@ export default async function DashboardPage() {
   let initialProducts: DashboardProduct[] = [];
   let initialCustomers: DashboardCustomer[] = [];
   let initialExpenses: DashboardExpense[] = [];
+  let initialTotalExpensesCount = 0;
+  let initialExpensesTotalAmount = 0;
+  let initialExpenseCategoryCounts: Record<string, number> = {
+    all: 0,
+    "Day-to-day": 0,
+    "Inventory purchase": 0,
+    Salary: 0,
+    Rent: 0,
+    Refund: 0,
+  };
   let initialServices: DashboardService[] = [];
   let initialPackages: DashboardPackage[] = [];
   let initialOrderStatusCounts: Record<string, number> = {
@@ -158,6 +168,9 @@ export default async function DashboardPage() {
         rawServices,
         rawPackages,
         statusAgg,
+        expensesCount,
+        expenseCategoryAgg,
+        expenseSumAgg,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
         Product.find({ tenantId: tenantObjectId, isActive: true }).sort({ createdAt: 1 }).lean(),
@@ -166,6 +179,7 @@ export default async function DashboardPage() {
           .lean(),
         Expense.find({ tenantId: tenantObjectId })
           .sort({ expenseDate: -1, createdAt: -1 })
+          .limit(20)
           .lean(),
         Order.countDocuments({ tenantId: tenantObjectId }),
         Service.find({ tenantId: tenantObjectId }).sort({ category: 1, name: 1 }).lean(),
@@ -173,6 +187,15 @@ export default async function DashboardPage() {
         Order.aggregate([
           { $match: { tenantId: tenantObjectId } },
           { $group: { _id: "$status", count: { $sum: 1 } } },
+        ]),
+        Expense.countDocuments({ tenantId: tenantObjectId }),
+        Expense.aggregate([
+          { $match: { tenantId: tenantObjectId } },
+          { $group: { _id: "$category", count: { $sum: 1 } } },
+        ]),
+        Expense.aggregate([
+          { $match: { tenantId: tenantObjectId } },
+          { $group: { _id: null, total: { $sum: "$amount" } } },
         ]),
       ]);
 
@@ -247,6 +270,23 @@ export default async function DashboardPage() {
           : undefined,
       }));
 
+      initialTotalExpensesCount = expensesCount;
+      initialExpensesTotalAmount = expenseSumAgg[0]?.total ?? 0;
+      initialExpenseCategoryCounts = {
+        all: expensesCount,
+        "Day-to-day": 0,
+        "Inventory purchase": 0,
+        Salary: 0,
+        Rent: 0,
+        Refund: 0,
+      };
+      expenseCategoryAgg.forEach((item: { _id: string; count: number }) => {
+        const uiCat = mapExpenseCategory(item._id);
+        if (initialExpenseCategoryCounts[uiCat] !== undefined) {
+          initialExpenseCategoryCounts[uiCat] += item.count;
+        }
+      });
+
       initialServices = rawServices.map((s) => ({
         id: s._id.toString(),
         name: s.name,
@@ -312,6 +352,9 @@ export default async function DashboardPage() {
       initialProducts={initialProducts}
       initialCustomers={initialCustomers}
       initialExpenses={initialExpenses}
+      initialTotalExpensesCount={initialTotalExpensesCount}
+      initialExpenseCategoryCounts={initialExpenseCategoryCounts}
+      initialExpensesTotalAmount={initialExpensesTotalAmount}
       initialSalonProfile={initialSalonProfile}
       initialServices={initialServices}
       initialPackages={initialPackages}

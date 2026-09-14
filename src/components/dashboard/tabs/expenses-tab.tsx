@@ -1,7 +1,16 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Plus, Search, X, Calendar, ArrowUpDown } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Plus,
+  Search,
+  X,
+  Calendar,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from "lucide-react";
 import { DashboardExpense } from "@/types/dashboard";
 import {
   formatRupee,
@@ -12,6 +21,9 @@ import {
 
 interface ExpensesTabProps {
   expenses: DashboardExpense[];
+  initialTotalCount?: number;
+  initialCategoryCounts?: Record<string, number>;
+  initialTotalAmount?: number;
   onOpenNewExpense: () => void;
 }
 
@@ -27,60 +39,177 @@ const FILTER_OPTIONS: {
   { id: "Refund", label: "Refunds" },
 ];
 
-export function ExpensesTab({ expenses, onOpenNewExpense }: ExpensesTabProps) {
+export function ExpensesTab({
+  expenses,
+  initialTotalCount,
+  initialCategoryCounts,
+  initialTotalAmount,
+  onOpenNewExpense,
+}: ExpensesTabProps) {
   const [filter, setFilter] = useState<"all" | DashboardExpense["category"]>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
-  const filteredExpenses = useMemo(() => {
-    return expenses
-      .filter((expense) => {
-        // Category filter
-        if (filter !== "all" && expense.category !== filter) {
-          return false;
+  // Pagination state (20 per page standard)
+  const pageSize = 20;
+  const [page, setPage] = useState(1);
+  const [displayedExpenses, setDisplayedExpenses] = useState<DashboardExpense[]>(expenses);
+  const [totalCount, setTotalCount] = useState<number>(
+    initialTotalCount !== undefined ? initialTotalCount : expenses.length
+  );
+  const [filteredTotal, setFilteredTotal] = useState<number>(
+    initialTotalAmount !== undefined
+      ? initialTotalAmount
+      : expenses.reduce((sum, e) => sum + e.amount, 0)
+  );
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>(
+    initialCategoryCounts || {
+      all: initialTotalCount !== undefined ? initialTotalCount : expenses.length,
+      "Day-to-day": expenses.filter((e) => e.category === "Day-to-day").length,
+      "Inventory purchase": expenses.filter((e) => e.category === "Inventory purchase").length,
+      Salary: expenses.filter((e) => e.category === "Salary").length,
+      Rent: expenses.filter((e) => e.category === "Rent").length,
+      Refund: expenses.filter((e) => e.category === "Refund").length,
+    }
+  );
+  const [isFetching, setIsFetching] = useState(false);
+  const isInitialMount = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Sync state during render when props change (avoid cascading renders)
+  const [prevExpenses, setPrevExpenses] = useState(expenses);
+  const [prevInitialTotalCount, setPrevInitialTotalCount] = useState(initialTotalCount);
+  const [prevInitialCategoryCounts, setPrevInitialCategoryCounts] = useState(initialCategoryCounts);
+  const [prevInitialTotalAmount, setPrevInitialTotalAmount] = useState(initialTotalAmount);
+
+  const isDefaultView =
+    page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest";
+
+  if (expenses !== prevExpenses) {
+    setPrevExpenses(expenses);
+    if (isDefaultView) {
+      setDisplayedExpenses(expenses);
+    }
+  }
+
+  if (initialTotalCount !== undefined && initialTotalCount !== prevInitialTotalCount) {
+    setPrevInitialTotalCount(initialTotalCount);
+    if (isDefaultView) {
+      setTotalCount(initialTotalCount);
+    }
+  }
+
+  if (initialCategoryCounts !== undefined && initialCategoryCounts !== prevInitialCategoryCounts) {
+    setPrevInitialCategoryCounts(initialCategoryCounts);
+    if (isDefaultView) {
+      setCategoryCounts(initialCategoryCounts);
+    }
+  }
+
+  if (initialTotalAmount !== undefined && initialTotalAmount !== prevInitialTotalAmount) {
+    setPrevInitialTotalAmount(initialTotalAmount);
+    if (isDefaultView) {
+      setFilteredTotal(initialTotalAmount);
+    }
+  }
+
+  // Fast GET fetch for expenses pagination & filters (auto-abort stale queries)
+  const fetchPage = useCallback(
+    async (
+      targetPage: number,
+      currentFilter: "all" | DashboardExpense["category"],
+      currentSearch: string,
+      currentStart: string,
+      currentEnd: string,
+      currentSort: "newest" | "oldest"
+    ) => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      setIsFetching(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(targetPage));
+        params.set("pageSize", String(pageSize));
+        if (currentFilter !== "all") params.set("category", currentFilter);
+        if (currentSearch.trim()) params.set("search", currentSearch.trim());
+        if (currentStart) params.set("startDate", currentStart);
+        if (currentEnd) params.set("endDate", currentEnd);
+        params.set("sortOrder", currentSort);
+
+        const res = await fetch(`/api/expenses?${params.toString()}`, {
+          method: "GET",
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP error ${res.status}`);
         }
 
-        // Search filter (description, category, or amount)
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase().trim();
-          const descMatch = expense.desc.toLowerCase().includes(q);
-          const catMatch = expense.category.toLowerCase().includes(q);
-          const amtMatch = String(expense.amount).includes(q);
-          if (!descMatch && !catMatch && !amtMatch) {
-            return false;
+        const data = await res.json();
+        if (data.success) {
+          setDisplayedExpenses(data.expenses);
+          setTotalCount(data.totalCount);
+          setPage(data.page);
+          if (data.categoryCounts) {
+            setCategoryCounts(data.categoryCounts);
+          }
+          if (data.totalFilteredAmount !== undefined) {
+            setFilteredTotal(data.totalFilteredAmount);
           }
         }
-
-        // Date range filter
-        if (startDate || endDate) {
-          const itemDate = getLocalDateString(expense.createdAt);
-          if (itemDate) {
-            if (startDate && endDate) {
-              const from = startDate <= endDate ? startDate : endDate;
-              const to = startDate <= endDate ? endDate : startDate;
-              if (itemDate < from || itemDate > to) return false;
-            } else if (startDate) {
-              if (itemDate < startDate) return false;
-            } else if (endDate) {
-              if (itemDate > endDate) return false;
-            }
-          }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
         }
+        console.error("Failed to load page of expenses:", err);
+      } finally {
+        setIsFetching(false);
+      }
+    },
+    [pageSize]
+  );
 
-        return true;
-      })
-      .sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return sortOrder === "oldest" ? timeA - timeB : timeB - timeA;
-      });
-  }, [expenses, filter, searchQuery, startDate, endDate, sortOrder]);
+  // Debounce ONLY text-based search (300ms) to prevent excessive requests while typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  const filteredTotal = useMemo(() => {
-    return filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-  }, [filteredExpenses]);
+  // Execute immediately (0ms delay) on button clicks (category, dates, sort), or when debounced search resolves
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    fetchPage(1, filter, debouncedSearch, startDate, endDate, sortOrder);
+  }, [filter, debouncedSearch, startDate, endDate, sortOrder, fetchPage]);
+
+  // Instant in-memory filter on button click (0ms visual feedback)
+  const handleCategoryClick = (newCategory: "all" | DashboardExpense["category"]) => {
+    setFilter(newCategory);
+    if (!searchQuery && !startDate && !endDate) {
+      if (newCategory === "all") {
+        setDisplayedExpenses(expenses);
+        setFilteredTotal(expenses.reduce((sum, e) => sum + e.amount, 0));
+      } else {
+        const inMemory = expenses.filter((e) => e.category === newCategory);
+        setDisplayedExpenses(inMemory);
+        setFilteredTotal(inMemory.reduce((sum, e) => sum + e.amount, 0));
+      }
+    }
+  };
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
     <div className="space-y-6 w-full">
@@ -119,7 +248,10 @@ export function ExpensesTab({ expenses, onOpenNewExpense }: ExpensesTabProps) {
           {searchQuery && (
             <button
               type="button"
-              onClick={() => setSearchQuery("")}
+              onClick={() => {
+                setSearchQuery("");
+                setDebouncedSearch("");
+              }}
               className="text-galla-ink-soft hover:text-galla-ink cursor-pointer p-0.5"
               title="Clear search"
             >
@@ -235,17 +367,18 @@ export function ExpensesTab({ expenses, onOpenNewExpense }: ExpensesTabProps) {
         <div className="flex flex-wrap gap-2">
           {FILTER_OPTIONS.map((opt) => {
             const isActive = filter === opt.id;
+            const count = categoryCounts[opt.id] ?? 0;
             return (
               <button
                 key={opt.id}
-                onClick={() => setFilter(opt.id)}
+                onClick={() => handleCategoryClick(opt.id)}
                 className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
                   isActive
                     ? "bg-galla-teal text-white border-galla-teal shadow-xs"
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
                 }`}
               >
-                {opt.label}
+                {opt.label} ({count})
               </button>
             );
           })}
@@ -256,9 +389,12 @@ export function ExpensesTab({ expenses, onOpenNewExpense }: ExpensesTabProps) {
             type="button"
             onClick={() => {
               setSearchQuery("");
+              setDebouncedSearch("");
               setStartDate("");
               setEndDate("");
               setFilter("all");
+              setDisplayedExpenses(expenses);
+              setFilteredTotal(expenses.reduce((sum, e) => sum + e.amount, 0));
             }}
             className="text-[12px] font-sans text-galla-teal hover:underline font-medium cursor-pointer"
           >
@@ -271,7 +407,7 @@ export function ExpensesTab({ expenses, onOpenNewExpense }: ExpensesTabProps) {
       {(searchQuery || startDate || endDate || filter !== "all") && (
         <div className="flex items-center justify-between text-[12px] font-sans text-galla-ink-soft px-1">
           <span>
-            Showing {filteredExpenses.length} of {expenses.length} expense{expenses.length !== 1 ? "s" : ""}
+            Showing {totalCount > 0 ? Math.min(displayedExpenses.length, totalCount) : 0} of {totalCount} matching expense{totalCount !== 1 ? "s" : ""}
           </span>
           <span className="font-medium text-galla-ink">
             Filtered Outflow:{" "}
@@ -283,69 +419,120 @@ export function ExpensesTab({ expenses, onOpenNewExpense }: ExpensesTabProps) {
       )}
 
       {/* Expenses List */}
-      <div className="bg-galla-surface border border-galla-line rounded-[5px] divide-y divide-galla-line overflow-hidden">
-        {filteredExpenses.map((expense) => (
-          <div
-            key={expense.id || expense.desc + expense.time + expense.amount}
-            className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
-          >
-            <div>
-              <div className="font-sans font-semibold text-[15px] text-galla-ink">
-                {expense.desc}
+      <div className="bg-galla-surface border border-galla-line rounded-[5px] overflow-hidden">
+        <div className={`divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
+          {displayedExpenses.map((expense) => (
+            <div
+              key={expense.id || expense.desc + expense.time + expense.amount}
+              className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
+            >
+              <div>
+                <div className="font-sans font-semibold text-[15px] text-galla-ink">
+                  {expense.desc}
+                </div>
+                <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
+                  <span
+                    className={`inline-block px-2 py-0.5 rounded-[3px] border mr-2 text-[11.5px] font-medium ${
+                      expense.category === "Refund"
+                        ? "bg-red-50 text-red-800 border-red-200"
+                        : "bg-galla-paper text-galla-ink-soft border-galla-line"
+                    }`}
+                  >
+                    {expense.category}
+                  </span>
+                  <span>{expense.time}</span>
+                </div>
               </div>
-              <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-                <span
-                  className={`inline-block px-2 py-0.5 rounded-[3px] border mr-2 text-[11.5px] font-medium ${
-                    expense.category === "Refund"
-                      ? "bg-red-50 text-red-800 border-red-200"
-                      : "bg-galla-paper text-galla-ink-soft border-galla-line"
-                  }`}
+
+              <div className="font-heading font-semibold text-[16px] text-galla-brick tabular-nums">
+                &minus;{formatRupee(expense.amount)}
+              </div>
+            </div>
+          ))}
+
+          {displayedExpenses.length === 0 && (
+            <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft space-y-2">
+              <p>
+                {startDate && endDate
+                  ? startDate === endDate
+                    ? `No expenses recorded for ${formatDisplayDate(startDate)}.`
+                    : `No expenses recorded between ${formatDisplayDate(startDate)} and ${formatDisplayDate(endDate)}.`
+                  : startDate
+                  ? `No expenses recorded from ${formatDisplayDate(startDate)} onwards.`
+                  : endDate
+                  ? `No expenses recorded up to ${formatDisplayDate(endDate)}.`
+                  : searchQuery
+                  ? `No expenses matching "${searchQuery}".`
+                  : filter !== "all"
+                  ? `No expenses found in "${filter}" category.`
+                  : "No expenses recorded yet."}
+              </p>
+              {(searchQuery || startDate || endDate || filter !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setDebouncedSearch("");
+                    setStartDate("");
+                    setEndDate("");
+                    setFilter("all");
+                    setDisplayedExpenses(expenses);
+                  }}
+                  className="text-galla-teal hover:underline text-[12.5px] font-medium cursor-pointer"
                 >
-                  {expense.category}
-                </span>
-                <span>{expense.time}</span>
-              </div>
+                  Reset all filters
+                </button>
+              )}
             </div>
+          )}
+        </div>
 
-            <div className="font-heading font-semibold text-[16px] text-galla-brick tabular-nums">
-              &minus;{formatRupee(expense.amount)}
-            </div>
-          </div>
-        ))}
-
-        {filteredExpenses.length === 0 && (
-          <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft space-y-2">
-            <p>
-              {startDate && endDate
-                ? startDate === endDate
-                  ? `No expenses recorded for ${formatDisplayDate(startDate)}.`
-                  : `No expenses recorded between ${formatDisplayDate(startDate)} and ${formatDisplayDate(endDate)}.`
-                : startDate
-                ? `No expenses recorded from ${formatDisplayDate(startDate)} onwards.`
-                : endDate
-                ? `No expenses recorded up to ${formatDisplayDate(endDate)}.`
-                : searchQuery
-                ? `No expenses matching "${searchQuery}".`
-                : filter !== "all"
-                ? `No expenses found in "${filter}" category.`
-                : "No expenses recorded yet."}
-            </p>
-            {(searchQuery || startDate || endDate || filter !== "all") && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setStartDate("");
-                  setEndDate("");
-                  setFilter("all");
-                }}
-                className="text-galla-teal hover:underline text-[12.5px] font-medium cursor-pointer"
-              >
-                Reset all filters
-              </button>
+        {/* Standard Pagination Footer */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-[21px] py-3 bg-galla-paper/30 border-t border-galla-line">
+          <div className="text-[12px] font-sans text-galla-ink-soft">
+            {totalCount > 0 ? (
+              <>
+                Showing <span className="font-medium text-galla-ink">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{" "}
+                <span className="font-medium text-galla-ink">{Math.min(page * pageSize, totalCount)}</span> of{" "}
+                <span className="font-medium text-galla-ink">{totalCount}</span> expenses
+              </>
+            ) : (
+              "0 expenses to display"
             )}
           </div>
-        )}
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => fetchPage(page - 1, filter, debouncedSearch, startDate, endDate, sortOrder)}
+              disabled={page <= 1 || isFetching}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] font-sans font-medium rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink hover:bg-galla-paper transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+              title="Load previous 20 expenses"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span>Previous</span>
+            </button>
+
+            <div className="flex items-center px-2 font-sans text-[12px] text-galla-ink font-medium">
+              Page {page} of {totalPages}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => fetchPage(page + 1, filter, debouncedSearch, startDate, endDate, sortOrder)}
+              disabled={page >= totalPages || isFetching}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] font-sans font-medium rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink hover:bg-galla-paper transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+              title="Load next 20 expenses"
+            >
+              <span>Next</span>
+              {isFetching ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-galla-teal" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
