@@ -62,8 +62,12 @@ function mapOrderType(type: string): OrderType {
 }
 
 function mapExpenseCategory(
-  cat: string
-): "Inventory purchase" | "Day-to-day" | "Salary" | "Rent" {
+  cat: string,
+  title?: string
+): "Inventory purchase" | "Day-to-day" | "Salary" | "Rent" | "Refund" {
+  if (cat === "refund" || (cat === "other" && title?.toLowerCase().includes("refund"))) {
+    return "Refund";
+  }
   if (cat === "inventory_purchase" || cat === "inventory")
     return "Inventory purchase";
   if (cat === "salary") return "Salary";
@@ -196,9 +200,12 @@ export default async function DashboardPage() {
         id: e._id.toString(),
         desc: e.title,
         amount: e.amount,
-        category: mapExpenseCategory(e.category),
+        category: mapExpenseCategory(e.category, e.title),
         time: formatOrderTime(e.expenseDate || e.createdAt),
         isToday: checkIsToday(e.expenseDate || e.createdAt),
+        createdAt: (e.expenseDate || e.createdAt)
+          ? new Date(e.expenseDate || e.createdAt).toISOString()
+          : undefined,
       }));
 
       const ownerUser = await User.findOne({

@@ -36,7 +36,7 @@ export type RefundOrderInput = z.infer<typeof refundOrderSchema>;
 export const createExpenseSchema = z.object({
   desc: z.string().min(1, "Description is required").trim(),
   amount: z.number().positive("Amount must be greater than 0"),
-  category: z.enum(["Day-to-day", "Inventory purchase", "Salary", "Rent"]),
+  category: z.enum(["Day-to-day", "Inventory purchase", "Salary", "Rent", "Refund"]),
 });
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;

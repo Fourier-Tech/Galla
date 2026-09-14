@@ -426,7 +426,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       const expenseDoc = await Expense.create({
         tenantId,
         title: `Customer Refund — Order ${order.orderNumber} (${order.customerSnapshot?.name || "Customer"})`,
-        category: "other",
+        category: "refund",
         amount: refundAmount,
         paymentMode: refundMode,
         notes: refundReason || `Refund processed for order ${order.orderNumber}`,
@@ -438,9 +438,10 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         id: expenseDoc._id.toString(),
         desc: expenseDoc.title,
         amount: expenseDoc.amount,
-        category: "Day-to-day",
+        category: "Refund",
         time: "Today, Just now",
         isToday: true,
+        createdAt: expenseDoc.expenseDate ? new Date(expenseDoc.expenseDate).toISOString() : new Date().toISOString(),
       };
     }
 
@@ -547,10 +548,12 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
       | "inventory_purchase"
       | "refreshments"
       | "salary"
-      | "rent" = "refreshments";
+      | "rent"
+      | "refund" = "refreshments";
     if (input.category === "Inventory purchase") dbCategory = "inventory_purchase";
     else if (input.category === "Salary") dbCategory = "salary";
     else if (input.category === "Rent") dbCategory = "rent";
+    else if (input.category === "Refund") dbCategory = "refund";
 
     const newDoc = await Expense.create({
       tenantId,
@@ -574,6 +577,7 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
         category: input.category,
         time: "Today, Just now",
         isToday: true,
+        createdAt: newDoc.expenseDate ? new Date(newDoc.expenseDate).toISOString() : new Date().toISOString(),
       },
     };
   } catch (error) {

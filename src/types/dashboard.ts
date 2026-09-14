@@ -43,9 +43,10 @@ export interface DashboardExpense {
   id?: string;
   desc: string;
   amount: number;
-  category: "Inventory purchase" | "Day-to-day" | "Salary" | "Rent";
+  category: "Inventory purchase" | "Day-to-day" | "Salary" | "Rent" | "Refund";
   time: string;
   isToday?: boolean;
+  createdAt?: string;
 }
 
 export interface DashboardSalonProfile {

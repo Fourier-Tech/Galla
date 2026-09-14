@@ -18,7 +18,7 @@ export function NewExpenseModal({
 }: NewExpenseModalProps) {
   const [desc, setDesc] = useState("");
   const [category, setCategory] = useState<
-    "Day-to-day" | "Inventory purchase" | "Salary" | "Rent"
+    "Day-to-day" | "Inventory purchase" | "Salary" | "Rent" | "Refund"
   >("Day-to-day");
   const [amount, setAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -127,6 +127,7 @@ export function NewExpenseModal({
               <option value="Inventory purchase">Inventory purchase</option>
               <option value="Salary">Salary</option>
               <option value="Rent">Rent</option>
+              <option value="Refund">Refund</option>
             </select>
           </div>
 

@@ -100,3 +100,30 @@ export function formatOrderTime(date: Date | string | undefined): string {
 
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
 }
+
+export function getLocalDateString(isoOrDate?: string | Date): string | null {
+  if (!isoOrDate) return null;
+  const d = new Date(isoOrDate);
+  if (isNaN(d.getTime())) return null;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function getFirstDayOfCurrentMonth(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}-01`;
+}
+
+export function formatDisplayDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) return dateStr;
+  const d = new Date(year, month - 1, day);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}

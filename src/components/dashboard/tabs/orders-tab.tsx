@@ -14,7 +14,12 @@ import {
 } from "lucide-react";
 import { DashboardOrder, OrderStatus } from "@/types/dashboard";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee } from "@/lib/utils";
+import {
+  formatRupee,
+  getLocalDateString,
+  getFirstDayOfCurrentMonth,
+  formatDisplayDate,
+} from "@/lib/utils";
 import { getOrdersAction } from "@/app/dashboard/actions";
 
 interface OrdersTabProps {
@@ -33,32 +38,6 @@ const FILTER_OPTIONS: { id: "all" | OrderStatus; label: string }[] = [
   { id: "cancelled_refunded", label: "Refunded" },
 ];
 
-function getLocalDateString(isoOrDate?: string | Date): string | null {
-  if (!isoOrDate) return null;
-  const d = new Date(isoOrDate);
-  if (isNaN(d.getTime())) return null;
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function getFirstDayOfCurrentMonth(): string {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}-01`;
-}
-
-function formatDisplayDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  if (!year || !month || !day) return dateStr;
-  const d = new Date(year, month - 1, day);
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export function OrdersTab({
   orders,

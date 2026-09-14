@@ -9,6 +9,7 @@ export type ExpenseCategory =
   | "utilities"
   | "maintenance"
   | "marketing"
+  | "refund"
   | "other";
 
 export type ExpensePaymentMode =
@@ -60,6 +61,7 @@ const ExpenseSchema = new Schema<IExpense>(
         "utilities",
         "maintenance",
         "marketing",
+        "refund",
         "other",
       ],
       required: true,
