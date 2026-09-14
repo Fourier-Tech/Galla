@@ -1,4 +1,13 @@
 import mongoose from "mongoose";
+import dns from "node:dns";
+
+// Fix for Node.js SRV lookup failures (querySrv ECONNREFUSED) on ISPs/networks (e.g. Jio/Reliance)
+// where local router DNS fails to resolve MongoDB Atlas SRV records.
+try {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch {
+  // Ignore in environments where custom DNS servers are restricted
+}
 
 declare global {
   var mongooseCache: {
