@@ -942,6 +942,9 @@ export async function createServiceAction(rawInput: unknown): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
+    }
 
     const parseResult = createServiceSchema.safeParse(rawInput);
     if (!parseResult.success) {
@@ -996,6 +999,9 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
     const session = await auth();
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
+    }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
     }
 
     const parseResult = updateServiceSchema.safeParse(rawInput);
@@ -1061,6 +1067,9 @@ export async function toggleServiceStatusAction(serviceId: string): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
+    }
 
     await connectToDatabase();
     const tenantId = await resolveTenantId(session);
@@ -1098,6 +1107,9 @@ export async function deleteServiceAction(serviceId: string): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
+    }
 
     await connectToDatabase();
     const tenantId = await resolveTenantId(session);
@@ -1132,6 +1144,9 @@ export async function createPackageAction(rawInput: unknown): Promise<{
     const session = await auth();
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
+    }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
     }
 
     const parseResult = createPackageSchema.safeParse(rawInput);
@@ -1202,6 +1217,9 @@ export async function updatePackageAction(rawInput: unknown): Promise<{
     const session = await auth();
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
+    }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
     }
 
     const parseResult = updatePackageSchema.safeParse(rawInput);
@@ -1282,6 +1300,9 @@ export async function togglePackageStatusAction(packageId: string): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
+    }
 
     await connectToDatabase();
     const tenantId = await resolveTenantId(session);
@@ -1318,6 +1339,9 @@ export async function deletePackageAction(packageId: string): Promise<{
     const session = await auth();
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
+    }
+    if (session.user.role !== "owner") {
+      return { success: false, error: "Only salon owners can manage services and packages" };
     }
 
     await connectToDatabase();

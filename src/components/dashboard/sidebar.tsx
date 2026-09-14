@@ -27,7 +27,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "Overview", icon: Home, ownerOnly: false },
   { id: "orders", label: "Orders", icon: Receipt, ownerOnly: false },
-  { id: "services", label: "Services & Packages", icon: Sparkles, ownerOnly: false },
+  { id: "services", label: "Services & Packages", icon: Sparkles, ownerOnly: true },
   { id: "inventory", label: "Inventory", icon: Package, ownerOnly: false },
   { id: "customers", label: "Customers", icon: Users, ownerOnly: false },
   { id: "expenses", label: "Expenses", icon: Wallet, ownerOnly: false },

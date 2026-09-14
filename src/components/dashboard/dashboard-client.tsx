@@ -324,7 +324,7 @@ export function DashboardClient({
             />
           )}
 
-          {activeTab === "services" && (
+          {activeTab === "services" && role === "owner" && (
             <ServicesTab
               services={services}
               packages={packages}
