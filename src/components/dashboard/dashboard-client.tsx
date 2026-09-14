@@ -43,6 +43,7 @@ interface DashboardClientProps {
   initialSalonProfile?: DashboardSalonProfile;
   initialServices?: DashboardService[];
   initialPackages?: DashboardPackage[];
+  initialOrderStatusCounts?: Record<string, number>;
 }
 
 export function DashboardClient({
@@ -57,6 +58,7 @@ export function DashboardClient({
   initialSalonProfile,
   initialServices = [],
   initialPackages = [],
+  initialOrderStatusCounts,
 }: DashboardClientProps) {
   const router = useRouter();
   const role: UserRole = initialRole;
@@ -318,6 +320,7 @@ export function DashboardClient({
             <OrdersTab
               orders={orders}
               initialTotalCount={initialTotalOrdersCount}
+              initialStatusCounts={initialOrderStatusCounts}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}

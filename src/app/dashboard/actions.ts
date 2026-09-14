@@ -836,6 +836,7 @@ export async function getOrdersAction(params: {
   totalCount: number;
   page: number;
   totalPages: number;
+  statusCounts?: Record<string, number>;
   error?: string;
 }> {
   try {
@@ -891,14 +892,32 @@ export async function getOrdersAction(params: {
 
     const sortDirection = params.sortOrder === "oldest" ? 1 : -1;
 
-    const [totalCount, rawOrders] = await Promise.all([
+    const [totalCount, rawOrders, statusAgg, overallTotal] = await Promise.all([
       Order.countDocuments(query),
       Order.find(query)
         .sort({ createdAt: sortDirection })
         .skip((page - 1) * pageSize)
         .limit(pageSize)
         .lean(),
+      Order.aggregate([
+        { $match: { tenantId } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      Order.countDocuments({ tenantId }),
     ]);
+
+    const statusCounts: Record<string, number> = {
+      all: overallTotal,
+      advance_paid: 0,
+      paid_full: 0,
+      completed: 0,
+      cancelled_refunded: 0,
+    };
+    statusAgg.forEach((item: { _id: string; count: number }) => {
+      if (item._id && statusCounts[item._id] !== undefined) {
+        statusCounts[item._id] = item.count;
+      }
+    });
 
     const orders: DashboardOrder[] = rawOrders.map((o) => ({
       id: o.orderNumber,
@@ -925,6 +944,7 @@ export async function getOrdersAction(params: {
       totalCount,
       page,
       totalPages: Math.ceil(totalCount / pageSize),
+      statusCounts,
     };
   } catch (error) {
     console.error("Failed to fetch paginated orders:", error);

@@ -25,6 +25,7 @@ import { getOrdersAction } from "@/app/dashboard/actions";
 interface OrdersTabProps {
   orders: DashboardOrder[];
   initialTotalCount?: number;
+  initialStatusCounts?: Record<string, number>;
   onOpenNewOrder: () => void;
   onCompleteOrder?: (orderId: string) => Promise<void> | void;
   onOpenRefund?: (order: DashboardOrder) => void;
@@ -42,6 +43,7 @@ const FILTER_OPTIONS: { id: "all" | OrderStatus; label: string }[] = [
 export function OrdersTab({
   orders,
   initialTotalCount,
+  initialStatusCounts,
   onOpenNewOrder,
   onCompleteOrder,
   onOpenRefund,
@@ -60,12 +62,22 @@ export function OrdersTab({
   const [totalCount, setTotalCount] = useState<number>(
     initialTotalCount !== undefined ? initialTotalCount : orders.length
   );
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>(
+    initialStatusCounts || {
+      all: initialTotalCount !== undefined ? initialTotalCount : orders.length,
+      advance_paid: orders.filter((o) => o.status === "advance_paid").length,
+      paid_full: orders.filter((o) => o.status === "paid_full").length,
+      completed: orders.filter((o) => o.status === "completed").length,
+      cancelled_refunded: orders.filter((o) => o.status === "cancelled_refunded").length,
+    }
+  );
   const [isFetching, setIsFetching] = useState(false);
   const isInitialMount = useRef(true);
 
   // Sync with initial orders during render when props change (avoid cascading renders)
   const [prevOrders, setPrevOrders] = useState(orders);
   const [prevInitialTotalCount, setPrevInitialTotalCount] = useState(initialTotalCount);
+  const [prevInitialStatusCounts, setPrevInitialStatusCounts] = useState(initialStatusCounts);
 
   const isDefaultView =
     page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest";
@@ -88,6 +100,13 @@ export function OrdersTab({
     }
   }
 
+  if (initialStatusCounts !== undefined && initialStatusCounts !== prevInitialStatusCounts) {
+    setPrevInitialStatusCounts(initialStatusCounts);
+    if (isDefaultView) {
+      setStatusCounts(initialStatusCounts);
+    }
+  }
+
   const handleComplete = async (id: string) => {
     if (!onCompleteOrder) return;
     setLoadingId(id);
@@ -98,6 +117,17 @@ export function OrdersTab({
           o.id === id ? { ...o, status: "completed", paid: o.amount } : o
         )
       );
+      setStatusCounts((prev) => {
+        const order = displayedOrders.find((o) => o.id === id);
+        const prevStatus = order?.status;
+        return {
+          ...prev,
+          ...(prevStatus && prev[prevStatus] !== undefined
+            ? { [prevStatus]: Math.max(0, prev[prevStatus] - 1) }
+            : {}),
+          completed: (prev.completed || 0) + 1,
+        };
+      });
     } finally {
       setLoadingId(null);
     }
@@ -129,6 +159,9 @@ export function OrdersTab({
           setDisplayedOrders(res.orders);
           setTotalCount(res.totalCount);
           setPage(res.page);
+          if (res.statusCounts) {
+            setStatusCounts(res.statusCounts);
+          }
         }
       } catch (err) {
         console.error("Failed to load page of orders:", err);
@@ -160,14 +193,9 @@ export function OrdersTab({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
-              Orders &amp; Service Transactions
-            </h2>
-            <span className="inline-flex items-center justify-center px-2 py-0.5 text-[12px] font-sans font-medium text-galla-ink-soft bg-galla-paper border border-galla-line rounded-[4px] tabular-nums">
-              {totalCount}
-            </span>
-          </div>
+          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+            Orders &amp; Service Transactions
+          </h2>
           <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
             Full ledger of counter sales, advance deposits &amp; settlements
           </p>
@@ -313,6 +341,11 @@ export function OrdersTab({
         <div className="flex flex-wrap gap-2">
           {FILTER_OPTIONS.map((opt) => {
             const isActive = filter === opt.id;
+            const count =
+              opt.id === "all"
+                ? (statusCounts.all ?? totalCount)
+                : (statusCounts[opt.id] ?? 0);
+
             return (
               <button
                 key={opt.id}
@@ -323,7 +356,7 @@ export function OrdersTab({
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
                 }`}
               >
-                {opt.label}
+                {opt.label} ({count})
               </button>
             );
           })}

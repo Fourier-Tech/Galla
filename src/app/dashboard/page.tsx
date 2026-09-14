@@ -95,6 +95,13 @@ export default async function DashboardPage() {
   let initialExpenses: DashboardExpense[] = [];
   let initialServices: DashboardService[] = [];
   let initialPackages: DashboardPackage[] = [];
+  let initialOrderStatusCounts: Record<string, number> = {
+    all: 0,
+    advance_paid: 0,
+    paid_full: 0,
+    completed: 0,
+    cancelled_refunded: 0,
+  };
   let initialSalonProfile: DashboardSalonProfile = {
     id: "",
     name: "",
@@ -150,6 +157,7 @@ export default async function DashboardPage() {
         count,
         rawServices,
         rawPackages,
+        statusAgg,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
         Product.find({ tenantId: tenantObjectId, isActive: true }).sort({ createdAt: 1 }).lean(),
@@ -162,9 +170,25 @@ export default async function DashboardPage() {
         Order.countDocuments({ tenantId: tenantObjectId }),
         Service.find({ tenantId: tenantObjectId }).sort({ category: 1, name: 1 }).lean(),
         PackageTemplate.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).lean(),
+        Order.aggregate([
+          { $match: { tenantId: tenantObjectId } },
+          { $group: { _id: "$status", count: { $sum: 1 } } },
+        ]),
       ]);
 
       initialTotalOrdersCount = count;
+      initialOrderStatusCounts = {
+        all: count,
+        advance_paid: 0,
+        paid_full: 0,
+        completed: 0,
+        cancelled_refunded: 0,
+      };
+      statusAgg.forEach((item: { _id: string; count: number }) => {
+        if (item._id && initialOrderStatusCounts[item._id] !== undefined) {
+          initialOrderStatusCounts[item._id] = item.count;
+        }
+      });
 
       initialOrders = rawOrders.map((o) => ({
         id: o.orderNumber,
@@ -291,6 +315,7 @@ export default async function DashboardPage() {
       initialSalonProfile={initialSalonProfile}
       initialServices={initialServices}
       initialPackages={initialPackages}
+      initialOrderStatusCounts={initialOrderStatusCounts}
     />
   );
 }
