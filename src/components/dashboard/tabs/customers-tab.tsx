@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Search } from "lucide-react";
 import { DashboardCustomer } from "@/types/dashboard";
+import { formatPhoneNumber } from "@/lib/utils";
 
 interface CustomersTabProps {
   customers: DashboardCustomer[];
@@ -11,9 +12,25 @@ interface CustomersTabProps {
 export function CustomersTab({ customers }: CustomersTabProps) {
   const [search, setSearch] = useState("");
 
-  const filteredCustomers = customers.filter((c) =>
-    (c.name + " " + c.phone).toLowerCase().includes(search.toLowerCase())
-  );
+  const formattedCustomers = useMemo(() => {
+    return customers.map((c) => ({
+      ...c,
+      phone: formatPhoneNumber(c.phone),
+    }));
+  }, [customers]);
+
+  const filteredCustomers = useMemo(() => {
+    const term = search.toLowerCase().trim();
+    if (!term) return formattedCustomers;
+
+    const termDigits = term.replace(/\D/g, "");
+    return formattedCustomers.filter((c) => {
+      const nameMatch = c.name.toLowerCase().includes(term);
+      const phoneMatch = c.phone.toLowerCase().includes(term);
+      const digitMatch = termDigits.length > 0 && c.phone.replace(/\D/g, "").includes(termDigits);
+      return nameMatch || phoneMatch || digitMatch;
+    });
+  }, [formattedCustomers, search]);
 
   return (
     <div className="space-y-6 w-full">

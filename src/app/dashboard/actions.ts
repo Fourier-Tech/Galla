@@ -26,6 +26,7 @@ import {
   OrderType,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
+import { formatPhoneNumber } from "@/lib/utils";
 
 interface SessionLike {
   user?: {
@@ -104,12 +105,14 @@ export async function createOrderAction(rawInput: unknown): Promise<{
     const isFullPayment = input.paidAmount >= input.totalAmount;
     const amountPending = Math.max(0, input.totalAmount - input.paidAmount);
 
+    const formattedPhone = input.customerPhone ? formatPhoneNumber(input.customerPhone) : "";
+
     const newDoc = await Order.create({
       tenantId,
       orderNumber,
       customerSnapshot: {
         name: input.customerName,
-        phone: input.customerPhone || "",
+        phone: formattedPhone,
       },
       orderType: dbOrderType,
       status: input.status,
@@ -153,20 +156,43 @@ export async function createOrderAction(rawInput: unknown): Promise<{
     });
 
     // Update customer visit stats if customer exists
-    if (input.customerPhone) {
-      await Customer.findOneAndUpdate(
-        { tenantId, phone: input.customerPhone },
-        {
-          $setOnInsert: { name: input.customerName, isActive: true },
-          $inc: {
-            "stats.totalVisits": 1,
-            "stats.totalSpend": input.paidAmount,
-            "stats.outstandingBalance": amountPending,
+    if (formattedPhone) {
+      const rawDigits = formattedPhone.replace(/\D/g, "").slice(-10);
+      const existingCustomer = await Customer.findOne({
+        tenantId,
+        $or: [
+          { phone: formattedPhone },
+          ...(rawDigits.length === 10
+            ? [{ phone: rawDigits }, { phone: `+91${rawDigits}` }, { phone: `0${rawDigits}` }]
+            : []),
+        ],
+      });
+
+      if (existingCustomer) {
+        existingCustomer.phone = formattedPhone;
+        existingCustomer.name = input.customerName || existingCustomer.name;
+        if (!existingCustomer.stats) {
+          existingCustomer.stats = { totalVisits: 0, totalSpend: 0, outstandingBalance: 0, lastVisitAt: new Date() };
+        }
+        existingCustomer.stats.totalVisits = (existingCustomer.stats.totalVisits || 0) + 1;
+        existingCustomer.stats.totalSpend = (existingCustomer.stats.totalSpend || 0) + input.paidAmount;
+        existingCustomer.stats.outstandingBalance = (existingCustomer.stats.outstandingBalance || 0) + amountPending;
+        existingCustomer.stats.lastVisitAt = new Date();
+        await existingCustomer.save();
+      } else {
+        await Customer.create({
+          tenantId,
+          name: input.customerName,
+          phone: formattedPhone,
+          isActive: true,
+          stats: {
+            totalVisits: 1,
+            totalSpend: input.paidAmount,
+            outstandingBalance: amountPending,
+            lastVisitAt: new Date(),
           },
-          $set: { "stats.lastVisitAt": new Date() },
-        },
-        { upsert: true }
-      );
+        });
+      }
     } else {
       await Customer.findOneAndUpdate(
         { tenantId, name: input.customerName },
@@ -253,8 +279,18 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
 
       // Update customer stats
       if (order.customerSnapshot?.phone) {
+        const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
+        const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
         await Customer.findOneAndUpdate(
-          { tenantId, phone: order.customerSnapshot.phone },
+          {
+            tenantId,
+            $or: [
+              { phone: cleanPhone },
+              ...(rawDigits.length === 10
+                ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
+                : [{ phone: order.customerSnapshot.phone }]),
+            ],
+          },
           {
             $inc: {
               "stats.totalSpend": remainingDue,
@@ -410,8 +446,18 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 
     // Adjust customer lifetime stats
     if (order.customerSnapshot?.phone) {
+      const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
+      const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
       await Customer.findOneAndUpdate(
-        { tenantId, phone: order.customerSnapshot.phone },
+        {
+          tenantId,
+          $or: [
+            { phone: cleanPhone },
+            ...(rawDigits.length === 10
+              ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
+              : [{ phone: order.customerSnapshot.phone }]),
+          ],
+        },
         {
           $inc: {
             "stats.totalSpend": -refundAmount,
@@ -453,6 +499,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         isLast24Hours: true,
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
         refundAmount: refundAmount,
+        refundReason: order.refundDetails?.refundReason || refundReason,
       },
     };
 
@@ -756,5 +803,166 @@ export async function uploadSalonProfileImageAction(formData: FormData): Promise
     return { success: false, error: message };
   }
 }
+
+function checkIsTodayHelper(date: Date | string | undefined): boolean {
+  if (!date) return true;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return true;
+  const now = new Date();
+  return (
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+  );
+}
+
+function checkIsLast24HoursHelper(date: Date | string | undefined): boolean {
+  if (!date) return true;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return true;
+  return Date.now() - d.getTime() <= 24 * 60 * 60 * 1000;
+}
+
+function formatOrderTimeHelper(date: Date | string | undefined): string {
+  if (!date) return "Today, Just now";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "Today, Just now";
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  const timeStr = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  if (isToday) return `Today, ${timeStr}`;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
+}
+
+export async function getOrdersAction(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  sortOrder?: "newest" | "oldest";
+}): Promise<{
+  success: boolean;
+  orders: DashboardOrder[];
+  totalCount: number;
+  page: number;
+  totalPages: number;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, orders: [], totalCount: 0, page: 1, totalPages: 0, error: "Unauthorized" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, orders: [], totalCount: 0, page: 1, totalPages: 0, error: "Salon tenant not found" };
+    }
+
+    const page = Math.max(1, Number(params.page) || 1);
+    const pageSize = Math.max(1, Math.min(100, Number(params.pageSize) || 20));
+
+    const query: Record<string, unknown> = { tenantId };
+
+    // Status filter
+    if (params.status && params.status !== "all") {
+      query.status = params.status;
+    }
+
+    // Date range filter
+    if (params.startDate || params.endDate) {
+      const dateFilter: { $gte?: Date; $lte?: Date } = {};
+      if (params.startDate && params.endDate) {
+        const from = params.startDate <= params.endDate ? params.startDate : params.endDate;
+        const to = params.startDate <= params.endDate ? params.endDate : params.startDate;
+        dateFilter.$gte = new Date(`${from}T00:00:00`);
+        dateFilter.$lte = new Date(`${to}T23:59:59.999`);
+      } else if (params.startDate) {
+        dateFilter.$gte = new Date(`${params.startDate}T00:00:00`);
+        dateFilter.$lte = new Date(`${params.startDate}T23:59:59.999`);
+      } else if (params.endDate) {
+        dateFilter.$lte = new Date(`${params.endDate}T23:59:59.999`);
+      }
+      query.createdAt = dateFilter;
+    }
+
+    // Search filter
+    if (params.search && params.search.trim()) {
+      const q = params.search.trim();
+      const regex = new RegExp(q, "i");
+      query.$or = [
+        { orderNumber: regex },
+        { "customerSnapshot.name": regex },
+        { "customerSnapshot.phone": regex },
+        { status: regex },
+        { "refundDetails.refundReason": regex },
+      ];
+    }
+
+    const sortDirection = params.sortOrder === "oldest" ? 1 : -1;
+
+    const [totalCount, rawOrders] = await Promise.all([
+      Order.countDocuments(query),
+      Order.find(query)
+        .sort({ createdAt: sortDirection })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean(),
+    ]);
+
+    const orders: DashboardOrder[] = rawOrders.map((o) => ({
+      id: o.orderNumber,
+      customer: o.customerSnapshot?.name || "Walk-in Customer",
+      type: o.orderType === "service_booking"
+        ? "Service booking"
+        : o.orderType === "package_sale"
+        ? "Package sale"
+        : "Product sale",
+      amount: o.totalAmount,
+      paid: o.amountPaid,
+      status: o.status,
+      time: formatOrderTimeHelper(o.createdAt),
+      isToday: checkIsTodayHelper(o.createdAt),
+      isLast24Hours: checkIsLast24HoursHelper(o.createdAt),
+      createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
+      refundAmount: o.refundDetails?.refundAmount,
+      refundReason: o.refundDetails?.refundReason,
+    }));
+
+    return {
+      success: true,
+      orders,
+      totalCount,
+      page,
+      totalPages: Math.ceil(totalCount / pageSize),
+    };
+  } catch (error) {
+    console.error("Failed to fetch paginated orders:", error);
+    return { success: false, orders: [], totalCount: 0, page: 1, totalPages: 0, error: "Failed to fetch orders" };
+  }
+}
+
 
 

@@ -31,6 +31,7 @@ interface DashboardClientProps {
   salonName?: string;
   initialRole?: UserRole;
   initialOrders?: DashboardOrder[];
+  initialTotalOrdersCount?: number;
   initialProducts?: DashboardProduct[];
   initialCustomers?: DashboardCustomer[];
   initialExpenses?: DashboardExpense[];
@@ -42,6 +43,7 @@ export function DashboardClient({
   salonName = "ShreeHari",
   initialRole = "owner",
   initialOrders = [],
+  initialTotalOrdersCount = 0,
   initialProducts = [],
   initialCustomers = [],
   initialExpenses = [],
@@ -239,12 +241,14 @@ export function DashboardClient({
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}
+              onNavigateToInventory={() => setActiveTab("inventory")}
             />
           )}
 
           {activeTab === "orders" && (
             <OrdersTab
               orders={orders}
+              initialTotalCount={initialTotalOrdersCount}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}

@@ -10,6 +10,7 @@ import { Product } from "@/lib/db/models/product.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { connectToDatabase } from "@/lib/db/mongodb";
+import { formatPhoneNumber } from "@/lib/utils";
 import {
   DashboardCustomer,
   DashboardExpense,
@@ -123,6 +124,7 @@ export default async function DashboardPage() {
   let salonName = "";
   let resolvedTenantId = session.user.tenantId || "";
   let initialOrders: DashboardOrder[] = [];
+  let initialTotalOrdersCount = 0;
   let initialProducts: DashboardProduct[] = [];
   let initialCustomers: DashboardCustomer[] = [];
   let initialExpenses: DashboardExpense[] = [];
@@ -173,9 +175,9 @@ export default async function DashboardPage() {
       salonName = tenant.name;
       const tenantObjectId = new Types.ObjectId(tenantId);
 
-      const [rawOrders, rawProducts, rawCustomers, rawExpenses] =
+      const [rawOrders, rawProducts, rawCustomers, rawExpenses, count] =
         await Promise.all([
-          Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).lean(),
+          Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
           Product.find({ tenantId: tenantObjectId, isActive: true }).sort({ createdAt: 1 }).lean(),
           Customer.find({ tenantId: tenantObjectId, isActive: true })
             .sort({ "stats.lastVisitAt": -1, updatedAt: -1 })
@@ -183,7 +185,10 @@ export default async function DashboardPage() {
           Expense.find({ tenantId: tenantObjectId })
             .sort({ expenseDate: -1, createdAt: -1 })
             .lean(),
+          Order.countDocuments({ tenantId: tenantObjectId }),
         ]);
+
+      initialTotalOrdersCount = count;
 
       initialOrders = rawOrders.map((o) => ({
         id: o.orderNumber,
@@ -197,6 +202,7 @@ export default async function DashboardPage() {
         isLast24Hours: checkIsLast24Hours(o.createdAt),
         createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
         refundAmount: o.refundDetails?.refundAmount,
+        refundReason: o.refundDetails?.refundReason,
       }));
 
       initialProducts = rawProducts.map((p) => ({
@@ -208,11 +214,26 @@ export default async function DashboardPage() {
       }));
 
       initialCustomers = rawCustomers.map((c) => ({
-        phone: c.phone,
+        phone: formatPhoneNumber(c.phone),
         name: c.name,
         visits: c.stats?.totalVisits ?? 0,
         lastVisit: formatCustomerVisit(c.stats?.lastVisitAt || c.updatedAt),
       }));
+
+      // Background migration for any legacy unformatted customer phones in DB
+      const unformatted = rawCustomers.filter(
+        (c) => c.phone && (!c.phone.startsWith("+91 ") || c.phone.length !== 15)
+      );
+      if (unformatted.length > 0) {
+        Promise.all(
+          unformatted.map((c) =>
+            Customer.updateOne(
+              { _id: c._id },
+              { $set: { phone: formatPhoneNumber(c.phone) } }
+            )
+          )
+        ).catch(() => {});
+      }
 
       initialExpenses = rawExpenses.map((e) => ({
         id: e._id.toString(),
@@ -254,6 +275,7 @@ export default async function DashboardPage() {
       salonName={salonName}
       initialRole={initialRole}
       initialOrders={initialOrders}
+      initialTotalOrdersCount={initialTotalOrdersCount}
       initialProducts={initialProducts}
       initialCustomers={initialCustomers}
       initialExpenses={initialExpenses}

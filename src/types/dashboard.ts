@@ -21,6 +21,7 @@ export interface DashboardOrder {
   isLast24Hours?: boolean;
   createdAt?: string;
   refundAmount?: number;
+  refundReason?: string;
 }
 
 export interface DashboardProduct {

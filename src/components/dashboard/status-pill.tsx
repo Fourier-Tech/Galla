@@ -5,6 +5,7 @@ interface StatusPillProps {
   status: OrderStatus;
   className?: string;
   customLabel?: string;
+  title?: string;
 }
 
 const STATUS_CONFIG: Record<
@@ -41,12 +42,13 @@ const STATUS_CONFIG: Record<
   },
 };
 
-export function StatusPill({ status, className = "", customLabel }: StatusPillProps) {
+export function StatusPill({ status, className = "", customLabel, title }: StatusPillProps) {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.created;
   const label = customLabel || config.label;
 
   return (
     <span
+      title={title}
       className={`inline-flex items-center justify-center text-center min-w-[105px] px-2.5 shrink-0 rounded-[3px] py-0.5 font-heading text-[12px] font-semibold uppercase tracking-[0.05em] ${config.className} ${className}`}
     >
       {label}

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { X } from "lucide-react";
 import { DashboardOrder, OrderType } from "@/types/dashboard";
 import { createOrderAction } from "@/app/dashboard/actions";
+import { formatPhoneNumber } from "@/lib/utils";
 
 interface NewOrderModalProps {
   isOpen: boolean;
@@ -47,7 +48,7 @@ export function NewOrderModal({
     try {
       const res = await createOrderAction({
         customerName: customer.trim(),
-        customerPhone: phone.trim() || undefined,
+        customerPhone: phone.trim() ? formatPhoneNumber(phone) : undefined,
         orderType: type,
         totalAmount: parsedAmount,
         paidAmount: paidAmount,
@@ -125,7 +126,12 @@ export function NewOrderModal({
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="e.g. 98250 12345"
+              onBlur={() => {
+                if (phone.trim()) {
+                  setPhone(formatPhoneNumber(phone));
+                }
+              }}
+              placeholder="e.g. +91 98250 12345"
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />
           </div>
