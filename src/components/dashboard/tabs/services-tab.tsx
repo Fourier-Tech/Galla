@@ -5,7 +5,6 @@ import {
   Package,
   Plus,
   Search,
-  Clock,
   Scissors,
   ShoppingBag,
   Edit2,
@@ -193,7 +192,7 @@ export function ServicesTab({
             Services &amp; Packages Catalog
           </h2>
           <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
-            Manage parlour treatment menu, pricing, duration, and promotional bundled packages
+            Manage parlour treatment menu, pricing, and promotional bundled packages
           </p>
         </div>
 
@@ -384,10 +383,9 @@ export function ServicesTab({
         /* SERVICES VIEW */
         <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-xs">
           {/* Header Row */}
-          <div className="hidden sm:grid grid-cols-[1.5fr_120px_100px_110px_90px_90px] gap-4 items-center px-5 py-3 bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.05em]">
+          <div className="hidden sm:grid grid-cols-[1.5fr_130px_110px_90px_90px] gap-4 items-center px-5 py-3 bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.05em]">
             <span>Service &amp; Notes</span>
             <span>Category</span>
-            <span>Duration</span>
             <span className="text-right">Price</span>
             <span className="text-center">Status</span>
             <span className="text-right">Actions</span>
@@ -399,7 +397,7 @@ export function ServicesTab({
               {filteredServices.map((service) => (
                 <div
                   key={service.id}
-                  className="flex flex-col sm:grid sm:grid-cols-[1.5fr_120px_100px_110px_90px_90px] gap-3 sm:gap-4 sm:items-center px-5 py-3.5 hover:bg-galla-paper/20 transition-colors"
+                  className="flex flex-col sm:grid sm:grid-cols-[1.5fr_130px_110px_90px_90px] gap-3 sm:gap-4 sm:items-center px-5 py-3.5 hover:bg-galla-paper/20 transition-colors"
                 >
                   {/* Name & description */}
                   <div className="min-w-0">
@@ -421,14 +419,8 @@ export function ServicesTab({
                     </span>
                   </div>
 
-                  {/* Duration */}
-                  <div className="flex items-center gap-1 font-sans text-[12.5px] text-galla-ink-soft">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>{service.durationMinutes || 30} mins</span>
-                  </div>
-
                   {/* Price */}
-                  <div className="sm:text-right font-mono font-semibold text-[15px] text-galla-ink">
+                  <div className="sm:text-right font-heading font-semibold text-[15px] text-galla-ink tabular-nums">
                     {formatRupee(service.price)}
                   </div>
 
@@ -558,18 +550,18 @@ export function ServicesTab({
                       {/* Pricing Tagline */}
                       <div className="flex items-baseline justify-between pt-1">
                         <div>
-                          <div className="font-heading font-bold text-[22px] text-galla-teal font-mono">
+                          <div className="font-heading font-bold text-[22px] text-galla-teal tabular-nums">
                             {formatRupee(pkg.packagePrice)}
                           </div>
                           {pkg.pricingType === "fixed" && standaloneTotal > pkg.packagePrice && (
-                            <div className="text-[12px] text-galla-ink-soft font-mono">
+                            <div className="text-[12px] text-galla-ink-soft font-heading font-medium tabular-nums">
                               Worth <span className="line-through">{formatRupee(standaloneTotal)}</span>
                             </div>
                           )}
                         </div>
 
                         {savingsAmount > 0 && (
-                          <div className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200">
+                          <div className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200 tabular-nums">
                             <Percent className="h-3 w-3" />
                             <span>
                               Save {formatRupee(savingsAmount)} ({savingsPercent}% OFF)
@@ -626,7 +618,7 @@ export function ServicesTab({
 
                     {/* Footer Actions */}
                     <div className="flex items-center justify-between pt-3 border-t border-galla-line text-[12px] text-galla-ink-soft">
-                      <span className="font-mono">
+                      <span className="font-sans">
                         {pkg.pricingType === "fixed" ? "Fixed Combo Price" : "Sum of Items"}
                       </span>
                       <div className="flex items-center gap-2">

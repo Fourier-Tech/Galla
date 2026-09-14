@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
-import { Order } from "@/lib/db/models/order.model";
+import { Order, type IOrderLineItem } from "@/lib/db/models/order.model";
 import { Product } from "@/lib/db/models/product.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { Customer } from "@/lib/db/models/customer.model";
@@ -115,6 +115,40 @@ export async function createOrderAction(rawInput: unknown): Promise<{
 
     const formattedPhone = input.customerPhone ? formatPhoneNumber(input.customerPhone) : "";
 
+    const defaultItemType: "service" | "package" | "product" =
+      dbOrderType === "service_booking"
+        ? "service"
+        : dbOrderType === "package_sale"
+          ? "package"
+          : "product";
+
+    const mappedLineItems: IOrderLineItem[] =
+      input.lineItems && input.lineItems.length > 0
+        ? input.lineItems.map((item) => ({
+            itemType: item.itemType,
+            itemId: Types.ObjectId.isValid(item.itemId)
+              ? new Types.ObjectId(item.itemId)
+              : new Types.ObjectId(),
+            name: item.name,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity || 1,
+            discount: 0,
+            finalPrice: item.finalPrice,
+            fulfilled: isFullPayment,
+          }))
+        : [
+            {
+              itemType: defaultItemType,
+              itemId: new Types.ObjectId(),
+              name: `${input.orderType} — ${input.customerName}`,
+              unitPrice: input.totalAmount,
+              quantity: 1,
+              discount: 0,
+              finalPrice: input.totalAmount,
+              fulfilled: isFullPayment,
+            },
+          ];
+
     const newDoc = await Order.create({
       tenantId,
       orderNumber,
@@ -124,37 +158,21 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       },
       orderType: dbOrderType,
       status: input.status,
-      lineItems: [
-        {
-          itemType:
-            dbOrderType === "service_booking"
-              ? "service"
-              : dbOrderType === "package_sale"
-                ? "package"
-                : "product",
-          itemId: new Types.ObjectId(),
-          name: `${input.orderType} — ${input.customerName}`,
-          unitPrice: input.totalAmount,
-          quantity: 1,
-          discount: 0,
-          finalPrice: input.totalAmount,
-          fulfilled: isFullPayment,
-        },
-      ],
-      subtotal: input.totalAmount,
-      discountType: "flat",
-      discountValue: 0,
-      discountAmount: 0,
+      lineItems: mappedLineItems,
+      subtotal: input.subtotal ?? input.totalAmount,
+      discountType: input.discountType || (input.discountValue !== undefined ? "percentage" : "flat"),
+      discountValue: input.discountValue ?? (input.discountAmount ?? 0),
+      discountAmount: input.discountAmount ?? 0,
       totalAmount: input.totalAmount,
       amountPaid: input.paidAmount,
       amountPending: amountPending,
-      paymentMode: "cash",
+      paymentMode: input.paymentMode || "cash",
       payments:
         input.paidAmount > 0
           ? [
             {
               amount: input.paidAmount,
-              mode: "cash",
+              mode: input.paymentMode || "cash",
               recordedAt: new Date(),
               recordedBy: session.user.role === "staff" ? "staff" : "owner",
             },
@@ -231,6 +249,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         isToday: true,
         isLast24Hours: true,
         createdAt: newDoc.createdAt ? new Date(newDoc.createdAt).toISOString() : new Date().toISOString(),
+        paymentMode: newDoc.paymentMode,
+        advanceAmount: newDoc.status === "advance_paid" ? newDoc.amountPaid : undefined,
       },
     };
   } catch (error) {
@@ -341,6 +361,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         isToday: true,
         isLast24Hours: true,
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+        paymentMode: order.paymentMode,
       },
     };
   } catch (error) {
@@ -413,10 +434,14 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     order.refundDetails = {
       refundAmount,
       refundMode,
-      refundReason: refundReason || "Customer refund at counter",
+      refundReason: refundReason?.trim() || undefined,
       refundedAt: new Date(),
       refundedBy: session.user.role === "staff" ? "staff" : "owner",
     };
+
+    const prevAmountPaid = order.amountPaid;
+    const wasAdvance = prevAmountPaid < order.totalAmount;
+    const advancePaidAmount = wasAdvance ? prevAmountPaid : undefined;
 
     // Deduct refunded amount from order.amountPaid so it reflects the net retained amount
     order.amountPaid = Math.max(0, order.amountPaid - refundAmount);
@@ -508,7 +533,10 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         isLast24Hours: true,
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
         refundAmount: refundAmount,
-        refundReason: order.refundDetails?.refundReason || refundReason,
+        refundReason: order.refundDetails?.refundReason || refundReason?.trim() || undefined,
+        paymentMode: order.paymentMode,
+        refundMode: refundMode,
+        advanceAmount: advancePaidAmount,
       },
     };
 
@@ -848,7 +876,6 @@ export async function createServiceAction(rawInput: unknown): Promise<{
       name: input.name,
       category: input.category,
       price: input.price,
-      durationMinutes: input.durationMinutes,
       description: input.description || undefined,
       isActive: true,
     })) as unknown as IService;
@@ -863,7 +890,6 @@ export async function createServiceAction(rawInput: unknown): Promise<{
         name: newDoc.name,
         category: newDoc.category,
         price: newDoc.price,
-        durationMinutes: newDoc.durationMinutes || 30,
         description: newDoc.description || "",
         isActive: newDoc.isActive,
       },
@@ -908,7 +934,6 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
           name: input.name,
           category: input.category,
           price: input.price,
-          durationMinutes: input.durationMinutes,
           description: input.description || undefined,
           ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
         },
@@ -930,7 +955,6 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
         name: updated.name,
         category: updated.category,
         price: updated.price,
-        durationMinutes: updated.durationMinutes || 30,
         description: updated.description || "",
         isActive: updated.isActive,
       },

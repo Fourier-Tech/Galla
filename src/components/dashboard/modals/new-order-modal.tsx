@@ -1,14 +1,41 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { X, AlertCircle } from "lucide-react";
-import { DashboardCustomer, DashboardOrder, OrderType } from "@/types/dashboard";
+import {
+  X,
+  AlertCircle,
+  Scissors,
+  Package,
+  Search,
+  Check,
+  Trash2,
+  ArrowRight,
+  ArrowLeft,
+  Banknote,
+  QrCode,
+  CreditCard,
+  Plus,
+} from "lucide-react";
+import {
+  DashboardCustomer,
+  DashboardOrder,
+  DashboardService,
+  DashboardPackage,
+} from "@/types/dashboard";
 import { createOrderAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber } from "@/lib/utils";
+import { formatPhoneNumber, formatRupee } from "@/lib/utils";
 
 function getPhoneDigits(val: string): string {
   const digits = val.replace(/\D/g, "");
   return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+export interface SelectedOrderItem {
+  id: string;
+  type: "service" | "package";
+  name: string;
+  price: number;
+  quantity: number;
 }
 
 interface NewOrderModalProps {
@@ -16,6 +43,8 @@ interface NewOrderModalProps {
   onClose: () => void;
   onAddOrder: (order: DashboardOrder, customerPhone?: string) => void;
   customers?: DashboardCustomer[];
+  services?: DashboardService[];
+  packages?: DashboardPackage[];
 }
 
 export function NewOrderModal({
@@ -23,22 +52,37 @@ export function NewOrderModal({
   onClose,
   onAddOrder,
   customers = [],
+  services = [],
+  packages = [],
 }: NewOrderModalProps) {
+  // Step 1: Customer & Order Type, Step 2: Catalog Selection, Step 3: Review & Checkout
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Step 1 State
   const [customer, setCustomer] = useState("");
   const [phone, setPhone] = useState("");
+  const [orderType, setOrderType] = useState<"Service booking" | "Product sale">("Service booking");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [type, setType] = useState<OrderType>("Product sale");
-  const [amount, setAmount] = useState("");
+
+  // Step 2 State
+  const [catalogTab, setCatalogTab] = useState<"services" | "packages">("services");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>([]);
+
+  // Step 3 State
+  const [customPrice, setCustomPrice] = useState("");
+  const [discount, setDiscount] = useState("");
+  const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
+  const [settlementMode, setSettlementMode] = useState<"completed" | "paid_full" | "advance">("completed");
   const [advance, setAdvance] = useState("");
-  const [paidNow, setPaidNow] = useState<"full" | "advance">("full");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // ponytail: in-memory linear filter holds for salon scale (<10k clients); upgrade to debounced server search if client base exceeds memory budget
-  // Suggestions only appear when counter staff types a name
+  // Filter customers by name query
   const filteredCustomers = useMemo(() => {
     const query = customer.trim().toLowerCase();
     if (!query || !customers || customers.length === 0) return [];
@@ -48,7 +92,7 @@ export function NewOrderModal({
       .slice(0, 5);
   }, [customer, customers]);
 
-  // Check if entered phone is already registered to a different customer name
+  // Check if phone matches an existing customer with a different name
   const phoneConflictCustomer = useMemo(() => {
     const digits = getPhoneDigits(phone);
     if (digits.length !== 10 || !customers || customers.length === 0) return null;
@@ -59,14 +103,13 @@ export function NewOrderModal({
     const currentName = customer.trim().toLowerCase();
     const registeredName = (match.name || "").trim().toLowerCase();
 
-    // If different name, return registered customer info to alert staff
     if (currentName && registeredName && currentName !== registeredName) {
       return match;
     }
     return null;
   }, [phone, customer, customers]);
 
-  // Close suggestions on outside click
+  // Outside click listener for customer autocomplete
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -84,44 +127,234 @@ export function NewOrderModal({
     };
   }, []);
 
+  // Filter active catalog items
+  const filteredServices = useMemo(() => {
+    const q = catalogSearch.trim().toLowerCase();
+    return services.filter((s) => {
+      if (s.isActive === false) return false;
+      if (!q) return true;
+      return (
+        s.name.toLowerCase().includes(q) ||
+        (s.category && s.category.toLowerCase().includes(q))
+      );
+    });
+  }, [services, catalogSearch]);
+
+  const filteredPackages = useMemo(() => {
+    const q = catalogSearch.trim().toLowerCase();
+    return packages.filter((p) => {
+      if (p.isActive === false) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.services.some((s) => s.name.toLowerCase().includes(q))
+      );
+    });
+  }, [packages, catalogSearch]);
+
+  // Pricing calculations
+  const calculatedSubtotal = useMemo(() => {
+    return selectedItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+  }, [selectedItems]);
+
+  const basePrice = useMemo(() => {
+    if (customPrice !== "" && !isNaN(Number(customPrice))) {
+      return Number(customPrice);
+    }
+    return calculatedSubtotal;
+  }, [customPrice, calculatedSubtotal]);
+
+  const discountPercent = useMemo(() => {
+    if (discount !== "" && !isNaN(Number(discount))) {
+      return Math.min(100, Math.max(0, Number(discount)));
+    }
+    return 0;
+  }, [discount]);
+
+  const calculatedDiscountAmount = useMemo(() => {
+    return Math.round((basePrice * discountPercent) / 100);
+  }, [basePrice, discountPercent]);
+
+  const finalTotal = useMemo(() => {
+    return Math.max(0, basePrice - calculatedDiscountAmount);
+  }, [basePrice, calculatedDiscountAmount]);
+
+  const enteredAdvance = useMemo(() => {
+    if (advance !== "" && !isNaN(Number(advance))) {
+      return Math.max(0, Number(advance));
+    }
+    return 0;
+  }, [advance]);
+
+  const paidAmount = useMemo(() => {
+    if (settlementMode === "completed" || settlementMode === "paid_full") {
+      return finalTotal;
+    }
+    return Math.min(finalTotal, enteredAdvance);
+  }, [settlementMode, finalTotal, enteredAdvance]);
+
+  const amountPending = useMemo(() => {
+    return Math.max(0, finalTotal - paidAmount);
+  }, [finalTotal, paidAmount]);
+
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleReset = () => {
+    setStep(1);
+    setCustomer("");
+    setPhone("");
+    setOrderType("Service booking");
+    setSelectedItems([]);
+    setCustomPrice("");
+    setDiscount("");
+    setPaymentMode("cash");
+    setSettlementMode("completed");
+    setAdvance("");
+    setErrorMsg(null);
+    setShowSuggestions(false);
+  };
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      handleReset();
+      onClose();
+    }
+  };
+
+  // Toggle service/package selection in Step 2
+  const handleToggleItem = (item: {
+    id: string;
+    type: "service" | "package";
+    name: string;
+    price: number;
+  }) => {
+    setSelectedItems((prev) => {
+      const exists = prev.some((i) => i.id === item.id && i.type === item.type);
+      if (exists) {
+        return prev.filter((i) => !(i.id === item.id && i.type === item.type));
+      } else {
+        return [
+          ...prev,
+          {
+            id: item.id,
+            type: item.type,
+            name: item.name,
+            price: item.price,
+            quantity: 1,
+          },
+        ];
+      }
+    });
+  };
+
+  const handleRemoveItem = (id: string, type: "service" | "package") => {
+    setSelectedItems((prev) => {
+      const next = prev.filter((i) => !(i.id === id && i.type === type));
+      const nextSubtotal = next.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+      setCustomPrice(String(nextSubtotal));
+      return next;
+    });
+  };
+
+  const handleUpdateQuantity = (id: string, type: "service" | "package", delta: number) => {
+    setSelectedItems((prev) => {
+      const next = prev
+        .map((item) => {
+          if (item.id === id && item.type === type) {
+            const nextQty = (item.quantity || 1) + delta;
+            return nextQty > 0 ? { ...item, quantity: nextQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean) as SelectedOrderItem[];
+      const nextSubtotal = next.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+      setCustomPrice(String(nextSubtotal));
+      return next;
+    });
+  };
+
+  // Step 1 -> Step 2 validation
+  const handleNextFromStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    if (!customer.trim() || !amount) return;
+    if (!customer.trim()) {
+      setErrorMsg("Please enter customer name");
+      return;
+    }
+    if (orderType === "Product sale") {
+      setErrorMsg("Product sale workflow is currently in progress. Please choose 'Service booking' for now.");
+      return;
+    }
+    setStep(2);
+  };
 
-    const parsedAmount = Number(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setErrorMsg("Please enter a valid total amount");
+  // Step 2 -> Step 3 validation
+  const handleNextFromStep2 = () => {
+    setErrorMsg(null);
+    if (selectedItems.length === 0) {
+      setErrorMsg("Please select at least one service or package to continue.");
+      return;
+    }
+    // Always refresh custom price with current calculated subtotal when moving to Step 3
+    setCustomPrice(String(calculatedSubtotal));
+    setStep(3);
+  };
+
+  // Final submit in Step 3
+  const handleFinalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (selectedItems.length === 0) {
+      setErrorMsg("Please select at least one service or package.");
       return;
     }
 
-    const isPaidFull = paidNow === "full";
-    const parsedAdvance = advance ? Number(advance) : Math.round(parsedAmount * 0.3);
-    const paidAmount = isPaidFull ? parsedAmount : parsedAdvance;
-    const status = isPaidFull ? "paid_full" : "advance_paid";
+    if (settlementMode === "advance") {
+      if (!advance.trim() || Number(advance) <= 0) {
+        setErrorMsg("Please enter the advance amount paid");
+        return;
+      }
+      if (Number(advance) > finalTotal) {
+        setErrorMsg(`Advance amount cannot exceed the final total of ${formatRupee(finalTotal)}`);
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     try {
       const formattedPhone = phone.trim() ? formatPhoneNumber(phone) : undefined;
+      const status = settlementMode === "completed"
+        ? "completed"
+        : settlementMode === "paid_full"
+        ? "paid_full"
+        : "advance_paid";
+
       const res = await createOrderAction({
         customerName: customer.trim(),
         customerPhone: formattedPhone,
-        orderType: type,
-        totalAmount: parsedAmount,
+        orderType: "Service booking",
+        totalAmount: finalTotal,
         paidAmount: paidAmount,
         status: status,
+        subtotal: calculatedSubtotal,
+        discountType: "percentage",
+        discountValue: discountPercent,
+        discountAmount: calculatedDiscountAmount,
+        paymentMode: paymentMode,
+        lineItems: selectedItems.map((item) => ({
+          itemId: item.id,
+          itemType: item.type,
+          name: item.name,
+          unitPrice: item.price,
+          quantity: item.quantity,
+          finalPrice: item.price * item.quantity,
+        })),
       });
 
       if (res.success && res.order) {
         onAddOrder(res.order, formattedPhone);
-        setCustomer("");
-        setPhone("");
-        setAmount("");
-        setAdvance("");
-        setPaidNow("full");
-        setShowSuggestions(false);
+        handleReset();
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to save order");
@@ -139,209 +372,720 @@ export function NewOrderModal({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
+        if (e.target === e.currentTarget && !isSubmitting) handleClose();
       }}
     >
-      <div className="w-full max-w-[377px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-heading font-semibold text-[18px] text-galla-ink">
-            New Order
-          </h3>
+      <div className="w-full max-w-[540px] bg-galla-surface border border-galla-line rounded-[8px] p-6 shadow-2xl transition-all max-h-[90vh] flex flex-col">
+        {/* Header with Title and Step Dots */}
+        <div className="flex items-center justify-between pb-3 border-b border-galla-line/60 shrink-0">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-heading font-semibold text-[18px] text-galla-ink">
+                New Order
+              </h3>
+              <span className="text-[11px] font-sans font-medium px-2 py-0.5 rounded-full bg-galla-teal-soft text-galla-teal">
+                Step {step} of 3
+              </span>
+            </div>
+            <p className="text-[12px] font-sans text-galla-ink-soft mt-0.5">
+              {step === 1 && "Customer details and order category"}
+              {step === 2 && "Select services and bundled packages"}
+              {step === 3 && "Review items, custom pricing & settlement"}
+            </p>
+          </div>
+
           <button
-            onClick={onClose}
+            onClick={handleClose}
             type="button"
             disabled={isSubmitting}
-            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors disabled:opacity-50"
+            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors disabled:opacity-50 cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {/* Global Error Banner */}
         {errorMsg && (
-          <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-red-700 text-[12px] rounded-[4px]">
-            {errorMsg}
+          <div className="mt-3 p-2.5 bg-red-50 border border-red-200 text-red-700 text-[12px] rounded-[4px] flex items-center gap-2 shrink-0">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="relative">
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-              Customer Name
-            </label>
-            <input
-              ref={nameInputRef}
-              type="text"
-              required
-              value={customer}
-              onChange={(e) => {
-                setCustomer(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => {
-                if (customer.trim().length > 0) {
-                  setShowSuggestions(true);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setShowSuggestions(false);
-                }
-              }}
-              autoComplete="off"
-              placeholder="e.g. Krish Butani"
-              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-            />
-
-            {showSuggestions && filteredCustomers.length > 0 && (
-              <div
-                ref={dropdownRef}
-                className="absolute left-0 right-0 top-full mt-1 z-30 bg-galla-surface border border-galla-line rounded-[5px] shadow-lg overflow-hidden py-1 max-h-48 overflow-y-auto"
-              >
-                {filteredCustomers.map((c, index) => (
-                  <button
-                    key={`${c.phone || c.name}-${index}`}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      setCustomer(c.name);
-                      if (c.phone) {
-                        setPhone(c.phone);
-                      }
-                      setShowSuggestions(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-galla-paper/80 transition-colors flex items-center justify-between group cursor-pointer border-b border-galla-line/40 last:border-b-0"
-                  >
-                    <span className="font-heading font-medium text-[13px] text-galla-ink group-hover:text-galla-teal transition-colors">
-                      {c.name}
-                    </span>
-                    <span className="font-mono text-[12px] text-galla-ink-soft">
-                      {c.phone || "No phone"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-              Customer Phone (Optional)
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              onBlur={() => {
-                if (phone.trim()) {
-                  setPhone(formatPhoneNumber(phone));
-                }
-              }}
-              placeholder="e.g. +91 98250 12345"
-              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-            />
-
-            {phoneConflictCustomer && (
-              <div className="mt-1.5 flex items-start gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-[4px] p-2">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="leading-tight">
-                  <span>This mobile number is already registered with </span>
-                  <span className="font-semibold">{phoneConflictCustomer.name}</span>.
-                  <button
-                    type="button"
-                    onClick={() => setCustomer(phoneConflictCustomer.name)}
-                    className="ml-1 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
-                  >
-                    Use {phoneConflictCustomer.name}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-              Order Type
-            </label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as OrderType)}
-              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-            >
-              <option value="Product sale">Product sale</option>
-              <option value="Service booking">Service booking</option>
-              <option value="Package sale">Package sale</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-              Total Amount (₹)
-            </label>
-            <input
-              type="text"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-              placeholder="e.g. 1200"
-              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
-              Settlement Mode
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setPaidNow("full")}
-                className={`py-[8px] px-[13px] text-[13px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer ${
-                  paidNow === "full"
-                    ? "bg-galla-teal-soft border-galla-teal text-galla-teal"
-                    : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                }`}
-              >
-                Paid in full
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaidNow("advance")}
-                className={`py-[8px] px-[13px] text-[13px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer ${
-                  paidNow === "advance"
-                    ? "bg-galla-brass-soft border-galla-brass text-galla-brass"
-                    : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                }`}
-              >
-                Advance only
-              </button>
-            </div>
-          </div>
-
-          {paidNow === "advance" && (
-            <div>
+        {/* ======================================================== */}
+        {/* STEP 1: CUSTOMER & ORDER TYPE                             */}
+        {/* ======================================================== */}
+        {step === 1 && (
+          <form onSubmit={handleNextFromStep1} className="space-y-4 pt-4 overflow-y-auto flex-1">
+            {/* Customer Name with Autocomplete */}
+            <div className="relative">
               <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-                Advance Amount Paid (₹)
+                Customer Name <span className="text-red-500">*</span>
               </label>
               <input
+                ref={nameInputRef}
                 type="text"
-                value={advance}
-                onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
-                placeholder={`e.g. ${amount ? Math.round(Number(amount) * 0.3) : "300"}`}
+                required
+                value={customer}
+                onChange={(e) => {
+                  setCustomer(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => {
+                  if (customer.trim().length > 0) setShowSuggestions(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setShowSuggestions(false);
+                }}
+                autoComplete="off"
+                placeholder="e.g. Krish Butani"
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
               />
-            </div>
-          )}
 
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium py-[10px] rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? "Saving to Database..." : "Save Order"}
-            </button>
+              {showSuggestions && filteredCustomers.length > 0 && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute left-0 right-0 top-full mt-1 z-30 bg-galla-surface border border-galla-line rounded-[5px] shadow-lg overflow-hidden py-1 max-h-48 overflow-y-auto"
+                >
+                  {filteredCustomers.map((c, index) => (
+                    <button
+                      key={`${c.phone || c.name}-${index}`}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setCustomer(c.name);
+                        if (c.phone) setPhone(c.phone);
+                        setShowSuggestions(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-galla-paper/80 transition-colors flex items-center justify-between group cursor-pointer border-b border-galla-line/40 last:border-b-0"
+                    >
+                      <span className="font-heading font-medium text-[13px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                        {c.name}
+                      </span>
+                      <span className="font-mono text-[12px] text-galla-ink-soft">
+                        {c.phone || "No phone"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Customer Phone */}
+            <div>
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+                Customer Mobile (Optional)
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onBlur={() => {
+                  if (phone.trim()) setPhone(formatPhoneNumber(phone));
+                }}
+                placeholder="e.g. +91 98250 12345"
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              />
+
+              {phoneConflictCustomer && (
+                <div className="mt-1.5 flex items-start gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-[4px] p-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="leading-tight">
+                    <span>This mobile number is already registered with </span>
+                    <span className="font-semibold">{phoneConflictCustomer.name}</span>.
+                    <button
+                      type="button"
+                      onClick={() => setCustomer(phoneConflictCustomer.name)}
+                      className="ml-1 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
+                    >
+                      Use {phoneConflictCustomer.name}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Order Type Selection (Only Product sale & Service booking) */}
+            <div>
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+                Order Type <span className="text-red-500">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOrderType("Service booking")}
+                  className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
+                    orderType === "Service booking"
+                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-heading font-medium text-[13.5px]">
+                    <Scissors className="h-4 w-4" />
+                    <span>Service booking</span>
+                  </div>
+                  <div className="text-[11.5px] text-galla-ink-soft mt-1 leading-snug">
+                    Salon treatments &amp; package deals
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOrderType("Product sale")}
+                  className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
+                    orderType === "Product sale"
+                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-heading font-medium text-[13.5px]">
+                    <Package className="h-4 w-4" />
+                    <span>Product sale</span>
+                  </div>
+                  <div className="text-[11.5px] text-galla-ink-soft mt-1 leading-snug">
+                    Retail shampoo, serums &amp; retail products
+                  </div>
+                </button>
+              </div>
+
+              {orderType === "Product sale" && (
+                <div className="mt-2.5 p-2 bg-blue-50 border border-blue-200 text-blue-800 text-[11.5px] rounded-[4px] leading-relaxed">
+                  <strong>Notice:</strong> Product sale checkout will be available soon. Please switch to <strong>Service booking</strong> to continue counter operations.
+                </div>
+              )}
+            </div>
+
+            {/* Step 1 Actions */}
+            <div className="pt-3 flex justify-end">
+              <button
+                type="submit"
+                disabled={!customer.trim() || orderType === "Product sale"}
+                className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13.5px] font-medium px-5 py-2 rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
+              >
+                <span>Next</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ======================================================== */}
+        {/* STEP 2: CATALOG SELECTION (SERVICES & PACKAGES)           */}
+        {/* ======================================================== */}
+        {step === 2 && (
+          <div className="pt-3 flex-1 flex flex-col overflow-hidden space-y-3">
+            {/* Switcher & Search Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
+              {/* Service vs Package Toggle */}
+              <div className="flex items-center p-0.5 bg-galla-paper/60 border border-galla-line rounded-[6px]">
+                <button
+                  type="button"
+                  onClick={() => setCatalogTab("services")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
+                    catalogTab === "services"
+                      ? "bg-galla-teal text-white shadow-xs"
+                      : "text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <Scissors className="h-3.5 w-3.5" />
+                  <span>Services ({filteredServices.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCatalogTab("packages")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
+                    catalogTab === "packages"
+                      ? "bg-galla-teal text-white shadow-xs"
+                      : "text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <Package className="h-3.5 w-3.5" />
+                  <span>Packages ({filteredPackages.length})</span>
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative flex-1 sm:max-w-xs">
+                <Search className="h-3.5 w-3.5 text-galla-ink-soft/60 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  placeholder={
+                    catalogTab === "services"
+                      ? "Search services or category..."
+                      : "Search package bundles..."
+                  }
+                  className="w-full bg-galla-paper/40 border border-galla-line rounded-[5px] pl-8 pr-2.5 py-1.5 text-[12px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Catalog Items List */}
+            <div className="flex-1 overflow-y-auto border border-galla-line rounded-[6px] divide-y divide-galla-line/40 max-h-[320px] bg-galla-paper/20">
+              {catalogTab === "services" ? (
+                filteredServices.length === 0 ? (
+                  <div className="p-8 text-center text-[13px] text-galla-ink-soft">
+                    No active services found matching your search.
+                  </div>
+                ) : (
+                  filteredServices.map((s) => {
+                    const isSelected = selectedItems.some((i) => i.id === s.id && i.type === "service");
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() =>
+                          handleToggleItem({
+                            id: s.id,
+                            type: "service",
+                            name: s.name,
+                            price: s.price,
+                          })
+                        }
+                        className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-galla-teal/5 hover:bg-galla-teal/10"
+                            : "hover:bg-galla-paper/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all ${
+                              isSelected
+                                ? "bg-galla-teal border-galla-teal text-white"
+                                : "border-galla-line bg-galla-surface"
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                          <div>
+                            <div className="font-heading font-medium text-[13.5px] text-galla-ink">
+                              {s.name}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
+                              {s.category && (
+                                <span className="bg-galla-paper px-1.5 py-0.5 rounded border border-galla-line/60">
+                                  {s.category}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="font-heading font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                          {formatRupee(s.price)}
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              ) : (
+                filteredPackages.length === 0 ? (
+                  <div className="p-8 text-center text-[13px] text-galla-ink-soft">
+                    No active packages found matching your search.
+                  </div>
+                ) : (
+                  filteredPackages.map((p) => {
+                    const isSelected = selectedItems.some((i) => i.id === p.id && i.type === "package");
+                    const price = p.packagePrice || 0;
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() =>
+                          handleToggleItem({
+                            id: p.id,
+                            type: "package",
+                            name: p.name,
+                            price: price,
+                          })
+                        }
+                        className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-galla-teal/5 hover:bg-galla-teal/10"
+                            : "hover:bg-galla-paper/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all ${
+                              isSelected
+                                ? "bg-galla-teal border-galla-teal text-white"
+                                : "border-galla-line bg-galla-surface"
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                          <div>
+                            <div className="font-heading font-medium text-[13.5px] text-galla-ink">
+                              {p.name}
+                            </div>
+                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5 truncate max-w-xs">
+                              {p.services.length} services included: {p.services.map((s) => s.name).join(", ")}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="font-heading font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                          {formatRupee(price)}
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              )}
+            </div>
+
+            {/* Selection Summary Bar & Navigation */}
+            <div className="pt-2 border-t border-galla-line/60 flex items-center justify-between shrink-0">
+              <div className="text-[12.5px] font-sans text-galla-ink">
+                <span className="font-semibold text-galla-teal">{selectedItems.length}</span> item
+                {selectedItems.length === 1 ? "" : "s"} selected{" "}
+                <span className="text-galla-ink-soft">
+                  ({formatRupee(calculatedSubtotal)})
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[5px] text-[12.5px] font-sans text-galla-ink-soft hover:text-galla-ink border border-galla-line transition-all cursor-pointer"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Back</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleNextFromStep2}
+                  disabled={selectedItems.length === 0}
+                  className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[12.5px] font-medium px-4 py-1.5 rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
+                >
+                  <span>Review &amp; Price</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
-        </form>
+        )}
+
+        {/* ======================================================== */}
+        {/* STEP 3: REVIEW, EDITABLE PRICE, DISCOUNT & SETTLEMENT     */}
+        {/* ======================================================== */}
+        {step === 3 && (
+          <form onSubmit={handleFinalSubmit} className="pt-3 flex-1 flex flex-col overflow-y-auto space-y-4">
+            {/* Customer Snapshot Pill */}
+            <div className="p-2.5 bg-galla-paper/50 border border-galla-line rounded-[5px] flex items-center justify-between text-[12.5px]">
+              <div>
+                <span className="text-galla-ink-soft">Customer: </span>
+                <span className="font-semibold text-galla-ink">{customer}</span>
+                {phone && (
+                  <span className="font-mono text-galla-ink-soft text-[11.5px] ml-1.5">
+                    ({phone})
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] font-medium bg-galla-teal-soft text-galla-teal px-1.5 py-0.5 rounded">
+                Service Booking
+              </span>
+            </div>
+
+            {/* Selected Items List (Editable / Deletable) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="font-sans text-[12px] font-medium text-galla-ink-soft">
+                  Selected Items ({selectedItems.length})
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium text-galla-teal hover:underline cursor-pointer"
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>Add more items</span>
+                </button>
+              </div>
+
+              <div className="border border-galla-line rounded-[5px] divide-y divide-galla-line/40 max-h-36 overflow-y-auto bg-galla-paper/20">
+                {selectedItems.length === 0 ? (
+                  <div className="p-4 text-center text-[12px] text-galla-ink-soft">
+                    No items selected.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="text-galla-teal font-medium hover:underline cursor-pointer ml-1"
+                    >
+                      Add items from catalog
+                    </button>
+                  </div>
+                ) : (
+                  selectedItems.map((item) => (
+                    <div
+                      key={`${item.type}-${item.id}`}
+                      className="px-3 py-2 flex items-center justify-between text-[12.5px] hover:bg-galla-paper/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span
+                          className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
+                            item.type === "package"
+                              ? "bg-galla-brass-soft text-galla-brass border border-galla-brass/30"
+                              : "bg-galla-teal-soft text-galla-teal border border-galla-teal/30"
+                          }`}
+                        >
+                          {item.type}
+                        </span>
+                        <span className="font-medium text-galla-ink truncate">
+                          {item.name}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        {/* Quantity Controls */}
+                        <div className="flex items-center border border-galla-line rounded bg-galla-surface text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateQuantity(item.id, item.type, -1)}
+                            className="px-1.5 py-0.5 text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer font-bold"
+                            title="Decrease quantity"
+                          >
+                            -
+                          </button>
+                          <span className="px-1.5 py-0.5 font-semibold text-galla-ink tabular-nums min-w-[16px] text-center">
+                            {item.quantity || 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateQuantity(item.id, item.type, 1)}
+                            className="px-1.5 py-0.5 text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer font-bold"
+                            title="Increase quantity"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <span className="font-heading font-semibold text-galla-ink tabular-nums min-w-[55px] text-right">
+                          {formatRupee(item.price * (item.quantity || 1))}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id, item.type)}
+                          className="text-galla-ink-soft hover:text-red-600 p-0.5 rounded transition-colors cursor-pointer"
+                          title="Remove item"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Editable Pricing & Direct Discount Section */}
+            <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                {/* Editable Base Price */}
+                <div>
+                  <label className="block font-sans text-[11.5px] font-medium text-galla-ink-soft mb-1">
+                    Entered Price (₹) <span className="text-[10px] text-galla-ink-soft/70">(Editable)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customPrice}
+                    onChange={(e) => setCustomPrice(e.target.value.replace(/\D/g, ""))}
+                    placeholder={String(calculatedSubtotal)}
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
+                  />
+                </div>
+
+                {/* Percentage Discount */}
+                <div>
+                  <label className="block font-sans text-[11.5px] font-medium text-galla-ink-soft mb-1">
+                    Discount (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={discount}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^0-9.]/g, "");
+                        if ((cleaned.match(/\./g) || []).length > 1) return;
+                        const num = Number(cleaned);
+                        if (!isNaN(num) && num > 100) {
+                          setDiscount("100");
+                        } else {
+                          setDiscount(cleaned);
+                        }
+                      }}
+                      placeholder="e.g. 10"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-2.5 pr-8 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] font-bold text-galla-ink-soft select-none">
+                      %
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Real-time Final Total Calculation */}
+              <div className="space-y-1.5 pt-2 border-t border-galla-line/60">
+                {discountPercent > 0 && (
+                  <div className="flex items-center justify-between text-[11.5px] text-galla-ink-soft">
+                    <span>Discount ({discountPercent}%)</span>
+                    <span className="font-heading font-semibold text-emerald-600">
+                      - {formatRupee(calculatedDiscountAmount)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="font-heading font-semibold text-[13px] text-galla-ink-soft uppercase tracking-wider">
+                    Final Payable Total
+                  </span>
+                  <span className="font-heading font-bold text-[18px] text-galla-teal tabular-nums">
+                    {formatRupee(finalTotal)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Mode of Payment */}
+            <div>
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+                Mode of Payment
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("cash")}
+                  className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    paymentMode === "cash"
+                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <Banknote className="h-3.5 w-3.5" />
+                  <span>Cash</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("upi")}
+                  className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    paymentMode === "upi"
+                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <QrCode className="h-3.5 w-3.5" />
+                  <span>UPI / QR</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("card")}
+                  className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    paymentMode === "card"
+                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <CreditCard className="h-3.5 w-3.5" />
+                  <span>Card</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Settlement Mode (Completed, Paid in Full, Advanced) */}
+            <div>
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+                Settlement Mode
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode("completed")}
+                  className={`py-2 px-1 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer text-center ${
+                    settlementMode === "completed"
+                      ? "bg-emerald-50 border-emerald-600 text-emerald-700 font-semibold shadow-2xs"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  Completed
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode("paid_full")}
+                  className={`py-2 px-1 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer text-center ${
+                    settlementMode === "paid_full"
+                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal font-semibold shadow-2xs"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  Paid in Full
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode("advance")}
+                  className={`py-2 px-1 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer text-center ${
+                    settlementMode === "advance"
+                      ? "bg-galla-brass-soft border-galla-brass text-galla-brass font-semibold shadow-2xs"
+                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  Advanced
+                </button>
+              </div>
+
+              {/* Advance Amount Paid Input if 'advance' selected */}
+              {settlementMode === "advance" && (
+                <div className="mt-2.5 p-2.5 bg-galla-brass-soft/40 border border-galla-brass/30 rounded-[5px] space-y-1.5">
+                  <div className="flex items-center justify-between text-[11.5px]">
+                    <span className="font-medium text-galla-ink">Advance Amount Paid (₹)</span>
+                    {advance.trim() !== "" && Number(advance) > 0 && (
+                      <span className="text-galla-ink-soft">
+                        Remaining Due: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={advance}
+                    onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Enter advance amount (e.g. 500)"
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Step 3 Actions */}
+            <div className="pt-2 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-[5px] text-[13px] font-sans text-galla-ink-soft hover:text-galla-ink border border-galla-line transition-all cursor-pointer"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Back</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || selectedItems.length === 0}
+                className="bg-galla-teal hover:opacity-95 text-white font-sans text-[13.5px] font-medium px-5 py-2 rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting
+                  ? "Creating Order..."
+                  : settlementMode === "advance" && enteredAdvance > 0
+                  ? `Create Order (Advance: ${formatRupee(enteredAdvance)})`
+                  : `Create Order (${formatRupee(finalTotal)})`}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

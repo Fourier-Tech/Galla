@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Sparkles, Clock, IndianRupee, Tag, AlignLeft, AlertCircle } from "lucide-react";
+import { X, Sparkles, IndianRupee, Tag, AlignLeft, AlertCircle } from "lucide-react";
 import { DashboardService } from "@/types/dashboard";
 import { createServiceAction, updateServiceAction } from "@/app/dashboard/actions";
 
@@ -23,8 +23,6 @@ const COMMON_CATEGORIES = [
   "Bridal & Groom",
   "General",
 ];
-
-const DURATION_PRESETS = [15, 30, 45, 60, 90, 120];
 
 export function ServiceModal({
   isOpen,
@@ -50,25 +48,14 @@ export function ServiceModal({
   const [customCategory, setCustomCategory] = useState(
     initialCategoryIsCustom ? serviceToEdit?.category || "" : ""
   );
-  const [isCustomCategory, setIsCustomCategory] = useState(initialCategoryIsCustom);
+  const isCustomCategory = category === "custom";
   const [price, setPrice] = useState(serviceToEdit ? String(serviceToEdit.price) : "");
-  const [durationMinutes, setDurationMinutes] = useState(serviceToEdit?.durationMinutes || 30);
   const [description, setDescription] = useState(serviceToEdit?.description || "");
   const [isActive, setIsActive] = useState(serviceToEdit?.isActive ?? true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
-
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    if (val === "custom") {
-      setIsCustomCategory(true);
-    } else {
-      setIsCustomCategory(false);
-      setCategory(val);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +88,6 @@ export function ServiceModal({
           name: trimmedName,
           category: finalCategory,
           price: numPrice,
-          durationMinutes: Number(durationMinutes) || 30,
           description: description.trim() || undefined,
           isActive,
         });
@@ -117,7 +103,6 @@ export function ServiceModal({
           name: trimmedName,
           category: finalCategory,
           price: numPrice,
-          durationMinutes: Number(durationMinutes) || 30,
           description: description.trim() || undefined,
         });
 
@@ -150,7 +135,7 @@ export function ServiceModal({
               </h3>
               <p className="font-sans text-[12px] text-galla-ink-soft">
                 {serviceToEdit
-                  ? "Update menu details, treatment pricing and duration"
+                  ? "Update menu details and treatment pricing"
                   : "Add a new salon treatment or service to your counter menu"}
               </p>
             </div>
@@ -195,8 +180,8 @@ export function ServiceModal({
             <div className="relative">
               <Tag className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
               <select
-                value={isCustomCategory ? "custom" : category}
-                onChange={handleCategoryChange}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer"
               >
                 {allCategories.map((cat) => (
@@ -219,65 +204,24 @@ export function ServiceModal({
             )}
           </div>
 
-          {/* Price & Duration Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Price */}
-            <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-                Price (₹) <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <IndianRupee className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5" />
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="1"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="0"
-                  className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] font-mono font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all"
-                />
-              </div>
+          {/* Price */}
+          <div>
+            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              Price (₹) <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <IndianRupee className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5" />
+              <input
+                type="number"
+                required
+                min="0"
+                step="1"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="0"
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] font-heading font-semibold text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all"
+              />
             </div>
-
-            {/* Duration */}
-            <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-                Duration (minutes)
-              </label>
-              <div className="relative">
-                <Clock className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5" />
-                <input
-                  type="number"
-                  min="5"
-                  step="5"
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                  placeholder="30"
-                  className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Duration Presets */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-            <span className="font-sans text-[11px] text-galla-ink-soft mr-1">Presets:</span>
-            {DURATION_PRESETS.map((mins) => (
-              <button
-                key={mins}
-                type="button"
-                onClick={() => setDurationMinutes(mins)}
-                className={`px-2 py-0.5 rounded-[4px] text-[11.5px] font-sans transition-colors cursor-pointer ${
-                  durationMinutes === mins
-                    ? "bg-galla-teal text-white font-medium shadow-2xs"
-                    : "bg-galla-paper hover:bg-galla-paper/80 border border-galla-line text-galla-ink-soft"
-                }`}
-              >
-                {mins}m
-              </button>
-            ))}
           </div>
 
           {/* Description */}

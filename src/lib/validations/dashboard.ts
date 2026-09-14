@@ -4,7 +4,7 @@ export const createOrderSchema = z.object({
   customerName: z.string().min(1, "Customer name is required").trim(),
   customerPhone: z.string().optional(),
   orderType: z.enum(["Product sale", "Service booking", "Package sale"]),
-  totalAmount: z.number().positive("Amount must be greater than 0"),
+  totalAmount: z.number().min(0, "Total amount cannot be negative"),
   paidAmount: z.number().min(0, "Paid amount cannot be negative"),
   status: z.enum([
     "completed",
@@ -14,6 +14,23 @@ export const createOrderSchema = z.object({
     "cancelled_converted",
     "created",
   ]),
+  subtotal: z.number().optional(),
+  discountType: z.enum(["flat", "percentage"]).optional(),
+  discountValue: z.number().optional(),
+  discountAmount: z.number().optional(),
+  paymentMode: z.enum(["cash", "upi", "card"]).default("cash"),
+  lineItems: z
+    .array(
+      z.object({
+        itemId: z.string(),
+        itemType: z.enum(["service", "package", "product"]),
+        name: z.string(),
+        unitPrice: z.number(),
+        quantity: z.number().default(1),
+        finalPrice: z.number(),
+      })
+    )
+    .optional(),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
@@ -62,7 +79,6 @@ export const createServiceSchema = z.object({
   name: z.string().min(1, "Service name is required").trim(),
   category: z.string().min(1, "Category is required").trim().default("General"),
   price: z.number().min(0, "Price cannot be negative"),
-  durationMinutes: z.number().min(0, "Duration must be 0 or more").default(30),
   description: z.string().optional(),
 });
 
@@ -73,7 +89,6 @@ export const updateServiceSchema = z.object({
   name: z.string().min(1, "Service name is required").trim(),
   category: z.string().min(1, "Category is required").trim().default("General"),
   price: z.number().min(0, "Price cannot be negative"),
-  durationMinutes: z.number().min(0, "Duration must be 0 or more").default(30),
   description: z.string().optional(),
   isActive: z.boolean().optional(),
 });

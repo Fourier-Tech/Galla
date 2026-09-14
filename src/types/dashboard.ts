@@ -9,6 +9,9 @@ export type OrderStatus =
 
 export type OrderType = "Product sale" | "Service booking" | "Package sale";
 
+export type DashboardPaymentMode = "cash" | "upi" | "card" | "split";
+export type DashboardRefundMode = "cash" | "upi" | "card";
+
 export interface DashboardOrder {
   id: string;
   customer: string;
@@ -22,6 +25,9 @@ export interface DashboardOrder {
   createdAt?: string;
   refundAmount?: number;
   refundReason?: string;
+  paymentMode?: DashboardPaymentMode;
+  refundMode?: DashboardRefundMode;
+  advanceAmount?: number;
 }
 
 export interface DashboardProduct {
@@ -68,7 +74,6 @@ export interface DashboardService {
   name: string;
   category: string;
   price: number;
-  durationMinutes: number;
   description?: string;
   isActive: boolean;
 }

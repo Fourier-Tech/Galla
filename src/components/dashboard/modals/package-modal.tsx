@@ -299,7 +299,7 @@ export function PackageModal({
                   Included Salon Services ({selectedServices.length})
                 </span>
               </div>
-              <span className="font-mono text-[12px] text-galla-ink-soft">
+              <span className="font-heading font-semibold text-[12.5px] text-galla-ink-soft tabular-nums">
                 Subtotal: {formatRupee(standaloneServicesTotal)}
               </span>
             </div>
@@ -351,7 +351,7 @@ export function PackageModal({
                         onChange={(e) =>
                           handleUpdateServicePrice(item.serviceId, Number(e.target.value))
                         }
-                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-mono text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-heading font-semibold text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
                       />
                       <button
                         type="button"
@@ -381,7 +381,7 @@ export function PackageModal({
                   Included Retail Products ({selectedProducts.length})
                 </span>
               </div>
-              <span className="font-mono text-[12px] text-galla-ink-soft">
+              <span className="font-heading font-semibold text-[12.5px] text-galla-ink-soft tabular-nums">
                 Subtotal: {formatRupee(standaloneProductsTotal)}
               </span>
             </div>
@@ -431,7 +431,7 @@ export function PackageModal({
                         onChange={(e) =>
                           handleUpdateProductQuantity(item.productId, Number(e.target.value))
                         }
-                        className="w-14 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-center font-mono text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                        className="w-14 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-center font-heading font-semibold text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
                       />
                       <span className="text-[11.5px] text-galla-ink-soft ml-1">₹/ea</span>
                       <input
@@ -441,7 +441,7 @@ export function PackageModal({
                         onChange={(e) =>
                           handleUpdateProductPrice(item.productId, Number(e.target.value))
                         }
-                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-mono text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-heading font-semibold text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
                       />
                       <button
                         type="button"
@@ -511,7 +511,7 @@ export function PackageModal({
                     value={pricingType === "sum_of_items" ? standaloneTotal : packagePrice}
                     onChange={(e) => setPackagePrice(e.target.value)}
                     placeholder="0"
-                    className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[15px] font-mono font-semibold text-galla-ink focus:outline-none focus:border-galla-teal disabled:bg-galla-paper/30 disabled:text-galla-ink-soft"
+                    className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[15px] font-heading font-semibold text-galla-ink focus:outline-none focus:border-galla-teal disabled:bg-galla-paper/30 disabled:text-galla-ink-soft tabular-nums"
                   />
                 </div>
               </div>
@@ -520,13 +520,13 @@ export function PackageModal({
               <div className="p-3 rounded-[6px] bg-galla-paper/70 border border-galla-line flex flex-col justify-center">
                 <div className="flex items-center justify-between text-[12px] text-galla-ink-soft">
                   <span>Standalone Value:</span>
-                  <span className="font-mono font-medium line-through">
+                  <span className="font-heading font-semibold line-through tabular-nums">
                     {formatRupee(standaloneTotal)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[13px] text-galla-ink font-medium mt-1">
                   <span>Selling Price:</span>
-                  <span className="font-mono font-bold text-galla-teal">
+                  <span className="font-heading font-bold text-galla-teal tabular-nums">
                     {formatRupee(effectivePrice)}
                   </span>
                 </div>

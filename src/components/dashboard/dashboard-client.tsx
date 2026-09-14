@@ -354,6 +354,8 @@ export function DashboardClient({
         onClose={() => setIsNewOrderOpen(false)}
         onAddOrder={handleAddOrder}
         customers={customers}
+        services={services}
+        packages={packages}
       />
 
       <NewExpenseModal

@@ -5,7 +5,6 @@ export interface IService extends Document {
   name: string;
   category: string;
   price: number;
-  durationMinutes?: number;
   description?: string;
   isActive: boolean;
   createdAt: Date;
@@ -37,11 +36,6 @@ const ServiceSchema = new Schema<IService>(
       required: [true, "Service price is required"],
       min: [0, "Service price cannot be negative"],
       default: 0,
-    },
-    durationMinutes: {
-      type: Number,
-      min: 0,
-      default: 30,
     },
     description: {
       type: String,

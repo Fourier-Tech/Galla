@@ -5,7 +5,7 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Order } from "@/lib/db/models/order.model";
-import { DashboardOrder } from "@/types/dashboard";
+import { DashboardOrder, DashboardPaymentMode, DashboardRefundMode } from "@/types/dashboard";
 import { formatOrderTime, checkIsToday, checkIsLast24Hours } from "@/lib/utils";
 
 export async function GET(request: Request) {
@@ -139,6 +139,19 @@ export async function GET(request: Request) {
       createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
       refundAmount: o.refundDetails?.refundAmount,
       refundReason: o.refundDetails?.refundReason,
+      paymentMode: (o.paymentMode || o.payments?.[0]?.mode) as DashboardPaymentMode | undefined,
+      refundMode: o.refundDetails?.refundMode as DashboardRefundMode | undefined,
+      advanceAmount: (() => {
+        if (o.status === "advance_paid") return o.amountPaid;
+        if (o.status === "cancelled_refunded") {
+          const collected = (o.amountPaid || 0) + (o.refundDetails?.refundAmount || 0);
+          if (collected > 0 && collected < o.totalAmount) return collected;
+          if (o.payments && o.payments.length > 0 && o.payments[0].amount < o.totalAmount) {
+            return o.payments[0].amount;
+          }
+        }
+        return undefined;
+      })(),
     }));
 
     return NextResponse.json(

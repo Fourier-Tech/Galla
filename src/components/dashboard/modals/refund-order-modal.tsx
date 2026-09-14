@@ -48,7 +48,7 @@ export function RefundOrderModal({
         orderId: order.id,
         refundAmount: parsedAmount,
         refundMode,
-        refundReason: refundReason.trim() || "Customer requested refund",
+        refundReason: refundReason.trim() || undefined,
       });
 
       if (res.success && res.order) {
