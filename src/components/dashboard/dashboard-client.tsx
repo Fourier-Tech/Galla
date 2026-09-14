@@ -23,7 +23,7 @@ import { NewOrderModal } from "@/components/dashboard/modals/new-order-modal";
 import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal";
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
-import { calculatePendingAmount } from "@/lib/utils";
+import { calculatePendingAmount, formatPhoneNumber } from "@/lib/utils";
 import {
   DashboardSalonProfile,
   DashboardService,
@@ -162,8 +162,38 @@ export function DashboardClient({
   const expensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
   const pendingAmount = calculatePendingAmount(orders);
 
-  const handleAddOrder = (order: DashboardOrder) => {
+  const handleAddOrder = (order: DashboardOrder, customerPhone?: string) => {
     setOrders((prev) => [order, ...prev]);
+    if (order.customer && order.customer !== "Walk-in Guest") {
+      const phone = customerPhone ? formatPhoneNumber(customerPhone) : "";
+      setCustomers((prev) => {
+        const idx = prev.findIndex((c) =>
+          phone ? c.phone === phone : c.name.toLowerCase() === order.customer.toLowerCase()
+        );
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx],
+            name: order.customer,
+            phone: phone || updated[idx].phone,
+            visits: (updated[idx].visits || 0) + 1,
+            lastVisit: "Today",
+          };
+          return updated;
+        } else {
+          return [
+            {
+              name: order.customer,
+              phone: phone,
+              visits: 1,
+              lastVisit: "Today",
+            },
+            ...prev,
+          ];
+        }
+      });
+    }
+    router.refresh();
   };
 
   const handleAddExpense = (expense: DashboardExpense) => {
@@ -339,6 +369,7 @@ export function DashboardClient({
         isOpen={isNewOrderOpen}
         onClose={() => setIsNewOrderOpen(false)}
         onAddOrder={handleAddOrder}
+        customers={customers}
       />
 
       <NewExpenseModal

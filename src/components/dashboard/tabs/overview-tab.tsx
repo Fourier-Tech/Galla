@@ -296,20 +296,17 @@ export function OverviewTab({
 
                 <div className="flex items-center justify-end gap-2">
                   {order.status === "completed" ? (
-                    <>
-                      <span className="inline-flex items-center gap-1 text-[12px] font-sans text-green-700 font-medium">
-                        <Check className="h-3.5 w-3.5 text-green-600" /> Done
-                      </span>
-                      {onOpenRefund && (
-                        <button
-                          onClick={() => onOpenRefund(order)}
-                          className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
-                          title="Process refund for this order"
-                        >
-                          Refund
-                        </button>
-                      )}
-                    </>
+                    onOpenRefund ? (
+                      <button
+                        onClick={() => onOpenRefund(order)}
+                        className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
+                        title="Process refund for this order"
+                      >
+                        Refund
+                      </button>
+                    ) : (
+                      <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                    )
                   ) : order.status === "paid_full" ? (
                     <>
                       <button
