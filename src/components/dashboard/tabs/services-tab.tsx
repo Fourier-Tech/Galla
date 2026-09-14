@@ -29,6 +29,7 @@ import {
   togglePackageStatusAction,
   deletePackageAction,
 } from "@/app/dashboard/actions";
+import { formatRupee } from "@/lib/utils";
 
 interface ServicesTabProps {
   services: DashboardService[];
