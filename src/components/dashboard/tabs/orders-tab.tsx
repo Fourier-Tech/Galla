@@ -20,7 +20,6 @@ import {
   getFirstDayOfCurrentMonth,
   formatDisplayDate,
 } from "@/lib/utils";
-import { getOrdersAction } from "@/app/dashboard/actions";
 
 interface OrdersTabProps {
   orders: DashboardOrder[];
@@ -73,6 +72,7 @@ export function OrdersTab({
   );
   const [isFetching, setIsFetching] = useState(false);
   const isInitialMount = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Sync with initial orders during render when props change (avoid cascading renders)
   const [prevOrders, setPrevOrders] = useState(orders);
@@ -133,7 +133,7 @@ export function OrdersTab({
     }
   };
 
-  // On-demand server fetch for pagination and filters
+  // On-demand fast GET fetch for pagination and filters (with auto-abort of previous in-flight queries)
   const fetchPage = useCallback(
     async (
       targetPage: number,
@@ -143,27 +143,46 @@ export function OrdersTab({
       currentEnd: string,
       currentSort: "newest" | "oldest"
     ) => {
+      // Abort any previous pending request to eliminate queue lag and race conditions
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setIsFetching(true);
       try {
-        const res = await getOrdersAction({
-          page: targetPage,
-          pageSize,
-          status: currentFilter,
-          search: currentSearch,
-          startDate: currentStart,
-          endDate: currentEnd,
-          sortOrder: currentSort,
+        const params = new URLSearchParams();
+        params.set("page", String(targetPage));
+        params.set("pageSize", String(pageSize));
+        if (currentFilter !== "all") params.set("status", currentFilter);
+        if (currentSearch.trim()) params.set("search", currentSearch.trim());
+        if (currentStart) params.set("startDate", currentStart);
+        if (currentEnd) params.set("endDate", currentEnd);
+        params.set("sortOrder", currentSort);
+
+        const res = await fetch(`/api/orders?${params.toString()}`, {
+          method: "GET",
+          signal: controller.signal,
         });
 
-        if (res.success) {
-          setDisplayedOrders(res.orders);
-          setTotalCount(res.totalCount);
-          setPage(res.page);
-          if (res.statusCounts) {
-            setStatusCounts(res.statusCounts);
+        if (!res.ok) {
+          throw new Error(`HTTP error ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          setDisplayedOrders(data.orders);
+          setTotalCount(data.totalCount);
+          setPage(data.page);
+          if (data.statusCounts) {
+            setStatusCounts(data.statusCounts);
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
         console.error("Failed to load page of orders:", err);
       } finally {
         setIsFetching(false);
