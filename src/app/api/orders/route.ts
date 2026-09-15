@@ -113,6 +113,7 @@ export async function GET(request: Request) {
 
     const statusCounts: Record<string, number> = {
       all: overallTotal,
+      created: 0,
       advance_paid: 0,
       paid_full: 0,
       completed: 0,
@@ -136,8 +137,8 @@ export async function GET(request: Request) {
           : o.orderType === "package_sale"
           ? "Package sale"
           : "Product sale",
-      amount: o.totalAmount,
-      paid: o.amountPaid,
+      amount: typeof o.totalAmount === "number" && !isNaN(o.totalAmount) ? o.totalAmount : 0,
+      paid: typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0,
       status: o.status,
       time: formatOrderTime(o.createdAt),
       isToday: checkIsToday(o.createdAt),

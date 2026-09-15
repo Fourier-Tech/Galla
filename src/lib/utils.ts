@@ -6,11 +6,12 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatRupee(amount: number): string {
-  return "₹" + amount.toLocaleString("en-IN");
+  const safe = typeof amount === "number" && !isNaN(amount) ? amount : 0;
+  return "₹" + safe.toLocaleString("en-IN");
 }
 
 export function calculatePendingAmount(
-  orders: { status: string; amount: number; paid: number }[]
+  orders: { status: string; amount?: number; paid?: number }[]
 ): number {
   return orders
     .filter(
@@ -18,7 +19,11 @@ export function calculatePendingAmount(
         o.status !== "cancelled_refunded" &&
         o.status !== "cancelled_converted"
     )
-    .reduce((sum, o) => sum + Math.max(0, o.amount - o.paid), 0);
+    .reduce((sum, o) => {
+      const amt = typeof o.amount === "number" && !isNaN(o.amount) ? o.amount : 0;
+      const paid = typeof o.paid === "number" && !isNaN(o.paid) ? o.paid : 0;
+      return sum + Math.max(0, amt - paid);
+    }, 0);
 }
 
 /**

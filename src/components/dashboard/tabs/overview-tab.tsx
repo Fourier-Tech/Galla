@@ -45,14 +45,14 @@ export function OverviewTab({
     }
   };
   const todayOrders = orders.filter((o) => o.isToday !== false);
-  const todayIncome = todayOrders.reduce((sum, o) => sum + o.paid, 0);
+  const todayIncome = todayOrders.reduce((sum, o) => sum + (Number(o.paid) || 0), 0);
   const advancePayment = todayOrders
     .filter(
       (o) =>
         (o.status === "advance_paid" || o.status === "paid_full") &&
-        o.paid > 0
+        Number(o.paid) > 0
     )
-    .reduce((sum, o) => sum + o.paid, 0);
+    .reduce((sum, o) => sum + (Number(o.paid) || 0), 0);
   const pendingAmount = calculatePendingAmount(orders);
   const lowStockProducts = products.filter((p) => p.sell <= 2);
 
@@ -266,9 +266,10 @@ export function OverviewTab({
                   const isPartialRefund =
                     order.status === "cancelled_refunded" &&
                     Boolean(order.refundAmount && order.paid > 0);
-                  const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+                  const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full";
+                  const urgency = isPendingOrder && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
                   // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
-                  const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
+                  const isAppointmentDue = !isPendingOrder || !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
                   return (
                     <div
@@ -286,7 +287,7 @@ export function OverviewTab({
                     <div className="font-sans text-[12px] text-galla-ink-soft truncate">
                       {order.type} &bull; {order.time}
                     </div>
-                    {order.scheduledFor && (() => {
+                    {isPendingOrder && order.scheduledFor && (() => {
                       const isToday = urgency?.tone === "today";
                       const isTomorrow = urgency?.tone === "tomorrow";
                       const isIn2Days = urgency?.tone === "in_2_days";
@@ -410,7 +411,7 @@ export function OverviewTab({
 
                 <div className="flex items-center justify-end gap-2">
                   {order.status === "completed" ? (
-                    onOpenRefund ? (
+                    onOpenRefund && order.paid > 0 ? (
                       <button
                         onClick={() => onOpenRefund(order)}
                         className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -440,7 +441,7 @@ export function OverviewTab({
                           )}
                         </button>
                       )}
-                      {onOpenRefund ? (
+                      {onOpenRefund && order.paid > 0 ? (
                         <button
                           onClick={() => onOpenRefund(order)}
                           className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -452,7 +453,7 @@ export function OverviewTab({
                         <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                       ) : null}
                     </>
-                  ) : order.status === "advance_paid" ? (
+                  ) : order.status === "advance_paid" || order.status === "created" ? (
                     <>
                       {isAppointmentDue && (
                         <button
@@ -471,7 +472,7 @@ export function OverviewTab({
                           )}
                         </button>
                       )}
-                      {onOpenRefund ? (
+                      {onOpenRefund && order.paid > 0 ? (
                         <button
                           onClick={() => onOpenRefund(order)}
                           className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"

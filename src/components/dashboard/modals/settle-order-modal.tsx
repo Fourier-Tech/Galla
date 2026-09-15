@@ -123,11 +123,11 @@ function SettleOrderModalContent({
             <span>Original Total Bill:</span>
             <span className="font-medium text-galla-ink tabular-nums">{formatRupee(order.amount)}</span>
           </div>
-          <div className="flex justify-between text-galla-teal font-medium">
-            <span>Advance Collected:</span>
+          <div className={`flex justify-between ${order.paid > 0 ? "text-galla-teal font-medium" : "text-galla-ink-soft"}`}>
+            <span>{order.scheduledFor ? "Advance Collected:" : "Paid Upfront:"}</span>
             <span className="tabular-nums">
               {formatRupee(order.paid)}
-              {order.paymentMode ? (
+              {order.paid > 0 && order.paymentMode ? (
                 <span className="text-[10px] font-mono uppercase bg-emerald-100/80 text-emerald-900 px-1 py-0.2 rounded font-semibold ml-1">
                   {order.paymentMode}
                 </span>

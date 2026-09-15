@@ -103,7 +103,8 @@ export function NewOrderModal({
   const [customPrice, setCustomPrice] = useState("");
   const [discount, setDiscount] = useState("");
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
-  const [settlementMode, setSettlementMode] = useState<"completed" | "paid_full" | "advance">("completed");
+  const [settlementMode, setSettlementMode] = useState<"completed" | "pay_later" | "advance" | "paid_full">("completed");
+  const [payLaterPaid, setPayLaterPaid] = useState("");
   const [advance, setAdvance] = useState("");
   const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [bookingTime, setBookingTime] = useState("");
@@ -230,12 +231,22 @@ export function NewOrderModal({
     return 0;
   }, [advance]);
 
+  const enteredPayLaterPaid = useMemo(() => {
+    if (payLaterPaid !== "" && !isNaN(Number(payLaterPaid))) {
+      return Math.max(0, Number(payLaterPaid));
+    }
+    return 0;
+  }, [payLaterPaid]);
+
   const paidAmount = useMemo(() => {
     if (settlementMode === "completed" || settlementMode === "paid_full") {
       return finalTotal;
     }
+    if (settlementMode === "pay_later") {
+      return Math.min(finalTotal, enteredPayLaterPaid);
+    }
     return Math.min(finalTotal, enteredAdvance);
-  }, [settlementMode, finalTotal, enteredAdvance]);
+  }, [settlementMode, finalTotal, enteredAdvance, enteredPayLaterPaid]);
 
   const amountPending = useMemo(() => {
     return Math.max(0, finalTotal - paidAmount);
@@ -253,6 +264,7 @@ export function NewOrderModal({
     setDiscount("");
     setPaymentMode("cash");
     setSettlementMode("completed");
+    setPayLaterPaid("");
     setAdvance("");
     setBookingDate(new Date().toISOString().split("T")[0]);
     setBookingTime("");
@@ -370,6 +382,13 @@ export function NewOrderModal({
       }
     }
 
+    if (settlementMode === "pay_later") {
+      if (payLaterPaid.trim() !== "" && Number(payLaterPaid) > finalTotal) {
+        setErrorMsg(`Upfront paid amount cannot exceed the final total of ${formatRupee(finalTotal)}`);
+        return;
+      }
+    }
+
     if (orderType !== "Product sale" && (settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
       setErrorMsg("Please select the appointment / booking date for this advance booking");
       return;
@@ -389,6 +408,8 @@ export function NewOrderModal({
         ? "completed"
         : settlementMode === "paid_full"
         ? "paid_full"
+        : settlementMode === "pay_later"
+        ? (paidAmount > 0 ? "advance_paid" : "created")
         : "advance_paid";
 
       const resolvedOrderType: "Product sale" | "Service booking" | "Package sale" =
@@ -1098,209 +1119,215 @@ export function NewOrderModal({
               </div>
             </div>
 
-            {/* Mode of Payment */}
+            {/* Settlement Mode Dropdown */}
             <div>
               <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
-                Mode of Payment
+                Settlement Mode <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode("cash")}
-                  className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    paymentMode === "cash"
-                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  <Banknote className="h-3.5 w-3.5" />
-                  <span>Cash</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode("upi")}
-                  className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    paymentMode === "upi"
-                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  <QrCode className="h-3.5 w-3.5" />
-                  <span>UPI / QR</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode("card")}
-                  className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    paymentMode === "card"
-                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  <span>Card</span>
-                </button>
-              </div>
+              <select
+                value={settlementMode}
+                onChange={(e) => setSettlementMode(e.target.value as "completed" | "pay_later" | "advance" | "paid_full")}
+                className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs"
+              >
+                <option value="completed">Completed (Paid in full now)</option>
+                <option value="pay_later">Pay Later / Due (Delivery now, payment later)</option>
+                <option value="advance">Advance Booking (Partial deposit, appointment later)</option>
+                <option value="paid_full">Advance Booking (Paid in full, appointment later)</option>
+              </select>
             </div>
 
-            {/* Settlement Mode (Completed, Paid in Full, Advanced) */}
-            <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
-                Settlement Mode
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSettlementMode("completed")}
-                  className={`py-2 px-1 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer text-center ${
-                    settlementMode === "completed"
-                      ? "bg-emerald-50 border-emerald-600 text-emerald-700 font-semibold shadow-2xs"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  Completed
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSettlementMode("paid_full")}
-                  className={`py-2 px-1 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer text-center ${
-                    settlementMode === "paid_full"
-                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal font-semibold shadow-2xs"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  Paid in Full
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSettlementMode("advance")}
-                  className={`py-2 px-1 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer text-center ${
-                    settlementMode === "advance"
-                      ? "bg-galla-brass-soft border-galla-brass text-galla-brass font-semibold shadow-2xs"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  Advanced
-                </button>
-              </div>
-
-              {/* Advance Booking Details (Date & Deposit) */}
-              {(settlementMode === "advance" || settlementMode === "paid_full") && (
-                <div
-                  className={`mt-2.5 p-3 rounded-[6px] space-y-2.5 border ${
-                    settlementMode === "advance"
-                      ? "bg-galla-brass-soft/40 border-galla-brass/30"
-                      : "bg-galla-teal-soft/40 border-galla-teal/30"
-                  }`}
-                >
-                  <div className="space-y-2.5">
-                    {/* Advance Amount (only for partial deposit) */}
-                    {settlementMode === "advance" && (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-[11.5px] font-medium text-galla-ink">
-                            Advance Paid (₹)
-                          </label>
-                          {advance.trim() !== "" && Number(advance) > 0 && (
-                            <span className="text-[11px] font-sans text-galla-ink-soft">
-                              Pending: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
-                            </span>
-                          )}
-                        </div>
-                        <input
-                          type="text"
-                          value={advance}
-                          onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
-                          placeholder="e.g. 500"
-                          className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
-                        />
-                      </div>
-                    )}
-
-                    {/* Booking Date & Time Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {/* Booking Date */}
-                      <div className="space-y-1">
-                        <label className="block text-[11.5px] font-medium text-galla-ink whitespace-nowrap">
-                          Appointment Date <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="date"
-                          value={bookingDate}
-                          min={new Date().toISOString().split("T")[0]}
-                          onChange={(e) => setBookingDate(e.target.value)}
-                          className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
-                            settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"
-                          }`}
-                        />
-                      </div>
-
-                      {/* Booking Time (Optional) */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-[11.5px] font-medium text-galla-ink whitespace-nowrap">
-                            Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
-                          </label>
-                          {bookingTime && (
-                            <button
-                              type="button"
-                              onClick={() => setBookingTime("")}
-                              className="text-[10.5px] text-red-600 hover:underline cursor-pointer"
-                            >
-                              Clear
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          type="time"
-                          value={bookingTime}
-                          onChange={(e) => setBookingTime(e.target.value)}
-                          className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
-                            settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"
-                          }`}
-                        />
-                      </div>
-                    </div>
+            {/* Pay Later / Due Card */}
+            {settlementMode === "pay_later" && (
+              <div className="p-3 rounded-[6px] space-y-2.5 border bg-amber-50/40 border-amber-300/50">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11.5px] font-medium text-galla-ink">
+                      Amount Paid Now (₹) <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                    </label>
+                    <span className="text-[11.5px] font-sans text-galla-ink-soft">
+                      Pending Due: <strong className="text-rose-700 font-semibold">{formatRupee(amountPending)}</strong>
+                    </span>
                   </div>
+                  <input
+                    type="text"
+                    value={payLaterPaid}
+                    onChange={(e) => setPayLaterPaid(e.target.value.replace(/\D/g, ""))}
+                    placeholder={`0 (Full ${formatRupee(finalTotal)} due later)`}
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all"
+                  />
+                </div>
 
-                  <div
-                    className={`flex items-center justify-between text-[11.5px] pt-1.5 border-t text-galla-ink-soft ${
-                      settlementMode === "advance" ? "border-galla-brass/25" : "border-galla-teal/20"
-                    }`}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar
-                        className={`h-3 w-3 shrink-0 ${
-                          settlementMode === "advance" ? "text-galla-brass" : "text-galla-teal"
+                <div className="text-[11.5px] text-galla-ink-soft pt-1 leading-snug">
+                  ℹ️ Order will be recorded as <strong className="text-amber-800 font-semibold">Payment Due</strong> and product/service delivered immediately. You can settle the remaining balance anytime in the Orders tab.
+                </div>
+              </div>
+            )}
+
+            {/* Advance Booking Details (Date & Deposit) */}
+            {(settlementMode === "advance" || settlementMode === "paid_full") && (
+              <div
+                className={`p-3 rounded-[6px] space-y-2.5 border ${
+                  settlementMode === "advance"
+                    ? "bg-galla-brass-soft/40 border-galla-brass/30"
+                    : "bg-galla-teal-soft/40 border-galla-teal/30"
+                }`}
+              >
+                <div className="space-y-2.5">
+                  {/* Advance Amount (only for partial deposit) */}
+                  {settlementMode === "advance" && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11.5px] font-medium text-galla-ink">
+                          Advance Paid (₹)
+                        </label>
+                        {advance.trim() !== "" && Number(advance) > 0 && (
+                          <span className="text-[11px] font-sans text-galla-ink-soft">
+                            Pending: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={advance}
+                        onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
+                        placeholder="e.g. 500"
+                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
+                      />
+                    </div>
+                  )}
+
+                  {/* Booking Date & Time Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Booking Date */}
+                    <div className="space-y-1">
+                      <label className="block text-[11.5px] font-medium text-galla-ink whitespace-nowrap">
+                        Appointment Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={bookingDate}
+                        min={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
+                          settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"
                         }`}
                       />
-                      <span>
-                        Booked for:{" "}
-                        <strong className="text-galla-ink">
-                          {formatBookingDate(bookingDate) || "Not set"}
-                          {bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : " (Time not set)"}
-                        </strong>
-                      </span>
-                    </span>
-                    {settlementMode === "advance" ? (
-                      advance.trim() !== "" && Number(advance) > 0 ? (
-                        <span>
-                          Remaining: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
-                        </span>
-                      ) : null
-                    ) : (
-                      <span className="text-galla-teal font-medium">
-                        Paid in Full ({formatRupee(finalTotal)})
-                      </span>
-                    )}
+                    </div>
+
+                    {/* Booking Time (Optional) */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11.5px] font-medium text-galla-ink whitespace-nowrap">
+                          Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                        </label>
+                        {bookingTime && (
+                          <button
+                            type="button"
+                            onClick={() => setBookingTime("")}
+                            className="text-[10px] text-galla-ink-soft hover:text-red-600 transition-colors"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="time"
+                        value={bookingTime}
+                        onChange={(e) => setBookingTime(e.target.value)}
+                        className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
+                          settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"
+                        }`}
+                      />
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
+
+                <div
+                  className={`flex items-center justify-between text-[11.5px] pt-1.5 border-t text-galla-ink-soft ${
+                    settlementMode === "advance" ? "border-galla-brass/25" : "border-galla-teal/20"
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar
+                      className={`h-3 w-3 shrink-0 ${
+                        settlementMode === "advance" ? "text-galla-brass" : "text-galla-teal"
+                      }`}
+                    />
+                    <span>
+                      Booked for:{" "}
+                      <strong className="text-galla-ink">
+                        {formatBookingDate(bookingDate) || "Not set"}
+                        {bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : " (Time not set)"}
+                      </strong>
+                    </span>
+                  </span>
+                  {settlementMode === "advance" ? (
+                    advance.trim() !== "" && Number(advance) > 0 ? (
+                      <span>
+                        Remaining: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
+                      </span>
+                    ) : null
+                  ) : (
+                    <span className="text-galla-teal font-medium">
+                      Paid in Full ({formatRupee(finalTotal)})
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Mode of Payment (Shown when not pay_later or when paying partial upfront in pay_later) */}
+            {(settlementMode !== "pay_later" || enteredPayLaterPaid > 0) && (
+              <div>
+                <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+                  {settlementMode === "pay_later"
+                    ? `Mode of Upfront Payment (${formatRupee(enteredPayLaterPaid)})`
+                    : settlementMode === "advance"
+                    ? "Mode of Advance Payment"
+                    : "Mode of Payment"}
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode("cash")}
+                    className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      paymentMode === "cash"
+                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
+                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                    }`}
+                  >
+                    <Banknote className="h-3.5 w-3.5" />
+                    <span>Cash</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode("upi")}
+                    className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      paymentMode === "upi"
+                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
+                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                    }`}
+                  >
+                    <QrCode className="h-3.5 w-3.5" />
+                    <span>UPI / QR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode("card")}
+                    className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      paymentMode === "card"
+                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
+                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                    }`}
+                  >
+                    <CreditCard className="h-3.5 w-3.5" />
+                    <span>Card</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Step 3 Actions */}
             <div className="pt-2 flex items-center justify-between shrink-0">
@@ -1320,6 +1347,10 @@ export function NewOrderModal({
               >
                 {isSubmitting
                   ? "Creating Order..."
+                  : settlementMode === "pay_later"
+                  ? (enteredPayLaterPaid > 0
+                      ? `Create Order (Paid: ${formatRupee(enteredPayLaterPaid)}, Due: ${formatRupee(amountPending)})`
+                      : `Create Pay Later Order (Due: ${formatRupee(finalTotal)})`)
                   : settlementMode === "advance" && enteredAdvance > 0
                   ? `Create Order (Advance: ${formatRupee(enteredAdvance)})`
                   : `Create Order (${formatRupee(finalTotal)})`}
@@ -1331,9 +1362,33 @@ export function NewOrderModal({
 
       <ConfirmModal
         isOpen={showConfirm}
-        title={settlementMode === "advance" || settlementMode === "paid_full" ? "Confirm Advance Booking" : "Confirm New Order"}
+        title={
+          settlementMode === "pay_later"
+            ? "Confirm Pay Later Order"
+            : settlementMode === "advance" || settlementMode === "paid_full"
+            ? "Confirm Advance Booking"
+            : "Confirm New Order"
+        }
         description={
-          settlementMode === "advance" ? (
+          settlementMode === "pay_later" ? (
+            <span>
+              Create Pay Later order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
+              <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
+              <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>:{" "}
+              {enteredPayLaterPaid > 0 ? (
+                <>
+                  <strong className="font-semibold text-galla-ink">{formatRupee(enteredPayLaterPaid)}</strong> paid upfront via{" "}
+                  <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>, with{" "}
+                  <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> pending due later
+                </>
+              ) : (
+                <>
+                  <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> marked as pending due to be paid later
+                </>
+              )}
+              ?
+            </span>
+          ) : settlementMode === "advance" ? (
             <span>
               Create advance booking for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
               <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong>:{" "}

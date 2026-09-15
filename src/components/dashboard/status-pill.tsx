@@ -37,8 +37,8 @@ const STATUS_CONFIG: Record<
     className: "bg-galla-brick-soft text-galla-brick border border-galla-brick/20",
   },
   created: {
-    label: "Created",
-    className: "bg-galla-paper text-galla-ink-soft border border-galla-line",
+    label: "Payment Due",
+    className: "bg-amber-50 text-amber-800 border border-amber-300",
   },
 };
 

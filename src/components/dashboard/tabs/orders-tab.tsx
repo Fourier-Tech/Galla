@@ -43,6 +43,7 @@ interface OrdersTabProps {
 
 const FILTER_OPTIONS: { id: "all" | OrderStatus; label: string }[] = [
   { id: "all", label: "All Orders" },
+  { id: "created", label: "Payment Due" },
   { id: "advance_paid", label: "Advance Bookings" },
   { id: "completed", label: "Completed" },
   { id: "cancelled_refunded", label: "Refunded" },
@@ -81,6 +82,7 @@ export function OrdersTab({
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>(
     initialStatusCounts || {
       all: initialTotalCount !== undefined ? initialTotalCount : orders.length,
+      created: orders.filter((o) => o.status === "created").length,
       advance_paid: orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full").length,
       completed: orders.filter((o) => o.status === "completed").length,
       cancelled_refunded: orders.filter((o) => o.status === "cancelled_refunded").length,
@@ -119,6 +121,7 @@ export function OrdersTab({
     setPrevOrders(orders);
     setStatusCounts({
       all: orders.length,
+      created: orders.filter((o) => o.status === "created").length,
       advance_paid: orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full").length,
       completed: orders.filter((o) => o.status === "completed").length,
       cancelled_refunded: orders.filter((o) => o.status === "cancelled_refunded").length,
@@ -283,8 +286,10 @@ export function OrdersTab({
     }
 
     return [...displayedOrders].sort((a, b) => {
-      const urgencyA = getBookingUrgency(a.scheduledFor);
-      const urgencyB = getBookingUrgency(b.scheduledFor);
+      const isPendingA = a.status === "advance_paid" || a.status === "created" || a.status === "paid_full";
+      const isPendingB = b.status === "advance_paid" || b.status === "created" || b.status === "paid_full";
+      const urgencyA = isPendingA && a.scheduledFor ? getBookingUrgency(a.scheduledFor) : null;
+      const urgencyB = isPendingB && b.scheduledFor ? getBookingUrgency(b.scheduledFor) : null;
 
       const getTier = (u: ReturnType<typeof getBookingUrgency>) => {
         if (!u) return 6;
@@ -524,9 +529,10 @@ export function OrdersTab({
                 const isPartialRefund =
                   order.status === "cancelled_refunded" &&
                   Boolean(order.refundAmount && order.paid > 0);
-                const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+                const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full";
+                const urgency = isPendingOrder && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
                 // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
-                const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
+                const isAppointmentDue = !isPendingOrder || !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
                 return (
                   <div
@@ -544,7 +550,7 @@ export function OrdersTab({
                   <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
                     {order.type} &bull; {order.time}
                   </div>
-                  {order.scheduledFor && (() => {
+                  {isPendingOrder && order.scheduledFor && (() => {
                     if (!urgency) {
                       return (
                         <button
@@ -756,7 +762,7 @@ export function OrdersTab({
 
               <div className="flex items-center justify-end gap-2">
                 {order.status === "completed" ? (
-                  onOpenRefund ? (
+                  onOpenRefund && order.paid > 0 ? (
                     <button
                       onClick={() => onOpenRefund(order)}
                       className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -786,7 +792,7 @@ export function OrdersTab({
                         )}
                       </button>
                     )}
-                    {onOpenRefund ? (
+                    {onOpenRefund && order.paid > 0 ? (
                       <button
                         onClick={() => onOpenRefund(order)}
                         className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
@@ -798,7 +804,7 @@ export function OrdersTab({
                       <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                     ) : null}
                   </>
-                ) : order.status === "advance_paid" ? (
+                ) : order.status === "advance_paid" || order.status === "created" ? (
                   <>
                     {isAppointmentDue && (
                       <button
@@ -817,7 +823,7 @@ export function OrdersTab({
                         )}
                       </button>
                     )}
-                    {onOpenRefund ? (
+                    {onOpenRefund && order.paid > 0 ? (
                       <button
                         onClick={() => onOpenRefund(order)}
                         className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
