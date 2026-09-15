@@ -248,31 +248,33 @@ export function OverviewTab({
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 bg-galla-surface border border-galla-line rounded-[5px] overflow-hidden shadow-xs">
-          {/* Sticky Table Header */}
-          <div className="shrink-0 grid grid-cols-[70px_1fr_140px_150px_175px] gap-x-6 items-center px-[21px] py-[9px] bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.05em] z-10">
-            <span>Order</span>
-            <span>Customer &amp; Service</span>
-            <span className="text-right">Settlement</span>
-            <span className="text-center">Status</span>
-            <span className="text-right">Action</span>
-          </div>
+        <div className="flex-1 flex flex-col min-h-0 bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
+          <div className="overflow-x-auto flex-1 flex flex-col min-h-0">
+            <div className="min-w-[900px] flex-1 flex flex-col">
+              {/* Sticky Table Header */}
+              <div className="shrink-0 grid grid-cols-[85px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[11px] bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em] z-10">
+                <span>Order</span>
+                <span>Customer &amp; Service</span>
+                <span className="text-right">Settlement</span>
+                <span className="text-center">Status</span>
+                <span className="text-right">Action</span>
+              </div>
 
-          {/* Scrollable Table Rows */}
-          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-galla-line">
-            {recent24hOrders.map((order) => {
-              const isPartialRefund =
-                order.status === "cancelled_refunded" &&
-                Boolean(order.refundAmount && order.paid > 0);
-              const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
-              // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
-              const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
+              {/* Scrollable Table Rows */}
+              <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-galla-line">
+                {recent24hOrders.map((order) => {
+                  const isPartialRefund =
+                    order.status === "cancelled_refunded" &&
+                    Boolean(order.refundAmount && order.paid > 0);
+                  const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+                  // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
+                  const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
-              return (
-                <div
-                  key={order.id}
-                  className="grid grid-cols-[70px_1fr_140px_150px_175px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/30 transition-colors"
-                >
+                  return (
+                    <div
+                      key={order.id}
+                      className="grid grid-cols-[85px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/30 transition-colors"
+                    >
                   <span className="font-mono text-[13px] text-galla-ink-soft">
                     {order.id}
                   </span>
@@ -511,5 +513,7 @@ export function OverviewTab({
         </div>
       </div>
     </div>
+  </div>
+</div>
   );
 }

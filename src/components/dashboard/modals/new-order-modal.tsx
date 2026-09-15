@@ -16,14 +16,16 @@ import {
   CreditCard,
   Plus,
   Calendar,
+  ShoppingBag,
 } from "lucide-react";
 import {
   DashboardCustomer,
   DashboardOrder,
   DashboardService,
   DashboardPackage,
+  DashboardProduct,
 } from "@/types/dashboard";
-import { createOrderAction } from "@/app/dashboard/actions";
+import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
 import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime } from "@/lib/utils";
 
 function getPhoneDigits(val: string): string {
@@ -33,7 +35,7 @@ function getPhoneDigits(val: string): string {
 
 export interface SelectedOrderItem {
   id: string;
-  type: "service" | "package";
+  type: "service" | "package" | "product";
   name: string;
   price: number;
   quantity: number;
@@ -46,6 +48,7 @@ interface NewOrderModalProps {
   customers?: DashboardCustomer[];
   services?: DashboardService[];
   packages?: DashboardPackage[];
+  initialProducts?: DashboardProduct[];
 }
 
 export function NewOrderModal({
@@ -55,6 +58,7 @@ export function NewOrderModal({
   customers = [],
   services = [],
   packages = [],
+  initialProducts = [],
 }: NewOrderModalProps) {
   // Step 1: Customer & Order Type, Step 2: Catalog Selection, Step 3: Review & Checkout
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -66,9 +70,32 @@ export function NewOrderModal({
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Step 2 State
-  const [catalogTab, setCatalogTab] = useState<"services" | "packages">("services");
+  const [catalogTab, setCatalogTab] = useState<"services" | "packages" | "products">("services");
   const [catalogSearch, setCatalogSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>([]);
+  const [liveProducts, setLiveProducts] = useState<DashboardProduct[]>(initialProducts);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+
+  // Fetch live products on open and dropdown interaction to bypass stale cache
+  const fetchLiveProducts = React.useCallback(async () => {
+    setIsLoadingProducts(true);
+    try {
+      const res = await getLiveProductsAction();
+      if (res.success && res.products) {
+        setLiveProducts(res.products);
+      }
+    } catch (err) {
+      console.error("Failed to fetch live products:", err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchLiveProducts();
+    }
+  }, [isOpen, fetchLiveProducts]);
 
   // Step 3 State
   const [customPrice, setCustomPrice] = useState("");
@@ -155,6 +182,17 @@ export function NewOrderModal({
     });
   }, [packages, catalogSearch]);
 
+  const filteredProducts = useMemo(() => {
+    const q = catalogSearch.trim().toLowerCase();
+    return liveProducts.filter((p) => {
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.category && p.category.toLowerCase().includes(q))
+      );
+    });
+  }, [liveProducts, catalogSearch]);
+
   // Pricing calculations
   const calculatedSubtotal = useMemo(() => {
     return selectedItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
@@ -226,10 +264,10 @@ export function NewOrderModal({
     }
   };
 
-  // Toggle service/package selection in Step 2
+  // Toggle service/package/product selection in Step 2
   const handleToggleItem = (item: {
     id: string;
-    type: "service" | "package";
+    type: "service" | "package" | "product";
     name: string;
     price: number;
   }) => {
@@ -252,7 +290,7 @@ export function NewOrderModal({
     });
   };
 
-  const handleRemoveItem = (id: string, type: "service" | "package") => {
+  const handleRemoveItem = (id: string, type: "service" | "package" | "product") => {
     setSelectedItems((prev) => {
       const next = prev.filter((i) => !(i.id === id && i.type === type));
       const nextSubtotal = next.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
@@ -261,7 +299,7 @@ export function NewOrderModal({
     });
   };
 
-  const handleUpdateQuantity = (id: string, type: "service" | "package", delta: number) => {
+  const handleUpdateQuantity = (id: string, type: "service" | "package" | "product", delta: number) => {
     setSelectedItems((prev) => {
       const next = prev
         .map((item) => {
@@ -287,8 +325,10 @@ export function NewOrderModal({
       return;
     }
     if (orderType === "Product sale") {
-      setErrorMsg("Product sale workflow is currently in progress. Please choose 'Service booking' for now.");
-      return;
+      setCatalogTab("products");
+      fetchLiveProducts();
+    } else {
+      setCatalogTab("services");
     }
     setStep(2);
   };
@@ -297,7 +337,7 @@ export function NewOrderModal({
   const handleNextFromStep2 = () => {
     setErrorMsg(null);
     if (selectedItems.length === 0) {
-      setErrorMsg("Please select at least one service or package to continue.");
+      setErrorMsg("Please select at least one item to continue.");
       return;
     }
     // Always refresh custom price with current calculated subtotal when moving to Step 3
@@ -311,7 +351,7 @@ export function NewOrderModal({
     setErrorMsg(null);
 
     if (selectedItems.length === 0) {
-      setErrorMsg("Please select at least one service or package.");
+      setErrorMsg("Please select at least one item.");
       return;
     }
 
@@ -326,7 +366,7 @@ export function NewOrderModal({
       }
     }
 
-    if ((settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
+    if (orderType !== "Product sale" && (settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
       setErrorMsg("Please select the appointment / booking date for this advance booking");
       return;
     }
@@ -340,10 +380,17 @@ export function NewOrderModal({
         ? "paid_full"
         : "advance_paid";
 
+      const resolvedOrderType: "Product sale" | "Service booking" | "Package sale" =
+        orderType === "Product sale"
+          ? "Product sale"
+          : selectedItems.some((i) => i.type === "package")
+            ? "Package sale"
+            : "Service booking";
+
       const res = await createOrderAction({
         customerName: customer.trim(),
         customerPhone: formattedPhone,
-        orderType: "Service booking",
+        orderType: resolvedOrderType,
         totalAmount: finalTotal,
         paidAmount: paidAmount,
         status: status,
@@ -561,8 +608,8 @@ export function NewOrderModal({
               </div>
 
               {orderType === "Product sale" && (
-                <div className="mt-2.5 p-2 bg-blue-50 border border-blue-200 text-blue-800 text-[11.5px] rounded-[4px] leading-relaxed">
-                  <strong>Notice:</strong> Product sale checkout will be available soon. Please switch to <strong>Service booking</strong> to continue counter operations.
+                <div className="mt-2.5 p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11.5px] rounded-[4px] leading-relaxed">
+                  Retail product sale: Select products from live stock in the next step. Backorders are supported.
                 </div>
               )}
             </div>
@@ -571,7 +618,7 @@ export function NewOrderModal({
             <div className="pt-3 flex justify-end">
               <button
                 type="submit"
-                disabled={!customer.trim() || orderType === "Product sale"}
+                disabled={!customer.trim()}
                 className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13.5px] font-medium px-5 py-2 rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
               >
                 <span>Next</span>
@@ -582,13 +629,13 @@ export function NewOrderModal({
         )}
 
         {/* ======================================================== */}
-        {/* STEP 2: CATALOG SELECTION (SERVICES & PACKAGES)           */}
+        {/* STEP 2: CATALOG SELECTION (SERVICES, PACKAGES & PRODUCTS) */}
         {/* ======================================================== */}
         {step === 2 && (
           <div className="pt-3 flex-1 flex flex-col overflow-hidden space-y-3">
             {/* Switcher & Search Bar */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
-              {/* Service vs Package Toggle */}
+              {/* Service vs Package vs Product Toggle */}
               <div className="flex items-center p-0.5 bg-galla-paper/60 border border-galla-line rounded-[6px]">
                 <button
                   type="button"
@@ -615,6 +662,22 @@ export function NewOrderModal({
                   <Package className="h-3.5 w-3.5" />
                   <span>Packages ({filteredPackages.length})</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatalogTab("products");
+                    fetchLiveProducts();
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
+                    catalogTab === "products"
+                      ? "bg-galla-teal text-white shadow-xs"
+                      : "text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  <ShoppingBag className="h-3.5 w-3.5" />
+                  <span>Products ({filteredProducts.length})</span>
+                </button>
               </div>
 
               {/* Search Bar */}
@@ -627,16 +690,120 @@ export function NewOrderModal({
                   placeholder={
                     catalogTab === "services"
                       ? "Search services or category..."
-                      : "Search package bundles..."
+                      : catalogTab === "packages"
+                      ? "Search package bundles..."
+                      : "Search retail products..."
                   }
                   className="w-full bg-galla-paper/40 border border-galla-line rounded-[5px] pl-8 pr-2.5 py-1.5 text-[12px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
                 />
               </div>
             </div>
 
+            {/* Quick Product Selector Dropdown */}
+            <div className="shrink-0">
+              <select
+                value=""
+                onFocus={fetchLiveProducts}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  if (!selectedId) return;
+                  const prod = liveProducts.find((p) => String(p.id) === selectedId);
+                  if (prod) {
+                    handleToggleItem({
+                      id: String(prod.id),
+                      type: "product",
+                      name: prod.name,
+                      price: prod.price,
+                    });
+                  }
+                }}
+                className="w-full bg-galla-paper/60 border border-galla-line rounded-[5px] px-3 py-1.5 text-[12px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
+              >
+                <option value="">+ Quick Add Product ({isLoadingProducts ? "refreshing..." : `${liveProducts.length} available`})</option>
+                {liveProducts.map((p) => {
+                  const stockLabel = p.sell > 0 ? `${p.sell} in stock` : "out of stock";
+                  return (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.name} — {stockLabel} — {formatRupee(p.price)}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
             {/* Catalog Items List */}
             <div className="flex-1 overflow-y-auto border border-galla-line rounded-[6px] divide-y divide-galla-line/40 max-h-[320px] bg-galla-paper/20">
-              {catalogTab === "services" ? (
+              {catalogTab === "products" ? (
+                filteredProducts.length === 0 ? (
+                  <div className="p-8 text-center text-[13px] text-galla-ink-soft">
+                    {isLoadingProducts ? "Loading live products..." : "No active retail products found matching your search."}
+                  </div>
+                ) : (
+                  filteredProducts.map((p) => {
+                    const isSelected = selectedItems.some((i) => i.id === String(p.id) && i.type === "product");
+                    const isOutOfStock = p.sell <= 0;
+                    const stockLabel = p.sell > 0 ? `${p.sell} in stock` : "out of stock";
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() =>
+                          handleToggleItem({
+                            id: String(p.id),
+                            type: "product",
+                            name: p.name,
+                            price: p.price,
+                          })
+                        }
+                        className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-galla-teal/5 hover:bg-galla-teal/10"
+                            : "hover:bg-galla-paper/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all ${
+                              isSelected
+                                ? "bg-galla-teal border-galla-teal text-white"
+                                : "border-galla-line bg-galla-surface"
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                          <div>
+                            <div className="font-heading font-medium text-[13.5px] text-galla-ink flex items-center gap-2">
+                              <span>{p.name}</span>
+                              <span className="font-mono text-[11px] text-galla-ink-soft">
+                                — {stockLabel} — {formatRupee(p.price)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
+                              {isOutOfStock ? (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10.5px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                                  Out of stock (Backorder allowed)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10.5px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {p.sell} in stock
+                                </span>
+                              )}
+                              {p.category && (
+                                <span className="bg-galla-paper px-1.5 py-0.5 rounded border border-galla-line/60">
+                                  {p.category}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="font-heading font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                          {formatRupee(p.price)}
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              ) : catalogTab === "services" ? (
                 filteredServices.length === 0 ? (
                   <div className="p-8 text-center text-[13px] text-galla-ink-soft">
                     No active services found matching your search.
@@ -799,7 +966,7 @@ export function NewOrderModal({
                 )}
               </div>
               <span className="text-[11px] font-medium bg-galla-teal-soft text-galla-teal px-1.5 py-0.5 rounded">
-                Service Booking
+                {orderType === "Product sale" ? "Product Sale" : "Service Booking"}
               </span>
             </div>
 
@@ -842,6 +1009,8 @@ export function NewOrderModal({
                           className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
                             item.type === "package"
                               ? "bg-galla-brass-soft text-galla-brass border border-galla-brass/30"
+                              : item.type === "product"
+                              ? "bg-amber-100 text-amber-800 border border-amber-300"
                               : "bg-galla-teal-soft text-galla-teal border border-galla-teal/30"
                           }`}
                         >

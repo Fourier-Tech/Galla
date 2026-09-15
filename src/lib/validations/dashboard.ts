@@ -73,9 +73,84 @@ export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
 export const transferStockSchema = z.object({
   productId: z.string().min(1, "Product ID is required"),
+  quantity: z.number().int("Quantity must be an integer").min(1, "Quantity must be at least 1").default(1),
 });
 
 export type TransferStockInput = z.infer<typeof transferStockSchema>;
+
+export const purchaseOrderItemInputSchema = z.object({
+  productId: z.string().min(1, "Product ID is required"),
+  productName: z.string().min(1, "Product name is required"),
+  quantityForSell: z.number().int().min(0, "Quantity for sell cannot be negative").default(0),
+  quantityForUse: z.number().int().min(0, "Quantity for use cannot be negative").default(0),
+  purchaseCost: z.number().min(0, "Purchase cost cannot be negative"),
+  expectedSellPrice: z.number().min(0, "Sell price cannot be negative"),
+});
+
+export const createPurchaseOrderSchema = z.object({
+  supplierId: z.string().optional(),
+  supplierName: z.string().min(1, "Supplier name is required").trim(),
+  supplierPhone: z.string().optional(),
+  supplierCompany: z.string().optional(),
+  items: z.array(purchaseOrderItemInputSchema).min(1, "At least one item is required in a purchase order"),
+  paymentMode: z.enum(["cash", "upi", "card", "bank_transfer", "credit"]).default("cash"),
+  amountPaid: z.number().min(0, "Paid amount cannot be negative").optional(),
+  dealerInvoiceNumber: z.string().optional(),
+  invoiceDate: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
+
+export const recordPurchaseOrderPaymentSchema = z.object({
+  purchaseOrderId: z.string().min(1, "Purchase order ID is required"),
+  amount: z.number().positive("Payment amount must be greater than 0"),
+  paymentMode: z.enum(["cash", "upi", "card", "bank_transfer"]).default("cash"),
+  notes: z.string().optional(),
+});
+
+export type RecordPurchaseOrderPaymentInput = z.infer<typeof recordPurchaseOrderPaymentSchema>;
+
+export const fulfillOrderLineItemSchema = z.object({
+  orderId: z.string().min(1, "Order ID is required"),
+  lineItemIndex: z.number().int().min(0, "Line item index must be non-negative"),
+});
+
+export type FulfillOrderLineItemInput = z.infer<typeof fulfillOrderLineItemSchema>;
+
+export const createProductSchema = z.object({
+  name: z.string().min(1, "Product name is required").trim(),
+  category: z.string().min(1, "Category is required").trim().default("General"),
+  price: z.number().min(0, "Retail sell price cannot be negative"),
+  purchaseCost: z.number().min(0, "Purchase cost cannot be negative").default(0),
+  sellStock: z.number().int("Sell stock must be an integer").min(0, "Sell stock cannot be negative").default(0),
+  useStock: z.number().int("Use stock must be an integer").min(0, "Use stock cannot be negative").default(0),
+  lowStockThreshold: z.number().int().min(0).default(0),
+  barcode: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+
+export const updateProductSchema = z.object({
+  id: z.string().min(1, "Product ID is required"),
+  name: z.string().min(1, "Product name is required").trim(),
+  category: z.string().min(1, "Category is required").trim().default("General"),
+  price: z.number().min(0, "Retail sell price cannot be negative"),
+  purchaseCost: z.number().min(0, "Purchase cost cannot be negative").default(0),
+  lowStockThreshold: z.number().int().min(0).default(0),
+  barcode: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+export const deleteProductSchema = z.object({
+  id: z.string().min(1, "Product ID is required"),
+  reactivate: z.boolean().optional(),
+});
+
+export type DeleteProductInput = z.infer<typeof deleteProductSchema>;
 
 export const updateSalonProfileSchema = z.object({
   name: z.string().min(1, "Salon name is required").trim(),

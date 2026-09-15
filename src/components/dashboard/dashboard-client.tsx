@@ -53,7 +53,7 @@ interface DashboardClientProps {
 
 export function DashboardClient({
   tenantId,
-  salonName = "ShreeHari",
+  salonName = "Salon",
   initialRole = "owner",
   initialOrders = [],
   initialTotalOrdersCount = 0,
@@ -226,7 +226,7 @@ export function DashboardClient({
 
   const handleMoveStock = async (id: number | string) => {
     try {
-      const res = await transferStockAction({ productId: String(id) });
+      const res = await transferStockAction({ productId: String(id), quantity: 1 });
       if (res.success && res.updatedProduct) {
         setProducts((prev) =>
           prev.map((p) => (p.id === id ? res.updatedProduct! : p))
@@ -240,6 +240,41 @@ export function DashboardClient({
     }
   };
 
+  const handleTransferSuccess = (
+    updatedProduct: DashboardProduct,
+    newExpense?: DashboardExpense
+  ) => {
+    setProducts((prev) =>
+      prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
+    );
+    if (newExpense) {
+      setExpenses((prev) => [newExpense, ...prev]);
+    }
+  };
+
+  const handleStockInSuccess = (updatedBatch: DashboardProduct[]) => {
+    setProducts((prev) => {
+      const map = new Map(updatedBatch.map((p) => [p.id, p]));
+      return prev.map((p) => (map.has(p.id) ? map.get(p.id)! : p));
+    });
+  };
+
+  const handleAddProduct = (newProduct: DashboardProduct) => {
+    setProducts((prev) => [newProduct, ...prev]);
+  };
+
+  const handleUpdateProduct = (updatedProduct: DashboardProduct) => {
+    setProducts((prev) =>
+      prev.map((p) => (String(p.id) === String(updatedProduct.id) ? updatedProduct : p))
+    );
+  };
+
+  const handleDeleteProduct = (productId: string | number) => {
+    setProducts((prev) =>
+      prev.map((p) => (String(p.id) === String(productId) ? { ...p, isActive: false } : p))
+    );
+  };
+
   const handleCompleteOrder = async (orderId: string) => {
     try {
       const res = await completeOrderAction({ orderId });
@@ -248,10 +283,10 @@ export function DashboardClient({
           prev.map((o) =>
             o.id === orderId
               ? {
-                  ...o,
-                  status: "completed",
-                  paid: o.amount,
-                }
+                ...o,
+                status: "completed",
+                paid: o.amount,
+              }
               : o
           )
         );
@@ -302,16 +337,14 @@ export function DashboardClient({
 
       {/* Main Tab Canvas (Table scrollable on overview, full scroll on other tabs) */}
       <main
-        className={`flex-1 min-w-0 h-screen px-8 lg:px-12 py-5 lg:py-6 ${
-          activeTab === "overview"
+        className={`flex-1 min-w-0 h-screen px-8 lg:px-12 py-5 lg:py-6 ${activeTab === "overview"
             ? "overflow-hidden flex flex-col"
             : "overflow-y-auto"
-        }`}
+          }`}
       >
         <div
-          className={`w-full max-w-7xl mx-auto ${
-            activeTab === "overview" ? "h-full flex flex-col min-h-0" : "space-y-6"
-          }`}
+          className={`w-full max-w-7xl mx-auto ${activeTab === "overview" ? "h-full flex flex-col min-h-0" : "space-y-6"
+            }`}
         >
           {activeTab === "overview" && (
             <OverviewTab
@@ -359,7 +392,15 @@ export function DashboardClient({
           )}
 
           {activeTab === "inventory" && (
-            <InventoryTab products={products} onMoveStock={handleMoveStock} />
+            <InventoryTab
+              products={products}
+              onMoveStock={handleMoveStock}
+              onTransferSuccess={handleTransferSuccess}
+              onStockInSuccess={handleStockInSuccess}
+              onAddProduct={handleAddProduct}
+              onUpdateProduct={handleUpdateProduct}
+              onDeleteProduct={handleDeleteProduct}
+            />
           )}
 
           {activeTab === "customers" && <CustomersTab customers={customers} />}
@@ -375,7 +416,11 @@ export function DashboardClient({
           )}
 
           {activeTab === "analytics" && role === "owner" && (
-            <AnalyticsTab pendingAmount={pendingAmount} />
+            <AnalyticsTab
+              orders={orders}
+              expenses={expenses}
+              pendingAmount={pendingAmount}
+            />
           )}
 
           {activeTab === "profile" && role === "owner" && (
@@ -395,6 +440,7 @@ export function DashboardClient({
         customers={customers}
         services={services}
         packages={packages}
+        initialProducts={products}
       />
 
       <NewExpenseModal

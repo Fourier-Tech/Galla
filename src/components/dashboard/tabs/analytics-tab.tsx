@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -12,22 +12,149 @@ import {
 } from "recharts";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { formatRupee } from "@/lib/utils";
+import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
 
 interface AnalyticsTabProps {
+  orders?: DashboardOrder[];
+  expenses?: DashboardExpense[];
   pendingAmount: number;
 }
 
-const WEEK_DATA = [
-  { day: "Mon", Product: 3200, Service: 4100 },
-  { day: "Tue", Product: 2800, Service: 3600 },
-  { day: "Wed", Product: 4100, Service: 3900 },
-  { day: "Thu", Product: 3600, Service: 4700 },
-  { day: "Fri", Product: 5200, Service: 6100 },
-  { day: "Sat", Product: 7400, Service: 8300 },
-  { day: "Sun", Product: 6100, Service: 7000 },
-];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function AnalyticsTab({ pendingAmount }: AnalyticsTabProps) {
+export function AnalyticsTab({
+  orders = [],
+  expenses = [],
+  pendingAmount,
+}: AnalyticsTabProps) {
+  // ponytail: Client-side 7-day aggregation operates on loaded orders/expenses. Upgrade path: dedicated GET /api/analytics/weekly endpoint using MongoDB date aggregation if weekly volume exceeds 10,000 transactions.
+  // Compute 7-day chronological stats based on live data
+  const {
+    weekData,
+    weekRevenue,
+    weekExpense,
+    netMargin,
+    marginPercent,
+    serviceRevenue,
+    productRevenue,
+    servicePercent,
+    productPercent,
+    revenueDeltaText,
+    expenseDeltaText,
+  } = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Last 7 days: [today - 6 days, today]
+    const sevenDaysAgo = new Date(startOfToday);
+    sevenDaysAgo.setDate(startOfToday.getDate() - 6);
+
+    // Prior 7 days: [today - 13 days, today - 7 days] for delta comparison
+    const fourteenDaysAgo = new Date(startOfToday);
+    fourteenDaysAgo.setDate(startOfToday.getDate() - 13);
+
+    // Filter current 7-day window
+    const currentOrders = orders.filter((o) => {
+      if (!o.createdAt) return false;
+      const d = new Date(o.createdAt);
+      return !isNaN(d.getTime()) && d >= sevenDaysAgo;
+    });
+
+    const currentExpenses = expenses.filter((e) => {
+      if (!e.createdAt) return false;
+      const d = new Date(e.createdAt);
+      return !isNaN(d.getTime()) && d >= sevenDaysAgo;
+    });
+
+    // Filter prior 7-day window
+    const priorOrders = orders.filter((o) => {
+      if (!o.createdAt) return false;
+      const d = new Date(o.createdAt);
+      return !isNaN(d.getTime()) && d >= fourteenDaysAgo && d < sevenDaysAgo;
+    });
+
+    const priorExpenses = expenses.filter((e) => {
+      if (!e.createdAt) return false;
+      const d = new Date(e.createdAt);
+      return !isNaN(d.getTime()) && d >= fourteenDaysAgo && d < sevenDaysAgo;
+    });
+
+    const rev = currentOrders.reduce((sum, o) => sum + (o.paid || 0), 0);
+    const exp = currentExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const margin = rev - exp;
+    const marginPct = rev > 0 ? Math.round((margin / rev) * 100) : 0;
+
+    const priorRev = priorOrders.reduce((sum, o) => sum + (o.paid || 0), 0);
+    const priorExp = priorExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    const revDeltaText =
+      priorRev > 0
+        ? `${rev >= priorRev ? "+" : ""}${Math.round(((rev - priorRev) / priorRev) * 100)}% vs prev 7d`
+        : undefined;
+
+    const expDeltaText =
+      priorExp > 0
+        ? `${exp >= priorExp ? "+" : ""}${Math.round(((exp - priorExp) / priorExp) * 100)}% vs prev 7d`
+        : undefined;
+
+    const servRev = currentOrders
+      .filter((o) => o.type === "Service booking" || o.type === "Package sale")
+      .reduce((sum, o) => sum + (o.paid || 0), 0);
+
+    const prodRev = currentOrders
+      .filter((o) => o.type === "Product sale")
+      .reduce((sum, o) => sum + (o.paid || 0), 0);
+
+    const totalSplit = servRev + prodRev;
+    const servPct = totalSplit > 0 ? Math.round((servRev / totalSplit) * 100) : 0;
+    const prodPct = totalSplit > 0 ? 100 - servPct : 0;
+
+    // Daily breakdown for the last 7 calendar days
+    const dailyData: { day: string; Product: number; Service: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const targetDate = new Date(startOfToday);
+      targetDate.setDate(startOfToday.getDate() - i);
+      const dayLabel = DAYS[targetDate.getDay()];
+      const y = targetDate.getFullYear();
+      const m = targetDate.getMonth();
+      const dt = targetDate.getDate();
+
+      const dayOrders = orders.filter((o) => {
+        if (!o.createdAt) return false;
+        const d = new Date(o.createdAt);
+        return d.getFullYear() === y && d.getMonth() === m && d.getDate() === dt;
+      });
+
+      const dayProd = dayOrders
+        .filter((o) => o.type === "Product sale")
+        .reduce((sum, o) => sum + (o.paid || 0), 0);
+
+      const dayServ = dayOrders
+        .filter((o) => o.type === "Service booking" || o.type === "Package sale")
+        .reduce((sum, o) => sum + (o.paid || 0), 0);
+
+      dailyData.push({
+        day: dayLabel,
+        Product: dayProd,
+        Service: dayServ,
+      });
+    }
+
+    return {
+      weekData: dailyData,
+      weekRevenue: rev,
+      weekExpense: exp,
+      netMargin: margin,
+      marginPercent: marginPct,
+      serviceRevenue: servRev,
+      productRevenue: prodRev,
+      servicePercent: servPct,
+      productPercent: prodPct,
+      revenueDeltaText: revDeltaText,
+      expenseDeltaText: expDeltaText,
+    };
+  }, [orders, expenses]);
+
   return (
     <div className="space-y-6 w-full">
       {/* Header */}
@@ -39,7 +166,7 @@ export function AnalyticsTab({ pendingAmount }: AnalyticsTabProps) {
           Weekly Financial Performance &amp; Margins
         </h2>
         <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
-          Comprehensive 7-day revenue split, expense tracking &amp; operating yield
+          Live 7-day revenue split, expense tracking &amp; operating yield
         </p>
       </div>
 
@@ -48,16 +175,16 @@ export function AnalyticsTab({ pendingAmount }: AnalyticsTabProps) {
         <div className="bg-galla-surface">
           <StatBlock
             label="This Week's Revenue"
-            value={formatRupee(38400)}
-            delta="+12% vs last week"
+            value={formatRupee(weekRevenue)}
+            delta={revenueDeltaText}
             tone="sage"
           />
         </div>
         <div className="bg-galla-surface">
           <StatBlock
             label="This Week's Expense"
-            value={formatRupee(9600)}
-            delta="-4% vs last week"
+            value={formatRupee(weekExpense)}
+            delta={expenseDeltaText}
             tone="brick"
           />
         </div>
@@ -92,7 +219,7 @@ export function AnalyticsTab({ pendingAmount }: AnalyticsTabProps) {
 
           <div className="h-[233px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={WEEK_DATA} barGap={4} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={weekData} barGap={4} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke="#EFE5E9" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="day"
@@ -131,15 +258,21 @@ export function AnalyticsTab({ pendingAmount }: AnalyticsTabProps) {
               Net Operating Margin
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft">
-              Gross collections minus all verified operational expenses
+              Gross collections minus all operational expenses
             </p>
 
             <div className="mt-4 pt-4 border-t border-galla-line">
-              <div className="font-heading font-semibold text-[26px] text-galla-sage tracking-tight leading-none">
-                +{formatRupee(28800)}
+              <div
+                className={`font-heading font-semibold text-[26px] tracking-tight leading-none ${
+                  netMargin >= 0 ? "text-galla-sage" : "text-galla-brick"
+                }`}
+              >
+                {netMargin >= 0 ? `+${formatRupee(netMargin)}` : `-${formatRupee(Math.abs(netMargin))}`}
               </div>
               <div className="font-sans text-[12px] text-galla-ink-soft mt-1">
-                75% weekly operating profit yield
+                {weekRevenue > 0
+                  ? `${marginPercent}% weekly operating profit yield`
+                  : "No revenue recorded for the current week"}
               </div>
             </div>
           </div>
@@ -148,20 +281,30 @@ export function AnalyticsTab({ pendingAmount }: AnalyticsTabProps) {
             <div>
               <div className="flex justify-between text-[12px] font-sans mb-1">
                 <span className="text-galla-ink-soft">Service Treatments</span>
-                <span className="font-medium text-galla-ink">62% &bull; {formatRupee(23800)}</span>
+                <span className="font-medium text-galla-ink">
+                  {servicePercent}% &bull; {formatRupee(serviceRevenue)}
+                </span>
               </div>
               <div className="w-full bg-galla-paper h-1.5 rounded-full overflow-hidden">
-                <div className="bg-galla-teal h-full w-[62%]" />
+                <div
+                  className="bg-galla-teal h-full transition-all"
+                  style={{ width: `${servicePercent}%` }}
+                />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between text-[12px] font-sans mb-1">
                 <span className="text-galla-ink-soft">Retail Product Sales</span>
-                <span className="font-medium text-galla-ink">38% &bull; {formatRupee(14600)}</span>
+                <span className="font-medium text-galla-ink">
+                  {productPercent}% &bull; {formatRupee(productRevenue)}
+                </span>
               </div>
               <div className="w-full bg-galla-paper h-1.5 rounded-full overflow-hidden">
-                <div className="bg-galla-brass h-full w-[38%]" />
+                <div
+                  className="bg-galla-brass h-full transition-all"
+                  style={{ width: `${productPercent}%` }}
+                />
               </div>
             </div>
           </div>

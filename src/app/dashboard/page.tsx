@@ -148,12 +148,8 @@ export default async function DashboardPage() {
       }
     }
 
-    // 3. If still not found, fallback to default ShreeHari tenant
     if (!tenant) {
-      tenant = await Tenant.findOne({ slug: "shreehari" }).lean();
-      if (tenant) {
-        tenantId = tenant._id.toString();
-      }
+      redirect("/login?error=AccessDenied");
     }
 
     if (tenant && tenantId) {
@@ -175,7 +171,7 @@ export default async function DashboardPage() {
         expenseSumAgg,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
-        Product.find({ tenantId: tenantObjectId, isActive: true }).sort({ createdAt: 1 }).lean(),
+        Product.find({ tenantId: tenantObjectId }).sort({ createdAt: 1 }).lean(),
         Customer.find({ tenantId: tenantObjectId, isActive: true })
           .sort({ "stats.lastVisitAt": -1, updatedAt: -1 })
           .lean(),
@@ -252,9 +248,15 @@ export default async function DashboardPage() {
       initialProducts = rawProducts.map((p) => ({
         id: p._id.toString(),
         name: p.name,
+        category: p.category || "General Supplies",
         sell: p.sellStock,
         use: p.useStock,
         price: p.expectedSellPrice,
+        purchaseCost: p.purchaseCost,
+        lowStockThreshold: p.lowStockThreshold,
+        description: p.description,
+        barcode: p.barcode,
+        isActive: p.isActive !== false,
       }));
 
       initialCustomers = rawCustomers.map((c) => ({

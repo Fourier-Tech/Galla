@@ -396,7 +396,7 @@ export function ExpensesTab({
               setDisplayedExpenses(expenses);
               setFilteredTotal(expenses.reduce((sum, e) => sum + e.amount, 0));
             }}
-            className="text-[12px] font-sans text-galla-teal hover:underline font-medium cursor-pointer"
+            className="ml-auto text-[12.5px] font-sans text-galla-teal hover:underline font-medium cursor-pointer"
           >
             Reset all filters
           </button>

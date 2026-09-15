@@ -27,6 +27,7 @@ export interface IOrderLineItem {
   discount: number;
   finalPrice: number;
   fulfilled: boolean;
+  purchaseCost?: number;
   packageDetails?: {
     templateId?: Types.ObjectId;
     isCustomized: boolean;
@@ -153,6 +154,11 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>(
     fulfilled: {
       type: Boolean,
       default: true,
+    },
+    purchaseCost: {
+      type: Number,
+      min: 0,
+      default: 0,
     },
     packageDetails: {
       templateId: {

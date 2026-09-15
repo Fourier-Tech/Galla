@@ -78,11 +78,6 @@ export async function GET(request: Request) {
     }
 
     if (!tenantId) {
-      const fallback = await Tenant.findOne({ slug: "shreehari" });
-      tenantId = fallback ? fallback._id : null;
-    }
-
-    if (!tenantId) {
       return NextResponse.json(
         { success: false, error: "Salon tenant not found" },
         { status: 404 }

@@ -331,9 +331,9 @@ export function ServicesTab({
                 setSelectedCategory("all");
                 setSearchQuery("");
               }}
-              className="text-[12px] font-sans text-galla-ink-soft hover:text-galla-ink underline cursor-pointer"
+              className="ml-auto text-[12.5px] font-sans text-galla-teal hover:underline font-medium cursor-pointer whitespace-nowrap py-1"
             >
-              Reset filters
+              Reset all filters
             </button>
           )}
         </div>
@@ -370,9 +370,9 @@ export function ServicesTab({
                 setPackageFilter("all");
                 setSearchQuery("");
               }}
-              className="text-[12px] font-sans text-galla-ink-soft hover:text-galla-ink underline cursor-pointer"
+              className="ml-auto text-[12.5px] font-sans text-galla-teal hover:underline font-medium cursor-pointer whitespace-nowrap py-1"
             >
-              Reset filters
+              Reset all filters
             </button>
           )}
         </div>
@@ -381,102 +381,110 @@ export function ServicesTab({
       {/* MAIN CONTENT AREA */}
       {subView === "services" ? (
         /* SERVICES VIEW */
-        <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-xs">
-          {/* Header Row */}
-          <div className="hidden sm:grid grid-cols-[1.5fr_130px_110px_90px_90px] gap-4 items-center px-5 py-3 bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.05em]">
-            <span>Service &amp; Notes</span>
-            <span>Category</span>
-            <span className="text-right">Price</span>
-            <span className="text-center">Status</span>
-            <span className="text-right">Actions</span>
-          </div>
-
-          {/* Rows */}
+        <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
           {filteredServices.length > 0 ? (
-            <div className="divide-y divide-galla-line">
-              {filteredServices.map((service) => (
-                <div
-                  key={service.id}
-                  className="flex flex-col sm:grid sm:grid-cols-[1.5fr_130px_110px_90px_90px] gap-3 sm:gap-4 sm:items-center px-5 py-3.5 hover:bg-galla-paper/20 transition-colors"
-                >
-                  {/* Name & description */}
-                  <div className="min-w-0">
-                    <div className="font-heading font-semibold text-[14.5px] text-galla-ink truncate">
-                      {service.name}
-                    </div>
-                    {service.description && (
-                      <div className="font-sans text-[12px] text-galla-ink-soft truncate mt-0.5">
-                        {service.description}
-                      </div>
-                    )}
-                  </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[760px]">
+                <thead>
+                  <tr className="border-b border-galla-line bg-galla-paper/70 font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
+                    <th className="w-[42%] py-3.5 pl-6 pr-4 text-left font-semibold">Service &amp; Notes</th>
+                    <th className="w-[24%] py-3.5 px-4 text-left font-semibold">Category</th>
+                    <th className="w-[12%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Price</th>
+                    <th className="w-[12%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Status</th>
+                    <th className="w-[10%] py-3.5 pl-4 pr-6 text-right font-semibold whitespace-nowrap">Actions</th>
+                  </tr>
+                </thead>
 
-                  {/* Category */}
-                  <div>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-galla-paper border border-galla-line text-[11.5px] font-sans text-galla-ink">
-                      <Tag className="h-3 w-3 text-galla-ink-soft" />
-                      <span>{service.category}</span>
-                    </span>
-                  </div>
-
-                  {/* Price */}
-                  <div className="sm:text-right font-heading font-semibold text-[15px] text-galla-ink tabular-nums">
-                    {formatRupee(service.price)}
-                  </div>
-
-                  {/* Status Toggle */}
-                  <div className="sm:text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleService(service)}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-semibold transition-colors cursor-pointer ${
-                        service.isActive
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          : "bg-gray-100 text-gray-600 border border-gray-200"
-                      }`}
-                      title="Click to toggle availability"
+                <tbody className="divide-y divide-galla-line">
+                  {filteredServices.map((service) => (
+                    <tr
+                      key={service.id}
+                      className="hover:bg-galla-paper/40 transition-colors"
                     >
-                      {service.isActive ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                          <span>Active</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-3 w-3 text-gray-400" />
-                          <span>Disabled</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                      {/* Name & description */}
+                      <td className="py-3.5 pl-6 pr-4 align-middle">
+                        <div className="font-heading font-semibold text-[14.5px] text-galla-ink">
+                          {service.name}
+                        </div>
+                        {service.description && (
+                          <div className="font-sans text-[12px] text-galla-ink-soft truncate mt-0.5">
+                            {service.description}
+                          </div>
+                        )}
+                      </td>
 
-                  {/* Actions */}
-                  <div className="flex items-center sm:justify-end gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleEditService(service)}
-                      className="p-1.5 rounded-[4px] hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer"
-                      title="Edit Service"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDeleteConfirm({
-                          type: "service",
-                          id: service.id,
-                          name: service.name,
-                        })
-                      }
-                      className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
-                      title="Delete Service"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      {/* Category */}
+                      <td className="py-3.5 px-4 align-middle">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-galla-paper border border-galla-line text-[12px] font-sans text-galla-ink whitespace-nowrap">
+                          <Tag className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
+                          <span>{service.category}</span>
+                        </span>
+                      </td>
+
+                      {/* Price */}
+                      <td className="py-3.5 px-4 text-right align-middle font-heading font-semibold text-[14.5px] text-galla-ink tabular-nums whitespace-nowrap">
+                        {formatRupee(service.price)}
+                      </td>
+
+                      {/* Status Toggle */}
+                      <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleService(service)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold transition-colors cursor-pointer border ${
+                              service.isActive
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                            }`}
+                            title="Click to toggle availability"
+                          >
+                            {service.isActive ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                <span>Active</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                <span>Disabled</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3.5 pl-4 pr-6 text-right align-middle whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleEditService(service)}
+                            className="p-1.5 rounded-[4px] hover:bg-galla-paper text-galla-ink-soft hover:text-galla-teal transition-colors cursor-pointer"
+                            title="Edit Service"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteConfirm({
+                                type: "service",
+                                id: service.id,
+                                name: service.name,
+                              })
+                            }
+                            className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
+                            title="Delete Service"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="p-10 text-center space-y-2">

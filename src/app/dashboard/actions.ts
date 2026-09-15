@@ -8,10 +8,14 @@ import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Order, type IOrderLineItem } from "@/lib/db/models/order.model";
 import { Product } from "@/lib/db/models/product.model";
+import { PurchaseOrder } from "@/lib/db/models/purchase-order.model";
+import { Supplier } from "@/lib/db/models/supplier.model";
+import { Counter } from "@/lib/db/models/counter.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Service, type IService } from "@/lib/db/models/service.model";
 import { PackageTemplate, type IPackageTemplate } from "@/lib/db/models/package-template.model";
+import { withTransaction } from "@/lib/db/transaction";
 import {
   createOrderSchema,
   completeOrderSchema,
@@ -19,6 +23,12 @@ import {
   refundOrderSchema,
   createExpenseSchema,
   transferStockSchema,
+  createPurchaseOrderSchema,
+  recordPurchaseOrderPaymentSchema,
+  fulfillOrderLineItemSchema,
+  createProductSchema,
+  updateProductSchema,
+  deleteProductSchema,
   updateSalonProfileSchema,
   createServiceSchema,
   updateServiceSchema,
@@ -32,6 +42,8 @@ import {
   DashboardSalonProfile,
   DashboardService,
   DashboardPackage,
+  DashboardPurchaseOrder,
+  DashboardSupplier,
   OrderType,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
@@ -72,8 +84,13 @@ async function resolveTenantId(session: SessionLike): Promise<Types.ObjectId | n
     }
   }
 
-  const fallback = await Tenant.findOne({ slug: "shreehari" });
-  return fallback ? fallback._id : null;
+  return null;
+}
+
+function mapOrderType(type?: string): OrderType {
+  if (type === "service_booking") return "Service booking";
+  if (type === "package_sale") return "Package sale";
+  return "Product sale";
 }
 
 export async function createOrderAction(rawInput: unknown): Promise<{
@@ -100,10 +117,6 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
-    // Auto-generate order number based on tenant count
-    const orderCount = await Order.countDocuments({ tenantId });
-    const orderNumber = `#${1042 + orderCount}`;
-
     const dbOrderType =
       input.orderType === "Service booking"
         ? "service_booking"
@@ -113,7 +126,6 @@ export async function createOrderAction(rawInput: unknown): Promise<{
 
     const isFullPayment = input.paidAmount >= input.totalAmount;
     const amountPending = Math.max(0, input.totalAmount - input.paidAmount);
-
     const formattedPhone = input.customerPhone ? formatPhoneNumber(input.customerPhone) : "";
 
     const defaultItemType: "service" | "package" | "product" =
@@ -150,91 +162,142 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             },
           ];
 
-    const newDoc = await Order.create({
-      tenantId,
-      orderNumber,
-      customerSnapshot: {
-        name: input.customerName,
-        phone: formattedPhone,
-      },
-      orderType: dbOrderType,
-      status: input.status,
-      lineItems: mappedLineItems,
-      subtotal: input.subtotal ?? input.totalAmount,
-      discountType: input.discountType || (input.discountValue !== undefined ? "percentage" : "flat"),
-      discountValue: input.discountValue ?? (input.discountAmount ?? 0),
-      discountAmount: input.discountAmount ?? 0,
-      totalAmount: input.totalAmount,
-      amountPaid: input.paidAmount,
-      amountPending: amountPending,
-      paymentMode: input.paymentMode || "cash",
-      scheduledFor: input.bookingDate ? new Date(input.bookingDate) : undefined,
-      scheduledTime: input.bookingTime ? input.bookingTime.trim() : undefined,
-      payments:
-        input.paidAmount > 0
-          ? [
-            {
-              amount: input.paidAmount,
-              mode: input.paymentMode || "cash",
-              recordedAt: new Date(),
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
-            },
-          ]
-          : [],
-      recordedBy: session.user.role === "staff" ? "staff" : "owner",
-    });
+    // Execute atomic order creation and stock clamping inside transaction
+    const newDoc = await withTransaction(async (dbSession) => {
+      // Auto-generate order number based on tenant count
+      const orderCount = await Order.countDocuments({ tenantId }).session(dbSession);
+      const orderNumber = `#${1042 + orderCount}`;
 
-    // Update customer visit stats if customer exists
-    if (formattedPhone) {
-      const rawDigits = formattedPhone.replace(/\D/g, "").slice(-10);
-      const existingCustomer = await Customer.findOne({
-        tenantId,
-        $or: [
-          { phone: formattedPhone },
-          ...(rawDigits.length === 10
-            ? [{ phone: rawDigits }, { phone: `+91${rawDigits}` }, { phone: `0${rawDigits}` }]
-            : []),
-        ],
-      });
-
-      if (existingCustomer) {
-        existingCustomer.phone = formattedPhone;
-        existingCustomer.name = input.customerName || existingCustomer.name;
-        if (!existingCustomer.stats) {
-          existingCustomer.stats = { totalVisits: 0, totalSpend: 0, outstandingBalance: 0, lastVisitAt: new Date() };
+      // Pillar 4: Backorder / Advance Support
+      // Do NOT block order creation when sellStock is 0 or insufficient.
+      // Clamp stock decrement to available (never go negative!), mark partial fulfillment.
+      let hasUnfulfilledProduct = false;
+      for (const item of mappedLineItems) {
+        if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
+          const prod = await Product.findOne({ _id: item.itemId, tenantId }).session(dbSession);
+          if (prod) {
+            // Snapshot current purchaseCost for profit calculation
+            item.purchaseCost = typeof prod.purchaseCost === "number" ? prod.purchaseCost : 0;
+            const available = Math.max(0, prod.sellStock);
+            const requested = item.quantity || 1;
+            if (available >= requested) {
+              prod.sellStock -= requested;
+              item.fulfilled = isFullPayment;
+            } else {
+              // Insufficient stock: clamp decrement so sellStock never goes negative (never below 0)
+              prod.sellStock = 0;
+              item.fulfilled = false; // Track as backorder / unfulfilled
+              hasUnfulfilledProduct = true;
+            }
+            await prod.save({ session: dbSession });
+          }
         }
-        existingCustomer.stats.totalVisits = (existingCustomer.stats.totalVisits || 0) + 1;
-        existingCustomer.stats.totalSpend = (existingCustomer.stats.totalSpend || 0) + input.paidAmount;
-        existingCustomer.stats.outstandingBalance = (existingCustomer.stats.outstandingBalance || 0) + amountPending;
-        existingCustomer.stats.lastVisitAt = new Date();
-        await existingCustomer.save();
-      } else {
-        await Customer.create({
-          tenantId,
-          name: input.customerName,
-          phone: formattedPhone,
-          isActive: true,
-          stats: {
-            totalVisits: 1,
-            totalSpend: input.paidAmount,
-            outstandingBalance: amountPending,
-            lastVisitAt: new Date(),
-          },
-        });
       }
-    } else {
-      await Customer.findOneAndUpdate(
-        { tenantId, name: input.customerName },
-        {
-          $inc: {
-            "stats.totalVisits": 1,
-            "stats.totalSpend": input.paidAmount,
-            "stats.outstandingBalance": amountPending,
+
+      let orderInitialStatus = input.status;
+      if (hasUnfulfilledProduct && (orderInitialStatus === "paid_full" || orderInitialStatus === "completed")) {
+        orderInitialStatus = input.paidAmount > 0 ? "advance_paid" : "created";
+      }
+
+      const [createdOrder] = await Order.create(
+        [
+          {
+            tenantId,
+            orderNumber,
+            customerSnapshot: {
+              name: input.customerName,
+              phone: formattedPhone,
+            },
+            orderType: dbOrderType,
+            status: orderInitialStatus,
+            lineItems: mappedLineItems,
+            subtotal: input.subtotal ?? input.totalAmount,
+            discountType: input.discountType || (input.discountValue !== undefined ? "percentage" : "flat"),
+            discountValue: input.discountValue ?? (input.discountAmount ?? 0),
+            discountAmount: input.discountAmount ?? 0,
+            totalAmount: input.totalAmount,
+            amountPaid: input.paidAmount,
+            amountPending: amountPending,
+            paymentMode: input.paymentMode || "cash",
+            scheduledFor: input.bookingDate ? new Date(input.bookingDate) : undefined,
+            scheduledTime: input.bookingTime ? input.bookingTime.trim() : undefined,
+            payments:
+              input.paidAmount > 0
+                ? [
+                    {
+                      amount: input.paidAmount,
+                      mode: input.paymentMode || "cash",
+                      recordedAt: new Date(),
+                      recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                    },
+                  ]
+                : [],
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
           },
-          $set: { "stats.lastVisitAt": new Date() },
-        }
+        ],
+        { session: dbSession }
       );
-    }
+
+      // Update customer visit stats if customer exists
+      if (formattedPhone) {
+        const rawDigits = formattedPhone.replace(/\D/g, "").slice(-10);
+        const existingCustomer = await Customer.findOne({
+          tenantId,
+          $or: [
+            { phone: formattedPhone },
+            ...(rawDigits.length === 10
+              ? [{ phone: rawDigits }, { phone: `+91${rawDigits}` }, { phone: `0${rawDigits}` }]
+              : []),
+          ],
+        }).session(dbSession);
+
+        if (existingCustomer) {
+          existingCustomer.phone = formattedPhone;
+          existingCustomer.name = input.customerName || existingCustomer.name;
+          if (!existingCustomer.stats) {
+            existingCustomer.stats = { totalVisits: 0, totalSpend: 0, outstandingBalance: 0, lastVisitAt: new Date() };
+          }
+          existingCustomer.stats.totalVisits = (existingCustomer.stats.totalVisits || 0) + 1;
+          existingCustomer.stats.totalSpend = (existingCustomer.stats.totalSpend || 0) + input.paidAmount;
+          existingCustomer.stats.outstandingBalance = (existingCustomer.stats.outstandingBalance || 0) + amountPending;
+          existingCustomer.stats.lastVisitAt = new Date();
+          await existingCustomer.save({ session: dbSession });
+        } else {
+          await Customer.create(
+            [
+              {
+                tenantId,
+                name: input.customerName,
+                phone: formattedPhone,
+                isActive: true,
+                stats: {
+                  totalVisits: 1,
+                  totalSpend: input.paidAmount,
+                  outstandingBalance: amountPending,
+                  lastVisitAt: new Date(),
+                },
+              },
+            ],
+            { session: dbSession }
+          );
+        }
+      } else {
+        await Customer.findOneAndUpdate(
+          { tenantId, name: input.customerName },
+          {
+            $inc: {
+              "stats.totalVisits": 1,
+              "stats.totalSpend": input.paidAmount,
+              "stats.outstandingBalance": amountPending,
+            },
+            $set: { "stats.lastVisitAt": new Date() },
+          },
+          { session: dbSession }
+        );
+      }
+
+      return createdOrder;
+    });
 
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_created");
@@ -354,8 +417,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       );
     }
 
-    // Mark line items fulfilled and status completed
-    order.status = "completed";
+    // Mark line items fulfilled
     if (order.lineItems && order.lineItems.length > 0) {
       order.lineItems.forEach((item) => {
         item.fulfilled = true;
@@ -366,12 +428,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_completed");
 
-    const mappedType: OrderType =
-      order.orderType === "service_booking"
-        ? "Service booking"
-        : order.orderType === "package_sale"
-          ? "Package sale"
-          : "Product sale";
+    const mappedType = mapOrderType(order.orderType);
 
     return {
       success: true,
@@ -445,12 +502,7 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_updated");
 
-    const mappedType: OrderType =
-      order.orderType === "service_booking"
-        ? "Service booking"
-        : order.orderType === "package_sale"
-          ? "Package sale"
-          : "Product sale";
+    const mappedType = mapOrderType(order.orderType);
 
     return {
       success: true,
@@ -616,12 +668,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       console.warn("revalidatePath warning:", revalErr);
     }
 
-    const mappedType: OrderType =
-      order.orderType === "service_booking"
-        ? "Service booking"
-        : order.orderType === "package_sale"
-          ? "Package sale"
-          : "Product sale";
+    const mappedType = mapOrderType(order.orderType);
 
     const result: {
       success: boolean;
@@ -744,7 +791,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { productId } = parseResult.data;
+    const { productId, quantity } = parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -752,62 +799,1109 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
-    // Invariant: Scoped to tenant, sellStock must be > 0
-    const product = await Product.findOne({ _id: productId, tenantId });
-    if (!product) {
-      return { success: false, error: "Product not found" };
-    }
+    // Atomic stock move inside Mongoose transaction
+    const result = await withTransaction(async (dbSession) => {
+      const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
+      if (!product) {
+        throw new Error("Product not found");
+      }
 
-    if (product.sellStock <= 0) {
-      return { success: false, error: "No retail stock available to transfer" };
-    }
+      if (product.sellStock < quantity) {
+        throw new Error(
+          `Insufficient stock: requested ${quantity} pcs, but only ${product.sellStock} pcs available in retail`
+        );
+      }
 
-    product.sellStock -= 1;
-    product.useStock += 1;
-    await product.save();
+      product.sellStock -= quantity;
+      product.useStock += quantity;
+      await product.save({ session: dbSession });
 
-    // Invariant: Moving stock from sellStock -> useStock records an automatic Expense at purchase cost
-    const transferCost =
-      product.purchaseCost > 0
-        ? product.purchaseCost
-        : Math.round(product.expectedSellPrice * 0.6);
+      // Invariant: Moving stock from sellStock -> useStock records an automatic Expense at current purchase cost
+      const unitCost =
+        typeof product.purchaseCost === "number"
+          ? product.purchaseCost
+          : 0;
+      const transferCost = unitCost * quantity;
 
-    const expense = await Expense.create({
-      tenantId,
-      title: `Internal transfer — 1x ${product.name}`,
-      category: "stock_transfer_internal",
-      amount: transferCost,
-      paymentMode: "internal_transfer",
-      linkedProductId: product._id,
-      linkedQuantity: 1,
-      expenseDate: new Date(),
-      recordedBy: session.user.role === "staff" ? "staff" : "owner",
+      const [expense] = await Expense.create(
+        [
+          {
+            tenantId,
+            title: `Internal transfer — ${quantity}x ${product.name}`,
+            category: "stock_transfer_internal",
+            amount: transferCost,
+            paymentMode: "internal_transfer",
+            linkedProductId: product._id,
+            linkedQuantity: quantity,
+            expenseDate: new Date(),
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          },
+        ],
+        { session: dbSession }
+      );
+
+      return { product, expense };
     });
 
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "stock_transferred");
 
+    // Real-time notification if product crossed low stock threshold
+    if (result.product.sellStock <= result.product.lowStockThreshold) {
+      broadcastUpdate(tenantId, "low_stock_alert");
+    }
+
     return {
       success: true,
       updatedProduct: {
-        id: product._id.toString(),
-        name: product.name,
-        sell: product.sellStock,
-        use: product.useStock,
-        price: product.expectedSellPrice,
+        id: result.product._id.toString(),
+        name: result.product.name,
+        category: result.product.category,
+        sell: result.product.sellStock,
+        use: result.product.useStock,
+        price: result.product.expectedSellPrice,
       },
       newExpense: {
-        id: expense._id.toString(),
-        desc: expense.title,
-        amount: expense.amount,
+        id: result.expense._id.toString(),
+        desc: result.expense.title,
+        amount: result.expense.amount,
         category: "Day-to-day",
         time: "Today, Just now",
         isToday: true,
       },
     };
   } catch (error) {
-    console.error("Failed to transfer stock:", error);
-    return { success: false, error: "Failed to transfer inventory" };
+    const errorMsg = error instanceof Error ? error.message : "Failed to transfer inventory";
+    return { success: false, error: errorMsg };
+  }
+}
+
+export async function createProductAction(rawInput: unknown): Promise<{
+  success: boolean;
+  product?: DashboardProduct;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = createProductSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const trimmedName = input.name.trim();
+    const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const activeExisting = await Product.findOne({
+      tenantId: new Types.ObjectId(tenantId),
+      isActive: true,
+      name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+    });
+    if (activeExisting) {
+      return { success: false, error: "A product with this name already exists." };
+    }
+
+    // Check if an inactive (soft-deleted) product with this name exists — revive and update it!
+    const inactiveExisting = await Product.findOne({
+      tenantId: new Types.ObjectId(tenantId),
+      isActive: false,
+      name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+    });
+
+    let newDoc;
+    if (inactiveExisting) {
+      inactiveExisting.name = trimmedName;
+      inactiveExisting.category = input.category;
+      inactiveExisting.unit = "pieces";
+      inactiveExisting.purchaseCost = input.purchaseCost;
+      inactiveExisting.expectedSellPrice = input.price;
+      inactiveExisting.sellStock = input.sellStock;
+      inactiveExisting.useStock = input.useStock;
+      inactiveExisting.lowStockThreshold = input.lowStockThreshold;
+      inactiveExisting.barcode = input.barcode?.trim() || undefined;
+      inactiveExisting.description = input.description?.trim() || undefined;
+      inactiveExisting.isActive = true;
+      await inactiveExisting.save();
+      newDoc = inactiveExisting;
+    } else {
+      newDoc = await Product.create({
+        tenantId: new Types.ObjectId(tenantId),
+        name: trimmedName,
+        category: input.category,
+        unit: "pieces",
+        purchaseCost: input.purchaseCost,
+        expectedSellPrice: input.price,
+        sellStock: input.sellStock,
+        useStock: input.useStock,
+        lowStockThreshold: input.lowStockThreshold,
+        barcode: input.barcode?.trim() || undefined,
+        description: input.description?.trim() || undefined,
+        isActive: true,
+      });
+    }
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "product_created");
+
+    return {
+      success: true,
+      product: {
+        id: newDoc._id.toString(),
+        name: newDoc.name,
+        category: newDoc.category,
+        sell: newDoc.sellStock,
+        use: newDoc.useStock,
+        price: newDoc.expectedSellPrice,
+        purchaseCost: newDoc.purchaseCost,
+        lowStockThreshold: newDoc.lowStockThreshold,
+        description: newDoc.description,
+        barcode: newDoc.barcode,
+        isActive: newDoc.isActive,
+      },
+    };
+  } catch (error) {
+    if ((error as { code?: number })?.code === 11000) {
+      return { success: false, error: "A product with this name already exists." };
+    }
+    console.error("Failed to create product:", error);
+    return { success: false, error: "Failed to create product in database" };
+  }
+}
+
+export async function updateProductAction(rawInput: unknown): Promise<{
+  success: boolean;
+  product?: DashboardProduct;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = updateProductSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const product = await Product.findOne({
+      _id: new Types.ObjectId(input.id),
+      tenantId: new Types.ObjectId(tenantId),
+    });
+
+    if (!product) {
+      return { success: false, error: "Product not found or access denied" };
+    }
+
+    const trimmedName = input.name.trim();
+    if (trimmedName.toLowerCase() !== product.name.trim().toLowerCase()) {
+      const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const existing = await Product.findOne({
+        tenantId: new Types.ObjectId(tenantId),
+        _id: { $ne: product._id },
+        isActive: true,
+        name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+      });
+      if (existing) {
+        return { success: false, error: "A product with this name already exists." };
+      }
+    }
+
+    product.name = trimmedName;
+    product.category = input.category;
+    product.expectedSellPrice = input.price;
+    product.purchaseCost = input.purchaseCost;
+    product.lowStockThreshold = input.lowStockThreshold;
+    product.barcode = input.barcode?.trim() || undefined;
+    product.description = input.description?.trim() || undefined;
+
+    await product.save();
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "product_updated");
+
+    return {
+      success: true,
+      product: {
+        id: product._id.toString(),
+        name: product.name,
+        category: product.category,
+        sell: product.sellStock,
+        use: product.useStock,
+        price: product.expectedSellPrice,
+        purchaseCost: product.purchaseCost,
+        lowStockThreshold: product.lowStockThreshold,
+        description: product.description,
+        barcode: product.barcode,
+        isActive: product.isActive,
+      },
+    };
+  } catch (error) {
+    if ((error as { code?: number })?.code === 11000) {
+      return { success: false, error: "A product with this name already exists." };
+    }
+    console.error("Failed to update product:", error);
+    return { success: false, error: "Failed to update product" };
+  }
+}
+
+export async function deleteProductAction(rawInput: unknown): Promise<{
+  success: boolean;
+  product?: DashboardProduct;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = deleteProductSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const { id, reactivate } = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const product = await Product.findOne({
+      _id: new Types.ObjectId(id),
+      tenantId: new Types.ObjectId(tenantId),
+    });
+
+    if (!product) {
+      return { success: false, error: "Product not found or access denied" };
+    }
+
+    if (reactivate) {
+      const escapedName = product.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const existingActive = await Product.findOne({
+        tenantId: new Types.ObjectId(tenantId),
+        _id: { $ne: product._id },
+        isActive: true,
+        name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+      });
+      if (existingActive) {
+        return { success: false, error: "An active product with this name already exists." };
+      }
+      product.isActive = true;
+    } else {
+      product.isActive = false;
+    }
+
+    await product.save();
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, reactivate ? "product_updated" : "product_deleted");
+
+    return {
+      success: true,
+      product: {
+        id: product._id.toString(),
+        name: product.name,
+        category: product.category,
+        sell: product.sellStock,
+        use: product.useStock,
+        price: product.expectedSellPrice,
+        purchaseCost: product.purchaseCost,
+        lowStockThreshold: product.lowStockThreshold,
+        description: product.description,
+        barcode: product.barcode,
+        isActive: product.isActive,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to delete/reactivate product:", error);
+    return { success: false, error: "Failed to perform product operation" };
+  }
+}
+
+export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
+  success: boolean;
+  purchaseOrderNumber?: string;
+  updatedProducts?: DashboardProduct[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = createPurchaseOrderSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const result = await withTransaction(async (dbSession) => {
+      const year = new Date().getFullYear();
+      const poNumber = await Counter.getNextSequence(tenantId, "purchase_order", `PO-${year}`);
+
+      const updatedProductsList: DashboardProduct[] = [];
+      const poItems = [];
+
+      for (const item of input.items) {
+        const product = await Product.findOne({ _id: item.productId, tenantId }).session(dbSession);
+        if (!product) {
+          throw new Error(`Product not found: ${item.productName}`);
+        }
+
+        product.sellStock += item.quantityForSell;
+        product.useStock += item.quantityForUse;
+        product.purchaseCost = item.purchaseCost;
+        product.expectedSellPrice = item.expectedSellPrice;
+        await product.save({ session: dbSession });
+
+        updatedProductsList.push({
+          id: product._id.toString(),
+          name: product.name,
+          category: product.category,
+          sell: product.sellStock,
+          use: product.useStock,
+          price: product.expectedSellPrice,
+        });
+
+        const itemTotal = (item.quantityForSell + item.quantityForUse) * item.purchaseCost;
+        poItems.push({
+          productId: product._id,
+          productName: product.name,
+          quantityForSell: item.quantityForSell,
+          quantityForUse: item.quantityForUse,
+          purchaseCost: item.purchaseCost,
+          expectedSellPrice: item.expectedSellPrice,
+          itemTotalCost: itemTotal,
+        });
+      }
+
+      const totalAmount = poItems.reduce((sum, it) => sum + it.itemTotalCost, 0);
+
+      // Rule 1: paymentMode and amountPaid calculation
+      // If paymentMode is "credit" and no amountPaid is given, default amountPaid to 0
+      let finalAmountPaid = input.amountPaid;
+      if (input.paymentMode === "credit" && (finalAmountPaid === undefined || finalAmountPaid === null)) {
+        finalAmountPaid = 0;
+      } else if (finalAmountPaid === undefined || finalAmountPaid === null) {
+        finalAmountPaid = totalAmount; // Default full payment for cash/upi if unspecified
+      }
+
+      // Auto-calculate paymentStatus — do NOT let it be set manually:
+      // if (amountPaid >= totalAmount) → "paid"
+      // else if (amountPaid <= 0) → "unpaid"
+      // else → "partial"
+      let paymentStatus: "paid" | "partial" | "unpaid";
+      if (finalAmountPaid >= totalAmount) {
+        paymentStatus = "paid";
+      } else if (finalAmountPaid <= 0) {
+        paymentStatus = "unpaid";
+      } else {
+        paymentStatus = "partial";
+      }
+
+      // Auto-calculate amountPending = totalAmount - amountPaid
+      const amountPending = Math.max(0, totalAmount - finalAmountPaid);
+
+      // Find or create Supplier in the same transaction
+      const tenantObjectId = new Types.ObjectId(tenantId);
+      let supplier = null;
+      if (input.supplierId && Types.ObjectId.isValid(input.supplierId)) {
+        supplier = await Supplier.findOne({ _id: new Types.ObjectId(input.supplierId), tenantId: tenantObjectId }).session(dbSession);
+      }
+      if (!supplier && input.supplierPhone && input.supplierPhone.trim()) {
+        supplier = await Supplier.findOne({ tenantId: tenantObjectId, phone: input.supplierPhone.trim() }).session(dbSession);
+      }
+      if (!supplier) {
+        supplier = await Supplier.findOne({
+          tenantId: tenantObjectId,
+          name: { $regex: new RegExp(`^${input.supplierName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+        }).session(dbSession);
+      }
+
+      if (!supplier) {
+        const [createdSupplier] = await Supplier.create(
+          [
+            {
+              tenantId: tenantObjectId,
+              name: input.supplierName.trim(),
+              phone: input.supplierPhone?.trim() || "",
+              companyName: input.supplierCompany?.trim() || undefined,
+              totalPurchases: totalAmount,
+              totalPaid: finalAmountPaid,
+              totalPending: amountPending,
+              isActive: true,
+            },
+          ],
+          { session: dbSession }
+        );
+        supplier = createdSupplier;
+      } else {
+        supplier.totalPurchases = (supplier.totalPurchases || 0) + totalAmount;
+        supplier.totalPaid = (supplier.totalPaid || 0) + finalAmountPaid;
+        supplier.totalPending = (supplier.totalPending || 0) + amountPending;
+        if (input.supplierCompany && !supplier.companyName) {
+          supplier.companyName = input.supplierCompany.trim();
+        }
+        if (input.supplierPhone && (!supplier.phone || supplier.phone === "")) {
+          supplier.phone = input.supplierPhone.trim();
+        }
+        await supplier.save({ session: dbSession });
+      }
+
+      const [createdPO] = await PurchaseOrder.create(
+        [
+          {
+            tenantId: tenantObjectId,
+            purchaseOrderNumber: poNumber,
+            supplierId: supplier._id,
+            supplierSnapshot: {
+              name: supplier.name,
+              phone: supplier.phone || input.supplierPhone || "",
+              companyName: supplier.companyName || input.supplierCompany || undefined,
+            },
+            items: poItems,
+            totalAmount,
+            amountPaid: finalAmountPaid,
+            amountPending,
+            paymentMode: input.paymentMode,
+            paymentStatus,
+            invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
+            dealerInvoiceNumber: input.dealerInvoiceNumber || undefined,
+            notes: input.notes || undefined,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          },
+        ],
+        { session: dbSession }
+      );
+
+      // Record corresponding Expense if amount paid > 0
+      if (finalAmountPaid > 0) {
+        await Expense.create(
+          [
+            {
+              tenantId: tenantObjectId,
+              title: `Stock In (PO ${poNumber}) — ${input.supplierName}`,
+              category: "inventory_purchase",
+              amount: finalAmountPaid,
+              paymentMode:
+                input.paymentMode === "cash" ||
+                input.paymentMode === "upi" ||
+                input.paymentMode === "card" ||
+                input.paymentMode === "bank_transfer"
+                  ? input.paymentMode
+                  : "cash",
+              linkedPurchaseOrderId: createdPO._id,
+              expenseDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            },
+          ],
+          { session: dbSession }
+        );
+      }
+
+      return {
+        poNumber,
+        updatedProductsList,
+        purchaseOrderId: createdPO._id.toString(),
+        totalAmount,
+        amountPaid: finalAmountPaid,
+        amountPending,
+        paymentStatus,
+      };
+    });
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "purchase_order_created");
+    broadcastUpdate(tenantId, "stock_in_created");
+
+    return {
+      success: true,
+      purchaseOrderNumber: result.poNumber,
+      updatedProducts: result.updatedProductsList,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to create purchase order";
+    return { success: false, error: errorMsg };
+  }
+}
+
+export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promise<{
+  success: boolean;
+  purchaseOrder?: DashboardPurchaseOrder;
+  supplier?: DashboardSupplier;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = recordPurchaseOrderPaymentSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+
+    const result = await withTransaction(async (dbSession) => {
+      // Find purchase order
+      const query = Types.ObjectId.isValid(input.purchaseOrderId)
+        ? { tenantId: tenantObjectId, $or: [{ _id: new Types.ObjectId(input.purchaseOrderId) }, { purchaseOrderNumber: input.purchaseOrderId }] }
+        : { tenantId: tenantObjectId, purchaseOrderNumber: input.purchaseOrderId };
+
+      const po = await PurchaseOrder.findOne(query).session(dbSession);
+      if (!po) {
+        throw new Error("Purchase order not found");
+      }
+
+      if (po.paymentStatus === "paid" || po.amountPending <= 0) {
+        throw new Error("Purchase order is already fully paid");
+      }
+
+      if (input.amount <= 0) {
+        throw new Error("Payment amount must be greater than 0");
+      }
+
+      if (input.amount > po.amountPending) {
+        throw new Error(`Payment amount (₹${input.amount}) exceeds current pending balance (₹${po.amountPending})`);
+      }
+
+      // Update PurchaseOrder
+      po.amountPaid += input.amount;
+      po.amountPending = Math.max(0, po.amountPending - input.amount);
+
+      // Recalculate paymentStatus using the same rule:
+      // if (amountPaid >= totalAmount) → "paid"
+      // else if (amountPaid <= 0) → "unpaid"
+      // else → "partial"
+      if (po.amountPaid >= po.totalAmount) {
+        po.paymentStatus = "paid";
+      } else if (po.amountPaid <= 0) {
+        po.paymentStatus = "unpaid";
+      } else {
+        po.paymentStatus = "partial";
+      }
+
+      await po.save({ session: dbSession });
+
+      // Update linked Supplier in the same transaction
+      let updatedSupplierDoc = null;
+      if (po.supplierId) {
+        const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId: tenantObjectId }).session(dbSession);
+        if (supplier) {
+          supplier.totalPaid = (supplier.totalPaid || 0) + input.amount;
+          supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - input.amount);
+          await supplier.save({ session: dbSession });
+          updatedSupplierDoc = supplier;
+        }
+      }
+
+      // Record Expense for this payment
+      await Expense.create(
+        [
+          {
+            tenantId: tenantObjectId,
+            title: `PO Payment (${po.purchaseOrderNumber}) — ${po.supplierSnapshot?.name || "Supplier"}`,
+            category: "inventory_purchase",
+            amount: input.amount,
+            paymentMode: input.paymentMode,
+            linkedPurchaseOrderId: po._id,
+            expenseDate: new Date(),
+            notes: input.notes?.trim() || undefined,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          },
+        ],
+        { session: dbSession }
+      );
+
+      return { po, supplier: updatedSupplierDoc };
+    });
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "purchase_order_updated");
+
+    return {
+      success: true,
+      purchaseOrder: {
+        id: result.po._id.toString(),
+        purchaseOrderNumber: result.po.purchaseOrderNumber,
+        supplierId: result.po.supplierId?.toString() || "",
+        supplierName: result.po.supplierSnapshot.name,
+        supplierPhone: result.po.supplierSnapshot.phone,
+        supplierCompany: result.po.supplierSnapshot.companyName,
+        itemsCount: result.po.items?.length || 0,
+        totalAmount: result.po.totalAmount,
+        amountPaid: result.po.amountPaid,
+        amountPending: result.po.amountPending,
+        paymentMode: result.po.paymentMode,
+        paymentStatus: result.po.paymentStatus,
+        invoiceDate: result.po.invoiceDate ? new Date(result.po.invoiceDate).toISOString() : new Date().toISOString(),
+        dealerInvoiceNumber: result.po.dealerInvoiceNumber,
+        notes: result.po.notes,
+        createdAt: result.po.createdAt ? new Date(result.po.createdAt).toISOString() : new Date().toISOString(),
+      },
+      supplier: result.supplier
+        ? {
+            id: result.supplier._id.toString(),
+            name: result.supplier.name,
+            companyName: result.supplier.companyName,
+            phone: result.supplier.phone,
+            email: result.supplier.email,
+            address: result.supplier.address,
+            gstin: result.supplier.gstin,
+            notes: result.supplier.notes,
+            totalPurchases: result.supplier.totalPurchases,
+            totalPaid: result.supplier.totalPaid,
+            totalPending: result.supplier.totalPending,
+            isActive: result.supplier.isActive,
+          }
+        : undefined,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to record purchase order payment";
+    return { success: false, error: errorMsg };
+  }
+}
+
+export async function getPurchaseOrdersAction(options?: {
+  pendingOnly?: boolean;
+  supplierId?: string;
+}): Promise<{
+  success: boolean;
+  purchaseOrders: DashboardPurchaseOrder[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, purchaseOrders: [], error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, purchaseOrders: [], error: "Tenant not found" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    const filter: Record<string, unknown> = { tenantId: tenantObjectId };
+
+    if (options?.pendingOnly) {
+      filter.paymentStatus = { $ne: "paid" };
+    }
+
+    if (options?.supplierId && Types.ObjectId.isValid(options.supplierId)) {
+      filter.supplierId = new Types.ObjectId(options.supplierId);
+    }
+
+    const sortOrder: Record<string, 1 | -1> = options?.pendingOnly
+      ? { invoiceDate: 1 }
+      : { invoiceDate: -1, createdAt: -1 };
+
+    const rawOrders = await PurchaseOrder.find(filter).sort(sortOrder).lean();
+
+    const purchaseOrders: DashboardPurchaseOrder[] = rawOrders.map((po) => ({
+      id: po._id.toString(),
+      purchaseOrderNumber: po.purchaseOrderNumber,
+      supplierId: po.supplierId?.toString() || "",
+      supplierName: po.supplierSnapshot?.name || "Unknown Supplier",
+      supplierPhone: po.supplierSnapshot?.phone,
+      supplierCompany: po.supplierSnapshot?.companyName,
+      itemsCount: po.items?.length || 0,
+      totalAmount: po.totalAmount,
+      amountPaid: po.amountPaid,
+      amountPending: po.amountPending,
+      paymentMode: po.paymentMode,
+      paymentStatus: po.paymentStatus,
+      invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+      dealerInvoiceNumber: po.dealerInvoiceNumber,
+      notes: po.notes,
+      createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
+    }));
+
+    return { success: true, purchaseOrders };
+  } catch (error) {
+    console.error("Failed to get purchase orders:", error);
+    return { success: false, purchaseOrders: [], error: "Failed to get purchase orders" };
+  }
+}
+
+export async function getPendingPurchaseOrdersAction(): Promise<{
+  success: boolean;
+  purchaseOrders: DashboardPurchaseOrder[];
+  totalPendingAmount: number;
+  count: number;
+  error?: string;
+}> {
+  try {
+    const res = await getPurchaseOrdersAction({ pendingOnly: true });
+    if (!res.success) {
+      return { success: false, purchaseOrders: [], totalPendingAmount: 0, count: 0, error: res.error };
+    }
+    const totalPendingAmount = res.purchaseOrders.reduce((sum, po) => sum + po.amountPending, 0);
+    return {
+      success: true,
+      purchaseOrders: res.purchaseOrders,
+      totalPendingAmount,
+      count: res.purchaseOrders.length,
+    };
+  } catch (error) {
+    return { success: false, purchaseOrders: [], totalPendingAmount: 0, count: 0, error: "Failed to fetch pending purchase orders" };
+  }
+}
+
+export async function getSupplierDetailAction(supplierId: string): Promise<{
+  success: boolean;
+  supplier?: DashboardSupplier;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    const query = Types.ObjectId.isValid(supplierId)
+      ? { _id: new Types.ObjectId(supplierId), tenantId: tenantObjectId }
+      : { phone: supplierId, tenantId: tenantObjectId };
+
+    const doc = await Supplier.findOne(query).lean();
+    if (!doc) {
+      return { success: false, error: "Supplier not found" };
+    }
+
+    return {
+      success: true,
+      supplier: {
+        id: doc._id.toString(),
+        name: doc.name,
+        companyName: doc.companyName,
+        phone: doc.phone,
+        email: doc.email,
+        address: doc.address,
+        gstin: doc.gstin,
+        notes: doc.notes,
+        totalPurchases: doc.totalPurchases ?? 0,
+        totalPaid: doc.totalPaid ?? 0,
+        totalPending: doc.totalPending ?? 0,
+        isActive: doc.isActive,
+      },
+    };
+  } catch (error) {
+    return { success: false, error: "Failed to fetch supplier details" };
+  }
+}
+
+export async function getSuppliersAction(): Promise<{
+  success: boolean;
+  suppliers: DashboardSupplier[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, suppliers: [], error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, suppliers: [], error: "Tenant not found" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    const docs = await Supplier.find({ tenantId: tenantObjectId, isActive: true })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const suppliers: DashboardSupplier[] = docs.map((doc) => ({
+      id: doc._id.toString(),
+      name: doc.name,
+      companyName: doc.companyName,
+      phone: doc.phone,
+      email: doc.email,
+      address: doc.address,
+      gstin: doc.gstin,
+      notes: doc.notes,
+      totalPurchases: doc.totalPurchases ?? 0,
+      totalPaid: doc.totalPaid ?? 0,
+      totalPending: doc.totalPending ?? 0,
+      isActive: doc.isActive,
+    }));
+
+    return { success: true, suppliers };
+  } catch (error) {
+    return { success: false, suppliers: [], error: "Failed to fetch suppliers" };
+  }
+}
+
+export async function searchSuppliersAction(searchTerm: string): Promise<{
+  success: boolean;
+  suppliers: { id: string; name: string; phone: string; companyName?: string }[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, suppliers: [], error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, suppliers: [], error: "Tenant not found" };
+    }
+
+    const trimmed = searchTerm?.trim();
+    if (!trimmed) {
+      return { success: true, suppliers: [] };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const matches = await Supplier.find({
+      tenantId: tenantObjectId,
+      isActive: true,
+      $or: [
+        { name: { $regex: escaped, $options: "i" } },
+        { companyName: { $regex: escaped, $options: "i" } },
+      ],
+    })
+      .limit(8)
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const suppliers = matches.map((s) => ({
+      id: s._id.toString(),
+      name: s.name,
+      phone: s.phone || "",
+      companyName: s.companyName,
+    }));
+
+    return { success: true, suppliers };
+  } catch (error) {
+    console.error("Failed to search suppliers:", error);
+    return { success: false, suppliers: [], error: "Failed to search suppliers" };
+  }
+}
+
+export async function fulfillOrderLineItemAction(rawInput: unknown): Promise<{
+  success: boolean;
+  order?: DashboardOrder;
+  updatedProduct?: DashboardProduct;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = fulfillOrderLineItemSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const { orderId, lineItemIndex } = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const result = await withTransaction(async (dbSession) => {
+      const query = Types.ObjectId.isValid(orderId)
+        ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
+        : { tenantId, orderNumber: orderId };
+
+      const order = await Order.findOne(query).session(dbSession);
+      if (!order) {
+        throw new Error("Order not found");
+      }
+
+      if (!order.lineItems || !order.lineItems[lineItemIndex]) {
+        throw new Error("Order line item not found");
+      }
+
+      const item = order.lineItems[lineItemIndex];
+      if (item.fulfilled) {
+        throw new Error("Line item is already fulfilled");
+      }
+
+      let updatedProduct: DashboardProduct | undefined;
+
+      if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
+        const prod = await Product.findOne({ _id: item.itemId, tenantId }).session(dbSession);
+        if (!prod) {
+          throw new Error("Product for line item no longer exists in database");
+        }
+
+        const qtyNeeded = item.quantity || 1;
+        if (prod.sellStock < qtyNeeded) {
+          throw new Error(
+            `Insufficient stock to fulfill: retail stock has ${prod.sellStock} pcs, but order needs ${qtyNeeded} pcs. Please stock in first.`
+          );
+        }
+
+        prod.sellStock -= qtyNeeded;
+        await prod.save({ session: dbSession });
+
+        updatedProduct = {
+          id: prod._id.toString(),
+          name: prod.name,
+          category: prod.category,
+          sell: prod.sellStock,
+          use: prod.useStock,
+          price: prod.expectedSellPrice,
+        };
+      }
+
+      item.fulfilled = true;
+
+      // If all items are fulfilled and order is fully paid, transition order to completed
+      const allFulfilled = order.lineItems.every((li) => li.fulfilled);
+      if (allFulfilled && order.amountPaid >= order.totalAmount) {
+        order.status = "completed";
+        order.completedAt = new Date();
+      }
+
+      await order.save({ session: dbSession });
+      return { order, updatedProduct };
+    });
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "order_updated");
+
+    const mappedType = mapOrderType(result.order.orderType);
+
+    return {
+      success: true,
+      order: {
+        id: result.order.orderNumber,
+        customer: result.order.customerSnapshot?.name || "Walk-in Customer",
+        customerPhone: result.order.customerSnapshot?.phone || undefined,
+        type: mappedType,
+        amount: result.order.totalAmount,
+        paid: result.order.amountPaid,
+        status: result.order.status,
+        time: "Today, Just now",
+        isToday: true,
+        isLast24Hours: true,
+        createdAt: result.order.createdAt ? new Date(result.order.createdAt).toISOString() : new Date().toISOString(),
+        paymentMode: result.order.paymentMode,
+        advanceAmount: result.order.status === "advance_paid" ? result.order.amountPaid : undefined,
+        scheduledFor: result.order.scheduledFor ? new Date(result.order.scheduledFor).toISOString() : undefined,
+      },
+      updatedProduct: result.updatedProduct,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to fulfill line item";
+    return { success: false, error: errorMsg };
+  }
+}
+
+export async function getLowStockAlertsAction(): Promise<{
+  success: boolean;
+  enabled: boolean;
+  count: number;
+  products: DashboardProduct[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, enabled: false, count: 0, products: [], error: "Unauthorized" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, enabled: false, count: 0, products: [], error: "Tenant not found" };
+    }
+
+    const tenant = await Tenant.findById(new Types.ObjectId(tenantId)).lean();
+    if (!tenant) {
+      return { success: false, enabled: false, count: 0, products: [], error: "Tenant not found" };
+    }
+
+    // Check setting
+    if (tenant.settings?.lowStockNotification === false) {
+      return { success: true, enabled: false, count: 0, products: [] };
+    }
+
+    const rawProducts = await Product.find({
+      tenantId: new Types.ObjectId(tenantId),
+      isActive: true,
+      $expr: { $lte: ["$sellStock", "$lowStockThreshold"] },
+    })
+      .sort({ sellStock: 1, name: 1 })
+      .lean();
+
+    const products: DashboardProduct[] = rawProducts.map((p) => ({
+      id: p._id.toString(),
+      name: p.name,
+      category: p.category,
+      sell: p.sellStock,
+      use: p.useStock,
+      price: p.expectedSellPrice,
+    }));
+
+    return {
+      success: true,
+      enabled: true,
+      count: products.length,
+      products,
+    };
+  } catch (error) {
+    console.error("Failed to get low stock alerts:", error);
+    return { success: false, enabled: false, count: 0, products: [], error: "Failed to query low stock" };
   }
 }
 
@@ -1386,5 +2480,47 @@ export async function deletePackageAction(packageId: string): Promise<{
   }
 }
 
+export async function getLiveProductsAction(): Promise<{
+  success: boolean;
+  products?: DashboardProduct[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
 
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
 
+    const rawProducts = await Product.find({
+      tenantId,
+      isActive: true,
+    })
+      .sort({ name: 1 })
+      .lean();
+
+    const products: DashboardProduct[] = rawProducts.map((p) => ({
+      id: p._id.toString(),
+      name: p.name,
+      category: p.category,
+      sell: p.sellStock,
+      use: p.useStock,
+      price: p.expectedSellPrice,
+      purchaseCost: p.purchaseCost,
+      lowStockThreshold: p.lowStockThreshold,
+      description: p.description,
+      barcode: p.barcode,
+      isActive: p.isActive,
+    }));
+
+    return { success: true, products };
+  } catch (error) {
+    console.error("Failed to fetch live products:", error);
+    return { success: false, error: "Failed to fetch live products" };
+  }
+}

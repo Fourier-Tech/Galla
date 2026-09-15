@@ -37,8 +37,8 @@ const SupplierSchema = new Schema<ISupplier>(
     },
     phone: {
       type: String,
-      required: [true, "Supplier phone number is required"],
       trim: true,
+      default: "",
     },
     email: {
       type: String,

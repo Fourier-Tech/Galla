@@ -499,7 +499,7 @@ export function OrdersTab({
               setFilter("all");
               setDisplayedOrders(orders);
             }}
-            className="text-[12px] font-sans text-galla-teal hover:underline font-medium cursor-pointer"
+            className="ml-auto text-[12.5px] font-sans text-galla-teal hover:underline font-medium cursor-pointer"
           >
             Reset all filters
           </button>
@@ -507,33 +507,35 @@ export function OrdersTab({
       </div>
 
       {/* Order List */}
-      <div className="bg-galla-surface border border-galla-line rounded-[5px] overflow-hidden">
-        {/* Table Header */}
-        <div className="grid grid-cols-[70px_1fr_140px_150px_175px] gap-x-6 items-center px-[21px] py-[10px] bg-galla-paper/50 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.05em]">
-          <span>Order</span>
-          <span>Customer &amp; Service</span>
-          <span className="text-right">Settlement</span>
-          <span className="text-center">Status</span>
-          <span className="text-right">Action</span>
-        </div>
+      <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
+        <div className="overflow-x-auto">
+          <div className="min-w-[920px]">
+            {/* Table Header */}
+            <div className="grid grid-cols-[85px_minmax(220px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
+              <span>Order</span>
+              <span>Customer &amp; Service</span>
+              <span className="text-right">Settlement</span>
+              <span className="text-center">Status</span>
+              <span className="text-right">Action</span>
+            </div>
 
-        <div className={`divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
-          {sortedOrders.map((order) => {
-            const isPartialRefund =
-              order.status === "cancelled_refunded" &&
-              Boolean(order.refundAmount && order.paid > 0);
-            const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
-            // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
-            const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
+            <div className={`divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
+              {sortedOrders.map((order) => {
+                const isPartialRefund =
+                  order.status === "cancelled_refunded" &&
+                  Boolean(order.refundAmount && order.paid > 0);
+                const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+                // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
+                const isAppointmentDue = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
-            return (
-              <div
-                key={order.id}
-                className="grid grid-cols-[70px_1fr_140px_150px_175px] gap-x-6 items-center px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
-              >
-                <span className="font-mono text-[13px] text-galla-ink-soft">
-                  {order.id}
-                </span>
+                return (
+                  <div
+                    key={order.id}
+                    className="grid grid-cols-[85px_minmax(220px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
+                  >
+                    <span className="font-mono text-[13px] text-galla-ink-soft">
+                      {order.id}
+                    </span>
 
                 <div className="min-w-0 pr-4">
                   <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
@@ -835,6 +837,8 @@ export function OrdersTab({
           );
         })}
       </div>
+    </div>
+  </div>
 
         {displayedOrders.length === 0 && (
           <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft space-y-2">

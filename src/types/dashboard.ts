@@ -36,9 +36,15 @@ export interface DashboardOrder {
 export interface DashboardProduct {
   id: number | string;
   name: string;
+  category?: string;
   sell: number;
   use: number;
   price: number;
+  purchaseCost?: number;
+  lowStockThreshold?: number;
+  description?: string;
+  barcode?: string;
+  isActive?: boolean;
 }
 
 export interface DashboardCustomer {
@@ -116,3 +122,37 @@ export type TabId =
   | "profile";
 
 export type UserRole = "owner" | "staff";
+
+export interface DashboardPurchaseOrder {
+  id: string;
+  purchaseOrderNumber: string;
+  supplierId: string;
+  supplierName: string;
+  supplierPhone?: string;
+  supplierCompany?: string;
+  itemsCount: number;
+  totalAmount: number;
+  amountPaid: number;
+  amountPending: number;
+  paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "credit";
+  paymentStatus: "paid" | "partial" | "unpaid";
+  invoiceDate: string;
+  dealerInvoiceNumber?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface DashboardSupplier {
+  id: string;
+  name: string;
+  companyName?: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  gstin?: string;
+  notes?: string;
+  totalPurchases: number;
+  totalPaid: number;
+  totalPending: number;
+  isActive: boolean;
+}

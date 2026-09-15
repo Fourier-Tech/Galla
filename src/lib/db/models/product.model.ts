@@ -78,7 +78,7 @@ const ProductSchema = new Schema<IProduct>(
     lowStockThreshold: {
       type: Number,
       min: 0,
-      default: 5,
+      default: 0,
     },
     barcode: {
       type: String,
@@ -101,7 +101,14 @@ const ProductSchema = new Schema<IProduct>(
 );
 
 // Compound tenant indexes
-ProductSchema.index({ tenantId: 1, name: 1 });
+ProductSchema.index(
+  { tenantId: 1, name: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isActive: true },
+    collation: { locale: "en", strength: 2 },
+  }
+);
 ProductSchema.index({ tenantId: 1, category: 1 });
 ProductSchema.index({ tenantId: 1, isActive: 1, sellStock: 1 });
 

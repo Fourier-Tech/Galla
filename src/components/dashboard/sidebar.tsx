@@ -48,7 +48,7 @@ export function Sidebar({
   activeTab,
   onSelectTab,
   role,
-  salonName = "ShreeHari",
+  salonName = "Salon",
   profileImageUrl,
 }: SidebarProps) {
   // Gated navigation: Staff cannot see Analytics tab
