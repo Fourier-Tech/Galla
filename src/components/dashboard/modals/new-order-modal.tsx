@@ -72,6 +72,7 @@ export function NewOrderModal({
 
   // Step 2 State
   const [catalogTab, setCatalogTab] = useState<"services" | "packages" | "products">("services");
+  const activeCatalogTab = orderType === "Product sale" ? "products" : (catalogTab === "products" ? "services" : catalogTab);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>([]);
   const [liveProducts, setLiveProducts] = useState<DashboardProduct[]>(initialProducts);
@@ -455,7 +456,7 @@ export function NewOrderModal({
             </div>
             <p className="text-[12px] font-sans text-galla-ink-soft mt-0.5">
               {step === 1 && "Customer details and order category"}
-              {step === 2 && "Select services and bundled packages"}
+              {step === 2 && (orderType === "Product sale" ? "Select retail products from inventory" : "Select services and bundled packages")}
               {step === 3 && "Review items, custom pricing & settlement"}
             </p>
           </div>
@@ -579,7 +580,10 @@ export function NewOrderModal({
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setOrderType("Service booking")}
+                  onClick={() => {
+                    setOrderType("Service booking");
+                    setCatalogTab("services");
+                  }}
                   className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
                     orderType === "Service booking"
                       ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs"
@@ -597,7 +601,11 @@ export function NewOrderModal({
 
                 <button
                   type="button"
-                  onClick={() => setOrderType("Product sale")}
+                  onClick={() => {
+                    setOrderType("Product sale");
+                    setCatalogTab("products");
+                    fetchLiveProducts();
+                  }}
                   className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
                     orderType === "Product sale"
                       ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs"
@@ -613,12 +621,6 @@ export function NewOrderModal({
                   </div>
                 </button>
               </div>
-
-              {orderType === "Product sale" && (
-                <div className="mt-2.5 p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11.5px] rounded-[4px] leading-relaxed">
-                  Retail product sale: Select products from live stock in the next step. Backorders are supported.
-                </div>
-              )}
             </div>
 
             {/* Step 1 Actions */}
@@ -640,107 +642,66 @@ export function NewOrderModal({
         {/* ======================================================== */}
         {step === 2 && (
           <div className="pt-3 flex-1 flex flex-col overflow-hidden space-y-3">
-            {/* Switcher & Search Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
-              {/* Service vs Package vs Product Toggle */}
-              <div className="flex items-center p-0.5 bg-galla-paper/60 border border-galla-line rounded-[6px]">
-                <button
-                  type="button"
-                  onClick={() => setCatalogTab("services")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
-                    catalogTab === "services"
-                      ? "bg-galla-teal text-white shadow-xs"
-                      : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  <Scissors className="h-3.5 w-3.5" />
-                  <span>Services ({filteredServices.length})</span>
-                </button>
+              {/* Switcher & Search Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
+                {/* Service vs Package vs Product Toggle */}
+                {orderType === "Product sale" ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-galla-teal text-white text-[12px] font-sans font-medium shadow-xs">
+                    <ShoppingBag className="h-3.5 w-3.5" />
+                    <span>Products ({filteredProducts.length})</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center p-0.5 bg-galla-paper/60 border border-galla-line rounded-[6px]">
+                    <button
+                      type="button"
+                      onClick={() => setCatalogTab("services")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
+                        activeCatalogTab === "services"
+                          ? "bg-galla-teal text-white shadow-xs"
+                          : "text-galla-ink-soft hover:text-galla-ink"
+                      }`}
+                    >
+                      <Scissors className="h-3.5 w-3.5" />
+                      <span>Services ({filteredServices.length})</span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setCatalogTab("packages")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
-                    catalogTab === "packages"
-                      ? "bg-galla-teal text-white shadow-xs"
-                      : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  <Package className="h-3.5 w-3.5" />
-                  <span>Packages ({filteredPackages.length})</span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setCatalogTab("packages")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
+                        activeCatalogTab === "packages"
+                          ? "bg-galla-teal text-white shadow-xs"
+                          : "text-galla-ink-soft hover:text-galla-ink"
+                      }`}
+                    >
+                      <Package className="h-3.5 w-3.5" />
+                      <span>Packages ({filteredPackages.length})</span>
+                    </button>
+                  </div>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCatalogTab("products");
-                    fetchLiveProducts();
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
-                    catalogTab === "products"
-                      ? "bg-galla-teal text-white shadow-xs"
-                      : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  <ShoppingBag className="h-3.5 w-3.5" />
-                  <span>Products ({filteredProducts.length})</span>
-                </button>
+                {/* Search Bar */}
+                <div className="relative flex-1 sm:max-w-xs">
+                  <Search className="h-3.5 w-3.5 text-galla-ink-soft/60 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    value={catalogSearch}
+                    onChange={(e) => setCatalogSearch(e.target.value)}
+                    placeholder={
+                      activeCatalogTab === "services"
+                        ? "Search services or category..."
+                        : activeCatalogTab === "packages"
+                        ? "Search package bundles..."
+                        : "Search retail products..."
+                    }
+                    className="w-full bg-galla-paper/40 border border-galla-line rounded-[5px] pl-8 pr-2.5 py-1.5 text-[12px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
+                  />
+                </div>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative flex-1 sm:max-w-xs">
-                <Search className="h-3.5 w-3.5 text-galla-ink-soft/60 absolute left-2.5 top-2.5" />
-                <input
-                  type="text"
-                  value={catalogSearch}
-                  onChange={(e) => setCatalogSearch(e.target.value)}
-                  placeholder={
-                    catalogTab === "services"
-                      ? "Search services or category..."
-                      : catalogTab === "packages"
-                      ? "Search package bundles..."
-                      : "Search retail products..."
-                  }
-                  className="w-full bg-galla-paper/40 border border-galla-line rounded-[5px] pl-8 pr-2.5 py-1.5 text-[12px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Quick Product Selector Dropdown */}
-            <div className="shrink-0">
-              <select
-                value=""
-                onFocus={fetchLiveProducts}
-                onChange={(e) => {
-                  const selectedId = e.target.value;
-                  if (!selectedId) return;
-                  const prod = liveProducts.find((p) => String(p.id) === selectedId);
-                  if (prod) {
-                    handleToggleItem({
-                      id: String(prod.id),
-                      type: "product",
-                      name: prod.name,
-                      price: prod.price,
-                    });
-                  }
-                }}
-                className="w-full bg-galla-paper/60 border border-galla-line rounded-[5px] px-3 py-1.5 text-[12px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
-              >
-                <option value="">+ Quick Add Product ({isLoadingProducts ? "refreshing..." : `${liveProducts.length} available`})</option>
-                {liveProducts.map((p) => {
-                  const stockLabel = p.sell > 0 ? `${p.sell} in stock` : "out of stock";
-                  return (
-                    <option key={p.id} value={String(p.id)}>
-                      {p.name} — {stockLabel} — {formatRupee(p.price)}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            {/* Catalog Items List */}
-            <div className="flex-1 overflow-y-auto border border-galla-line rounded-[6px] divide-y divide-galla-line/40 max-h-[320px] bg-galla-paper/20">
-              {catalogTab === "products" ? (
+              {/* Catalog Items List */}
+              <div className="flex-1 overflow-y-auto border border-galla-line rounded-[6px] divide-y divide-galla-line/40 max-h-[320px] bg-galla-paper/20">
+                {activeCatalogTab === "products" ? (
                 filteredProducts.length === 0 ? (
                   <div className="p-8 text-center text-[13px] text-galla-ink-soft">
                     {isLoadingProducts ? "Loading live products..." : "No active retail products found matching your search."}
@@ -810,7 +771,7 @@ export function NewOrderModal({
                     );
                   })
                 )
-              ) : catalogTab === "services" ? (
+              ) : activeCatalogTab === "services" ? (
                 filteredServices.length === 0 ? (
                   <div className="p-8 text-center text-[13px] text-galla-ink-soft">
                     No active services found matching your search.
