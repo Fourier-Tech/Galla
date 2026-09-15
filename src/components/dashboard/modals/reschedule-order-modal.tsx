@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { rescheduleOrderAction } from "@/app/dashboard/actions";
-import { formatBookingDate, getBookingUrgency } from "@/lib/utils";
+import { formatBookingDate, formatAppointmentTime, getBookingUrgency } from "@/lib/utils";
 
 interface RescheduleOrderModalProps {
   order: DashboardOrder | null;
@@ -23,7 +23,7 @@ export function RescheduleOrderModal({
 
   return (
     <RescheduleOrderModalContent
-      key={order.id}
+      key={`${order.id}-${order.scheduledFor}-${order.scheduledTime}`}
       order={order}
       onClose={onClose}
       onRescheduleSuccess={onRescheduleSuccess}
@@ -46,6 +46,7 @@ function RescheduleOrderModalContent({
     : todayStr;
 
   const [newDate, setNewDate] = useState(initialDate);
+  const [newTime, setNewTime] = useState(order.scheduledTime || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -62,6 +63,7 @@ function RescheduleOrderModalContent({
       const res = await rescheduleOrderAction({
         orderId: order.id,
         newDate,
+        newTime: newTime.trim() || undefined,
       });
 
       if (res.success && res.order) {
@@ -92,7 +94,7 @@ function RescheduleOrderModalContent({
         <div className="flex items-center justify-between px-5 py-4 border-b border-galla-line bg-galla-paper/40">
           <div>
             <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
-              Reschedule Appointment
+              Reschedule &amp; Set Time
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
               Order {order.id} &bull; <strong className="text-galla-ink">{order.customer}</strong>
@@ -118,20 +120,22 @@ function RescheduleOrderModalContent({
               </div>
             )}
 
-            {/* Current Scheduled Date */}
+            {/* Current Scheduled Date & Time */}
             <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[5px] text-[12.5px] font-sans flex items-center justify-between text-galla-ink-soft">
               <span>Current Booking:</span>
               <strong className="text-galla-ink font-medium">
                 {formatBookingDate(order.scheduledFor) || "Not set"}
+                {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : " (Time not set)"}
               </strong>
             </div>
 
-            {/* Date Input */}
-            <div className="space-y-1.5">
-              <label className="block text-[12px] font-medium text-galla-ink">
-                New Booking Date <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
+            {/* Date and Time Inputs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Date Input */}
+              <div className="space-y-1.5">
+                <label className="block text-[12px] font-medium text-galla-ink">
+                  Booking Date <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="date"
                   value={newDate}
@@ -140,12 +144,36 @@ function RescheduleOrderModalContent({
                   className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer shadow-xs"
                 />
               </div>
+
+              {/* Time Input */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[12px] font-medium text-galla-ink">
+                    Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                  </label>
+                  {newTime && (
+                    <button
+                      type="button"
+                      onClick={() => setNewTime("")}
+                      className="text-[10.5px] text-red-600 hover:underline cursor-pointer"
+                    >
+                      Clear time
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="time"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
+                  className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer shadow-xs"
+                />
+              </div>
             </div>
 
-            {/* Quick Presets */}
+            {/* Quick Date Presets */}
             <div className="space-y-1">
               <span className="text-[11px] font-medium text-galla-ink-soft uppercase tracking-wider">
-                Quick Shortcuts:
+                Quick Date Shortcuts:
               </span>
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <button
@@ -187,7 +215,8 @@ function RescheduleOrderModalContent({
                   <Calendar className="h-3.5 w-3.5" />
                   <span>
                     {formatBookingDate(newDate)}
-                    {urgency?.label ? ` (${urgency.label})` : ""}
+                    {newTime ? ` at ${formatAppointmentTime(newTime)}` : " (Time not set)"}
+                    {urgency?.label ? ` • ${urgency.label}` : ""}
                   </span>
                 </span>
               </div>
@@ -212,10 +241,10 @@ function RescheduleOrderModalContent({
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Updating...</span>
+                  <span>Saving...</span>
                 </>
               ) : (
-                <span>Confirm Reschedule</span>
+                <span>Confirm Booking Slot</span>
               )}
             </button>
           </div>
@@ -224,3 +253,4 @@ function RescheduleOrderModalContent({
     </div>
   );
 }
+

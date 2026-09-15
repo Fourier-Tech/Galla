@@ -29,6 +29,7 @@ export interface DashboardOrder {
   refundMode?: DashboardRefundMode;
   advanceAmount?: number;
   scheduledFor?: string;
+  scheduledTime?: string;
   customerPhone?: string;
 }
 

@@ -169,6 +169,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       amountPending: amountPending,
       paymentMode: input.paymentMode || "cash",
       scheduledFor: input.bookingDate ? new Date(input.bookingDate) : undefined,
+      scheduledTime: input.bookingTime ? input.bookingTime.trim() : undefined,
       payments:
         input.paidAmount > 0
           ? [
@@ -254,6 +255,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         paymentMode: newDoc.paymentMode,
         advanceAmount: newDoc.status === "advance_paid" ? newDoc.amountPaid : undefined,
         scheduledFor: newDoc.scheduledFor ? new Date(newDoc.scheduledFor).toISOString() : undefined,
+        scheduledTime: newDoc.scheduledTime || undefined,
         customerPhone: formattedPhone || undefined,
       },
     };
@@ -386,6 +388,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
         paymentMode: order.paymentMode,
         scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        scheduledTime: order.scheduledTime || undefined,
         customerPhone: order.customerSnapshot?.phone || undefined,
       },
     };
@@ -411,7 +414,7 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { orderId, newDate } = parseResult.data;
+    const { orderId, newDate, newTime } = parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -434,6 +437,9 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
     }
 
     order.scheduledFor = parsedScheduledDate;
+    if (newTime !== undefined) {
+      order.scheduledTime = newTime.trim() || undefined;
+    }
     await order.save();
 
     revalidatePath("/dashboard");
@@ -463,6 +469,7 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
         paymentMode: order.paymentMode,
         advanceAmount: order.status === "advance_paid" ? order.amountPaid : undefined,
         scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        scheduledTime: order.scheduledTime || undefined,
       },
     };
   } catch (error) {

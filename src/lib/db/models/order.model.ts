@@ -82,6 +82,7 @@ export interface IOrder extends Document {
   conversionDetails?: IOrderConversion;
   notes?: string;
   scheduledFor?: Date;
+  scheduledTime?: string;
   recordedBy: "owner" | "staff";
   completedAt?: Date;
   createdAt: Date;
@@ -316,6 +317,10 @@ const OrderSchema = new Schema<IOrder>(
     scheduledFor: {
       type: Date,
       index: true,
+    },
+    scheduledTime: {
+      type: String,
+      trim: true,
     },
     recordedBy: {
       type: String,

@@ -173,11 +173,30 @@ export function getBookingUrgency(dateInput: Date | string | undefined): Booking
   return { daysAway: diffDays, tone: "future", label: `In ${diffDays} days` };
 }
 
+export function formatAppointmentTime(timeStr?: string | null): string {
+  if (!timeStr) return "";
+  const trimmed = timeStr.trim();
+  if (!trimmed) return "";
+
+  if (/am|pm/i.test(trimmed)) return trimmed;
+
+  const [hStr, mStr] = trimmed.split(":");
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(m)) return trimmed;
+
+  const period = h >= 12 ? "PM" : "AM";
+  const displayH = h % 12 || 12;
+  const displayM = String(m).padStart(2, "0");
+  return `${String(displayH).padStart(2, "0")}:${displayM} ${period}`;
+}
+
 export function getWhatsAppReminderUrl(options: {
   phone?: string;
   customerName: string;
   salonName: string;
   bookingDate: Date | string | undefined;
+  bookingTime?: string;
 }): string | null {
   if (!options.phone) return null;
   const cleaned = options.phone.replace(/\D/g, "");
@@ -192,12 +211,17 @@ export function getWhatsAppReminderUrl(options: {
       : cleaned;
 
   const formattedDate = formatBookingDate(options.bookingDate);
+  const formattedTime = formatAppointmentTime(options.bookingTime);
 
-  const message =
-    `Hello ${options.customerName}! 👋\n\n` +
-    `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate}).\n\n` +
-    `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
-    `We look forward to welcoming you!`;
+  const message = formattedTime
+    ? `Hello ${options.customerName}! 👋\n\n` +
+      `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate} at ${formattedTime}).\n\n` +
+      `Please let us know if you need to reschedule or adjust your time.\n\n` +
+      `We look forward to welcoming you!`
+    : `Hello ${options.customerName}! 👋\n\n` +
+      `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate}).\n\n` +
+      `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
+      `We look forward to welcoming you!`;
 
   return `https://wa.me/${standardNumber}?text=${encodeURIComponent(message)}`;
 }

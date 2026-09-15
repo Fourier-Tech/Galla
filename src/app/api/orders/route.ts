@@ -149,6 +149,7 @@ export async function GET(request: Request) {
       isLast24Hours: checkIsLast24Hours(o.createdAt),
       createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
       scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
+      scheduledTime: o.scheduledTime || undefined,
       refundAmount: o.refundDetails?.refundAmount,
       refundReason: o.refundDetails?.refundReason,
       paymentMode: (o.paymentMode || o.payments?.[0]?.mode) as DashboardPaymentMode | undefined,

@@ -20,6 +20,7 @@ export const createOrderSchema = z.object({
   discountAmount: z.number().optional(),
   paymentMode: z.enum(["cash", "upi", "card"]).default("cash"),
   bookingDate: z.string().optional(),
+  bookingTime: z.string().optional(),
   lineItems: z
     .array(
       z.object({
@@ -48,6 +49,7 @@ export type CompleteOrderInput = z.infer<typeof completeOrderSchema>;
 export const rescheduleOrderSchema = z.object({
   orderId: z.string().min(1, "Order ID is required"),
   newDate: z.string().min(1, "New booking date is required"),
+  newTime: z.string().optional(),
 });
 
 export type RescheduleOrderInput = z.infer<typeof rescheduleOrderSchema>;

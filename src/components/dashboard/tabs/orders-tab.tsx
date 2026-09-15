@@ -23,6 +23,7 @@ import {
   getFirstDayOfCurrentMonth,
   formatDisplayDate,
   formatBookingDate,
+  formatAppointmentTime,
   getBookingUrgency,
   getWhatsAppReminderUrl,
 } from "@/lib/utils";
@@ -548,10 +549,13 @@ export function OrdersTab({
                           type="button"
                           onClick={() => setReschedulingOrder(order)}
                           className="inline-flex items-center gap-1 font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] mt-1 font-medium hover:opacity-85 transition-all cursor-pointer group"
-                          title="Click to reschedule appointment date"
+                          title="Click to reschedule appointment date and time"
                         >
                           <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
-                          <span>Booked for: {formatBookingDate(order.scheduledFor)}</span>
+                          <span>
+                            Booked for: {formatBookingDate(order.scheduledFor)}
+                            {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
+                          </span>
                           <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
                             Reschedule
                           </span>
@@ -574,16 +578,18 @@ export function OrdersTab({
                       : "text-amber-800 bg-amber-50/90 border-amber-200/80";
 
                     const dateStr = formatBookingDate(order.scheduledFor);
+                    const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
+                    const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
 
                     const badgeLabel = isToday
-                      ? `🚨 Today (${dateStr})`
+                      ? `🚨 Today (${fullSlotStr})`
                       : isTomorrow
-                      ? `⏰ Tomorrow (${dateStr})`
+                      ? `⏰ Tomorrow (${fullSlotStr})`
                       : isIn2Days
-                      ? `📅 In 2 Days (${dateStr})`
+                      ? `📅 In 2 Days (${fullSlotStr})`
                       : urgency.tone === "overdue"
-                      ? `⚠️ Overdue (${dateStr})`
-                      : `Booked for: ${dateStr}`;
+                      ? `⚠️ Overdue (${fullSlotStr})`
+                      : `Booked for: ${fullSlotStr}`;
 
                     const waUrl = isTomorrow
                       ? getWhatsAppReminderUrl({
@@ -591,6 +597,7 @@ export function OrdersTab({
                           customerName: order.customer,
                           salonName: salonName || "our salon",
                           bookingDate: order.scheduledFor,
+                          bookingTime: order.scheduledTime,
                         })
                       : null;
 

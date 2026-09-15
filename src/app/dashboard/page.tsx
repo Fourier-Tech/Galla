@@ -230,6 +230,7 @@ export default async function DashboardPage() {
         isLast24Hours: checkIsLast24Hours(o.createdAt),
         createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
         scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
+        scheduledTime: o.scheduledTime || undefined,
         customerPhone: o.customerSnapshot?.phone || undefined,
         refundAmount: o.refundDetails?.refundAmount,
         refundReason: o.refundDetails?.refundReason,

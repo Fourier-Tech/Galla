@@ -5,7 +5,7 @@ import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Cal
 import { DashboardOrder, DashboardProduct } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, getBookingUrgency } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency } from "@/lib/utils";
 
 interface OverviewTabProps {
   orders: DashboardOrder[];
@@ -297,17 +297,21 @@ export function OverviewTab({
                         ? "text-blue-800 bg-blue-50/90 border-blue-200"
                         : "text-amber-800 bg-amber-50/90 border-amber-200/80";
 
+                      const dateStr = formatBookingDate(order.scheduledFor);
+                      const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
+                      const suffix = timeStr ? ` • ${timeStr}` : "";
+
                       return (
                         <div className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] mt-0.5 font-medium ${badgeStyle}`}>
                           <Calendar className="h-3 w-3 shrink-0" />
                           <span>
                             {urgency?.tone === "today"
-                              ? "🚨 Today"
+                              ? `🚨 Today${suffix}`
                               : urgency?.tone === "tomorrow"
-                              ? "⏰ Tomorrow"
+                              ? `⏰ Tomorrow${suffix}`
                               : urgency?.tone === "in_2_days"
-                              ? "📅 In 2 Days"
-                              : `Booked: ${formatBookingDate(order.scheduledFor)}`}
+                              ? `📅 In 2 Days${suffix}`
+                              : `Booked: ${dateStr}${suffix}`}
                           </span>
                         </div>
                       );
