@@ -27,6 +27,7 @@ import {
 } from "@/types/dashboard";
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
 import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 function getPhoneDigits(val: string): string {
   const digits = val.replace(/\D/g, "");
@@ -107,6 +108,7 @@ export function NewOrderModal({
   const [bookingTime, setBookingTime] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -253,6 +255,7 @@ export function NewOrderModal({
     setAdvance("");
     setBookingDate(new Date().toISOString().split("T")[0]);
     setBookingTime("");
+    setShowConfirm(false);
     setErrorMsg(null);
     setShowSuggestions(false);
   };
@@ -346,7 +349,7 @@ export function NewOrderModal({
   };
 
   // Final submit in Step 3
-  const handleFinalSubmit = async (e: React.FormEvent) => {
+  const handleFinalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -371,7 +374,14 @@ export function NewOrderModal({
       return;
     }
 
+    setShowConfirm(true);
+  };
+
+  const executeSubmitOrder = async () => {
+    setShowConfirm(false);
     setIsSubmitting(true);
+    setErrorMsg(null);
+
     try {
       const formattedPhone = phone.trim() ? formatPhoneNumber(phone) : undefined;
       const status = settlementMode === "completed"
@@ -430,9 +440,6 @@ export function NewOrderModal({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) handleClose();
-      }}
     >
       <div className="w-full max-w-[540px] bg-galla-surface border border-galla-line rounded-[8px] p-6 shadow-2xl transition-all max-h-[90vh] flex flex-col">
         {/* Header with Title and Step Dots */}
@@ -1360,6 +1367,42 @@ export function NewOrderModal({
           </form>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showConfirm}
+        title={settlementMode === "advance" || settlementMode === "paid_full" ? "Confirm Advance Booking" : "Confirm New Order"}
+        description={
+          settlementMode === "advance" ? (
+            <span>
+              Create advance booking for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
+              <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong>:{" "}
+              <strong className="font-semibold text-galla-ink">{formatRupee(enteredAdvance)}</strong> advance paid (
+              <strong className="font-semibold text-amber-800">{formatRupee(Math.max(0, finalTotal - enteredAdvance))}</strong> pending) via{" "}
+              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>
+              {bookingDate && (
+                <>
+                  {" "}scheduled for{" "}
+                  <strong className="font-semibold text-galla-ink">
+                    {formatBookingDate(bookingDate)}{bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : ""}
+                  </strong>
+                </>
+              )}
+              ?
+            </span>
+          ) : (
+            <span>
+              Create order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
+              <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
+              <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong> via{" "}
+              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>?
+            </span>
+          )
+        }
+        confirmLabel="Confirm Order"
+        isLoading={isSubmitting}
+        onConfirm={executeSubmitOrder}
+        onClose={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

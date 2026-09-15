@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2, IndianRupee, AlertCircle, Loader2, PackagePlus, Building2, Check } from "lucide-react";
 import { DashboardProduct } from "@/types/dashboard";
 import { createPurchaseOrderAction, searchSuppliersAction } from "@/app/dashboard/actions";
-import { formatRupee } from "@/lib/utils";
+import { formatRupee, formatPhoneNumber } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface StockInModalProps {
   isOpen: boolean;
@@ -99,6 +100,7 @@ export function StockInModal({
   ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Reset form with clean zeroed defaults when modal opens
@@ -112,6 +114,7 @@ export function StockInModal({
       setAmountPaid("");
       setNotes("");
       setErrorMsg(null);
+      setShowConfirm(false);
       setItems([
         {
           productId: products[0]?.id ? String(products[0].id) : "",
@@ -258,13 +261,36 @@ export function StockInModal({
       return;
     }
 
+    setShowConfirm(true);
+  };
+
+  const executeStockIn = async () => {
+    setShowConfirm(false);
     setIsSubmitting(true);
+    setErrorMsg(null);
 
     try {
+      const trimmedSupplier = supplierName.trim();
+      const parsedItems = items.map((it) => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantityForSell: Number(it.quantityForSell),
+        quantityForUse: Number(it.quantityForUse),
+        purchaseCost: Number(it.purchaseCost),
+        expectedSellPrice: Number(it.expectedSellPrice),
+      }));
+
+      let parsedPaid: number;
+      if (amountPaid === "") {
+        parsedPaid = paymentMode === "credit" ? 0 : totalCalculatedCost;
+      } else {
+        parsedPaid = Number(amountPaid);
+      }
+
       const res = await createPurchaseOrderAction({
         supplierId: selectedSupplierId || undefined,
         supplierName: trimmedSupplier,
-        supplierPhone: supplierPhone.trim() || undefined,
+        supplierPhone: supplierPhone.trim() ? formatPhoneNumber(supplierPhone) : undefined,
         dealerInvoiceNumber: dealerInvoiceNumber.trim() || undefined,
         items: parsedItems,
         paymentMode,
@@ -290,9 +316,6 @@ export function StockInModal({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] overscroll-contain"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
     >
       <div className="w-full max-w-[620px] max-h-[92vh] flex flex-col bg-galla-surface border border-galla-line rounded-[5px] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
@@ -418,6 +441,9 @@ export function StockInModal({
                 type="tel"
                 value={supplierPhone}
                 onChange={(e) => setSupplierPhone(e.target.value)}
+                onBlur={() => {
+                  if (supplierPhone.trim()) setSupplierPhone(formatPhoneNumber(supplierPhone));
+                }}
                 placeholder="+91 98250 00000"
                 className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
               />
@@ -662,6 +688,24 @@ export function StockInModal({
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={showConfirm}
+        title="Confirm Stock In"
+        description={
+          <span>
+            Record purchase order from <strong className="font-semibold text-galla-ink">&ldquo;{supplierName.trim()}&rdquo;</strong> for{" "}
+            <strong className="font-semibold text-galla-ink">{items.length} item(s)</strong> totalling{" "}
+            <strong className="font-semibold text-galla-ink">{formatRupee(totalCalculatedCost)}</strong> via{" "}
+            <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>?
+            Inventory stock levels will be updated atomically.
+          </span>
+        }
+        confirmLabel="Confirm & Record"
+        isLoading={isSubmitting}
+        onConfirm={executeStockIn}
+        onClose={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

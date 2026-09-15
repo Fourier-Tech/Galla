@@ -270,9 +270,7 @@ export function DashboardClient({
   };
 
   const handleDeleteProduct = (productId: string | number) => {
-    setProducts((prev) =>
-      prev.map((p) => (String(p.id) === String(productId) ? { ...p, isActive: false } : p))
-    );
+    setProducts((prev) => prev.filter((p) => String(p.id) !== String(productId)));
   };
 
   const handleCompleteOrder = async (orderId: string) => {

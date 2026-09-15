@@ -21,6 +21,7 @@ import {
 } from "@/types/dashboard";
 import { createPackageAction, updatePackageAction } from "@/app/dashboard/actions";
 import { formatRupee } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface PackageModalProps {
   isOpen: boolean;
@@ -59,6 +60,7 @@ export function PackageModal({
   const [productToAdd, setProductToAdd] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Calculate total standalone value of all included items
@@ -158,7 +160,7 @@ export function PackageModal({
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -179,6 +181,17 @@ export function PackageModal({
       setErrorMsg("Please enter a valid non-negative package price");
       return;
     }
+
+    setShowConfirm(true);
+  };
+
+  const executeSavePackage = async () => {
+    setShowConfirm(false);
+    setErrorMsg(null);
+
+    const trimmedName = name.trim();
+    const finalPrice =
+      pricingType === "sum_of_items" ? standaloneTotal : Number(packagePrice);
 
     setIsSubmitting(true);
 
@@ -252,7 +265,7 @@ export function PackageModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleFormSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
           {errorMsg && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[5px]">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -590,6 +603,31 @@ export function PackageModal({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title={packageToEdit ? "Confirm Update Package" : "Confirm Create Package"}
+          description={
+            <span>
+              {packageToEdit ? (
+                <>
+                  Are you sure you want to save changes to <strong className="font-semibold text-galla-ink">&ldquo;{name.trim()}&rdquo;</strong>?
+                </>
+              ) : (
+                <>
+                  Are you sure you want to create package <strong className="font-semibold text-galla-ink">&ldquo;{name.trim()}&rdquo;</strong> with{" "}
+                  <strong className="font-semibold text-galla-ink">{selectedServices.length + selectedProducts.length} item(s)</strong> for{" "}
+                  <strong className="font-semibold text-galla-ink">{formatRupee(pricingType === "sum_of_items" ? standaloneTotal : Number(packagePrice) || 0)}</strong>?
+                </>
+              )}
+            </span>
+          }
+          confirmLabel={packageToEdit ? "Yes, Save Changes" : "Yes, Create Package"}
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeSavePackage}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );

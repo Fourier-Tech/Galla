@@ -816,9 +816,9 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       product.useStock += quantity;
       await product.save({ session: dbSession });
 
-      // Invariant: Moving stock from sellStock -> useStock records an automatic Expense at current purchase cost
+      // Invariant: Moving stock from sellStock -> useStock records an automatic Expense strictly at purchase price, NOT retail sell price
       const unitCost =
-        typeof product.purchaseCost === "number"
+        typeof product.purchaseCost === "number" && !isNaN(product.purchaseCost)
           ? product.purchaseCost
           : 0;
       const transferCost = unitCost * quantity;
@@ -833,6 +833,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
             paymentMode: "internal_transfer",
             linkedProductId: product._id,
             linkedQuantity: quantity,
+            notes: `Moved ${quantity} pcs from retail to salon use. Expense calculated using purchase price (₹${unitCost}/pc) instead of sell price (₹${product.expectedSellPrice}/pc).`,
             expenseDate: new Date(),
             recordedBy: session.user.role === "staff" ? "staff" : "owner",
           },
@@ -860,6 +861,11 @@ export async function transferStockAction(rawInput: unknown): Promise<{
         sell: result.product.sellStock,
         use: result.product.useStock,
         price: result.product.expectedSellPrice,
+        purchaseCost: result.product.purchaseCost,
+        lowStockThreshold: result.product.lowStockThreshold,
+        description: result.product.description,
+        barcode: result.product.barcode,
+        isActive: result.product.isActive,
       },
       newExpense: {
         id: result.expense._id.toString(),
@@ -1108,11 +1114,13 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
         return { success: false, error: "An active product with this name already exists." };
       }
       product.isActive = true;
+      await product.save();
     } else {
-      product.isActive = false;
+      await Product.deleteOne({
+        _id: product._id,
+        tenantId: new Types.ObjectId(tenantId),
+      });
     }
-
-    await product.save();
 
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, reactivate ? "product_updated" : "product_deleted");
@@ -1190,6 +1198,11 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
           sell: product.sellStock,
           use: product.useStock,
           price: product.expectedSellPrice,
+          purchaseCost: product.purchaseCost,
+          lowStockThreshold: product.lowStockThreshold,
+          description: product.description,
+          barcode: product.barcode,
+          isActive: product.isActive,
         });
 
         const itemTotal = (item.quantityForSell + item.quantityForUse) * item.purchaseCost;
@@ -1233,12 +1246,22 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
 
       // Find or create Supplier in the same transaction
       const tenantObjectId = new Types.ObjectId(tenantId);
+      const normalizedSupplierPhone = input.supplierPhone?.trim()
+        ? formatPhoneNumber(input.supplierPhone)
+        : "";
+
       let supplier = null;
       if (input.supplierId && Types.ObjectId.isValid(input.supplierId)) {
         supplier = await Supplier.findOne({ _id: new Types.ObjectId(input.supplierId), tenantId: tenantObjectId }).session(dbSession);
       }
-      if (!supplier && input.supplierPhone && input.supplierPhone.trim()) {
-        supplier = await Supplier.findOne({ tenantId: tenantObjectId, phone: input.supplierPhone.trim() }).session(dbSession);
+      if (!supplier && normalizedSupplierPhone) {
+        supplier = await Supplier.findOne({
+          tenantId: tenantObjectId,
+          $or: [
+            { phone: normalizedSupplierPhone },
+            { phone: input.supplierPhone?.trim() },
+          ],
+        }).session(dbSession);
       }
       if (!supplier) {
         supplier = await Supplier.findOne({
@@ -1253,7 +1276,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             {
               tenantId: tenantObjectId,
               name: input.supplierName.trim(),
-              phone: input.supplierPhone?.trim() || "",
+              phone: normalizedSupplierPhone,
               companyName: input.supplierCompany?.trim() || undefined,
               totalPurchases: totalAmount,
               totalPaid: finalAmountPaid,
@@ -1271,8 +1294,8 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         if (input.supplierCompany && !supplier.companyName) {
           supplier.companyName = input.supplierCompany.trim();
         }
-        if (input.supplierPhone && (!supplier.phone || supplier.phone === "")) {
-          supplier.phone = input.supplierPhone.trim();
+        if (normalizedSupplierPhone && (!supplier.phone || supplier.phone === "")) {
+          supplier.phone = normalizedSupplierPhone;
         }
         await supplier.save({ session: dbSession });
       }
@@ -1285,7 +1308,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             supplierId: supplier._id,
             supplierSnapshot: {
               name: supplier.name,
-              phone: supplier.phone || input.supplierPhone || "",
+              phone: supplier.phone || normalizedSupplierPhone || "",
               companyName: supplier.companyName || input.supplierCompany || undefined,
             },
             items: poItems,
@@ -1465,7 +1488,7 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         purchaseOrderNumber: result.po.purchaseOrderNumber,
         supplierId: result.po.supplierId?.toString() || "",
         supplierName: result.po.supplierSnapshot.name,
-        supplierPhone: result.po.supplierSnapshot.phone,
+        supplierPhone: result.po.supplierSnapshot.phone ? formatPhoneNumber(result.po.supplierSnapshot.phone) : undefined,
         supplierCompany: result.po.supplierSnapshot.companyName,
         itemsCount: result.po.items?.length || 0,
         totalAmount: result.po.totalAmount,
@@ -1543,7 +1566,7 @@ export async function getPurchaseOrdersAction(options?: {
       purchaseOrderNumber: po.purchaseOrderNumber,
       supplierId: po.supplierId?.toString() || "",
       supplierName: po.supplierSnapshot?.name || "Unknown Supplier",
-      supplierPhone: po.supplierSnapshot?.phone,
+      supplierPhone: po.supplierSnapshot?.phone ? formatPhoneNumber(po.supplierSnapshot.phone) : undefined,
       supplierCompany: po.supplierSnapshot?.companyName,
       itemsCount: po.items?.length || 0,
       totalAmount: po.totalAmount,
@@ -1800,6 +1823,11 @@ export async function fulfillOrderLineItemAction(rawInput: unknown): Promise<{
           sell: prod.sellStock,
           use: prod.useStock,
           price: prod.expectedSellPrice,
+          purchaseCost: prod.purchaseCost,
+          lowStockThreshold: prod.lowStockThreshold,
+          description: prod.description,
+          barcode: prod.barcode,
+          isActive: prod.isActive,
         };
       }
 
@@ -1891,6 +1919,11 @@ export async function getLowStockAlertsAction(): Promise<{
       sell: p.sellStock,
       use: p.useStock,
       price: p.expectedSellPrice,
+      purchaseCost: p.purchaseCost,
+      lowStockThreshold: p.lowStockThreshold,
+      description: p.description,
+      barcode: p.barcode,
+      isActive: p.isActive,
     }));
 
     return {

@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { X } from "lucide-react";
 import { DashboardExpense } from "@/types/dashboard";
 import { createExpenseAction } from "@/app/dashboard/actions";
+import { formatRupee } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface NewExpenseModalProps {
   isOpen: boolean;
@@ -22,11 +24,12 @@ export function NewExpenseModal({
   >("Day-to-day");
   const [amount, setAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     if (!desc.trim() || !amount) return;
@@ -37,6 +40,12 @@ export function NewExpenseModal({
       return;
     }
 
+    setShowConfirm(true);
+  };
+
+  const executeCreateExpense = async () => {
+    setShowConfirm(false);
+    const parsedAmount = Number(amount);
     setIsSubmitting(true);
     try {
       const res = await createExpenseAction({
@@ -66,9 +75,6 @@ export function NewExpenseModal({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
     >
       <div className="w-full max-w-[377px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
         <div className="flex items-center justify-between mb-4">
@@ -91,7 +97,7 @@ export function NewExpenseModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleFormSubmit} className="space-y-4">
           <div>
             <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
               What was it for?
@@ -119,6 +125,7 @@ export function NewExpenseModal({
                     | "Inventory purchase"
                     | "Salary"
                     | "Rent"
+                    | "Refund"
                 )
               }
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
@@ -155,6 +162,24 @@ export function NewExpenseModal({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title="Confirm Expense"
+          description={
+            <span>
+              Are you sure you want to record an expense of{" "}
+              <strong className="font-semibold text-galla-ink">{formatRupee(Number(amount) || 0)}</strong> under{" "}
+              <strong className="font-semibold text-galla-ink">&ldquo;{category}&rdquo;</strong> for{" "}
+              <strong className="font-semibold text-galla-ink">&ldquo;{desc.trim()}&rdquo;</strong>?
+            </span>
+          }
+          confirmLabel="Yes, Save Expense"
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeCreateExpense}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );

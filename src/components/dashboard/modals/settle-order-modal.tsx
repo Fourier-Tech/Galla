@@ -5,6 +5,7 @@ import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { completeOrderAction } from "@/app/dashboard/actions";
 import { formatRupee, formatBookingDate } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface SettleOrderModalProps {
   order: DashboardOrder | null;
@@ -46,12 +47,13 @@ function SettleOrderModalContent({
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const enteredNum = remainingAmount === "" ? 0 : Number(remainingAmount);
   const finalCalculatedTotal = order.paid + enteredNum;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -60,6 +62,11 @@ function SettleOrderModalContent({
       return;
     }
 
+    setShowConfirm(true);
+  };
+
+  const executeSettleOrder = async () => {
+    setShowConfirm(false);
     setIsSubmitting(true);
     try {
       const res = await completeOrderAction({
@@ -87,9 +94,6 @@ function SettleOrderModalContent({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
     >
       <div className="w-full max-w-[420px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
         {/* Header */}
@@ -143,7 +147,7 @@ function SettleOrderModalContent({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Editable Remaining Due Input */}
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -267,6 +271,24 @@ function SettleOrderModalContent({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title="Confirm Order Settlement"
+          description={
+            <span>
+              Are you sure you want to collect <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
+              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong> from{" "}
+              <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> and mark Order{" "}
+              <strong className="font-semibold text-galla-ink">#{order.id}</strong> as fully settled &amp; completed?
+            </span>
+          }
+          confirmLabel="Yes, Settle Order"
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeSettleOrder}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );

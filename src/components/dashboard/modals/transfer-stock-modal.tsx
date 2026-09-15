@@ -5,6 +5,7 @@ import { X, ArrowRightLeft, AlertCircle, Loader2, IndianRupee } from "lucide-rea
 import { DashboardProduct, DashboardExpense } from "@/types/dashboard";
 import { transferStockAction } from "@/app/dashboard/actions";
 import { formatRupee } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface TransferStockModalProps {
   product: DashboardProduct | null;
@@ -42,6 +43,7 @@ function TransferStockModalContent({
 }) {
   const [quantity, setQuantity] = useState("0");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const numQty = Number(quantity);
@@ -50,7 +52,7 @@ function TransferStockModalContent({
   const estUnitCost = product.purchaseCost !== undefined && product.purchaseCost !== null ? product.purchaseCost : 0;
   const estTotalCost = isValidQty ? numQty * estUnitCost : 0;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -59,6 +61,11 @@ function TransferStockModalContent({
       return;
     }
 
+    setShowConfirm(true);
+  };
+
+  const executeTransfer = async () => {
+    setShowConfirm(false);
     setIsSubmitting(true);
     try {
       const res = await transferStockAction({
@@ -84,9 +91,6 @@ function TransferStockModalContent({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] overscroll-contain"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
     >
       <div className="w-full max-w-[420px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
@@ -121,7 +125,7 @@ function TransferStockModalContent({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Target Product Summary Card */}
           <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[5px] space-y-2">
             <div className="font-sans font-semibold text-[14px] text-galla-ink">
@@ -195,10 +199,18 @@ function TransferStockModalContent({
           </div>
 
           {/* Estimated Internal Expense notice */}
-          {isValidQty && estTotalCost > 0 && (
-            <div className="flex items-center justify-between p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-[4px] text-[12px] font-sans text-amber-900">
-              <span>Auto-logged as internal expense:</span>
-              <span className="font-semibold tabular-nums">{formatRupee(estTotalCost)}</span>
+          {isValidQty && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-[4px] text-[12px] font-sans text-amber-950">
+                <span className="flex items-center gap-1">
+                  <span>Auto-logged internal expense</span>
+                  <span className="text-amber-800/80">(purchase price @ {formatRupee(estUnitCost)}/pc):</span>
+                </span>
+                <span className="font-semibold tabular-nums text-amber-900">{formatRupee(estTotalCost)}</span>
+              </div>
+              <p className="font-sans text-[11px] text-galla-ink-soft">
+                Internal use is valued at purchase price ({formatRupee(estUnitCost)}), not retail sell price ({formatRupee(product.price)}).
+              </p>
             </div>
           )}
 
@@ -222,6 +234,27 @@ function TransferStockModalContent({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title="Confirm Stock Move"
+          description={
+            <span>
+              Are you sure you want to move <strong className="font-semibold text-galla-ink">{numQty} pcs</strong> of{" "}
+              <strong className="font-semibold text-galla-ink">&ldquo;{product.name}&rdquo;</strong> to internal salon use?
+              {estTotalCost > 0 && (
+                <span className="block mt-2 text-[12px] text-amber-800 font-medium">
+                  Internal expense: <strong className="font-semibold text-amber-900">{formatRupee(estTotalCost)}</strong> (valued at purchase price <strong className="font-semibold text-amber-900">{formatRupee(estUnitCost)}/pc</strong>).
+                </span>
+              )}
+            </span>
+          }
+          confirmLabel="Yes, Move Stock"
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeTransfer}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );

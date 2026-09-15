@@ -12,7 +12,6 @@ import {
   FileText,
   Pencil,
   Trash2,
-  RotateCcw,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -22,7 +21,8 @@ import { formatRupee } from "@/lib/utils";
 import { TransferStockModal } from "@/components/dashboard/modals/transfer-stock-modal";
 import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
 import { ProductModal } from "@/components/dashboard/modals/product-modal";
-import { PurchaseOrdersModal } from "@/components/dashboard/modals/purchase-orders-modal";
+import { PurchaseOrdersView } from "@/components/dashboard/purchase-orders-view";
+import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { deleteProductAction } from "@/app/dashboard/actions";
 
 interface InventoryTabProps {
@@ -61,16 +61,18 @@ export function InventoryTab({
   );
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
-  // Modals state
+  // Modals & View state
   const [transferTargetProduct, setTransferTargetProduct] = useState<DashboardProduct | null>(null);
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<DashboardProduct | null>(null);
-  const [isPOModalOpen, setIsPOModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<DashboardProduct | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [currentView, setCurrentView] = useState<"inventory" | "bills">("inventory");
 
   // Lock background scrolling when any inventory modal is open
   const isAnyModalOpen = Boolean(
-    transferTargetProduct || isStockInModalOpen || isProductModalOpen || isPOModalOpen
+    transferTargetProduct || isStockInModalOpen || isProductModalOpen || productToDelete
   );
 
   useEffect(() => {
@@ -291,41 +293,45 @@ export function InventoryTab({
     setIsProductModalOpen(true);
   };
 
-  const handleDelete = async (product: DashboardProduct) => {
-    if (!confirm(`Are you sure you want to archive "${product.name}"? It will be marked inactive and hidden from orders.`)) {
-      return;
-    }
+  const executeDeleteProduct = async () => {
+    if (!productToDelete) return;
 
-    setIsProcessingId(product.id);
+    setIsDeleting(true);
     try {
-      const res = await deleteProductAction({ id: String(product.id) });
-      if (res.success && res.product) {
-        onDeleteProduct?.(product.id);
+      const res = await deleteProductAction({ id: String(productToDelete.id) });
+      if (res.success) {
+        onDeleteProduct?.(productToDelete.id);
+        setProductToDelete(null);
       } else {
-        alert(res.error || "Failed to archive product");
+        alert(res.error || "Failed to delete product");
       }
     } catch {
-      alert("A network error occurred while archiving product");
+      alert("A network error occurred while deleting product");
     } finally {
-      setIsProcessingId(null);
+      setIsDeleting(false);
     }
   };
 
-  const handleReactivate = async (product: DashboardProduct) => {
-    setIsProcessingId(product.id);
-    try {
-      const res = await deleteProductAction({ id: String(product.id), reactivate: true });
-      if (res.success && res.product) {
-        onUpdateProduct?.(res.product);
-      } else {
-        alert(res.error || "Failed to reactivate product");
-      }
-    } catch {
-      alert("A network error occurred while reactivating product");
-    } finally {
-      setIsProcessingId(null);
-    }
-  };
+  if (currentView === "bills") {
+    return (
+      <div className="space-y-6 w-full">
+        <PurchaseOrdersView
+          onBack={() => setCurrentView("inventory")}
+          onOpenStockIn={() => setIsStockInModalOpen(true)}
+        />
+
+        {/* Stock In Modal (Accessible from Bills view too) */}
+        <StockInModal
+          isOpen={isStockInModalOpen}
+          onClose={() => setIsStockInModalOpen(false)}
+          products={products}
+          onStockInSuccess={(updatedBatch) => {
+            onStockInSuccess?.(updatedBatch);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 w-full">
@@ -359,7 +365,7 @@ export function InventoryTab({
           </button>
           <button
             type="button"
-            onClick={() => setIsPOModalOpen(true)}
+            onClick={() => setCurrentView("bills")}
             className="inline-flex items-center gap-1.5 bg-galla-surface border border-galla-line hover:bg-galla-paper text-galla-ink font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-2xs transition-all cursor-pointer"
           >
             <FileText className="h-4 w-4 text-galla-ink-soft" />
@@ -485,16 +491,17 @@ export function InventoryTab({
       {/* Inventory Table */}
       <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[860px]">
+          <table className="w-full text-left border-collapse min-w-[920px]">
             <thead>
               <tr className="border-b border-galla-line bg-galla-paper/70 font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
-                <th className="w-[28%] py-3.5 pl-6 pr-4 text-left font-semibold">Product</th>
-                <th className="w-[22%] py-3.5 px-4 text-left font-semibold">Category</th>
+                <th className="w-[26%] py-3.5 pl-6 pr-4 text-left font-semibold">Product</th>
+                <th className="w-[18%] py-3.5 px-4 text-left font-semibold">Category</th>
+                <th className="w-[12%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Purchase Price</th>
                 <th className="w-[11%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Sell Price</th>
-                <th className="w-[13%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Sell Stock</th>
-                <th className="w-[10%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Use Stock</th>
-                <th className="w-[8%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Transfer</th>
-                <th className="w-[8%] py-3.5 pl-4 pr-6 text-right font-semibold whitespace-nowrap">Actions</th>
+                <th className="w-[12%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Sell Stock</th>
+                <th className="w-[9%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Use Stock</th>
+                <th className="w-[6%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Transfer</th>
+                <th className="w-[6%] py-3.5 pl-4 pr-6 text-right font-semibold whitespace-nowrap">Actions</th>
               </tr>
             </thead>
 
@@ -502,7 +509,7 @@ export function InventoryTab({
               {displayedProducts.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="py-16 text-center text-galla-ink-soft text-[14px] font-sans"
                   >
                     No products found matching your search or category filter.
@@ -535,6 +542,11 @@ export function InventoryTab({
                           <Tag className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
                           <span>{product.category || "General Supplies"}</span>
                         </span>
+                      </td>
+
+                      {/* Purchase Price */}
+                      <td className="py-3.5 px-4 text-right align-middle font-heading font-normal text-[14px] text-galla-ink-soft tabular-nums whitespace-nowrap">
+                        {formatRupee(product.purchaseCost || 0)}
                       </td>
 
                       {/* Sell Price */}
@@ -593,10 +605,10 @@ export function InventoryTab({
 
                           <button
                             type="button"
-                            onClick={() => handleDelete(product)}
-                            disabled={isProcessingId === product.id}
+                            onClick={() => setProductToDelete(product)}
+                            disabled={isDeleting}
                             className="p-1.5 text-galla-ink-soft hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer disabled:opacity-50"
-                            title="Archive product (soft delete)"
+                            title="Delete product permanently"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -694,10 +706,27 @@ export function InventoryTab({
         }}
       />
 
-      {/* Purchase Orders & Bills List Modal (with Pay Now action) */}
-      <PurchaseOrdersModal
-        isOpen={isPOModalOpen}
-        onClose={() => setIsPOModalOpen(false)}
+      {/* Permanent Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(productToDelete)}
+        title="Confirm Delete Product"
+        isDestructive={true}
+        description={
+          productToDelete ? (
+            <span>
+              Are you sure you want to permanently delete{" "}
+              <strong className="font-semibold text-galla-ink">&ldquo;{productToDelete.name}&rdquo;</strong>{" "}
+              from your inventory?
+            </span>
+          ) : null
+        }
+        confirmLabel="Yes, Delete Permanently"
+        cancelLabel="Cancel"
+        isLoading={isDeleting}
+        onConfirm={executeDeleteProduct}
+        onClose={() => {
+          if (!isDeleting) setProductToDelete(null);
+        }}
       />
     </div>
   );

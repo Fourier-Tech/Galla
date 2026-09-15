@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { X, Sparkles, IndianRupee, Tag, AlignLeft, AlertCircle } from "lucide-react";
 import { DashboardService } from "@/types/dashboard";
 import { createServiceAction, updateServiceAction } from "@/app/dashboard/actions";
+import { formatRupee } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface ServiceModalProps {
   isOpen: boolean;
@@ -53,11 +55,12 @@ export function ServiceModal({
   const [description, setDescription] = useState(serviceToEdit?.description || "");
   const [isActive, setIsActive] = useState(serviceToEdit?.isActive ?? true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -78,6 +81,17 @@ export function ServiceModal({
       setErrorMsg("Please enter a valid non-negative price");
       return;
     }
+
+    setShowConfirm(true);
+  };
+
+  const executeSaveService = async () => {
+    setShowConfirm(false);
+    setErrorMsg(null);
+
+    const trimmedName = name.trim();
+    const finalCategory = isCustomCategory ? customCategory.trim() : category;
+    const numPrice = Number(price);
 
     setIsSubmitting(true);
 
@@ -149,7 +163,7 @@ export function ServiceModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
           {errorMsg && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[5px]">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -289,6 +303,31 @@ export function ServiceModal({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title={serviceToEdit ? "Confirm Update Service" : "Confirm Add Service"}
+          description={
+            <span>
+              {serviceToEdit ? (
+                <>
+                  Are you sure you want to save changes to <strong className="font-semibold text-galla-ink">&ldquo;{name.trim()}&rdquo;</strong>?
+                </>
+              ) : (
+                <>
+                  Are you sure you want to add <strong className="font-semibold text-galla-ink">&ldquo;{name.trim()}&rdquo;</strong> to your menu for{" "}
+                  <strong className="font-semibold text-galla-ink">{formatRupee(Number(price) || 0)}</strong> under category{" "}
+                  <strong className="font-semibold text-galla-ink">&ldquo;{category}&rdquo;</strong>?
+                </>
+              )}
+            </span>
+          }
+          confirmLabel={serviceToEdit ? "Yes, Save Changes" : "Yes, Add Service"}
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeSaveService}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );

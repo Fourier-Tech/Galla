@@ -5,6 +5,7 @@ import { X, AlertCircle } from "lucide-react";
 import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
 import { refundOrderAction } from "@/app/dashboard/actions";
 import { formatRupee, formatBookingDate } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface RefundOrderModalProps {
   order: DashboardOrder | null;
@@ -23,11 +24,12 @@ export function RefundOrderModal({
   const [refundMode, setRefundMode] = useState<"cash" | "upi" | "card">("cash");
   const [refundReason, setRefundReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen || !order) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -42,6 +44,12 @@ export function RefundOrderModal({
       return;
     }
 
+    setShowConfirm(true);
+  };
+
+  const executeRefund = async () => {
+    setShowConfirm(false);
+    const parsedAmount = Number(refundAmount);
     setIsSubmitting(true);
     try {
       const res = await refundOrderAction({
@@ -69,9 +77,6 @@ export function RefundOrderModal({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
     >
       <div className="w-full max-w-[400px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
         {/* Header */}
@@ -120,7 +125,7 @@ export function RefundOrderModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleFormSubmit} className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block font-sans text-[12px] font-medium text-galla-ink-soft">
@@ -229,6 +234,27 @@ export function RefundOrderModal({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title="Confirm Refund & Cancellation"
+          isDestructive={true}
+          description={
+            <span>
+              Are you sure you want to cancel and refund{" "}
+              <strong className="font-semibold text-red-600">{formatRupee(Number(refundAmount) || 0)}</strong> via{" "}
+              <strong className="font-semibold text-galla-ink">{refundMode.toUpperCase()}</strong> for Order{" "}
+              <strong className="font-semibold text-galla-ink">#{order.id}</strong> (
+              <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong>)?
+              This will update the order status and record a refund expense.
+            </span>
+          }
+          confirmLabel="Yes, Process Refund"
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeRefund}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );

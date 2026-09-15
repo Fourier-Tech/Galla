@@ -5,6 +5,7 @@ import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { rescheduleOrderAction } from "@/app/dashboard/actions";
 import { formatBookingDate, formatAppointmentTime, getBookingUrgency } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface RescheduleOrderModalProps {
   order: DashboardOrder | null;
@@ -48,15 +49,21 @@ function RescheduleOrderModalContent({
   const [newDate, setNewDate] = useState(initialDate);
   const [newTime, setNewTime] = useState(order.scheduledTime || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDate) {
       setErrorMsg("Please select a new appointment date");
       return;
     }
 
+    setShowConfirm(true);
+  };
+
+  const executeReschedule = async () => {
+    setShowConfirm(false);
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
@@ -111,7 +118,7 @@ function RescheduleOrderModalContent({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleFormSubmit}>
           <div className="p-5 space-y-4">
             {errorMsg && (
               <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-[5px] text-[12.5px] font-sans text-red-800">
@@ -249,6 +256,30 @@ function RescheduleOrderModalContent({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title="Confirm Reschedule"
+          description={
+            <span>
+              Are you sure you want to reschedule Order <strong className="font-semibold text-galla-ink">#{order.id}</strong> for{" "}
+              <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> to{" "}
+              <strong className="font-semibold text-galla-ink">{formatBookingDate(newDate)}</strong>
+              {newTime ? (
+                <>
+                  {" "}at <strong className="font-semibold text-galla-ink">{formatAppointmentTime(newTime)}</strong>
+                </>
+              ) : (
+                " (time not specified)"
+              )}?
+            </span>
+          }
+          confirmLabel="Yes, Reschedule"
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeReschedule}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { X, Package, IndianRupee, Tag, AlertCircle, Loader2, Layers } from "lucide-react";
 import { DashboardProduct } from "@/types/dashboard";
 import { createProductAction, updateProductAction } from "@/app/dashboard/actions";
+import { formatRupee } from "@/lib/utils";
+import { ConfirmModal } from "./confirm-modal";
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -48,6 +50,7 @@ export function ProductModal({
   const [description, setDescription] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Sync state when modal opens or when target product changes
@@ -106,7 +109,7 @@ export function ProductModal({
 
   const isCustomCategory = category === "custom";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -140,11 +143,37 @@ export function ProductModal({
       return;
     }
 
+    if (!isEditMode) {
+      const parsedSellStock = sellStock === "" ? 0 : Number(sellStock);
+      if (isNaN(parsedSellStock) || parsedSellStock < 0 || !Number.isInteger(parsedSellStock)) {
+        setErrorMsg("Retail sell stock must be a non-negative whole integer");
+        return;
+      }
+
+      const parsedUseStock = useStock === "" ? 0 : Number(useStock);
+      if (isNaN(parsedUseStock) || parsedUseStock < 0 || !Number.isInteger(parsedUseStock)) {
+        setErrorMsg("Internal use stock must be a non-negative whole integer");
+        return;
+      }
+    }
+
+    setShowConfirm(true);
+  };
+
+  const executeSaveProduct = async () => {
+    setShowConfirm(false);
+    setErrorMsg(null);
+
+    const trimmedName = name.trim();
+    const finalCategory = isCustomCategory ? customCategory.trim() : category;
+    const parsedPrice = Number(sellPrice);
+    const parsedCost = purchaseCost === "" ? 0 : Number(purchaseCost);
+    const parsedThreshold = lowStockThreshold === "" ? 0 : Number(lowStockThreshold);
+
     setIsSubmitting(true);
 
     try {
       if (isEditMode && productToEdit) {
-        // Edit Mode: updateProductAction (excludes direct editing of sellStock/useStock)
         const res = await updateProductAction({
           id: String(productToEdit.id),
           name: trimmedName,
@@ -162,20 +191,8 @@ export function ProductModal({
           setErrorMsg(res.error || "Failed to update product");
         }
       } else {
-        // Create Mode: createProductAction
         const parsedSellStock = sellStock === "" ? 0 : Number(sellStock);
-        if (isNaN(parsedSellStock) || parsedSellStock < 0 || !Number.isInteger(parsedSellStock)) {
-          setErrorMsg("Retail sell stock must be a non-negative whole integer");
-          setIsSubmitting(false);
-          return;
-        }
-
         const parsedUseStock = useStock === "" ? 0 : Number(useStock);
-        if (isNaN(parsedUseStock) || parsedUseStock < 0 || !Number.isInteger(parsedUseStock)) {
-          setErrorMsg("Internal use stock must be a non-negative whole integer");
-          setIsSubmitting(false);
-          return;
-        }
 
         const res = await createProductAction({
           name: trimmedName,
@@ -207,9 +224,6 @@ export function ProductModal({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] overscroll-contain"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
     >
       <div className="w-full max-w-[500px] max-h-[90vh] flex flex-col bg-galla-surface border border-galla-line rounded-[5px] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
@@ -240,7 +254,7 @@ export function ProductModal({
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-[21px] space-y-4">
+        <form onSubmit={handleFormSubmit} className="overflow-y-auto p-[21px] space-y-4">
           {errorMsg && (
             <div className="flex items-start gap-2 p-3 rounded-[4px] bg-red-50 border border-red-200 text-red-800 text-[13px] font-sans">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
@@ -528,6 +542,31 @@ export function ProductModal({
             </button>
           </div>
         </form>
+
+        <ConfirmModal
+          isOpen={showConfirm}
+          title={isEditMode ? "Confirm Update Product" : "Confirm Add Product"}
+          description={
+            <span>
+              {isEditMode ? (
+                <>
+                  Are you sure you want to save changes to <strong className="font-semibold text-galla-ink">&ldquo;{name.trim()}&rdquo;</strong>?
+                </>
+              ) : (
+                <>
+                  Are you sure you want to add <strong className="font-semibold text-galla-ink">&ldquo;{name.trim()}&rdquo;</strong> to your inventory at sell price{" "}
+                  <strong className="font-semibold text-galla-ink">{formatRupee(Number(sellPrice) || 0)}</strong> (purchase cost:{" "}
+                  <strong className="font-semibold text-galla-ink">{formatRupee(Number(purchaseCost) || 0)}</strong>)?
+                </>
+              )}
+            </span>
+          }
+          confirmLabel={isEditMode ? "Yes, Save Changes" : "Yes, Add Product"}
+          cancelLabel="Cancel"
+          isLoading={isSubmitting}
+          onConfirm={executeSaveProduct}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );
