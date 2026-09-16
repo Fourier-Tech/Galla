@@ -141,6 +141,7 @@ export function RefundOrderModal({
             </div>
             <input
               type="text"
+              autoFocus
               required
               value={refundAmount}
               onChange={(e) => setRefundAmount(e.target.value.replace(/\D/g, ""))}

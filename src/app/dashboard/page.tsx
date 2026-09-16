@@ -9,6 +9,7 @@ import { Order } from "@/lib/db/models/order.model";
 import { Product } from "@/lib/db/models/product.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Expense } from "@/lib/db/models/expense.model";
+import { Supplier } from "@/lib/db/models/supplier.model";
 import { Service } from "@/lib/db/models/service.model";
 import { PackageTemplate } from "@/lib/db/models/package-template.model";
 import { connectToDatabase } from "@/lib/db/mongodb";
@@ -23,6 +24,7 @@ import {
   DashboardExpense,
   DashboardOrder,
   DashboardProduct,
+  DashboardSupplier,
   DashboardSalonProfile,
   DashboardService,
   DashboardPackage,
@@ -93,6 +95,7 @@ export default async function DashboardPage() {
   let initialOrders: DashboardOrder[] = [];
   let initialTotalOrdersCount = 0;
   let initialProducts: DashboardProduct[] = [];
+  let initialSuppliers: DashboardSupplier[] = [];
   let initialCustomers: DashboardCustomer[] = [];
   let initialExpenses: DashboardExpense[] = [];
   let initialTotalExpensesCount = 0;
@@ -169,6 +172,7 @@ export default async function DashboardPage() {
         expensesCount,
         expenseCategoryAgg,
         expenseSumAgg,
+        rawSuppliers,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
         Product.find({ tenantId: tenantObjectId }).sort({ createdAt: 1 }).lean(),
@@ -195,6 +199,7 @@ export default async function DashboardPage() {
           { $match: { tenantId: tenantObjectId } },
           { $group: { _id: null, total: { $sum: "$amount" } } },
         ]),
+        Supplier.find({ tenantId: tenantObjectId, isActive: true }).sort({ name: 1 }).lean(),
       ]);
 
       initialTotalOrdersCount = count;
@@ -310,6 +315,21 @@ export default async function DashboardPage() {
         lastVisit: formatCustomerVisit(c.stats?.lastVisitAt || c.updatedAt),
       }));
 
+      initialSuppliers = (rawSuppliers || []).map((s: any) => ({
+        id: s._id.toString(),
+        name: s.name,
+        companyName: s.companyName,
+        phone: formatPhoneNumber(s.phone || ""),
+        email: s.email,
+        address: s.address,
+        gstin: s.gstin,
+        notes: s.notes,
+        totalPurchases: s.totalPurchases ?? 0,
+        totalPaid: s.totalPaid ?? 0,
+        totalPending: s.totalPending ?? 0,
+        isActive: s.isActive !== false,
+      }));
+
       // Background migration for any legacy unformatted customer phones in DB
       const unformatted = rawCustomers.filter(
         (c) => c.phone && (!c.phone.startsWith("+91 ") || c.phone.length !== 15)
@@ -416,6 +436,7 @@ export default async function DashboardPage() {
       initialOrders={initialOrders}
       initialTotalOrdersCount={initialTotalOrdersCount}
       initialProducts={initialProducts}
+      initialSuppliers={initialSuppliers}
       initialCustomers={initialCustomers}
       initialExpenses={initialExpenses}
       initialTotalExpensesCount={initialTotalExpensesCount}

@@ -145,6 +145,7 @@ function RescheduleOrderModalContent({
                 </label>
                 <input
                   type="date"
+                  autoFocus
                   value={newDate}
                   min={todayStr}
                   onChange={(e) => setNewDate(e.target.value)}

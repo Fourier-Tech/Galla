@@ -104,6 +104,7 @@ export function NewExpenseModal({
             </label>
             <input
               type="text"
+              autoFocus
               required
               value={desc}
               onChange={(e) => setDesc(e.target.value)}

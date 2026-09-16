@@ -513,6 +513,7 @@ export function NewOrderModal({
               <input
                 ref={nameInputRef}
                 type="text"
+                autoFocus
                 required
                 value={customer}
                 onChange={(e) => {
@@ -706,6 +707,7 @@ export function NewOrderModal({
                   <Search className="h-3.5 w-3.5 text-galla-ink-soft/60 absolute left-2.5 top-2.5" />
                   <input
                     type="text"
+                    autoFocus
                     value={catalogSearch}
                     onChange={(e) => setCatalogSearch(e.target.value)}
                     placeholder={

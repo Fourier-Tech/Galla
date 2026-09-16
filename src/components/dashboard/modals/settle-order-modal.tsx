@@ -173,6 +173,7 @@ function SettleOrderModalContent({
             </div>
             <input
               type="text"
+              autoFocus
               required
               value={remainingAmount}
               onChange={(e) => setRemainingAmount(e.target.value.replace(/\D/g, ""))}

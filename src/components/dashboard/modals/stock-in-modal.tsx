@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { X, Plus, Trash2, IndianRupee, AlertCircle, Loader2, PackagePlus, Building2, Check } from "lucide-react";
-import { DashboardProduct } from "@/types/dashboard";
-import { createPurchaseOrderAction, searchSuppliersAction } from "@/app/dashboard/actions";
+import { DashboardProduct, DashboardSupplier } from "@/types/dashboard";
+import { createPurchaseOrderAction, getSuppliersAction } from "@/app/dashboard/actions";
 import { formatRupee, formatPhoneNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
@@ -11,6 +11,7 @@ interface StockInModalProps {
   isOpen: boolean;
   onClose: () => void;
   products: DashboardProduct[];
+  suppliers?: DashboardSupplier[];
   onStockInSuccess: (updatedProducts: DashboardProduct[]) => void;
 }
 
@@ -27,61 +28,59 @@ export function StockInModal({
   isOpen,
   onClose,
   products,
+  suppliers = [],
   onStockInSuccess,
 }: StockInModalProps) {
   const [supplierName, setSupplierName] = useState("");
   const [supplierPhone, setSupplierPhone] = useState("");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
-  const [supplierSuggestions, setSupplierSuggestions] = useState<
-    { id: string; name: string; phone: string; companyName?: string }[]
-  >([]);
-  const [isSearchingSuppliers, setIsSearchingSuppliers] = useState(false);
-  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-  const supplierContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const [internalSuppliers, setInternalSuppliers] = useState<DashboardSupplier[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const supplierInputRef = useRef<HTMLInputElement | null>(null);
   const [dealerInvoiceNumber, setDealerInvoiceNumber] = useState("");
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card" | "bank_transfer" | "credit">("cash");
   const [amountPaid, setAmountPaid] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Debounced supplier search (~300ms)
-  React.useEffect(() => {
-    const trimmed = supplierName.trim();
-    if (!trimmed || selectedSupplierId) {
-      setSupplierSuggestions([]);
-      setIsSuggestionsOpen(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setIsSearchingSuppliers(true);
-      try {
-        const res = await searchSuppliersAction(trimmed);
-        if (res.success && res.suppliers) {
-          setSupplierSuggestions(res.suppliers);
-          setIsSuggestionsOpen(res.suppliers.length > 0);
-        } else {
-          setSupplierSuggestions([]);
-          setIsSuggestionsOpen(false);
+  // Preload suppliers once if not passed in props (fallback)
+  useEffect(() => {
+    if (suppliers.length > 0) return;
+    let ignore = false;
+    getSuppliersAction()
+      .then((res) => {
+        if (!ignore && res.success && res.suppliers) {
+          setInternalSuppliers(res.suppliers);
         }
-      } catch {
-        setSupplierSuggestions([]);
-        setIsSuggestionsOpen(false);
-      } finally {
-        setIsSearchingSuppliers(false);
-      }
-    }, 300);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [suppliers]);
 
-    return () => clearTimeout(timer);
-  }, [supplierName, selectedSupplierId]);
+  const allSuppliers = suppliers.length > 0 ? suppliers : internalSuppliers;
+
+  // Filter suppliers in-memory by name query — identical to customer search in NewOrderModal (0ms, 0 network requests)
+  const filteredSuppliers = useMemo(() => {
+    const query = supplierName.trim().toLowerCase();
+    if (!query || allSuppliers.length === 0) return [];
+
+    return allSuppliers
+      .filter((s) => s && s.name && (s.name.toLowerCase().includes(query) || (s.companyName && s.companyName.toLowerCase().includes(query))))
+      .slice(0, 5);
+  }, [supplierName, allSuppliers]);
 
   // Click outside listener for suggestions dropdown
-  React.useEffect(() => {
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
-        supplierContainerRef.current &&
-        !supplierContainerRef.current.contains(event.target as Node)
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        supplierInputRef.current &&
+        !supplierInputRef.current.contains(event.target as Node)
       ) {
-        setIsSuggestionsOpen(false);
+        setShowSuggestions(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -354,49 +353,53 @@ export function StockInModal({
 
           {/* Supplier Info Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div ref={supplierContainerRef} className="sm:col-span-1 relative">
+            <div className="sm:col-span-1 relative">
               <div className="flex items-center justify-between mb-1">
                 <label className="block font-heading text-[12px] font-semibold text-galla-ink uppercase tracking-wider">
                   Supplier <span className="text-red-600">*</span>
                 </label>
-                {isSearchingSuppliers && (
-                  <span className="flex items-center gap-1 text-[11px] text-galla-teal font-sans">
-                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                    <span>Searching...</span>
-                  </span>
-                )}
               </div>
               <input
+                ref={supplierInputRef}
                 type="text"
+                autoFocus
                 required
                 value={supplierName}
                 onChange={(e) => {
                   setSupplierName(e.target.value);
                   setSelectedSupplierId(null);
+                  setShowSuggestions(true);
                 }}
                 onFocus={() => {
-                  if (supplierSuggestions.length > 0) setIsSuggestionsOpen(true);
+                  if (supplierName.trim().length > 0) setShowSuggestions(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setShowSuggestions(false);
                 }}
                 placeholder="Type supplier or company..."
                 className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
                 autoComplete="off"
               />
 
-              {/* Suggestions Dropdown (Top 5-8 matches) */}
-              {isSuggestionsOpen && supplierSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-[5px] shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100">
+              {/* Suggestions Dropdown (Top matches, instant in-memory matching customer search) */}
+              {showSuggestions && filteredSuppliers.length > 0 && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute top-full left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-[5px] shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
+                >
                   <div className="px-2.5 py-1 bg-galla-paper/60 text-[10.5px] font-sans font-medium text-galla-ink-soft uppercase tracking-wider">
-                    Existing Suppliers ({supplierSuggestions.length})
+                    Existing Suppliers ({filteredSuppliers.length})
                   </div>
-                  {supplierSuggestions.map((s) => (
+                  {filteredSuppliers.map((s) => (
                     <button
                       type="button"
                       key={s.id}
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setSupplierName(s.name);
                         if (s.phone) setSupplierPhone(s.phone);
                         setSelectedSupplierId(s.id);
-                        setIsSuggestionsOpen(false);
+                        setShowSuggestions(false);
                       }}
                       className="w-full text-left px-3 py-2 hover:bg-galla-paper/70 flex items-center justify-between gap-2 cursor-pointer transition-colors"
                     >

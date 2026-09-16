@@ -84,6 +84,7 @@ export function ConfirmModal({
           </button>
           <button
             type="button"
+            autoFocus
             onClick={onConfirm}
             disabled={isLoading}
             className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-[5px] font-sans text-[13px] font-medium text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 ${

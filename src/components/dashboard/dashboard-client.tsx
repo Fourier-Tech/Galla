@@ -29,6 +29,7 @@ import {
   DashboardSalonProfile,
   DashboardService,
   DashboardPackage,
+  DashboardSupplier,
   OrderStatus,
 } from "@/types/dashboard";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
@@ -40,6 +41,7 @@ interface DashboardClientProps {
   initialOrders?: DashboardOrder[];
   initialTotalOrdersCount?: number;
   initialProducts?: DashboardProduct[];
+  initialSuppliers?: DashboardSupplier[];
   initialCustomers?: DashboardCustomer[];
   initialExpenses?: DashboardExpense[];
   initialSalonProfile?: DashboardSalonProfile;
@@ -58,6 +60,7 @@ export function DashboardClient({
   initialOrders = [],
   initialTotalOrdersCount = 0,
   initialProducts = [],
+  initialSuppliers = [],
   initialCustomers = [],
   initialExpenses = [],
   initialSalonProfile,
@@ -91,6 +94,7 @@ export function DashboardClient({
 
   const [orders, setOrders] = useState<DashboardOrder[]>(initialOrders);
   const [products, setProducts] = useState<DashboardProduct[]>(initialProducts);
+  const [suppliers, setSuppliers] = useState<DashboardSupplier[]>(initialSuppliers);
   const [customers, setCustomers] = useState<DashboardCustomer[]>(initialCustomers);
   const [expenses, setExpenses] = useState<DashboardExpense[]>(initialExpenses);
   const [services, setServices] = useState<DashboardService[]>(initialServices);
@@ -133,6 +137,12 @@ export function DashboardClient({
   if (initialCustomers !== prevInitialCustomers) {
     setPrevInitialCustomers(initialCustomers);
     setCustomers(initialCustomers);
+  }
+
+  const [prevInitialSuppliers, setPrevInitialSuppliers] = useState(initialSuppliers);
+  if (initialSuppliers !== prevInitialSuppliers) {
+    setPrevInitialSuppliers(initialSuppliers);
+    setSuppliers(initialSuppliers);
   }
 
   const [prevInitialProfile, setPrevInitialProfile] = useState(initialSalonProfile);
@@ -384,6 +394,7 @@ export function DashboardClient({
           {activeTab === "inventory" && (
             <InventoryTab
               products={products}
+              suppliers={suppliers}
               onMoveStock={handleMoveStock}
               onTransferSuccess={handleTransferSuccess}
               onStockInSuccess={handleStockInSuccess}
