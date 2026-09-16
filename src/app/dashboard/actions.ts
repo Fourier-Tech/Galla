@@ -97,6 +97,7 @@ function mapOrderType(type?: string): OrderType {
 export async function createOrderAction(rawInput: unknown): Promise<{
   success: boolean;
   order?: DashboardOrder;
+  clearedDueOrderIds?: string[];
   error?: string;
 }> {
   try {
@@ -173,7 +174,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       // If customer is paying advance or booking for future pickup, counter orders specially for them.
       // Do NOT deduct current counter shelf stock at order creation time; shelf stock is kept intact for walk-ins.
       // Stock will be deducted upon customer pickup when the order is completed.
-      const isAdvancePreOrder = Boolean(input.bookingDate) || input.status === "advance_paid";
+      const isAdvancePreOrder =
+        input.status !== "completed" &&
+        (Boolean(input.bookingDate) || input.status === "advance_paid" || input.status === "paid_full");
       let hasUnfulfilledProduct = false;
 
       for (const item of mappedLineItems) {
@@ -194,8 +197,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               } else {
                 // Insufficient stock: clamp decrement so sellStock never goes negative (never below 0)
                 prod.sellStock = 0;
-                item.fulfilled = false; // Track as backorder / unfulfilled
-                hasUnfulfilledProduct = true;
+                item.fulfilled = input.status === "completed" ? true : false;
+                hasUnfulfilledProduct = input.status !== "completed";
               }
               await prod.save({ session: dbSession });
             }
@@ -204,7 +207,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       }
 
       let orderInitialStatus = input.status;
-      if (hasUnfulfilledProduct && orderInitialStatus === "completed") {
+      if (hasUnfulfilledProduct && orderInitialStatus === "completed" && isAdvancePreOrder) {
         orderInitialStatus = input.paidAmount > 0 ? "paid_full" : "created";
       }
 
@@ -247,6 +250,43 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         { session: dbSession }
       );
 
+      // If customer is settling previous due orders with this bill
+      if (input.clearedDueOrderIds && input.clearedDueOrderIds.length > 0) {
+        const orderIds = input.clearedDueOrderIds.flatMap((id) => [
+          id,
+          id.startsWith("#") ? id.slice(1) : `#${id}`,
+        ]);
+        const previousOrders = await Order.find({
+          tenantId,
+          $or: [
+            { orderNumber: { $in: orderIds } },
+            ...(Types.ObjectId.isValid(input.clearedDueOrderIds[0]) ? [{ _id: { $in: input.clearedDueOrderIds } }] : []),
+          ],
+        }).session(dbSession);
+
+        for (const prevOrder of previousOrders) {
+          const remainingToSettle = Math.max(0, prevOrder.totalAmount - prevOrder.amountPaid);
+          if (remainingToSettle > 0) {
+            prevOrder.amountPaid += remainingToSettle;
+            prevOrder.amountPending = 0;
+            prevOrder.status = "completed";
+            prevOrder.completedAt = new Date();
+            prevOrder.payments.push({
+              amount: remainingToSettle,
+              mode: input.paymentMode || "cash",
+              recordedAt: new Date(),
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            });
+            prevOrder.notes = prevOrder.notes
+              ? `${prevOrder.notes} | Cleared via Order ${orderNumber}`
+              : `Cleared via Order ${orderNumber}`;
+            await prevOrder.save({ session: dbSession });
+          }
+        }
+      }
+
+      const netBalanceAdjustment = amountPending - (input.clearedDueAmount || 0);
+
       // Update customer visit stats if customer exists
       if (formattedPhone) {
         const rawDigits = formattedPhone.replace(/\D/g, "").slice(-10);
@@ -268,7 +308,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           }
           existingCustomer.stats.totalVisits = (existingCustomer.stats.totalVisits || 0) + 1;
           existingCustomer.stats.totalSpend = (existingCustomer.stats.totalSpend || 0) + input.paidAmount;
-          existingCustomer.stats.outstandingBalance = (existingCustomer.stats.outstandingBalance || 0) + amountPending;
+          existingCustomer.stats.outstandingBalance = (existingCustomer.stats.outstandingBalance || 0) + netBalanceAdjustment;
           existingCustomer.stats.lastVisitAt = new Date();
           await existingCustomer.save({ session: dbSession });
         } else {
@@ -282,7 +322,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                 stats: {
                   totalVisits: 1,
                   totalSpend: input.paidAmount,
-                  outstandingBalance: amountPending,
+                  outstandingBalance: Math.max(0, netBalanceAdjustment),
                   lastVisitAt: new Date(),
                 },
               },
@@ -297,7 +337,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             $inc: {
               "stats.totalVisits": 1,
               "stats.totalSpend": input.paidAmount,
-              "stats.outstandingBalance": amountPending,
+              "stats.outstandingBalance": netBalanceAdjustment,
             },
             $set: { "stats.lastVisitAt": new Date() },
           },
@@ -313,6 +353,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
 
     return {
       success: true,
+      clearedDueOrderIds: input.clearedDueOrderIds,
       order: {
         id: newDoc.orderNumber,
         customer: input.customerName,

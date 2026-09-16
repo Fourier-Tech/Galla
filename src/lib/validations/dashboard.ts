@@ -33,6 +33,8 @@ export const createOrderSchema = z.object({
       })
     )
     .optional(),
+  clearedDueOrderIds: z.array(z.string()).optional(),
+  clearedDueAmount: z.number().optional(),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;

@@ -5,7 +5,7 @@ import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Cal
 import { DashboardOrder, DashboardProduct } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 
 interface OverviewTabProps {
@@ -362,6 +362,17 @@ export function OverviewTab({
                     <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
                       {order.customer}
                     </div>
+                    {order.customerPhone && (
+                      <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
+                        <a
+                          href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                          className="hover:text-galla-teal hover:underline transition-colors"
+                          title={`Call ${order.customer}: ${order.customerPhone}`}
+                        >
+                          {formatPhoneNumber(order.customerPhone)}
+                        </a>
+                      </div>
+                    )}
                     <div className="font-sans text-[12px] text-galla-ink-soft truncate">
                       {order.type} &bull; {order.time}
                     </div>

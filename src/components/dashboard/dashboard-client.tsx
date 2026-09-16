@@ -177,9 +177,22 @@ export function DashboardClient({
   const expensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
   const pendingAmount = calculatePendingAmount(orders);
 
-  const handleAddOrder = (order: DashboardOrder, customerPhone?: string) => {
+  const handleAddOrder = (order: DashboardOrder, customerPhone?: string, clearedDueOrderIds?: string[]) => {
     const enrichedOrder = customerPhone && !order.customerPhone ? { ...order, customerPhone } : order;
-    setOrders((prev) => [enrichedOrder, ...prev]);
+    setOrders((prev) => {
+      const updated = prev.map((o) => {
+        if (clearedDueOrderIds && clearedDueOrderIds.includes(o.id)) {
+          return {
+            ...o,
+            paid: o.amount,
+            status: "completed" as const,
+            latestActivityAt: new Date().toISOString(),
+          };
+        }
+        return o;
+      });
+      return [enrichedOrder, ...updated];
+    });
     if (order.customer && order.customer !== "Walk-in Guest") {
       const phone = customerPhone ? formatPhoneNumber(customerPhone) : "";
       setCustomers((prev) => {
@@ -451,6 +464,7 @@ export function DashboardClient({
         services={services}
         packages={packages}
         initialProducts={products}
+        orders={orders}
       />
 
       <NewExpenseModal

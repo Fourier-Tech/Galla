@@ -26,6 +26,7 @@ import {
   formatAppointmentTime,
   getBookingUrgency,
   getWhatsAppReminderUrl,
+  formatPhoneNumber,
 } from "@/lib/utils";
 
 interface OrdersTabProps {
@@ -279,9 +280,9 @@ export function OrdersTab({
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
-  // Priority sorting for Advance Paid orders: 1st Today -> 2nd 1 Day Before -> 3rd 2 Days Before -> all other
+  // Priority urgency sorting for Advance Booking & Payment Due: nearest date to today first
   const sortedOrders = useMemo(() => {
-    if (filter !== "advance_paid" || searchQuery || startDate || endDate) {
+    if ((filter !== "advance_paid" && filter !== "created") || searchQuery || startDate || endDate) {
       return displayedOrders;
     }
 
@@ -293,29 +294,35 @@ export function OrdersTab({
       const urgencyA = isPendingA && a.scheduledFor ? getBookingUrgency(a.scheduledFor) : null;
       const urgencyB = isPendingB && b.scheduledFor ? getBookingUrgency(b.scheduledFor) : null;
 
-      const getTier = (u: ReturnType<typeof getBookingUrgency>, orderType?: string) => {
-        if (!u) return 6;
-        if (orderType === "Product sale" && u.daysAway === 1) return 1; // 1 day before product sale is Urgent
-        if (u.daysAway === 0) return 1; // 1st priority: Today
-        if (u.daysAway === 1) return 2; // 2nd priority: 1 day before (Tomorrow)
-        if (u.daysAway === 2) return 3; // 3rd priority: 2 days before
-        if (u.daysAway > 2) return 4;  // Later future dates
-        if (u.daysAway < 0) return 5;  // Overdue
-        return 6;                      // Unscheduled
-      };
-
-      const tierA = getTier(urgencyA, a.type);
-      const tierB = getTier(urgencyB, b.type);
-
-      if (tierA !== tierB) {
-        return tierA - tierB;
+      // 1. Orders with scheduled dates appear before unscheduled orders
+      if (!urgencyA && urgencyB) return 1;
+      if (urgencyA && !urgencyB) return -1;
+      if (!urgencyA && !urgencyB) {
+        const dateA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const dateB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return dateB - dateA;
       }
 
-      // Within same tier, sort nearest first
-      if (urgencyA && urgencyB && urgencyA.daysAway !== urgencyB.daysAway) {
-        return urgencyA.daysAway - urgencyB.daysAway;
+      // 2. Sort by nearest distance to today (distance = 0 is Today, then 1 day away, 2 days away, etc.)
+      const distA = Math.abs(urgencyA!.daysAway);
+      const distB = Math.abs(urgencyB!.daysAway);
+
+      if (distA !== distB) {
+        return distA - distB;
       }
 
+      // 3. Tie-breaking when distances are equal (e.g. -1 day overdue vs +1 day upcoming)
+      if (urgencyA!.daysAway !== urgencyB!.daysAway) {
+        if (filter === "created") {
+          // For Payment Due: Overdue (daysAway < 0) has higher urgency than future
+          return urgencyA!.daysAway - urgencyB!.daysAway;
+        } else {
+          // For Advance Booking: Tomorrow's appointment (daysAway > 0) has preparation priority
+          return urgencyB!.daysAway - urgencyA!.daysAway;
+        }
+      }
+
+      // 4. Secondary sort for identical dates: newest activity/creation first
       const dateA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
       const dateB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
       return dateB - dateA;
@@ -554,6 +561,17 @@ export function OrdersTab({
                       <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
                         {order.customer}
                       </div>
+                      {order.customerPhone && (
+                        <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
+                          <a
+                            href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                            className="hover:text-galla-teal hover:underline transition-colors"
+                            title={`Call ${order.customer}: ${order.customerPhone}`}
+                          >
+                            {formatPhoneNumber(order.customerPhone)}
+                          </a>
+                        </div>
+                      )}
                       <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
                         {order.type} &bull; {order.time}
                       </div>

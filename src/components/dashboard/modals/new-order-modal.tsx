@@ -45,11 +45,12 @@ export interface SelectedOrderItem {
 interface NewOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddOrder: (order: DashboardOrder, customerPhone?: string) => void;
+  onAddOrder: (order: DashboardOrder, customerPhone?: string, clearedDueOrderIds?: string[]) => void;
   customers?: DashboardCustomer[];
   services?: DashboardService[];
   packages?: DashboardPackage[];
   initialProducts?: DashboardProduct[];
+  orders?: DashboardOrder[];
 }
 
 export function NewOrderModal({
@@ -60,6 +61,7 @@ export function NewOrderModal({
   services = [],
   packages = [],
   initialProducts = [],
+  orders = [],
 }: NewOrderModalProps) {
   // Step 1: Customer & Order Type, Step 2: Catalog Selection, Step 3: Review & Checkout
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -107,6 +109,7 @@ export function NewOrderModal({
   const [payLaterPaid, setPayLaterPaid] = useState("");
   const [advance, setAdvance] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [includePreviousDue, setIncludePreviousDue] = useState(false);
   const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [bookingTime, setBookingTime] = useState("");
 
@@ -198,6 +201,34 @@ export function NewOrderModal({
     });
   }, [liveProducts, catalogSearch]);
 
+  // Customer previous due orders detection
+  const customerDueOrders = useMemo(() => {
+    const trimmedName = customer.trim().toLowerCase();
+    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+    if (!trimmedName && !cleanPhone) return [];
+
+    return orders.filter((o) => {
+      const isDue =
+        o.status === "created" ||
+        (o.paid < o.amount &&
+          o.status !== "advance_paid" &&
+          o.status !== "paid_full" &&
+          o.status !== "cancelled_refunded" &&
+          o.status !== "cancelled_converted");
+      if (!isDue) return false;
+
+      const orderPhone = o.customerPhone ? o.customerPhone.replace(/\D/g, "").slice(-10) : "";
+      const phoneMatch = Boolean(cleanPhone && orderPhone && cleanPhone === orderPhone);
+      const nameMatch = Boolean(trimmedName && o.customer.trim().toLowerCase() === trimmedName);
+
+      return phoneMatch || nameMatch;
+    });
+  }, [orders, customer, phone]);
+
+  const totalPreviousDue = useMemo(() => {
+    return customerDueOrders.reduce((sum, o) => sum + Math.max(0, o.amount - o.paid), 0);
+  }, [customerDueOrders]);
+
   // Pricing calculations
   const calculatedSubtotal = useMemo(() => {
     return selectedItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
@@ -224,6 +255,10 @@ export function NewOrderModal({
   const finalTotal = useMemo(() => {
     return Math.max(0, basePrice - calculatedDiscountAmount);
   }, [basePrice, calculatedDiscountAmount]);
+
+  const totalWithDue = useMemo(() => {
+    return finalTotal + (includePreviousDue ? totalPreviousDue : 0);
+  }, [finalTotal, includePreviousDue, totalPreviousDue]);
 
   const enteredAdvance = useMemo(() => {
     if (advance !== "" && !isNaN(Number(advance))) {
@@ -268,6 +303,7 @@ export function NewOrderModal({
     setPayLaterPaid("");
     setAdvance("");
     setDueDate("");
+    setIncludePreviousDue(false);
     setBookingDate(new Date().toISOString().split("T")[0]);
     setBookingTime("");
     setShowConfirm(false);
@@ -423,7 +459,30 @@ export function NewOrderModal({
 
       const resolvedBookingDate = settlementMode === "pay_later"
         ? (dueDate ? dueDate : undefined)
-        : (bookingDate ? bookingDate : undefined);
+        : (settlementMode === "advance" || settlementMode === "paid_full")
+        ? (bookingDate ? bookingDate : undefined)
+        : undefined;
+
+      const resolvedBookingTime =
+        settlementMode === "advance" || settlementMode === "paid_full"
+          ? (bookingTime ? bookingTime : undefined)
+          : undefined;
+
+      const clearedDueOrderIds = includePreviousDue && totalPreviousDue > 0
+        ? customerDueOrders.map((o) => o.id)
+        : undefined;
+      const clearedDueAmount = includePreviousDue && totalPreviousDue > 0
+        ? totalPreviousDue
+        : undefined;
+
+      const lineItems = selectedItems.map((item) => ({
+        itemId: item.id,
+        itemType: item.type,
+        name: item.name,
+        unitPrice: item.price,
+        quantity: item.quantity,
+        finalPrice: item.price * item.quantity,
+      }));
 
       const res = await createOrderAction({
         customerName: customer.trim(),
@@ -438,19 +497,14 @@ export function NewOrderModal({
         discountAmount: calculatedDiscountAmount,
         paymentMode: paymentMode,
         bookingDate: resolvedBookingDate,
-        bookingTime: settlementMode === "pay_later" ? undefined : (bookingTime ? bookingTime : undefined),
-        lineItems: selectedItems.map((item) => ({
-          itemId: item.id,
-          itemType: item.type,
-          name: item.name,
-          unitPrice: item.price,
-          quantity: item.quantity,
-          finalPrice: item.price * item.quantity,
-        })),
+        bookingTime: resolvedBookingTime,
+        lineItems,
+        clearedDueOrderIds,
+        clearedDueAmount,
       });
 
       if (res.success && res.order) {
-        onAddOrder(res.order, formattedPhone);
+        onAddOrder(res.order, formattedPhone, res.clearedDueOrderIds);
         handleReset();
         onClose();
       } else {
@@ -1060,6 +1114,33 @@ export function NewOrderModal({
               </div>
             </div>
 
+            {/* Previous Due Alert & Inclusion Checkbox */}
+            {customerDueOrders.length > 0 && totalPreviousDue > 0 && (
+              <div className="p-3 bg-amber-50/75 border border-amber-300 rounded-[6px] space-y-2 animate-in fade-in duration-150">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-sans font-semibold text-[13px] text-amber-950">
+                      Previous Outstanding Due: {formatRupee(totalPreviousDue)}
+                    </span>
+                    <p className="font-sans text-[11.5px] text-amber-800 mt-0.5">
+                      {customer} has pending payment due from {customerDueOrders.map((o) => o.id).join(", ")}.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2.5 pt-1 cursor-pointer select-none text-[12.5px] font-medium text-amber-950">
+                  <input
+                    type="checkbox"
+                    checked={includePreviousDue}
+                    onChange={(e) => setIncludePreviousDue(e.target.checked)}
+                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
+                  />
+                  <span>Add previous due ({formatRupee(totalPreviousDue)}) to this bill</span>
+                </label>
+              </div>
+            )}
+
             {/* Editable Pricing & Direct Discount Section */}
             <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -1118,12 +1199,42 @@ export function NewOrderModal({
                 )}
                 <div className="flex items-center justify-between">
                   <span className="font-heading font-semibold text-[13px] text-galla-ink-soft uppercase tracking-wider">
-                    Final Payable Total
+                    {includePreviousDue && totalPreviousDue > 0 ? "Today's Order Amount" : "Order Total"}
                   </span>
-                  <span className="font-heading font-bold text-[18px] text-galla-teal tabular-nums">
+                  <span className="font-heading font-bold text-[18px] text-galla-ink tabular-nums">
                     {formatRupee(finalTotal)}
                   </span>
                 </div>
+
+                {includePreviousDue && totalPreviousDue > 0 && (
+                  <div className="pt-2 border-t border-galla-line/60 space-y-2 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between text-[12px] text-amber-900 bg-amber-50/80 px-2.5 py-1.5 rounded border border-amber-200">
+                      <div>
+                        <span className="font-medium">Previous Due to Settle</span>
+                        <div className="text-[10px] text-amber-700/80">
+                          Order {customerDueOrders.map((o) => o.id).join(", ")} will be marked settled
+                        </div>
+                      </div>
+                      <span className="font-heading font-bold text-rose-700">
+                        + {formatRupee(totalPreviousDue)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-galla-line/60">
+                      <div>
+                        <span className="font-heading font-bold text-[13.5px] text-galla-ink uppercase tracking-wider block">
+                          Total Price
+                        </span>
+                        <span className="text-[11px] text-galla-ink-soft">
+                          (Today&apos;s Order + Due Amount)
+                        </span>
+                      </div>
+                      <span className="font-heading font-bold text-[20px] text-galla-teal tabular-nums">
+                        {formatRupee(totalWithDue)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1395,6 +1506,8 @@ export function NewOrderModal({
                       : `Create Pay Later Order (Due: ${formatRupee(finalTotal)})`)
                   : settlementMode === "advance" && enteredAdvance > 0
                   ? `Create Order (Advance: ${formatRupee(enteredAdvance)})`
+                  : includePreviousDue && totalPreviousDue > 0
+                  ? `Create Order & Settle Due (Total: ${formatRupee(totalWithDue)})`
                   : `Create Order (${formatRupee(finalTotal)})`}
               </button>
             </div>
@@ -1459,7 +1572,10 @@ export function NewOrderModal({
             <span>
               Create order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
               <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
-              <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong> via{" "}
+              <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>
+              {includePreviousDue && totalPreviousDue > 0 ? (
+                <>, plus settle previous due of <strong className="font-semibold text-rose-700">{formatRupee(totalPreviousDue)}</strong> (Total: <strong className="font-semibold text-galla-teal">{formatRupee(totalWithDue)}</strong>)</>
+              ) : null} via{" "}
               <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>?
             </span>
           )

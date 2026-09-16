@@ -106,6 +106,8 @@ export async function GET(request: Request) {
     const sortQuery: Record<string, 1 | -1> =
       status === "advance_paid" && !searchParams.get("sortOrder")
         ? { scheduledFor: 1, createdAt: -1 }
+        : status === "created" && !searchParams.get("sortOrder")
+        ? { scheduledFor: -1, createdAt: -1 }
         : { updatedAt: sortDirection, createdAt: sortDirection };
 
     const [totalCount, rawOrders, statusAgg, overallTotal] = await Promise.all([
