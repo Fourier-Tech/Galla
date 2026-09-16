@@ -6,6 +6,7 @@ import { DashboardOrder, DashboardProduct } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl } from "@/lib/utils";
+import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 
 interface OverviewTabProps {
   orders: DashboardOrder[];
@@ -15,10 +16,12 @@ interface OverviewTabProps {
   onOpenNewOrder: () => void;
   onOpenNewExpense: () => void;
   onNavigateToAdvanceOrders?: () => void;
+  onNavigateToDueOrders?: () => void;
   onCompleteOrder?: (orderId: string) => Promise<void> | void;
   onOpenRefund?: (order: DashboardOrder) => void;
   onNavigateToInventory?: () => void;
   onOpenSettle?: (order: DashboardOrder) => void;
+  onRescheduleOrder?: (updatedOrder: DashboardOrder) => void;
 }
 
 export function OverviewTab({
@@ -29,12 +32,15 @@ export function OverviewTab({
   onOpenNewOrder,
   onOpenNewExpense,
   onNavigateToAdvanceOrders,
+  onNavigateToDueOrders,
   onCompleteOrder,
   onOpenRefund,
   onNavigateToInventory,
   onOpenSettle,
+  onRescheduleOrder,
 }: OverviewTabProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [reschedulingOrder, setReschedulingOrder] = useState<DashboardOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleComplete = async (id: string) => {
@@ -95,6 +101,23 @@ export function OverviewTab({
     });
   }, [orders]);
 
+  // Customer payments due to clear: Due orders scheduled for Today or Overdue
+  const dueOrdersToClear = useMemo(() => {
+    return orders.filter((o) => {
+      const isDue =
+        o.status === "created" ||
+        (o.paid < o.amount &&
+          o.status !== "advance_paid" &&
+          o.status !== "paid_full" &&
+          o.status !== "cancelled_refunded" &&
+          o.status !== "cancelled_converted");
+      if (!isDue || !o.scheduledFor) return false;
+      const urgency = getBookingUrgency(o.scheduledFor);
+      if (!urgency) return false;
+      return urgency.tone === "today" || urgency.tone === "overdue";
+    });
+  }, [orders]);
+
   return (
     <div className="flex flex-col h-full min-h-0 space-y-3.5 w-full">
       {/* Section Header (Fixed) */}
@@ -140,6 +163,41 @@ export function OverviewTab({
                   }`}
                 >
                   {upcomingAdvanceOrders.length}
+                </span>
+              )}
+            </button>
+          )}
+          {onNavigateToDueOrders && (
+            <button
+              onClick={onNavigateToDueOrders}
+              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${
+                dueOrdersToClear.length > 0
+                  ? "bg-rose-50/90 hover:bg-rose-100 border-rose-300 text-rose-900 ring-2 ring-rose-400/40"
+                  : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
+              }`}
+              title={
+                dueOrdersToClear.length > 0
+                  ? `${dueOrdersToClear.length} customer payment(s) due today or overdue`
+                  : "View Payment Due Orders"
+              }
+            >
+              <div className="relative flex items-center justify-center">
+                <AlertTriangle className={`h-4 w-4 ${dueOrdersToClear.length > 0 ? "text-rose-700" : "text-galla-ink-soft"}`} />
+                {dueOrdersToClear.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+                  </span>
+                )}
+              </div>
+              <span>Dues to Clear</span>
+              {dueOrdersToClear.length > 0 && (
+                <span
+                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-rose-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${
+                    dueOrdersToClear.length > 9 ? "min-w-5 px-1.5" : "w-5"
+                  }`}
+                >
+                  {dueOrdersToClear.length}
                 </span>
               )}
             </button>
@@ -280,7 +338,14 @@ export function OverviewTab({
                     order.status === "cancelled_refunded" &&
                     Boolean(order.refundAmount && order.paid > 0);
                   const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full";
-                  const urgency = isPendingOrder && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+                  const isDueOrder =
+                    order.status === "created" ||
+                    (order.paid < order.amount &&
+                      order.status !== "advance_paid" &&
+                      order.status !== "paid_full" &&
+                      order.status !== "cancelled_refunded" &&
+                      order.status !== "cancelled_converted");
+                  const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
                   // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
                   const isAppointmentDue = !isPendingOrder || !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
@@ -306,7 +371,106 @@ export function OverviewTab({
                         <span className="font-medium text-galla-ink-soft">{order.lastUpdatedTime}</span>
                       </div>
                     )}
-                    {isPendingOrder && order.scheduledFor && (() => {
+                    {isDueOrder && !order.scheduledFor && (
+                      <div className="mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setReschedulingOrder(order)}
+                          className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
+                          title="Click to set payment due date"
+                        >
+                          <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                          <span>Set Due Date</span>
+                          <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                            + Add
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                    {(isPendingOrder || isDueOrder) && order.scheduledFor && (() => {
+                      if (isDueOrder) {
+                        const isToday = urgency?.tone === "today";
+                        const isOverdue = urgency?.tone === "overdue";
+                        const isUrgent = Boolean(isToday || isOverdue);
+
+                        const dateStr = formatBookingDate(order.scheduledFor);
+                        const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
+                        const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
+
+                        const badgeStyle = isOverdue
+                          ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                          : isToday
+                          ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
+                          : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
+
+                        const badgeLabel = isOverdue
+                          ? `⚠️ Overdue Due Date (${fullSlotStr})`
+                          : isToday
+                          ? `🚨 Due Today (${fullSlotStr})`
+                          : `Due: ${fullSlotStr}`;
+
+                        const showContactOptions = isUrgent;
+
+                        const waUrl = showContactOptions
+                          ? getWhatsAppReminderUrl({
+                              phone: order.customerPhone,
+                              customerName: order.customer,
+                              salonName: salonName || "our salon",
+                              bookingDate: order.scheduledFor,
+                              bookingTime: order.scheduledTime,
+                              orderType: order.type,
+                              productName: order.itemsSummary,
+                              orderId: order.id,
+                              pendingAmount: Math.max(0, order.amount - order.paid),
+                              isPaymentDue: true,
+                            })
+                          : null;
+
+                        return (
+                          <div className="space-y-1 mt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setReschedulingOrder(order)}
+                              className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${badgeStyle}`}
+                              title="Click to reschedule payment due date"
+                            >
+                              <Calendar className="h-3 w-3 shrink-0" />
+                              <span>{badgeLabel}</span>
+                              <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                Reschedule
+                              </span>
+                            </button>
+
+                            {showContactOptions && (
+                              <div className="flex items-center gap-1.5 pt-0.5">
+                                {order.customerPhone ? (
+                                  <a
+                                    href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                    className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
+                                    title={`Call client: ${order.customerPhone}`}
+                                  >
+                                    <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
+                                    <span>Call</span>
+                                  </a>
+                                ) : null}
+
+                                {waUrl ? (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
+                                    title="Send pending balance reminder via WhatsApp"
+                                  >
+                                    <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
+                                    <span>WhatsApp Msg</span>
+                                  </a>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
                       const isProductSale = order.type === "Product sale";
                       const isToday = urgency?.tone === "today";
                       const isTomorrow = urgency?.tone === "tomorrow";
@@ -610,6 +774,17 @@ export function OverviewTab({
       </div>
     </div>
   </div>
-</div>
+
+      <RescheduleOrderModal
+        order={reschedulingOrder}
+        isOpen={Boolean(reschedulingOrder)}
+        onClose={() => setReschedulingOrder(null)}
+        onRescheduleSuccess={(updated) => {
+          if (onRescheduleOrder) {
+            onRescheduleOrder(updated);
+          }
+        }}
+      />
+    </div>
   );
 }

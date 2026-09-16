@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { rescheduleOrderAction } from "@/app/dashboard/actions";
-import { formatBookingDate, formatAppointmentTime, getBookingUrgency } from "@/lib/utils";
+import { formatBookingDate, formatAppointmentTime, getBookingUrgency, formatRupee } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 interface RescheduleOrderModalProps {
@@ -46,6 +46,14 @@ function RescheduleOrderModalContent({
     ? new Date(order.scheduledFor).toISOString().split("T")[0]
     : todayStr;
 
+  const isDueOrder =
+    order.status === "created" ||
+    (order.paid < order.amount &&
+      order.status !== "advance_paid" &&
+      order.status !== "paid_full" &&
+      order.status !== "cancelled_refunded" &&
+      order.status !== "cancelled_converted");
+
   const [newDate, setNewDate] = useState(initialDate);
   const [newTime, setNewTime] = useState(order.scheduledTime || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,7 +63,7 @@ function RescheduleOrderModalContent({
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDate) {
-      setErrorMsg("Please select a new appointment date");
+      setErrorMsg(isDueOrder ? "Please select a payment due date" : "Please select a new appointment date");
       return;
     }
 
@@ -101,10 +109,19 @@ function RescheduleOrderModalContent({
         <div className="flex items-center justify-between px-5 py-4 border-b border-galla-line bg-galla-paper/40">
           <div>
             <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
-              Reschedule &amp; Set Time
+              {isDueOrder
+                ? order.scheduledFor
+                  ? "Reschedule Due Date"
+                  : "Set Payment Due Date"
+                : "Reschedule & Set Time"}
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
               Order {order.id} &bull; <strong className="text-galla-ink">{order.customer}</strong>
+              {order.amount > order.paid ? (
+                <span className="text-rose-700 font-semibold ml-1">
+                  (Due: {formatRupee(order.amount - order.paid)})
+                </span>
+              ) : null}
             </p>
           </div>
           <button
@@ -129,10 +146,10 @@ function RescheduleOrderModalContent({
 
             {/* Current Scheduled Date & Time */}
             <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[5px] text-[12.5px] font-sans flex items-center justify-between text-galla-ink-soft">
-              <span>Current Booking:</span>
+              <span>{isDueOrder ? "Current Due Date:" : "Current Booking:"}</span>
               <strong className="text-galla-ink font-medium">
                 {formatBookingDate(order.scheduledFor) || "Not set"}
-                {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : " (Time not set)"}
+                {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : isDueOrder ? "" : " (Time not set)"}
               </strong>
             </div>
 
@@ -141,7 +158,7 @@ function RescheduleOrderModalContent({
               {/* Date Input */}
               <div className="space-y-1.5">
                 <label className="block text-[12px] font-medium text-galla-ink">
-                  Booking Date <span className="text-red-500">*</span>
+                  {isDueOrder ? "Payment Due Date" : "Booking Date"} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -252,7 +269,7 @@ function RescheduleOrderModalContent({
                   <span>Saving...</span>
                 </>
               ) : (
-                <span>Confirm Booking Slot</span>
+                <span>{isDueOrder ? "Confirm Due Date" : "Confirm Booking Slot"}</span>
               )}
             </button>
           </div>
@@ -260,22 +277,29 @@ function RescheduleOrderModalContent({
 
         <ConfirmModal
           isOpen={showConfirm}
-          title="Confirm Reschedule"
+          title={
+            isDueOrder
+              ? order.scheduledFor
+                ? "Confirm Reschedule Due Date"
+                : "Confirm Payment Due Date"
+              : "Confirm Reschedule"
+          }
           description={
             <span>
-              Are you sure you want to reschedule Order <strong className="font-semibold text-galla-ink">#{order.id}</strong> for{" "}
+              Are you sure you want to {isDueOrder ? (order.scheduledFor ? "reschedule the payment due date for" : "set the payment due date for") : "reschedule"} Order{" "}
+              <strong className="font-semibold text-galla-ink">#{order.id}</strong> for{" "}
               <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> to{" "}
               <strong className="font-semibold text-galla-ink">{formatBookingDate(newDate)}</strong>
               {newTime ? (
                 <>
                   {" "}at <strong className="font-semibold text-galla-ink">{formatAppointmentTime(newTime)}</strong>
                 </>
-              ) : (
+              ) : isDueOrder ? "" : (
                 " (time not specified)"
               )}?
             </span>
           }
-          confirmLabel="Yes, Reschedule"
+          confirmLabel={isDueOrder ? "Yes, Confirm Due Date" : "Yes, Reschedule"}
           cancelLabel="Cancel"
           isLoading={isSubmitting}
           onConfirm={executeReschedule}

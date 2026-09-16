@@ -106,6 +106,7 @@ export function NewOrderModal({
   const [settlementMode, setSettlementMode] = useState<"completed" | "pay_later" | "advance" | "paid_full">("completed");
   const [payLaterPaid, setPayLaterPaid] = useState("");
   const [advance, setAdvance] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [bookingTime, setBookingTime] = useState("");
 
@@ -266,6 +267,7 @@ export function NewOrderModal({
     setSettlementMode("completed");
     setPayLaterPaid("");
     setAdvance("");
+    setDueDate("");
     setBookingDate(new Date().toISOString().split("T")[0]);
     setBookingTime("");
     setShowConfirm(false);
@@ -409,7 +411,7 @@ export function NewOrderModal({
         : settlementMode === "paid_full"
         ? "paid_full"
         : settlementMode === "pay_later"
-        ? (paidAmount > 0 ? "advance_paid" : "created")
+        ? "created"
         : "advance_paid";
 
       const resolvedOrderType: "Product sale" | "Service booking" | "Package sale" =
@@ -418,6 +420,10 @@ export function NewOrderModal({
           : selectedItems.some((i) => i.type === "package")
             ? "Package sale"
             : "Service booking";
+
+      const resolvedBookingDate = settlementMode === "pay_later"
+        ? (dueDate ? dueDate : undefined)
+        : (bookingDate ? bookingDate : undefined);
 
       const res = await createOrderAction({
         customerName: customer.trim(),
@@ -431,8 +437,8 @@ export function NewOrderModal({
         discountValue: discountPercent,
         discountAmount: calculatedDiscountAmount,
         paymentMode: paymentMode,
-        bookingDate: (settlementMode === "advance" || settlementMode === "paid_full") ? bookingDate : undefined,
-        bookingTime: (settlementMode === "advance" || settlementMode === "paid_full") && bookingTime ? bookingTime : undefined,
+        bookingDate: resolvedBookingDate,
+        bookingTime: settlementMode === "pay_later" ? undefined : (bookingTime ? bookingTime : undefined),
         lineItems: selectedItems.map((item) => ({
           itemId: item.id,
           itemType: item.type,
@@ -1167,6 +1173,31 @@ export function NewOrderModal({
                   />
                 </div>
 
+                {/* Optional Expected Due Date */}
+                <div className="space-y-1 pt-0.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11.5px] font-medium text-galla-ink">
+                      Expected Payment Due Date <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                    </label>
+                    {dueDate && (
+                      <button
+                        type="button"
+                        onClick={() => setDueDate("")}
+                        className="text-[10.5px] text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
+                      >
+                        Clear date
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none focus:border-amber-500 transition-all cursor-pointer"
+                  />
+                </div>
+
                 <div className="text-[11.5px] text-galla-ink-soft pt-1 leading-snug">
                   ℹ️ Order will be recorded as <strong className="text-amber-800 font-semibold">Payment Due</strong> and product/service delivered immediately. You can settle the remaining balance anytime in the Orders tab.
                 </div>
@@ -1395,6 +1426,14 @@ export function NewOrderModal({
               ) : (
                 <>
                   <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> marked as pending due to be paid later
+                </>
+              )}
+              {dueDate && (
+                <>
+                  , with expected payment due by{" "}
+                  <strong className="font-semibold text-galla-ink">
+                    {formatBookingDate(dueDate)}
+                  </strong>
                 </>
               )}
               ?

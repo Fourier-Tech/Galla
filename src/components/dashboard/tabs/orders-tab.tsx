@@ -286,8 +286,10 @@ export function OrdersTab({
     }
 
     return [...displayedOrders].sort((a, b) => {
-      const isPendingA = a.status === "advance_paid" || a.status === "created" || a.status === "paid_full";
-      const isPendingB = b.status === "advance_paid" || b.status === "created" || b.status === "paid_full";
+      const isDueA = a.status === "created" || (a.paid < a.amount && a.status !== "advance_paid" && a.status !== "paid_full" && a.status !== "cancelled_refunded" && a.status !== "cancelled_converted");
+      const isDueB = b.status === "created" || (b.paid < b.amount && b.status !== "advance_paid" && b.status !== "paid_full" && b.status !== "cancelled_refunded" && b.status !== "cancelled_converted");
+      const isPendingA = a.status === "advance_paid" || a.status === "paid_full" || isDueA;
+      const isPendingB = b.status === "advance_paid" || b.status === "paid_full" || isDueB;
       const urgencyA = isPendingA && a.scheduledFor ? getBookingUrgency(a.scheduledFor) : null;
       const urgencyB = isPendingB && b.scheduledFor ? getBookingUrgency(b.scheduledFor) : null;
 
@@ -528,7 +530,14 @@ export function OrdersTab({
                   order.status === "cancelled_refunded" &&
                   Boolean(order.refundAmount && order.paid > 0);
                 const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full";
-                const urgency = isPendingOrder && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+                const isDueOrder =
+                  order.status === "created" ||
+                  (order.paid < order.amount &&
+                    order.status !== "advance_paid" &&
+                    order.status !== "paid_full" &&
+                    order.status !== "cancelled_refunded" &&
+                    order.status !== "cancelled_converted");
+                const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
                 // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
                 const isAppointmentDue = !isPendingOrder || !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
@@ -554,7 +563,115 @@ export function OrdersTab({
                           <span className="font-medium text-galla-ink-soft">{order.lastUpdatedTime}</span>
                         </div>
                       )}
-                      {isPendingOrder && order.scheduledFor && (() => {
+                      {isDueOrder && !order.scheduledFor && (
+                        <div className="mt-1">
+                          <button
+                            type="button"
+                            onClick={() => setReschedulingOrder(order)}
+                            className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
+                            title="Click to set payment due date"
+                          >
+                            <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                            <span>Set Due Date</span>
+                            <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                              + Add
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                      {(isPendingOrder || isDueOrder) && order.scheduledFor && (() => {
+                        if (isDueOrder) {
+                          const isToday = urgency?.tone === "today";
+                          const isOverdue = urgency?.tone === "overdue";
+                          const isUrgent = Boolean(isToday || isOverdue);
+
+                          const dateStr = formatBookingDate(order.scheduledFor);
+                          const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
+                          const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
+
+                          const badgeStyle = isOverdue
+                            ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                            : isToday
+                            ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
+                            : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
+
+                          const badgeLabel = isOverdue
+                            ? `⚠️ Overdue Due Date (${fullSlotStr})`
+                            : isToday
+                            ? `🚨 Due Today (${fullSlotStr})`
+                            : `Due: ${fullSlotStr}`;
+
+                          const showContactOptions = isUrgent;
+
+                          const waUrl = showContactOptions
+                            ? getWhatsAppReminderUrl({
+                                phone: order.customerPhone,
+                                customerName: order.customer,
+                                salonName: salonName || "our salon",
+                                bookingDate: order.scheduledFor,
+                                bookingTime: order.scheduledTime,
+                                orderType: order.type,
+                                productName: order.itemsSummary,
+                                orderId: order.id,
+                                pendingAmount: Math.max(0, order.amount - order.paid),
+                                isPaymentDue: true,
+                              })
+                            : null;
+
+                          return (
+                            <div className="mt-1.5 space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setReschedulingOrder(order)}
+                                  className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${badgeStyle}`}
+                                  title="Click to reschedule payment due date"
+                                >
+                                  <Calendar className="h-3 w-3 shrink-0" />
+                                  <span>{badgeLabel}</span>
+                                  <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                    Reschedule
+                                  </span>
+                                </button>
+                              </div>
+
+                              {showContactOptions && (
+                                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                  {order.customerPhone ? (
+                                    <a
+                                      href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                      className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                      title={`Call client: ${order.customerPhone}`}
+                                    >
+                                      <Phone className="h-3 w-3 text-amber-800 shrink-0" />
+                                      <span>Call</span>
+                                    </a>
+                                  ) : null}
+
+                                  {waUrl ? (
+                                    <a
+                                      href={waUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
+                                      title="Send pending balance reminder via WhatsApp"
+                                    >
+                                      <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
+                                      <span>WhatsApp Msg</span>
+                                    </a>
+                                  ) : null}
+
+                                  {!order.customerPhone && (
+                                    <span className="text-[11px] text-galla-ink-soft/70 italic">
+                                      No phone recorded
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
                         if (!urgency) {
                           return (
                             <button

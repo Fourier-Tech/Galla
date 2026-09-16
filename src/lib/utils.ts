@@ -206,6 +206,7 @@ export function getWhatsAppReminderUrl(options: {
   productName?: string;
   orderId?: string;
   pendingAmount?: number;
+  isPaymentDue?: boolean;
 }): string | null {
   if (!options.phone) return null;
   const cleaned = options.phone.replace(/\D/g, "");
@@ -221,6 +222,21 @@ export function getWhatsAppReminderUrl(options: {
 
   const formattedDate = formatBookingDate(options.bookingDate);
   const formattedTime = formatAppointmentTime(options.bookingTime);
+
+  // Payment Due reminder format
+  if (options.isPaymentDue) {
+    const dueAmountStr = options.pendingAmount && options.pendingAmount > 0
+      ? ` of *${formatRupee(options.pendingAmount)}*`
+      : "";
+
+    const message =
+      `Hello ${options.customerName}! 👋\n\n` +
+      `This is a friendly reminder from *${options.salonName || "our salon"}* regarding your pending balance${dueAmountStr}.\n\n` +
+      `Please let us know when you would like to clear the payment, or visit us at your convenience.\n\n` +
+      `Thank you!`;
+
+    return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+  }
 
   // Product pickup message format
   if (options.orderType === "Product sale") {

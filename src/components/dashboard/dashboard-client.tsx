@@ -84,6 +84,12 @@ export function DashboardClient({
     setActiveTab("orders");
   };
 
+  const handleNavigateToDueOrders = () => {
+    setOrdersFilter("created");
+    setOrdersNavKey((k) => k + 1);
+    setActiveTab("orders");
+  };
+
   const handleSelectTab = (tab: TabId) => {
     if (tab === "orders") {
       setOrdersFilter("all");
@@ -355,9 +361,11 @@ export function DashboardClient({
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
               onNavigateToAdvanceOrders={handleNavigateToAdvanceOrders}
+              onNavigateToDueOrders={handleNavigateToDueOrders}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}
               onOpenSettle={(order) => setSettleOrder(order)}
+              onRescheduleOrder={handleRescheduleOrder}
               onNavigateToInventory={() => setActiveTab("inventory")}
             />
           )}
