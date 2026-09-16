@@ -16,15 +16,18 @@ export interface DashboardOrder {
   id: string;
   customer: string;
   type: OrderType;
+  itemsSummary?: string;
   amount: number;
   paid: number;
   todayPaid?: number;
   status: OrderStatus;
   time: string;
+  lastUpdatedTime?: string;
   isToday?: boolean;
   isLast24Hours?: boolean;
   createdAt?: string;
   completedAt?: string;
+  latestActivityAt?: string;
   refundAmount?: number;
   refundReason?: string;
   paymentMode?: DashboardPaymentMode;

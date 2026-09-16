@@ -226,36 +226,66 @@ export default async function DashboardPage() {
         const hasLast24hPayment = Boolean(
           o.payments && Array.isArray(o.payments) && o.payments.some((p: any) => p.recordedAt && checkIsLast24Hours(p.recordedAt))
         );
-        const isToday = checkIsToday(o.createdAt) || Boolean(o.completedAt && checkIsToday(o.completedAt)) || hasTodayPayment;
-        const isLast24Hours = checkIsLast24Hours(o.createdAt) || Boolean(o.completedAt && checkIsLast24Hours(o.completedAt)) || hasLast24hPayment;
+        const hasTodayRefund = Boolean(o.refundDetails?.refundedAt && checkIsToday(o.refundDetails.refundedAt));
+        const hasLast24hRefund = Boolean(o.refundDetails?.refundedAt && checkIsLast24Hours(o.refundDetails.refundedAt));
+        const isToday = checkIsToday(o.createdAt) || Boolean(o.completedAt && checkIsToday(o.completedAt)) || hasTodayPayment || hasTodayRefund;
+        const isLast24Hours = checkIsLast24Hours(o.createdAt) || Boolean(o.completedAt && checkIsLast24Hours(o.completedAt)) || hasLast24hPayment || hasLast24hRefund;
 
         const todayPaid = (() => {
+          let rawTodayPaid = 0;
           if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
-            return o.payments
+            rawTodayPaid = o.payments
               .filter((p: any) => p.recordedAt && checkIsToday(p.recordedAt))
               .reduce((sum: number, p: any) => sum + (typeof p.amount === "number" && !isNaN(p.amount) ? p.amount : 0), 0);
+          } else {
+            rawTodayPaid = checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
           }
-          return checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
+
+          if (o.status === "cancelled_refunded") {
+            const netRetained = typeof o.amountPaid === "number" ? Math.max(0, o.amountPaid) : 0;
+            return Math.min(rawTodayPaid, netRetained);
+          }
+          return rawTodayPaid;
         })();
 
         const latestPaymentDate = (o.payments && Array.isArray(o.payments) && o.payments.length > 0)
           ? o.payments[o.payments.length - 1]?.recordedAt
           : null;
-        const latestActivityDate = o.completedAt || latestPaymentDate || o.createdAt;
+        const refundedDate = o.refundDetails?.refundedAt || null;
+        const candidateTimestamps = [
+          o.createdAt ? new Date(o.createdAt).getTime() : 0,
+          o.completedAt ? new Date(o.completedAt).getTime() : 0,
+          latestPaymentDate ? new Date(latestPaymentDate).getTime() : 0,
+          refundedDate ? new Date(refundedDate).getTime() : 0,
+        ].filter(Boolean);
+
+        const latestActivityDate = candidateTimestamps.length > 0
+          ? new Date(Math.max(...candidateTimestamps))
+          : (o.createdAt ? new Date(o.createdAt) : new Date());
+
+        const isMeaningfullyUpdated = Boolean(
+          latestActivityDate &&
+          o.createdAt &&
+          new Date(latestActivityDate).getTime() - new Date(o.createdAt).getTime() > 60 * 1000
+        );
+        const lastUpdatedTime = isMeaningfullyUpdated ? formatOrderTime(latestActivityDate) : undefined;
 
         return {
           id: o.orderNumber,
           customer: o.customerSnapshot?.name || "Walk-in Customer",
           type: mapOrderType(o.orderType),
+          itemsSummary: o.lineItems && Array.isArray(o.lineItems) ? o.lineItems.map((li: any) => li.name).filter(Boolean).join(", ") : undefined,
           amount: typeof o.totalAmount === "number" && !isNaN(o.totalAmount) ? o.totalAmount : 0,
           paid: typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0,
           todayPaid,
           status: o.status as OrderStatus,
-          time: formatOrderTime(latestActivityDate),
+          time: formatOrderTime(o.createdAt),
+          lastUpdatedTime,
           isToday,
           isLast24Hours,
           createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
           completedAt: o.completedAt ? new Date(o.completedAt).toISOString() : undefined,
+          latestActivityAt: latestActivityDate ? new Date(latestActivityDate).toISOString() : undefined,
           scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
           scheduledTime: o.scheduledTime || undefined,
           customerPhone: o.customerSnapshot?.phone || undefined,
@@ -292,6 +322,14 @@ export default async function DashboardPage() {
             return undefined;
           })(),
         };
+      });
+
+      // Sort initialOrders by latest activity (settlements, completions, refunds, or creation) descending
+      // This ensures orders settled/updated today (like #1061) are grouped chronologically with today's entries
+      initialOrders.sort((a, b) => {
+        const timeA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
       });
 
       initialProducts = rawProducts.map((p) => ({

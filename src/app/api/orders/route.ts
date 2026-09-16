@@ -52,18 +52,18 @@ export async function GET(request: Request) {
     const endDate = searchParams.get("endDate") || "";
     const sortOrder = searchParams.get("sortOrder") === "oldest" ? "oldest" : "newest";
 
-    const query: Record<string, unknown> = { tenantId };
+    const conditions: Record<string, unknown>[] = [{ tenantId }];
 
     // Status filter
     if (status && status !== "all") {
       if (status === "advance_paid") {
-        query.status = { $in: ["advance_paid", "paid_full"] };
+        conditions.push({ status: { $in: ["advance_paid", "paid_full"] } });
       } else {
-        query.status = status;
+        conditions.push({ status });
       }
     }
 
-    // Date range filter
+    // Date range filter: matches creation OR activity date (completion, payment settlement, refund, or updates)
     if (startDate || endDate) {
       const dateFilter: { $gte?: Date; $lte?: Date } = {};
       if (startDate && endDate) {
@@ -76,26 +76,37 @@ export async function GET(request: Request) {
       } else if (endDate) {
         dateFilter.$lte = new Date(`${endDate}T23:59:59.999`);
       }
-      query.createdAt = dateFilter;
+      conditions.push({
+        $or: [
+          { createdAt: dateFilter },
+          { completedAt: dateFilter },
+          { "payments.recordedAt": dateFilter },
+          { "refundDetails.refundedAt": dateFilter },
+        ],
+      });
     }
 
     // Search filter (orderNumber, customer name, phone, status, or refund reason)
     if (search) {
       const regex = new RegExp(search, "i");
-      query.$or = [
-        { orderNumber: regex },
-        { "customerSnapshot.name": regex },
-        { "customerSnapshot.phone": regex },
-        { status: regex },
-        { "refundDetails.refundReason": regex },
-      ];
+      conditions.push({
+        $or: [
+          { orderNumber: regex },
+          { "customerSnapshot.name": regex },
+          { "customerSnapshot.phone": regex },
+          { status: regex },
+          { "refundDetails.refundReason": regex },
+        ],
+      });
     }
+
+    const query = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
     const sortDirection = sortOrder === "oldest" ? 1 : -1;
     const sortQuery: Record<string, 1 | -1> =
       status === "advance_paid" && !searchParams.get("sortOrder")
         ? { scheduledFor: 1, createdAt: -1 }
-        : { createdAt: sortDirection };
+        : { updatedAt: sortDirection, createdAt: sortDirection };
 
     const [totalCount, rawOrders, statusAgg, overallTotal] = await Promise.all([
       Order.countDocuments(query),
@@ -134,22 +145,49 @@ export async function GET(request: Request) {
       const hasLast24hPayment = Boolean(
         o.payments && Array.isArray(o.payments) && o.payments.some((p: any) => p.recordedAt && checkIsLast24Hours(p.recordedAt))
       );
-      const isToday = checkIsToday(o.createdAt) || Boolean(o.completedAt && checkIsToday(o.completedAt)) || hasTodayPayment;
-      const isLast24Hours = checkIsLast24Hours(o.createdAt) || Boolean(o.completedAt && checkIsLast24Hours(o.completedAt)) || hasLast24hPayment;
+      const hasTodayRefund = Boolean(o.refundDetails?.refundedAt && checkIsToday(o.refundDetails.refundedAt));
+      const hasLast24hRefund = Boolean(o.refundDetails?.refundedAt && checkIsLast24Hours(o.refundDetails.refundedAt));
+      const isToday = checkIsToday(o.createdAt) || Boolean(o.completedAt && checkIsToday(o.completedAt)) || hasTodayPayment || hasTodayRefund;
+      const isLast24Hours = checkIsLast24Hours(o.createdAt) || Boolean(o.completedAt && checkIsLast24Hours(o.completedAt)) || hasLast24hPayment || hasLast24hRefund;
 
       const todayPaid = (() => {
+        let rawTodayPaid = 0;
         if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
-          return o.payments
+          rawTodayPaid = o.payments
             .filter((p: any) => p.recordedAt && checkIsToday(p.recordedAt))
             .reduce((sum: number, p: any) => sum + (typeof p.amount === "number" && !isNaN(p.amount) ? p.amount : 0), 0);
+        } else {
+          rawTodayPaid = checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
         }
-        return checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
+
+        if (o.status === "cancelled_refunded") {
+          const netRetained = typeof o.amountPaid === "number" ? Math.max(0, o.amountPaid) : 0;
+          return Math.min(rawTodayPaid, netRetained);
+        }
+        return rawTodayPaid;
       })();
 
       const latestPaymentDate = (o.payments && Array.isArray(o.payments) && o.payments.length > 0)
         ? o.payments[o.payments.length - 1]?.recordedAt
         : null;
-      const latestActivityDate = o.completedAt || latestPaymentDate || o.createdAt;
+      const refundedDate = o.refundDetails?.refundedAt || null;
+      const candidateTimestamps = [
+        o.createdAt ? new Date(o.createdAt).getTime() : 0,
+        o.completedAt ? new Date(o.completedAt).getTime() : 0,
+        latestPaymentDate ? new Date(latestPaymentDate).getTime() : 0,
+        refundedDate ? new Date(refundedDate).getTime() : 0,
+      ].filter(Boolean);
+
+      const latestActivityDate = candidateTimestamps.length > 0
+        ? new Date(Math.max(...candidateTimestamps))
+        : (o.createdAt ? new Date(o.createdAt) : new Date());
+
+      const isMeaningfullyUpdated = Boolean(
+        latestActivityDate &&
+        o.createdAt &&
+        new Date(latestActivityDate).getTime() - new Date(o.createdAt).getTime() > 60 * 1000
+      );
+      const lastUpdatedTime = isMeaningfullyUpdated ? formatOrderTime(latestActivityDate) : undefined;
 
       return {
         id: o.orderNumber,
@@ -161,15 +199,18 @@ export async function GET(request: Request) {
             : o.orderType === "package_sale"
             ? "Package sale"
             : "Product sale",
+        itemsSummary: o.lineItems && Array.isArray(o.lineItems) ? o.lineItems.map((li: any) => li.name).filter(Boolean).join(", ") : undefined,
         amount: typeof o.totalAmount === "number" && !isNaN(o.totalAmount) ? o.totalAmount : 0,
         paid: typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0,
         todayPaid,
         status: o.status,
-        time: formatOrderTime(latestActivityDate),
+        time: formatOrderTime(o.createdAt),
+        lastUpdatedTime,
         isToday,
         isLast24Hours,
         createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
         completedAt: o.completedAt ? new Date(o.completedAt).toISOString() : undefined,
+        latestActivityAt: latestActivityDate ? new Date(latestActivityDate).toISOString() : undefined,
         scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
         scheduledTime: o.scheduledTime || undefined,
         refundAmount: o.refundDetails?.refundAmount,
@@ -206,6 +247,15 @@ export async function GET(request: Request) {
         })(),
       };
     });
+
+    // In-memory sort by latest activity when viewing newest first so orders updated today are top
+    if (!sortOrder || sortOrder === "newest") {
+      orders.sort((a, b) => {
+        const timeA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+    }
 
     return NextResponse.json(
       {

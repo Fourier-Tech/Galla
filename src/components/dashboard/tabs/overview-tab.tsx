@@ -1,16 +1,17 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar } from "lucide-react";
+import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare } from "lucide-react";
 import { DashboardOrder, DashboardProduct } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl } from "@/lib/utils";
 
 interface OverviewTabProps {
   orders: DashboardOrder[];
   products: DashboardProduct[];
   expensesTotal: number;
+  salonName?: string;
   onOpenNewOrder: () => void;
   onOpenNewExpense: () => void;
   onNavigateToAdvanceOrders?: () => void;
@@ -24,6 +25,7 @@ export function OverviewTab({
   orders,
   products,
   expensesTotal,
+  salonName,
   onOpenNewOrder,
   onOpenNewExpense,
   onNavigateToAdvanceOrders,
@@ -45,23 +47,35 @@ export function OverviewTab({
     }
   };
   // Today's Total Income: sum of all revenue actually collected today across all orders (new orders, advance payments, and settlements)
-  const todayIncome = orders.reduce((sum, o) => sum + (Number(o.todayPaid ?? (o.isToday ? o.paid : 0)) || 0), 0);
+  // Excludes fully refunded orders (whose net retained amount is 0) so refunds do not inflate income
+  const todayIncome = orders.reduce((sum, o) => {
+    if (o.status === "cancelled_refunded" && (!o.paid || o.paid === 0)) {
+      return sum;
+    }
+    return sum + (Number(o.todayPaid ?? (o.isToday ? o.paid : 0)) || 0);
+  }, 0);
 
-  // Active advance payments collected today for upcoming bookings
-  const advancePayment = orders.reduce(
-    (sum, o) => ((o.status === "advance_paid" || o.status === "paid_full") ? sum + (Number(o.todayPaid ?? (o.isToday ? o.paid : 0)) || 0) : sum),
-    0
-  );
+  // Active advance payments collected today for upcoming bookings (excluding cancelled/refunded)
+  const advancePayment = orders.reduce((sum, o) => {
+    if (o.status !== "advance_paid" && o.status !== "paid_full") return sum;
+    return sum + (Number(o.todayPaid ?? (o.isToday ? o.paid : 0)) || 0);
+  }, 0);
   const pendingAmount = calculatePendingAmount(orders);
   const lowStockProducts = products.filter((p) => p.sell <= 2);
 
-  // Recent Counter Orders table shows orders from the last 24 hours, filtered by search query
+  // Recent Counter Orders table shows orders from the last 24 hours, sorted by latest activity (settlements, completions, creation)
   const recent24hOrders = useMemo(() => {
     const base = orders.filter((o) => o.isLast24Hours !== false);
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return base;
+    const sorted = [...base].sort((a, b) => {
+      const timeA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return timeB - timeA;
+    });
 
-    return base.filter((o) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sorted;
+
+    return sorted.filter((o) => {
       const idMatch = o.id?.toLowerCase().includes(q);
       const customerMatch = o.customer?.toLowerCase().includes(q);
       const typeMatch = o.type?.toLowerCase().includes(q);
@@ -286,12 +300,21 @@ export function OverviewTab({
                     <div className="font-sans text-[12px] text-galla-ink-soft truncate">
                       {order.type} &bull; {order.time}
                     </div>
+                    {order.lastUpdatedTime && (
+                      <div className="font-sans text-[11px] text-galla-ink-soft/75 mt-0.5 flex items-center gap-1 truncate">
+                        <span className="text-galla-ink-soft/60">Last update:</span>
+                        <span className="font-medium text-galla-ink-soft">{order.lastUpdatedTime}</span>
+                      </div>
+                    )}
                     {isPendingOrder && order.scheduledFor && (() => {
+                      const isProductSale = order.type === "Product sale";
                       const isToday = urgency?.tone === "today";
                       const isTomorrow = urgency?.tone === "tomorrow";
                       const isIn2Days = urgency?.tone === "in_2_days";
 
-                      const badgeStyle = isToday
+                      const badgeStyle = (isProductSale && isTomorrow)
+                        ? "text-rose-800 bg-rose-50/90 border-rose-300 font-semibold"
+                        : isToday
                         ? "text-rose-800 bg-rose-50/90 border-rose-200"
                         : isTomorrow
                         ? "text-amber-800 bg-amber-50/90 border-amber-200"
@@ -303,18 +326,70 @@ export function OverviewTab({
                       const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
                       const suffix = timeStr ? ` • ${timeStr}` : "";
 
+                      const showContactOptions = isProductSale
+                        ? (isToday || urgency?.tone === "overdue")
+                        : isTomorrow;
+
+                      const waUrl = showContactOptions
+                        ? getWhatsAppReminderUrl({
+                            phone: order.customerPhone,
+                            customerName: order.customer,
+                            salonName: salonName || "our salon",
+                            bookingDate: order.scheduledFor,
+                            bookingTime: order.scheduledTime,
+                            orderType: order.type,
+                            productName: order.itemsSummary,
+                            orderId: order.id,
+                            pendingAmount: Math.max(0, order.amount - order.paid),
+                          })
+                        : null;
+
                       return (
-                        <div className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] mt-0.5 font-medium ${badgeStyle}`}>
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          <span>
-                            {urgency?.tone === "today"
-                              ? `🚨 Today${suffix}`
-                              : urgency?.tone === "tomorrow"
-                              ? `⏰ Tomorrow${suffix}`
-                              : urgency?.tone === "in_2_days"
-                              ? `📅 In 2 Days${suffix}`
-                              : `Booked: ${dateStr}${suffix}`}
-                          </span>
+                        <div className="space-y-1 mt-0.5">
+                          <div className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium ${badgeStyle}`}>
+                            <Calendar className="h-3 w-3 shrink-0" />
+                            <span>
+                              {isProductSale && isTomorrow
+                                ? `🚨 Urgent (Tomorrow${suffix})`
+                                : isProductSale && isToday
+                                ? `🛍️ Pickup Today${suffix}`
+                                : isToday
+                                ? `🚨 Today${suffix}`
+                                : isTomorrow
+                                ? `⏰ Tomorrow${suffix}`
+                                : isIn2Days
+                                ? `📅 In 2 Days${suffix}`
+                                : `Booked: ${dateStr}${suffix}`}
+                            </span>
+                          </div>
+
+                          {showContactOptions && (
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              {order.customerPhone ? (
+                                <a
+                                  href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                  className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
+                                  title={`Call client: ${order.customerPhone}`}
+                                >
+                                  <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
+                                  <span>Call</span>
+                                </a>
+                              ) : null}
+
+                              {waUrl ? (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
+                                  title={isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
+                                >
+                                  <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
+                                  <span>{isProductSale ? "WhatsApp Msg" : "Reminder"}</span>
+                                </a>
+                              ) : null}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}

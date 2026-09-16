@@ -385,7 +385,7 @@ export function StockInModal({
               {showSuggestions && filteredSuppliers.length > 0 && (
                 <div
                   ref={dropdownRef}
-                  className="absolute top-full left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-[5px] shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
+                  className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[320px] min-w-full max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-[5px] shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
                 >
                   <div className="px-2.5 py-1 bg-galla-paper/60 text-[10.5px] font-sans font-medium text-galla-ink-soft uppercase tracking-wider">
                     Existing Suppliers ({filteredSuppliers.length})
@@ -401,27 +401,24 @@ export function StockInModal({
                         setSelectedSupplierId(s.id);
                         setShowSuggestions(false);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-galla-paper/70 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                      className="w-full text-left px-3 py-2 hover:bg-galla-paper/80 flex flex-col gap-0.5 cursor-pointer transition-colors group"
                     >
-                      <div className="min-w-0">
-                        <div className="font-heading font-medium text-[13px] text-galla-ink truncate flex items-center gap-1.5">
-                          <Building2 className="h-3.5 w-3.5 text-galla-teal shrink-0" />
-                          <span>{s.name}</span>
-                          {s.companyName && (
-                            <span className="text-[11px] font-sans text-galla-ink-soft truncate font-normal">
-                              ({s.companyName})
-                            </span>
-                          )}
-                        </div>
-                        {s.phone && (
-                          <div className="font-sans text-[11.5px] text-galla-ink-soft flex items-center gap-1 mt-0.5 ml-5">
-                            <span>Phone: {s.phone}</span>
-                          </div>
+                      <div className="flex items-center gap-1.5 w-full">
+                        <Building2 className="h-3.5 w-3.5 text-galla-teal shrink-0" />
+                        <span className="font-heading font-medium text-[13px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                          {s.name}
+                        </span>
+                        {s.companyName && (
+                          <span className="text-[11.5px] font-sans text-galla-ink-soft font-normal">
+                            ({s.companyName})
+                          </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-sans text-galla-teal font-medium bg-galla-teal-soft/40 px-2 py-0.5 rounded-[3px] shrink-0">
-                        Select
-                      </span>
+                      {s.phone && (
+                        <span className="font-mono text-[11.5px] text-galla-ink-soft pl-5">
+                          {s.phone}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

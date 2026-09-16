@@ -58,9 +58,9 @@ export function formatPhoneNumber(phone?: string | null): string {
 }
 
 export function checkIsToday(date: Date | string | undefined): boolean {
-  if (!date) return true;
+  if (!date) return false;
   const d = new Date(date);
-  if (isNaN(d.getTime())) return true;
+  if (isNaN(d.getTime())) return false;
   const now = new Date();
   return (
     d.getDate() === now.getDate() &&
@@ -70,9 +70,9 @@ export function checkIsToday(date: Date | string | undefined): boolean {
 }
 
 export function checkIsLast24Hours(date: Date | string | undefined): boolean {
-  if (!date) return true;
+  if (!date) return false;
   const d = new Date(date);
-  if (isNaN(d.getTime())) return true;
+  if (isNaN(d.getTime())) return false;
   return Date.now() - d.getTime() <= 24 * 60 * 60 * 1000;
 }
 
@@ -202,6 +202,10 @@ export function getWhatsAppReminderUrl(options: {
   salonName: string;
   bookingDate: Date | string | undefined;
   bookingTime?: string;
+  orderType?: "Product sale" | "Service booking" | "Package sale";
+  productName?: string;
+  orderId?: string;
+  pendingAmount?: number;
 }): string | null {
   if (!options.phone) return null;
   const cleaned = options.phone.replace(/\D/g, "");
@@ -218,6 +222,20 @@ export function getWhatsAppReminderUrl(options: {
   const formattedDate = formatBookingDate(options.bookingDate);
   const formattedTime = formatAppointmentTime(options.bookingTime);
 
+  // Product pickup message format
+  if (options.orderType === "Product sale") {
+    const productInfo = options.productName ? ` for *${options.productName}*` : "";
+
+    const message =
+      `Hello ${options.customerName}! 👋\n\n` +
+      `Great news! Your product order${productInfo} is available at *${options.salonName || "our salon"}* and ready for pickup! 🛍️\n\n` +
+      `Please visit us at your convenience to collect your order. Let us know if you need any assistance!\n\n` +
+      `Thank you!`;
+
+    return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+  }
+
+  // Service appointment reminder format
   const message = formattedTime
     ? `Hello ${options.customerName}! 👋\n\n` +
       `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate} at ${formattedTime}).\n\n` +
@@ -228,5 +246,5 @@ export function getWhatsAppReminderUrl(options: {
       `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
       `We look forward to welcoming you!`;
 
-  return `https://wa.me/${standardNumber}?text=${encodeURIComponent(message)}`;
+  return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
 }

@@ -168,8 +168,8 @@ export function OrdersTab({
           ...(isAdvance
             ? { advance_paid: Math.max(0, (prev.advance_paid || 1) - 1) }
             : prevStatus && prev[prevStatus] !== undefined
-            ? { [prevStatus]: Math.max(0, prev[prevStatus] - 1) }
-            : {}),
+              ? { [prevStatus]: Math.max(0, prev[prevStatus] - 1) }
+              : {}),
           completed: (prev.completed || 0) + 1,
         };
       });
@@ -291,8 +291,9 @@ export function OrdersTab({
       const urgencyA = isPendingA && a.scheduledFor ? getBookingUrgency(a.scheduledFor) : null;
       const urgencyB = isPendingB && b.scheduledFor ? getBookingUrgency(b.scheduledFor) : null;
 
-      const getTier = (u: ReturnType<typeof getBookingUrgency>) => {
+      const getTier = (u: ReturnType<typeof getBookingUrgency>, orderType?: string) => {
         if (!u) return 6;
+        if (orderType === "Product sale" && u.daysAway === 1) return 1; // 1 day before product sale is Urgent
         if (u.daysAway === 0) return 1; // 1st priority: Today
         if (u.daysAway === 1) return 2; // 2nd priority: 1 day before (Tomorrow)
         if (u.daysAway === 2) return 3; // 3rd priority: 2 days before
@@ -301,8 +302,8 @@ export function OrdersTab({
         return 6;                      // Unscheduled
       };
 
-      const tierA = getTier(urgencyA);
-      const tierB = getTier(urgencyB);
+      const tierA = getTier(urgencyA, a.type);
+      const tierB = getTier(urgencyB, b.type);
 
       if (tierA !== tierB) {
         return tierA - tierB;
@@ -313,8 +314,8 @@ export function OrdersTab({
         return urgencyA.daysAway - urgencyB.daysAway;
       }
 
-      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      const dateA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const dateB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
       return dateB - dateA;
     });
   }, [displayedOrders, filter, searchQuery, startDate, endDate]);
@@ -417,11 +418,10 @@ export function OrdersTab({
                   setEndDate(todayStr);
                 }
               }}
-              className={`px-2.5 py-1.5 rounded-[5px] text-[12px] font-sans font-medium transition-all cursor-pointer border ${
-                startDate === getLocalDateString(new Date()) && endDate === getLocalDateString(new Date())
+              className={`px-2.5 py-1.5 rounded-[5px] text-[12px] font-sans font-medium transition-all cursor-pointer border ${startDate === getLocalDateString(new Date()) && endDate === getLocalDateString(new Date())
                   ? "bg-galla-teal text-white border-galla-teal shadow-xs"
                   : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
-              }`}
+                }`}
               title="Filter orders for today only"
             >
               Today
@@ -440,11 +440,10 @@ export function OrdersTab({
                   setEndDate(todayStr);
                 }
               }}
-              className={`px-2.5 py-1.5 rounded-[5px] text-[12px] font-sans font-medium transition-all cursor-pointer border ${
-                startDate === getFirstDayOfCurrentMonth() && endDate === getLocalDateString(new Date())
+              className={`px-2.5 py-1.5 rounded-[5px] text-[12px] font-sans font-medium transition-all cursor-pointer border ${startDate === getFirstDayOfCurrentMonth() && endDate === getLocalDateString(new Date())
                   ? "bg-galla-teal text-white border-galla-teal shadow-xs"
                   : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
-              }`}
+                }`}
               title="Filter orders from the 1st of this month to today"
             >
               This Month
@@ -481,11 +480,10 @@ export function OrdersTab({
               <button
                 key={opt.id}
                 onClick={() => handleFilterClick(opt.id)}
-                className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
-                  isActive
+                className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${isActive
                     ? "bg-galla-teal text-white border-galla-teal shadow-xs"
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
-                }`}
+                  }`}
               >
                 {opt.label} ({count})
               </button>
@@ -543,190 +541,253 @@ export function OrdersTab({
                       {order.id}
                     </span>
 
-                <div className="min-w-0 pr-4">
-                  <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
-                    {order.customer}
-                  </div>
-                  <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
-                    {order.type} &bull; {order.time}
-                  </div>
-                  {isPendingOrder && order.scheduledFor && (() => {
-                    if (!urgency) {
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => setReschedulingOrder(order)}
-                          className="inline-flex items-center gap-1 font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] mt-1 font-medium hover:opacity-85 transition-all cursor-pointer group"
-                          title="Click to reschedule appointment date and time"
-                        >
-                          <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
-                          <span>
-                            Booked for: {formatBookingDate(order.scheduledFor)}
-                            {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
-                          </span>
-                          <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                            Reschedule
-                          </span>
-                        </button>
-                      );
-                    }
-
-                    const isToday = urgency.tone === "today";
-                    const isTomorrow = urgency.tone === "tomorrow";
-                    const isIn2Days = urgency.tone === "in_2_days";
-
-                    const badgeStyle = isToday
-                      ? "text-rose-800 bg-rose-50 border-rose-200"
-                      : isTomorrow
-                      ? "text-amber-900 bg-amber-50 border-amber-300"
-                      : isIn2Days
-                      ? "text-blue-800 bg-blue-50 border-blue-200"
-                      : urgency.tone === "overdue"
-                      ? "text-gray-700 bg-gray-100 border-gray-300"
-                      : "text-amber-800 bg-amber-50/90 border-amber-200/80";
-
-                    const dateStr = formatBookingDate(order.scheduledFor);
-                    const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
-                    const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
-
-                    const badgeLabel = isToday
-                      ? `🚨 Today (${fullSlotStr})`
-                      : isTomorrow
-                      ? `⏰ Tomorrow (${fullSlotStr})`
-                      : isIn2Days
-                      ? `📅 In 2 Days (${fullSlotStr})`
-                      : urgency.tone === "overdue"
-                      ? `⚠️ Overdue (${fullSlotStr})`
-                      : `Booked for: ${fullSlotStr}`;
-
-                    const waUrl = isTomorrow
-                      ? getWhatsAppReminderUrl({
-                          phone: order.customerPhone,
-                          customerName: order.customer,
-                          salonName: salonName || "our salon",
-                          bookingDate: order.scheduledFor,
-                          bookingTime: order.scheduledTime,
-                        })
-                      : null;
-
-                    return (
-                      <div className="mt-1.5 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setReschedulingOrder(order)}
-                            className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] font-medium shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${badgeStyle}`}
-                            title="Click to reschedule appointment date"
-                          >
-                            <Calendar className="h-3 w-3 shrink-0" />
-                            <span>{badgeLabel}</span>
-                            <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                              Reschedule
-                            </span>
-                          </button>
-
-                          {/* 2 Days Before: Internal Notice for Staff & Salon Owner */}
-                          {isIn2Days && (
-                            <span className="inline-flex items-center text-[11px] font-sans font-medium text-blue-700 bg-blue-50/80 border border-blue-200 px-1.5 py-0.5 rounded">
-                              Staff &amp; Owner Prep
-                            </span>
-                          )}
+                    <div className="min-w-0 pr-4">
+                      <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
+                        {order.customer}
+                      </div>
+                      <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
+                        {order.type} &bull; {order.time}
+                      </div>
+                      {order.lastUpdatedTime && (
+                        <div className="font-sans text-[11px] text-galla-ink-soft/75 mt-0.5 flex items-center gap-1 truncate">
+                          <span className="text-galla-ink-soft/60">Last update:</span>
+                          <span className="font-medium text-galla-ink-soft">{order.lastUpdatedTime}</span>
                         </div>
+                      )}
+                      {isPendingOrder && order.scheduledFor && (() => {
+                        if (!urgency) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setReschedulingOrder(order)}
+                              className="inline-flex items-center gap-1 font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] mt-1 font-medium hover:opacity-85 transition-all cursor-pointer group"
+                              title="Click to reschedule appointment date and time"
+                            >
+                              <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                              <span>
+                                Booked for: {formatBookingDate(order.scheduledFor)}
+                                {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
+                              </span>
+                              <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                Reschedule
+                              </span>
+                            </button>
+                          );
+                        }
 
-                        {/* 1 Day Before (Tomorrow): Direct Call & WhatsApp Action Buttons */}
-                        {isTomorrow && (
-                          <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                            {order.customerPhone ? (
-                              <a
-                                href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                                className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
-                                title={`Call client: ${order.customerPhone}`}
+                        const isProductSale = order.type === "Product sale";
+                        const isToday = urgency.tone === "today";
+                        const isTomorrow = urgency.tone === "tomorrow";
+                        const isIn2Days = urgency.tone === "in_2_days";
+
+                        const badgeStyle = (isProductSale && isTomorrow)
+                          ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
+                          : isToday
+                            ? "text-rose-800 bg-rose-50 border-rose-200"
+                            : isTomorrow
+                              ? "text-amber-900 bg-amber-50 border-amber-300"
+                              : isIn2Days
+                                ? "text-blue-800 bg-blue-50 border-blue-200"
+                                : urgency.tone === "overdue"
+                                  ? "text-gray-700 bg-gray-100 border-gray-300"
+                                  : "text-amber-800 bg-amber-50/90 border-amber-200/80";
+
+                        const dateStr = formatBookingDate(order.scheduledFor);
+                        const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
+                        const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
+
+                        const badgeLabel = isProductSale
+                          ? isTomorrow
+                            ? `🚨 Urgent: Expected Tomorrow (${fullSlotStr})`
+                            : isToday
+                              ? `🛍️ Ready for Pickup Today (${fullSlotStr})`
+                              : isIn2Days
+                                ? `📦 Expected in 2 Days (${fullSlotStr})`
+                                : urgency.tone === "overdue"
+                                  ? `⚠️ Pickup Overdue (${fullSlotStr})`
+                                  : `Expected Pickup: ${fullSlotStr}`
+                          : isToday
+                            ? `🚨 Today (${fullSlotStr})`
+                            : isTomorrow
+                              ? `⏰ Tomorrow (${fullSlotStr})`
+                              : isIn2Days
+                                ? `📅 In 2 Days (${fullSlotStr})`
+                                : urgency.tone === "overdue"
+                                  ? `⚠️ Overdue (${fullSlotStr})`
+                                  : `Booked for: ${fullSlotStr}`;
+
+                        // Show Call & Msg on:
+                        // - Product sale: on the selected date that day (isToday) or overdue
+                        // - Service booking: 1 day before (isTomorrow)
+                        const showContactOptions = isProductSale
+                          ? (isToday || urgency.tone === "overdue")
+                          : isTomorrow;
+
+                        const waUrl = showContactOptions
+                          ? getWhatsAppReminderUrl({
+                            phone: order.customerPhone,
+                            customerName: order.customer,
+                            salonName: salonName || "our salon",
+                            bookingDate: order.scheduledFor,
+                            bookingTime: order.scheduledTime,
+                            orderType: order.type,
+                            productName: order.itemsSummary,
+                            orderId: order.id,
+                            pendingAmount: Math.max(0, order.amount - order.paid),
+                          })
+                          : null;
+
+                        return (
+                          <div className="mt-1.5 space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setReschedulingOrder(order)}
+                                className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] font-medium shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${badgeStyle}`}
+                                title="Click to reschedule appointment date"
                               >
-                                <Phone className="h-3 w-3 text-amber-800 shrink-0" />
-                                <span>Call</span>
-                              </a>
-                            ) : null}
+                                <Calendar className="h-3 w-3 shrink-0" />
+                                <span>{badgeLabel}</span>
+                                <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                  Reschedule
+                                </span>
+                              </button>
 
-                            {waUrl ? (
-                              <a
-                                href={waUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
-                                title="Send reminder via WhatsApp"
-                              >
-                                <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
-                                <span>WhatsApp Reminder</span>
-                              </a>
-                            ) : null}
+                              {/* 2 Days Before: Internal Notice for Staff & Salon Owner */}
+                              {isIn2Days && (
+                                <span className="inline-flex items-center text-[11px] font-sans font-medium text-blue-700 bg-blue-50/80 border border-blue-200 px-1.5 py-0.5 rounded">
+                                  Staff &amp; Owner Prep
+                                </span>
+                              )}
+                            </div>
 
-                            {!order.customerPhone && (
-                              <span className="text-[11px] text-galla-ink-soft/70 italic">
-                                No phone recorded
+                            {/* Direct Call & WhatsApp Action Buttons */}
+                            {showContactOptions && (
+                              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                {order.customerPhone ? (
+                                  <a
+                                    href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                    className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                    title={`Call client: ${order.customerPhone}`}
+                                  >
+                                    <Phone className="h-3 w-3 text-amber-800 shrink-0" />
+                                    <span>Call</span>
+                                  </a>
+                                ) : null}
+
+                                {waUrl ? (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
+                                    title={isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
+                                  >
+                                    <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
+                                    <span>{isProductSale ? "WhatsApp (Msg)" : "WhatsApp Reminder"}</span>
+                                  </a>
+                                ) : null}
+
+                                {!order.customerPhone && (
+                                  <span className="text-[11px] text-galla-ink-soft/70 italic">
+                                    No phone recorded
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {order.status === "cancelled_refunded" &&
+                        order.refundReason &&
+                        order.refundReason !== "Customer requested refund" &&
+                        order.refundReason !== "Customer refund at counter" && (
+                          <div
+                            className="inline-flex items-center gap-1 font-sans text-[11.5px] text-red-700/90 mt-1 bg-red-50/80 border border-red-200/80 px-1.5 py-0.5 rounded-[4px] max-w-full truncate"
+                            title={`Refund Reason: ${order.refundReason}`}
+                          >
+                            <span className="font-semibold text-red-800 shrink-0">Reason:</span>
+                            <span className="truncate">{order.refundReason}</span>
+                          </div>
+                        )}
+                    </div>
+
+                    <div className="text-right">
+                      <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                        {formatRupee(order.amount)}
+                      </div>
+                      {order.status === "cancelled_refunded" ? (
+                        <div className="space-y-0.5 mt-0.5">
+                          {order.advanceAmount && order.advanceAmount > 0 && (
+                            <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>{formatRupee(order.advanceAmount)} adv. paid</span>
+                              {(order.advancePaymentMode || order.paymentMode) && (
+                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.advancePaymentMode || order.paymentMode}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
+                            <span>
+                              {order.refundAmount
+                                ? `${formatRupee(order.refundAmount)} refunded`
+                                : "Refunded"}
+                            </span>
+                            {order.refundMode && (
+                              <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                {order.refundMode}
                               </span>
                             )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {order.status === "cancelled_refunded" &&
-                    order.refundReason &&
-                    order.refundReason !== "Customer requested refund" &&
-                    order.refundReason !== "Customer refund at counter" && (
-                    <div
-                      className="inline-flex items-center gap-1 font-sans text-[11.5px] text-red-700/90 mt-1 bg-red-50/80 border border-red-200/80 px-1.5 py-0.5 rounded-[4px] max-w-full truncate"
-                      title={`Refund Reason: ${order.refundReason}`}
-                    >
-                      <span className="font-semibold text-red-800 shrink-0">Reason:</span>
-                      <span className="truncate">{order.refundReason}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-right">
-                  <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
-                    {formatRupee(order.amount)}
-                  </div>
-                  {order.status === "cancelled_refunded" ? (
-                    <div className="space-y-0.5 mt-0.5">
-                      {order.advanceAmount && order.advanceAmount > 0 && (
-                        <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                          <span>{formatRupee(order.advanceAmount)} adv. paid</span>
-                          {(order.advancePaymentMode || order.paymentMode) && (
-                            <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                              {order.advancePaymentMode || order.paymentMode}
-                            </span>
+                          {isPartialRefund && (
+                            <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
+                              {formatRupee(order.paid)} kept
+                            </div>
                           )}
                         </div>
-                      )}
-                      <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
-                        <span>
-                          {order.refundAmount
-                            ? `${formatRupee(order.refundAmount)} refunded`
-                            : "Refunded"}
-                        </span>
-                        {order.refundMode && (
-                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                            {order.refundMode}
-                          </span>
-                        )}
-                      </div>
-                      {isPartialRefund && (
-                        <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                          {formatRupee(order.paid)} kept
+                      ) : order.status === "cancelled_converted" ? (
+                        <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
+                          Converted
                         </div>
-                      )}
-                    </div>
-                  ) : order.status === "cancelled_converted" ? (
-                    <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
-                      Converted
-                    </div>
-                  ) : order.paid < order.amount ? (
-                    <div className="space-y-0.5 mt-0.5">
-                      {order.paid > 0 && (
-                        <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                          <span>{formatRupee(order.paid)} adv.</span>
+                      ) : order.paid < order.amount ? (
+                        <div className="space-y-0.5 mt-0.5">
+                          {order.paid > 0 && (
+                            <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>{formatRupee(order.paid)} adv.</span>
+                              {order.paymentMode && (
+                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.paymentMode}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
+                            {formatRupee(order.amount - order.paid)} due
+                          </div>
+                        </div>
+                      ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < order.amount ? (
+                        <div className="space-y-0.5 mt-0.5">
+                          <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                            <span>{formatRupee(order.advanceAmount)} adv.</span>
+                            {order.advancePaymentMode && (
+                              <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                {order.advancePaymentMode}
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                            <span>{formatRupee(order.amount - order.advanceAmount)} settled</span>
+                            {order.paymentMode && (
+                              <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                {order.paymentMode}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
+                          <span>Settled</span>
                           {order.paymentMode && (
                             <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                               {order.paymentMode}
@@ -734,138 +795,105 @@ export function OrdersTab({
                           )}
                         </div>
                       )}
-                      <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
-                        {formatRupee(order.amount - order.paid)} due
-                      </div>
                     </div>
-                  ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < order.amount ? (
-                    <div className="space-y-0.5 mt-0.5">
-                      <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                        <span>{formatRupee(order.advanceAmount)} adv.</span>
-                        {order.advancePaymentMode && (
-                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                            {order.advancePaymentMode}
-                          </span>
-                        )}
-                      </div>
-                      <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                        <span>{formatRupee(order.amount - order.advanceAmount)} settled</span>
-                        {order.paymentMode && (
-                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                            {order.paymentMode}
-                          </span>
-                        )}
-                      </div>
+
+                    <div className="flex justify-center">
+                      <StatusPill
+                        status={order.status}
+                        customLabel={
+                          isPartialRefund && order.refundAmount
+                            ? `${formatRupee(order.refundAmount)} Refunded`
+                            : undefined
+                        }
+                        title={order.refundReason ? `Reason: ${order.refundReason}` : undefined}
+                      />
                     </div>
-                  ) : (
-                    <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
-                      <span>Settled</span>
-                      {order.paymentMode && (
-                        <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                          {order.paymentMode}
-                        </span>
+
+                    <div className="flex items-center justify-end gap-2">
+                      {order.status === "completed" ? (
+                        onOpenRefund && order.paid > 0 ? (
+                          <button
+                            onClick={() => onOpenRefund(order)}
+                            className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
+                            title="Process refund for this order"
+                          >
+                            Refund
+                          </button>
+                        ) : (
+                          <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                        )
+                      ) : order.status === "paid_full" ? (
+                        <>
+                          {isAppointmentDue && (
+                            <button
+                              onClick={() => handleComplete(order.id)}
+                              disabled={loadingId === order.id}
+                              className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                              title="Mark service as completed"
+                            >
+                              {loadingId === order.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                              ) : (
+                                <>
+                                  <span>Mark Done</span>
+                                  <Check className="h-3.5 w-3.5 text-green-700" />
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {onOpenRefund && order.paid > 0 ? (
+                            <button
+                              onClick={() => onOpenRefund(order)}
+                              className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
+                              title="Process refund"
+                            >
+                              Refund
+                            </button>
+                          ) : !isAppointmentDue ? (
+                            <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                          ) : null}
+                        </>
+                      ) : order.status === "advance_paid" || order.status === "created" ? (
+                        <>
+                          {isAppointmentDue && (
+                            <button
+                              onClick={() => (onOpenSettle ? onOpenSettle(order) : handleComplete(order.id))}
+                              disabled={loadingId === order.id}
+                              className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                              title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
+                            >
+                              {loadingId === order.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                              ) : (
+                                <>
+                                  <span>Settle &amp; Done</span>
+                                  <Check className="h-3.5 w-3.5 text-green-700" />
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {onOpenRefund && order.paid > 0 ? (
+                            <button
+                              onClick={() => onOpenRefund(order)}
+                              className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
+                              title="Process refund"
+                            >
+                              Refund
+                            </button>
+                          ) : !isAppointmentDue ? (
+                            <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                       )}
                     </div>
-                  )}
-                </div>
-
-                <div className="flex justify-center">
-                  <StatusPill
-                    status={order.status}
-                    customLabel={
-                      isPartialRefund && order.refundAmount
-                        ? `${formatRupee(order.refundAmount)} Refunded`
-                        : undefined
-                    }
-                    title={order.refundReason ? `Reason: ${order.refundReason}` : undefined}
-                  />
-                </div>
-
-              <div className="flex items-center justify-end gap-2">
-                {order.status === "completed" ? (
-                  onOpenRefund && order.paid > 0 ? (
-                    <button
-                      onClick={() => onOpenRefund(order)}
-                      className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
-                      title="Process refund for this order"
-                    >
-                      Refund
-                    </button>
-                  ) : (
-                    <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                  )
-                ) : order.status === "paid_full" ? (
-                  <>
-                    {isAppointmentDue && (
-                      <button
-                        onClick={() => handleComplete(order.id)}
-                        disabled={loadingId === order.id}
-                        className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                        title="Mark service as completed"
-                      >
-                        {loadingId === order.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                        ) : (
-                          <>
-                            <span>Mark Done</span>
-                            <Check className="h-3.5 w-3.5 text-green-700" />
-                          </>
-                        )}
-                      </button>
-                    )}
-                    {onOpenRefund && order.paid > 0 ? (
-                      <button
-                        onClick={() => onOpenRefund(order)}
-                        className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
-                        title="Process refund"
-                      >
-                        Refund
-                      </button>
-                    ) : !isAppointmentDue ? (
-                      <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                    ) : null}
-                  </>
-                ) : order.status === "advance_paid" || order.status === "created" ? (
-                  <>
-                    {isAppointmentDue && (
-                      <button
-                        onClick={() => (onOpenSettle ? onOpenSettle(order) : handleComplete(order.id))}
-                        disabled={loadingId === order.id}
-                        className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                        title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
-                      >
-                        {loadingId === order.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                        ) : (
-                          <>
-                            <span>Settle &amp; Done</span>
-                            <Check className="h-3.5 w-3.5 text-green-700" />
-                          </>
-                        )}
-                      </button>
-                    )}
-                    {onOpenRefund && order.paid > 0 ? (
-                      <button
-                        onClick={() => onOpenRefund(order)}
-                        className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
-                        title="Process refund"
-                      >
-                        Refund
-                      </button>
-                    ) : !isAppointmentDue ? (
-                      <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                    ) : null}
-                  </>
-                ) : (
-                  <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                )}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-    </div>
-  </div>
+          </div>
+        </div>
 
         {displayedOrders.length === 0 && (
           <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft space-y-2">
@@ -875,14 +903,14 @@ export function OrdersTab({
                   ? `No orders found for ${formatDisplayDate(startDate)}.`
                   : `No orders found between ${formatDisplayDate(startDate)} and ${formatDisplayDate(endDate)}.`
                 : startDate
-                ? `No orders found from ${formatDisplayDate(startDate)} onwards.`
-                : endDate
-                ? `No orders found up to ${formatDisplayDate(endDate)}.`
-                : searchQuery
-                ? `No orders matching "${searchQuery}".`
-                : filter !== "all"
-                ? "No orders found in this status category."
-                : "No orders recorded yet."}
+                  ? `No orders found from ${formatDisplayDate(startDate)} onwards.`
+                  : endDate
+                    ? `No orders found up to ${formatDisplayDate(endDate)}.`
+                    : searchQuery
+                      ? `No orders matching "${searchQuery}".`
+                      : filter !== "all"
+                        ? "No orders found in this status category."
+                        : "No orders recorded yet."}
             </p>
             {(searchQuery || startDate || endDate || filter !== "all") && (
               <button

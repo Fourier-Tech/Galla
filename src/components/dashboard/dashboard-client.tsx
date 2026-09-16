@@ -351,6 +351,7 @@ export function DashboardClient({
               orders={orders}
               products={products}
               expensesTotal={expensesTotal}
+              salonName={salonProfile.name || salonName}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
               onNavigateToAdvanceOrders={handleNavigateToAdvanceOrders}

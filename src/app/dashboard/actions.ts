@@ -48,7 +48,7 @@ import {
   DashboardPaymentMode,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
-import { formatPhoneNumber, checkIsToday } from "@/lib/utils";
+import { formatPhoneNumber, checkIsToday, formatOrderTime } from "@/lib/utils";
 
 interface SessionLike {
   user?: {
@@ -169,35 +169,43 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       const orderCount = await Order.countDocuments({ tenantId }).session(dbSession);
       const orderNumber = `#${1042 + orderCount}`;
 
-      // Pillar 4: Backorder / Advance Support
-      // Do NOT block order creation when sellStock is 0 or insufficient.
-      // Clamp stock decrement to available (never go negative!), mark partial fulfillment.
+      // Advance / Pre-order Support:
+      // If customer is paying advance or booking for future pickup, counter orders specially for them.
+      // Do NOT deduct current counter shelf stock at order creation time; shelf stock is kept intact for walk-ins.
+      // Stock will be deducted upon customer pickup when the order is completed.
+      const isAdvancePreOrder = Boolean(input.bookingDate) || input.status === "advance_paid";
       let hasUnfulfilledProduct = false;
+
       for (const item of mappedLineItems) {
         if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
           const prod = await Product.findOne({ _id: item.itemId, tenantId }).session(dbSession);
           if (prod) {
             // Snapshot current purchaseCost for profit calculation
             item.purchaseCost = typeof prod.purchaseCost === "number" ? prod.purchaseCost : 0;
-            const available = Math.max(0, prod.sellStock);
-            const requested = item.quantity || 1;
-            if (available >= requested) {
-              prod.sellStock -= requested;
-              item.fulfilled = isFullPayment;
-            } else {
-              // Insufficient stock: clamp decrement so sellStock never goes negative (never below 0)
-              prod.sellStock = 0;
-              item.fulfilled = false; // Track as backorder / unfulfilled
+            if (isAdvancePreOrder) {
+              item.fulfilled = false;
               hasUnfulfilledProduct = true;
+            } else {
+              const available = Math.max(0, prod.sellStock);
+              const requested = item.quantity || 1;
+              if (available >= requested) {
+                prod.sellStock -= requested;
+                item.fulfilled = isFullPayment;
+              } else {
+                // Insufficient stock: clamp decrement so sellStock never goes negative (never below 0)
+                prod.sellStock = 0;
+                item.fulfilled = false; // Track as backorder / unfulfilled
+                hasUnfulfilledProduct = true;
+              }
+              await prod.save({ session: dbSession });
             }
-            await prod.save({ session: dbSession });
           }
         }
       }
 
       let orderInitialStatus = input.status;
-      if (hasUnfulfilledProduct && (orderInitialStatus === "paid_full" || orderInitialStatus === "completed")) {
-        orderInitialStatus = input.paidAmount > 0 ? "advance_paid" : "created";
+      if (hasUnfulfilledProduct && orderInitialStatus === "completed") {
+        orderInitialStatus = input.paidAmount > 0 ? "paid_full" : "created";
       }
 
       const [createdOrder] = await Order.create(
@@ -323,6 +331,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         scheduledFor: newDoc.scheduledFor ? new Date(newDoc.scheduledFor).toISOString() : undefined,
         scheduledTime: newDoc.scheduledTime || undefined,
         customerPhone: formattedPhone || undefined,
+        itemsSummary: (newDoc.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
+        latestActivityAt: new Date().toISOString(),
       },
     };
   } catch (error) {
@@ -420,11 +430,19 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       );
     }
 
-    // Mark line items fulfilled
+    // Mark line items fulfilled & deduct stock upon customer pickup for backordered / pre-ordered products
     if (order.lineItems && order.lineItems.length > 0) {
-      order.lineItems.forEach((item) => {
+      for (const item of order.lineItems) {
+        if (!item.fulfilled && item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
+          const prod = await Product.findOne({ _id: item.itemId, tenantId });
+          if (prod) {
+            const qty = item.quantity || 1;
+            prod.sellStock = Math.max(0, prod.sellStock - qty);
+            await prod.save();
+          }
+        }
         item.fulfilled = true;
-      });
+      }
     }
 
     await order.save();
@@ -451,7 +469,8 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         amount: order.totalAmount,
         paid: order.amountPaid,
         status: "completed",
-        time: "Today, Just now",
+        time: formatOrderTime(order.createdAt),
+        lastUpdatedTime: "Today, Just now",
         isToday: true,
         isLast24Hours: true,
         todayPaid: calculatedTodayPaid,
@@ -463,6 +482,8 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
         scheduledTime: order.scheduledTime || undefined,
         customerPhone: order.customerSnapshot?.phone || undefined,
+        itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
+        latestActivityAt: order.completedAt ? new Date(order.completedAt).toISOString() : new Date().toISOString(),
       },
     };
   } catch (error) {
@@ -530,7 +551,8 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
         amount: order.totalAmount,
         paid: order.amountPaid,
         status: order.status,
-        time: "Today, Just now",
+        time: formatOrderTime(order.createdAt),
+        lastUpdatedTime: "Today, Just now",
         isToday: true,
         isLast24Hours: true,
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
@@ -538,6 +560,8 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
         advanceAmount: order.status === "advance_paid" ? order.amountPaid : undefined,
         scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
         scheduledTime: order.scheduledTime || undefined,
+        itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
+        latestActivityAt: new Date().toISOString(),
       },
     };
   } catch (error) {
@@ -698,11 +722,14 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         type: mappedType,
         amount: order.totalAmount,
         paid: order.amountPaid,
+        todayPaid: Math.max(0, order.amountPaid),
         status: "cancelled_refunded",
-        time: "Today, Just now",
+        time: formatOrderTime(order.createdAt),
+        lastUpdatedTime: "Today, Just now",
         isToday: isSameDay,
         isLast24Hours: true,
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+        latestActivityAt: new Date().toISOString(),
         refundAmount: refundAmount,
         refundReason: order.refundDetails?.refundReason || refundReason?.trim() || undefined,
         paymentMode: order.paymentMode,

@@ -1133,8 +1133,16 @@ export function NewOrderModal({
               >
                 <option value="completed">Completed (Paid in full now)</option>
                 <option value="pay_later">Pay Later / Due (Delivery now, payment later)</option>
-                <option value="advance">Advance Booking (Partial deposit, appointment later)</option>
-                <option value="paid_full">Advance Booking (Paid in full, appointment later)</option>
+                <option value="advance">
+                  {orderType === "Product sale"
+                    ? "Pre-order / Advance (Partial deposit, pickup later)"
+                    : "Advance Booking (Partial deposit, appointment later)"}
+                </option>
+                <option value="paid_full">
+                  {orderType === "Product sale"
+                    ? "Pre-order (Paid in full, pickup later)"
+                    : "Advance Booking (Paid in full, appointment later)"}
+                </option>
               </select>
             </div>
 
@@ -1203,7 +1211,8 @@ export function NewOrderModal({
                     {/* Booking Date */}
                     <div className="space-y-1">
                       <label className="block text-[11.5px] font-medium text-galla-ink whitespace-nowrap">
-                        Appointment Date <span className="text-red-500">*</span>
+                        {orderType === "Product sale" ? "Expected Pickup / Arrival Date" : "Appointment Date"}{" "}
+                        <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="date"
@@ -1256,7 +1265,7 @@ export function NewOrderModal({
                       }`}
                     />
                     <span>
-                      Booked for:{" "}
+                      {orderType === "Product sale" ? "Expected pickup: " : "Booked for: "}
                       <strong className="text-galla-ink">
                         {formatBookingDate(bookingDate) || "Not set"}
                         {bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : " (Time not set)"}
