@@ -45,9 +45,10 @@ import {
   DashboardPurchaseOrder,
   DashboardSupplier,
   OrderType,
+  DashboardPaymentMode,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
-import { formatPhoneNumber } from "@/lib/utils";
+import { formatPhoneNumber, checkIsToday } from "@/lib/utils";
 
 interface SessionLike {
   user?: {
@@ -314,9 +315,11 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         time: "Today, Just now",
         isToday: true,
         isLast24Hours: true,
+        todayPaid: newDoc.amountPaid,
         createdAt: newDoc.createdAt ? new Date(newDoc.createdAt).toISOString() : new Date().toISOString(),
         paymentMode: newDoc.paymentMode,
         advanceAmount: newDoc.status === "advance_paid" ? newDoc.amountPaid : undefined,
+        advancePaymentMode: newDoc.status === "advance_paid" ? (newDoc.paymentMode as DashboardPaymentMode) : undefined,
         scheduledFor: newDoc.scheduledFor ? new Date(newDoc.scheduledFor).toISOString() : undefined,
         scheduledTime: newDoc.scheduledTime || undefined,
         customerPhone: formattedPhone || undefined,
@@ -430,6 +433,15 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
 
     const mappedType = mapOrderType(order.orderType);
 
+    const hasAdvance = Boolean(
+      order.payments && order.payments.length > 1 && order.payments[0].amount < order.totalAmount
+    );
+    const calculatedTodayPaid = order.payments && Array.isArray(order.payments)
+      ? order.payments
+          .filter((p) => p.recordedAt && checkIsToday(p.recordedAt))
+          .reduce((sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0), 0)
+      : amountToCollect;
+
     return {
       success: true,
       order: {
@@ -442,8 +454,12 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         time: "Today, Just now",
         isToday: true,
         isLast24Hours: true,
+        todayPaid: calculatedTodayPaid,
+        completedAt: order.completedAt ? new Date(order.completedAt).toISOString() : new Date().toISOString(),
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
         paymentMode: order.paymentMode,
+        advanceAmount: hasAdvance ? order.payments[0].amount : undefined,
+        advancePaymentMode: hasAdvance ? (order.payments[0].mode as DashboardPaymentMode) : undefined,
         scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
         scheduledTime: order.scheduledTime || undefined,
         customerPhone: order.customerSnapshot?.phone || undefined,

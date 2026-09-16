@@ -691,22 +691,24 @@ export function OrdersTab({
                   {order.status === "cancelled_refunded" ? (
                     <div className="space-y-0.5 mt-0.5">
                       {order.advanceAmount && order.advanceAmount > 0 && (
-                        <div className="font-sans text-[12px] text-galla-ink-soft font-medium tabular-nums">
-                          {formatRupee(order.advanceAmount)} adv. paid
-                          {order.paymentMode && (
-                            <span className="font-medium text-[12px] text-galla-ink-soft/80 ml-1">
-                              ({order.paymentMode})
+                        <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                          <span>{formatRupee(order.advanceAmount)} adv. paid</span>
+                          {(order.advancePaymentMode || order.paymentMode) && (
+                            <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                              {order.advancePaymentMode || order.paymentMode}
                             </span>
                           )}
                         </div>
                       )}
-                      <div className="font-sans text-[12px] text-red-700 font-medium tabular-nums">
-                        {order.refundAmount
-                          ? `${formatRupee(order.refundAmount)} refunded`
-                          : "Refunded"}
+                      <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
+                        <span>
+                          {order.refundAmount
+                            ? `${formatRupee(order.refundAmount)} refunded`
+                            : "Refunded"}
+                        </span>
                         {order.refundMode && (
-                          <span className="font-medium text-[12px] text-red-600/90 ml-1">
-                            ({order.refundMode})
+                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                            {order.refundMode}
                           </span>
                         )}
                       </div>
@@ -723,17 +725,36 @@ export function OrdersTab({
                   ) : order.paid < order.amount ? (
                     <div className="space-y-0.5 mt-0.5">
                       {order.paid > 0 && (
-                        <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                          {formatRupee(order.paid)} adv.
+                        <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                          <span>{formatRupee(order.paid)} adv.</span>
                           {order.paymentMode && (
-                            <span className="uppercase text-[10px] font-semibold tracking-wider text-galla-teal/90 ml-1">
-                              ({order.paymentMode})
+                            <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                              {order.paymentMode}
                             </span>
                           )}
                         </div>
                       )}
                       <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
                         {formatRupee(order.amount - order.paid)} due
+                      </div>
+                    </div>
+                  ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < order.amount ? (
+                    <div className="space-y-0.5 mt-0.5">
+                      <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                        <span>{formatRupee(order.advanceAmount)} adv.</span>
+                        {order.advancePaymentMode && (
+                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                            {order.advancePaymentMode}
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                        <span>{formatRupee(order.amount - order.advanceAmount)} settled</span>
+                        {order.paymentMode && (
+                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                            {order.paymentMode}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ) : (

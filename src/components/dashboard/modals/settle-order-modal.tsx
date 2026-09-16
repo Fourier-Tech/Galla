@@ -128,7 +128,7 @@ function SettleOrderModalContent({
             <span className="tabular-nums">
               {formatRupee(order.paid)}
               {order.paid > 0 && order.paymentMode ? (
-                <span className="text-[10px] font-mono uppercase bg-emerald-100/80 text-emerald-900 px-1 py-0.2 rounded font-semibold ml-1">
+                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 ml-1">
                   {order.paymentMode}
                 </span>
               ) : null}

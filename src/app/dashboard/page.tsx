@@ -214,36 +214,80 @@ export default async function DashboardPage() {
       initialOrderStatusCounts.advance_paid =
         (initialOrderStatusCounts.advance_paid || 0) + (initialOrderStatusCounts.paid_full || 0);
 
-      initialOrders = rawOrders.map((o) => ({
-        id: o.orderNumber,
-        customer: o.customerSnapshot?.name || "Walk-in Customer",
-        type: mapOrderType(o.orderType),
-        amount: typeof o.totalAmount === "number" && !isNaN(o.totalAmount) ? o.totalAmount : 0,
-        paid: typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0,
-        status: o.status as OrderStatus,
-        time: formatOrderTime(o.createdAt),
-        isToday: checkIsToday(o.createdAt),
-        isLast24Hours: checkIsLast24Hours(o.createdAt),
-        createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
-        scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
-        scheduledTime: o.scheduledTime || undefined,
-        customerPhone: o.customerSnapshot?.phone || undefined,
-        refundAmount: o.refundDetails?.refundAmount,
-        refundReason: o.refundDetails?.refundReason,
-        paymentMode: (o.paymentMode || o.payments?.[0]?.mode) as DashboardPaymentMode | undefined,
-        refundMode: o.refundDetails?.refundMode as DashboardRefundMode | undefined,
-        advanceAmount: (() => {
-          if (o.status === "advance_paid") return o.amountPaid;
-          if (o.status === "cancelled_refunded") {
-            const collected = (o.amountPaid || 0) + (o.refundDetails?.refundAmount || 0);
-            if (collected > 0 && collected < o.totalAmount) return collected;
-            if (o.payments && o.payments.length > 0 && o.payments[0].amount < o.totalAmount) {
-              return o.payments[0].amount;
-            }
+      initialOrders = rawOrders.map((o) => {
+        const hasTodayPayment = Boolean(
+          o.payments && Array.isArray(o.payments) && o.payments.some((p: any) => p.recordedAt && checkIsToday(p.recordedAt))
+        );
+        const hasLast24hPayment = Boolean(
+          o.payments && Array.isArray(o.payments) && o.payments.some((p: any) => p.recordedAt && checkIsLast24Hours(p.recordedAt))
+        );
+        const isToday = checkIsToday(o.createdAt) || Boolean(o.completedAt && checkIsToday(o.completedAt)) || hasTodayPayment;
+        const isLast24Hours = checkIsLast24Hours(o.createdAt) || Boolean(o.completedAt && checkIsLast24Hours(o.completedAt)) || hasLast24hPayment;
+
+        const todayPaid = (() => {
+          if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
+            return o.payments
+              .filter((p: any) => p.recordedAt && checkIsToday(p.recordedAt))
+              .reduce((sum: number, p: any) => sum + (typeof p.amount === "number" && !isNaN(p.amount) ? p.amount : 0), 0);
           }
-          return undefined;
-        })(),
-      }));
+          return checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
+        })();
+
+        const latestPaymentDate = (o.payments && Array.isArray(o.payments) && o.payments.length > 0)
+          ? o.payments[o.payments.length - 1]?.recordedAt
+          : null;
+        const latestActivityDate = o.completedAt || latestPaymentDate || o.createdAt;
+
+        return {
+          id: o.orderNumber,
+          customer: o.customerSnapshot?.name || "Walk-in Customer",
+          type: mapOrderType(o.orderType),
+          amount: typeof o.totalAmount === "number" && !isNaN(o.totalAmount) ? o.totalAmount : 0,
+          paid: typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0,
+          todayPaid,
+          status: o.status as OrderStatus,
+          time: formatOrderTime(latestActivityDate),
+          isToday,
+          isLast24Hours,
+          createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
+          completedAt: o.completedAt ? new Date(o.completedAt).toISOString() : undefined,
+          scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
+          scheduledTime: o.scheduledTime || undefined,
+          customerPhone: o.customerSnapshot?.phone || undefined,
+          refundAmount: o.refundDetails?.refundAmount,
+          refundReason: o.refundDetails?.refundReason,
+          paymentMode: (o.paymentMode || o.payments?.[o.payments.length - 1]?.mode || o.payments?.[0]?.mode) as DashboardPaymentMode | undefined,
+          refundMode: o.refundDetails?.refundMode as DashboardRefundMode | undefined,
+          advanceAmount: (() => {
+            if (o.status === "advance_paid") return o.amountPaid;
+            if (o.status === "cancelled_refunded") {
+              const collected = (o.amountPaid || 0) + (o.refundDetails?.refundAmount || 0);
+              if (collected > 0 && collected < o.totalAmount) return collected;
+              if (o.payments && o.payments.length > 0 && o.payments[0].amount < o.totalAmount) {
+                return o.payments[0].amount;
+              }
+            }
+            if (o.status === "completed" && o.payments && o.payments.length > 1) {
+              if (o.payments[0].amount < o.totalAmount) {
+                return o.payments[0].amount;
+              }
+            }
+            return undefined;
+          })(),
+          advancePaymentMode: (() => {
+            if (o.status === "completed" && o.payments && o.payments.length > 1 && o.payments[0].amount < o.totalAmount) {
+              return o.payments[0].mode as DashboardPaymentMode;
+            }
+            if (o.status === "cancelled_refunded" && o.payments && o.payments.length > 0) {
+              return o.payments[0].mode as DashboardPaymentMode;
+            }
+            if (o.status === "advance_paid") {
+              return (o.payments?.[0]?.mode || o.paymentMode) as DashboardPaymentMode;
+            }
+            return undefined;
+          })(),
+        };
+      });
 
       initialProducts = rawProducts.map((p) => ({
         id: p._id.toString(),

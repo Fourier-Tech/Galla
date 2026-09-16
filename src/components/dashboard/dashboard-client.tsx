@@ -278,15 +278,7 @@ export function DashboardClient({
       const res = await completeOrderAction({ orderId });
       if (res.success && res.order) {
         setOrders((prev) =>
-          prev.map((o) =>
-            o.id === orderId
-              ? {
-                ...o,
-                status: "completed",
-                paid: o.amount,
-              }
-              : o
-          )
+          prev.map((o) => (o.id === orderId ? { ...o, ...res.order } : o))
         );
       }
     } catch (err) {
