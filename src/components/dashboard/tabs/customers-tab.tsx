@@ -1,15 +1,27 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Search } from "lucide-react";
-import { DashboardCustomer } from "@/types/dashboard";
-import { formatPhoneNumber } from "@/lib/utils";
+import { Search, ChevronRight, User, Wallet, Calendar, AlertCircle } from "lucide-react";
+import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
+import { formatPhoneNumber, formatRupee } from "@/lib/utils";
+import { CustomerDetailsView } from "@/components/dashboard/customer-details-view";
 
 interface CustomersTabProps {
   customers: DashboardCustomer[];
+  salonName?: string;
+  onOpenSettle?: (order: DashboardOrder) => void;
+  onOpenRefund?: (order: DashboardOrder) => void;
+  onOpenReschedule?: (order: DashboardOrder) => void;
 }
 
-export function CustomersTab({ customers }: CustomersTabProps) {
+export function CustomersTab({
+  customers,
+  salonName,
+  onOpenSettle,
+  onOpenRefund,
+  onOpenReschedule,
+}: CustomersTabProps) {
+  const [selectedCustomer, setSelectedCustomer] = useState<DashboardCustomer | null>(null);
   const [search, setSearch] = useState("");
 
   const formattedCustomers = useMemo(() => {
@@ -32,16 +44,35 @@ export function CustomersTab({ customers }: CustomersTabProps) {
     });
   }, [formattedCustomers, search]);
 
+  // Sub-view: Customer Detail View (same pattern as Orders & Bills in Inventory tab)
+  if (selectedCustomer) {
+    return (
+      <CustomerDetailsView
+        customer={selectedCustomer}
+        onBack={() => setSelectedCustomer(null)}
+        salonName={salonName}
+        onOpenSettle={onOpenSettle}
+        onOpenRefund={onOpenRefund}
+        onOpenReschedule={onOpenReschedule}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full animate-in fade-in duration-150">
       {/* Header with Search */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
-            Customer Directory
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+              Customer Directory
+            </h2>
+            <span className="text-[11px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-galla-ink-soft">
+              {customers.length} clients
+            </span>
+          </div>
           <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
-            Client visit histories, loyalty metrics &amp; contact profiles
+            Client visit histories, loyalty metrics &amp; purchase insights &bull; Click any client to view all orders
           </p>
         </div>
 
@@ -58,31 +89,67 @@ export function CustomersTab({ customers }: CustomersTabProps) {
       </div>
 
       {/* Customer List */}
-      <div className="bg-galla-surface border border-galla-line rounded-[5px] divide-y divide-galla-line overflow-hidden">
-        {filteredCustomers.map((customer) => (
-          <div
-            key={customer.phone}
-            className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
-          >
-            <div>
-              <div className="font-sans font-semibold text-[15px] text-galla-ink">
-                {customer.name}
-              </div>
-              <div className="font-mono text-[13px] text-galla-ink-soft mt-0.5">
-                {customer.phone}
-              </div>
-            </div>
+      <div className="bg-galla-surface border border-galla-line rounded-[8px] divide-y divide-galla-line overflow-hidden shadow-2xs">
+        {filteredCustomers.map((customer) => {
+          const initials = customer.name
+            ? customer.name
+                .split(" ")
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()
+            : "C";
 
-            <div className="text-right">
-              <div className="font-sans font-semibold text-[14px] text-galla-ink">
-                {customer.visits} {customer.visits === 1 ? "visit" : "visits"}
+          return (
+            <div
+              key={customer.phone}
+              onClick={() => setSelectedCustomer(customer)}
+              className="flex items-center justify-between px-[20px] py-[15px] hover:bg-galla-paper/40 transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-heading font-bold text-[13.5px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
+                  {initials}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-sans font-semibold text-[15px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                      {customer.name}
+                    </span>
+                    {customer.outstandingDue && customer.outstandingDue > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                        <AlertCircle className="h-3 w-3" />
+                        <span>Due: {formatRupee(customer.outstandingDue)}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft mt-0.5">
+                    <span className="font-mono">{customer.phone}</span>
+                    {customer.totalSpent && customer.totalSpent > 0 ? (
+                      <>
+                        <span>&bull;</span>
+                        <span>
+                          Spent: <strong className="text-galla-ink font-semibold">{formatRupee(customer.totalSpent)}</strong>
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-              <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-                Last visit: {customer.lastVisit}
+
+              <div className="flex items-center gap-3 text-right shrink-0">
+                <div>
+                  <div className="font-sans font-semibold text-[14px] text-galla-ink">
+                    {customer.visits} {customer.visits === 1 ? "visit" : "visits"}
+                  </div>
+                  <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
+                    Last visit: {customer.lastVisit}
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all" />
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {filteredCustomers.length === 0 && (
           <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">

@@ -426,7 +426,15 @@ export function DashboardClient({
             />
           )}
 
-          {activeTab === "customers" && <CustomersTab customers={customers} />}
+          {activeTab === "customers" && (
+            <CustomersTab
+              customers={customers}
+              salonName={salonProfile?.name || salonName}
+              onOpenSettle={(order) => setSettleOrder(order)}
+              onOpenRefund={(order) => setRefundOrder(order)}
+              onOpenReschedule={handleRescheduleOrder}
+            />
+          )}
 
           {activeTab === "expenses" && (
             <ExpensesTab

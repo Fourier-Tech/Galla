@@ -377,10 +377,22 @@ export default async function DashboardPage() {
       }));
 
       initialCustomers = rawCustomers.map((c) => ({
+        id: c._id.toString(),
         phone: formatPhoneNumber(c.phone),
         name: c.name,
+        email: c.email || undefined,
+        gender: c.gender || undefined,
+        notes: c.notes || undefined,
         visits: c.stats?.totalVisits ?? 0,
         lastVisit: formatCustomerVisit(c.stats?.lastVisitAt || c.updatedAt),
+        lastVisitRaw: c.stats?.lastVisitAt
+          ? new Date(c.stats.lastVisitAt).toISOString()
+          : c.updatedAt
+          ? new Date(c.updatedAt).toISOString()
+          : undefined,
+        totalSpent: typeof c.stats?.totalSpend === "number" ? c.stats.totalSpend : 0,
+        outstandingDue: typeof c.stats?.outstandingBalance === "number" ? c.stats.outstandingBalance : 0,
+        createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : undefined,
       }));
 
       initialSuppliers = (rawSuppliers || []).map((s: any) => ({

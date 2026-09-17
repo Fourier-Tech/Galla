@@ -85,10 +85,18 @@ export interface DashboardProduct {
 }
 
 export interface DashboardCustomer {
+  id?: string;
   phone: string;
   name: string;
+  email?: string;
+  gender?: "female" | "male" | "other";
+  notes?: string;
   visits: number;
   lastVisit: string;
+  lastVisitRaw?: string;
+  totalSpent?: number;
+  outstandingDue?: number;
+  createdAt?: string;
 }
 
 export interface DashboardExpense {

@@ -48,7 +48,7 @@ import {
   DashboardPaymentMode,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
-import { formatPhoneNumber, checkIsToday, formatOrderTime } from "@/lib/utils";
+import { formatPhoneNumber, checkIsToday, checkIsLast24Hours, formatOrderTime } from "@/lib/utils";
 
 interface SessionLike {
   user?: {
@@ -2705,3 +2705,144 @@ export async function getLiveProductsAction(): Promise<{
     return { success: false, error: "Failed to fetch live products" };
   }
 }
+
+export async function getCustomerOrdersAction(input: {
+  phone: string;
+  name?: string;
+  customerId?: string;
+}): Promise<{
+  success: boolean;
+  orders?: DashboardOrder[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    // ponytail: Extracts last 10 digits for Indian mobile numbers with flexible delimiter matching. Upgrade path: Pass tenant country code if expanding internationally.
+    const rawDigits = (input.phone || "").replace(/\D/g, "").slice(-10);
+    const flexiblePhoneRegex = rawDigits ? rawDigits.split("").join("[\\s\\-\\(\\)]*") : "";
+
+    const orConditions: any[] = [];
+    if (flexiblePhoneRegex) {
+      orConditions.push({ "customerSnapshot.phone": { $regex: flexiblePhoneRegex } });
+    }
+    if (input.phone && input.phone.trim()) {
+      orConditions.push({ "customerSnapshot.phone": input.phone.trim() });
+    }
+    if (input.customerId && Types.ObjectId.isValid(input.customerId)) {
+      orConditions.push({ customerId: new Types.ObjectId(input.customerId) });
+    }
+    if (input.name && input.name.trim() && input.name.trim().toLowerCase() !== "walk-in customer") {
+      orConditions.push({
+        "customerSnapshot.name": {
+          $regex: `^${input.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+          $options: "i",
+        },
+      });
+    }
+
+    if (orConditions.length === 0) {
+      return { success: true, orders: [] };
+    }
+
+    const query: any = {
+      tenantId: tenantObjectId,
+      $or: orConditions,
+    };
+
+    const rawOrders = await Order.find(query).sort({ createdAt: -1 }).lean();
+
+    const mappedOrders: DashboardOrder[] = rawOrders.map((o: any) => {
+      const isToday = checkIsToday(o.createdAt);
+      const isLast24Hours = checkIsLast24Hours(o.createdAt);
+
+      const latestPaymentDate =
+        o.payments && Array.isArray(o.payments) && o.payments.length > 0
+          ? o.payments[o.payments.length - 1]?.recordedAt
+          : null;
+      const refundedDate = o.refundDetails?.refundedAt || null;
+      const candidateTimestamps = [
+        o.createdAt ? new Date(o.createdAt).getTime() : 0,
+        o.completedAt ? new Date(o.completedAt).getTime() : 0,
+        latestPaymentDate ? new Date(latestPaymentDate).getTime() : 0,
+        refundedDate ? new Date(refundedDate).getTime() : 0,
+        o.updatedAt ? new Date(o.updatedAt).getTime() : 0,
+      ].filter(Boolean);
+
+      const latestActivityDate =
+        candidateTimestamps.length > 0
+          ? new Date(Math.max(...candidateTimestamps))
+          : o.createdAt
+          ? new Date(o.createdAt)
+          : new Date();
+
+      return {
+        id: o.orderNumber,
+        customer: o.customerSnapshot?.name || "Customer",
+        customerPhone: o.customerSnapshot?.phone || undefined,
+        type: mapOrderType(o.orderType),
+        itemsSummary:
+          o.lineItems && Array.isArray(o.lineItems)
+            ? o.lineItems.map((li: any) => li.name).filter(Boolean).join(", ")
+            : undefined,
+        amount: typeof o.totalAmount === "number" && !isNaN(o.totalAmount) ? o.totalAmount : 0,
+        paid: typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0,
+        todayPaid: Math.max(0, o.amountPaid || 0),
+        status: o.status,
+        time: formatOrderTime(o.createdAt),
+        isToday,
+        isLast24Hours,
+        createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
+        completedAt: o.completedAt ? new Date(o.completedAt).toISOString() : undefined,
+        refundedAt: o.refundDetails?.refundedAt ? new Date(o.refundDetails.refundedAt).toISOString() : undefined,
+        latestActivityAt: latestActivityDate ? new Date(latestActivityDate).toISOString() : undefined,
+        scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
+        scheduledTime: o.scheduledTime || undefined,
+        refundAmount: o.refundDetails?.refundAmount,
+        refundReason: o.refundDetails?.refundReason,
+        refundMode: o.refundDetails?.refundMode,
+        paymentMode: (o.paymentMode || o.payments?.[o.payments.length - 1]?.mode || o.payments?.[0]?.mode),
+        advanceAmount: o.status === "advance_paid" ? o.amountPaid : undefined,
+        subtotal: o.subtotal,
+        discountType: o.discountType,
+        discountValue: o.discountValue,
+        discountAmount: o.discountAmount,
+        notes: o.notes || undefined,
+        recordedBy: o.recordedBy || undefined,
+        lineItems: o.lineItems?.map((li: any) => ({
+          name: li.name,
+          itemType: li.itemType,
+          unitPrice: li.unitPrice,
+          quantity: li.quantity,
+          discount: li.discount,
+          finalPrice: li.finalPrice,
+          fulfilled: li.fulfilled,
+          packageDetails: li.packageDetails,
+        })),
+        payments: o.payments?.map((p: any) => ({
+          amount: p.amount,
+          mode: p.mode,
+          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedBy: p.recordedBy,
+          type: p.type,
+        })),
+      };
+    });
+
+    return { success: true, orders: mappedOrders };
+  } catch (error) {
+    console.error("Failed to fetch customer orders:", error);
+    return { success: false, error: "Failed to fetch customer orders" };
+  }
+}
+
