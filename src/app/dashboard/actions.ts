@@ -912,7 +912,8 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
       title: input.desc,
       category: dbCategory,
       amount: input.amount,
-      paymentMode: "cash",
+      paymentMode: input.paymentMode || "cash",
+      notes: input.notes?.trim() || undefined,
       expenseDate: new Date(),
       recordedBy: session.user.role === "staff" ? "staff" : "owner",
     });

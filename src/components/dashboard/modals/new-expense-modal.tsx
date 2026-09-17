@@ -13,28 +13,64 @@ interface NewExpenseModalProps {
   onAddExpense: (expense: DashboardExpense) => void;
 }
 
+type ExpenseCategoryType = "Day-to-day" | "Salary" | "Rent";
+type ExpensePaymentMode = "cash" | "upi" | "card";
+
+const CATEGORIES: ExpenseCategoryType[] = ["Day-to-day", "Salary", "Rent"];
+const PAYMENT_MODES: ExpensePaymentMode[] = ["cash", "upi", "card"];
+
 export function NewExpenseModal({
   isOpen,
   onClose,
   onAddExpense,
 }: NewExpenseModalProps) {
+  const [category, setCategory] = useState<ExpenseCategoryType>("Day-to-day");
   const [desc, setDesc] = useState("");
-  const [category, setCategory] = useState<
-    "Day-to-day" | "Inventory purchase" | "Salary" | "Rent" | "Refund"
-  >("Day-to-day");
+  const [staffName, setStaffName] = useState("");
   const [amount, setAmount] = useState("");
+  const [paymentMode, setPaymentMode] = useState<ExpensePaymentMode>("cash");
+  const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
+  const parsedAmount = Number(amount) || 0;
+
+  const getComputedDesc = () => {
+    if (category === "Day-to-day") {
+      return desc.trim();
+    }
+    if (category === "Salary") {
+      return staffName.trim() ? `Salary — ${staffName.trim()}` : "";
+    }
+    // Rent
+    return notes.trim() ? `Rent (${notes.trim()})` : "Shop Rent";
+  };
+
+  const isFormValid =
+    parsedAmount > 0 &&
+    (category === "Day-to-day"
+      ? Boolean(desc.trim())
+      : category === "Salary"
+      ? Boolean(staffName.trim())
+      : true);
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    if (!desc.trim() || !amount) return;
 
-    const parsedAmount = Number(amount);
+    if (category === "Day-to-day" && !desc.trim()) {
+      setErrorMsg("Please enter what the expense was for");
+      return;
+    }
+
+    if (category === "Salary" && !staffName.trim()) {
+      setErrorMsg("Please enter whom you paid (staff name)");
+      return;
+    }
+
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setErrorMsg("Please enter a valid expense amount");
       return;
@@ -45,20 +81,26 @@ export function NewExpenseModal({
 
   const executeCreateExpense = async () => {
     setShowConfirm(false);
-    const parsedAmount = Number(amount);
     setIsSubmitting(true);
+    const computedDesc = getComputedDesc();
+
     try {
       const res = await createExpenseAction({
-        desc: desc.trim(),
+        desc: computedDesc,
         category,
         amount: parsedAmount,
+        paymentMode,
+        notes: notes.trim() || undefined,
       });
 
       if (res.success && res.expense) {
         onAddExpense(res.expense);
         setDesc("");
+        setStaffName("");
         setAmount("");
         setCategory("Day-to-day");
+        setPaymentMode("cash");
+        setNotes("");
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to record expense");
@@ -76,7 +118,7 @@ export function NewExpenseModal({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
     >
-      <div className="w-full max-w-[377px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
+      <div className="w-full max-w-[390px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-heading font-semibold text-[18px] text-galla-ink">
             Record Expense
@@ -85,7 +127,7 @@ export function NewExpenseModal({
             onClick={onClose}
             type="button"
             disabled={isSubmitting}
-            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors disabled:opacity-50"
+            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors disabled:opacity-50 cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -98,47 +140,68 @@ export function NewExpenseModal({
         )}
 
         <form onSubmit={handleFormSubmit} className="space-y-4">
-          <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
-              What was it for?
-            </label>
-            <input
-              type="text"
-              autoFocus
-              required
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="e.g. Tea & snacks, shop supplies, utilities"
-              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-            />
-          </div>
-
+          {/* Category Selector */}
           <div>
             <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
               Category
             </label>
-            <select
-              value={category}
-              onChange={(e) =>
-                setCategory(
-                  e.target.value as
-                    | "Day-to-day"
-                    | "Inventory purchase"
-                    | "Salary"
-                    | "Rent"
-                    | "Refund"
-                )
-              }
-              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-            >
-              <option value="Day-to-day">Day-to-day</option>
-              <option value="Inventory purchase">Inventory purchase</option>
-              <option value="Salary">Salary</option>
-              <option value="Rent">Rent</option>
-              <option value="Refund">Refund</option>
-            </select>
+            <div className="grid grid-cols-3 gap-2">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    setCategory(cat);
+                    setErrorMsg(null);
+                  }}
+                  className={`py-1.5 text-[12.5px] font-sans font-medium rounded-[4px] border transition-all cursor-pointer ${
+                    category === cat
+                      ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold shadow-2xs"
+                      : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
 
+          {/* Conditional Second Field */}
+          {category === "Day-to-day" && (
+            <div>
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+                What was it for?
+              </label>
+              <input
+                type="text"
+                autoFocus
+                required
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder="e.g. Tea & snacks, utilities, cleaning"
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              />
+            </div>
+          )}
+
+          {category === "Salary" && (
+            <div>
+              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+                Whom did you pay?
+              </label>
+              <input
+                type="text"
+                autoFocus
+                required
+                value={staffName}
+                onChange={(e) => setStaffName(e.target.value)}
+                placeholder="e.g. Staff name, stylist, helper"
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              />
+            </div>
+          )}
+
+          {/* Amount */}
           <div>
             <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
               Amount (₹)
@@ -149,17 +212,68 @@ export function NewExpenseModal({
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
               placeholder="e.g. 150"
-              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
             />
           </div>
 
-          <div className="pt-2">
+          {/* Payment Mode */}
+          <div>
+            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              Payment Mode
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {PAYMENT_MODES.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPaymentMode(mode)}
+                  className={`py-1.5 text-[12.5px] font-sans font-medium rounded-[4px] border uppercase tracking-wider transition-all cursor-pointer ${
+                    paymentMode === mode
+                      ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold shadow-2xs"
+                      : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink"
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              {category === "Rent" ? "Month / Remarks (Optional)" : "Notes (Optional)"}
+            </label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={
+                category === "Rent"
+                  ? "e.g. October rent, maintenance"
+                  : category === "Salary"
+                  ? "e.g. Advance, overtime, bonus"
+                  : "e.g. Bill #, paid to Rahul"
+              }
+              className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+            />
+          </div>
+
+          <div className="pt-2 flex gap-2.5">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="w-1/3 bg-galla-surface hover:bg-galla-paper border border-galla-line text-galla-ink font-sans text-[13px] font-medium py-[9px] rounded-[5px] transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium py-[10px] rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
+              disabled={isSubmitting || !isFormValid}
+              className="w-2/3 bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium py-[9px] rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? "Recording to Database..." : "Save Expense"}
+              {isSubmitting ? "Saving..." : `Save Expense ${parsedAmount > 0 ? `(${formatRupee(parsedAmount)})` : ""}`}
             </button>
           </div>
         </form>
@@ -170,9 +284,13 @@ export function NewExpenseModal({
           description={
             <span>
               Are you sure you want to record an expense of{" "}
-              <strong className="font-semibold text-galla-ink">{formatRupee(Number(amount) || 0)}</strong> under{" "}
+              <strong className="font-semibold text-galla-ink">{formatRupee(parsedAmount)}</strong> via{" "}
+              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong> under{" "}
               <strong className="font-semibold text-galla-ink">&ldquo;{category}&rdquo;</strong> for{" "}
-              <strong className="font-semibold text-galla-ink">&ldquo;{desc.trim()}&rdquo;</strong>?
+              <strong className="font-semibold text-galla-ink">&ldquo;{getComputedDesc()}&rdquo;</strong>
+              {category !== "Rent" && notes.trim() ? (
+                <> (<em>{notes.trim()}</em>)</>
+              ) : null}?
             </span>
           }
           confirmLabel="Yes, Save Expense"
