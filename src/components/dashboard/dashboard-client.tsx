@@ -369,6 +369,7 @@ export function DashboardClient({
             <OverviewTab
               orders={orders}
               products={products}
+              suppliers={suppliers}
               expensesTotal={expensesTotal}
               salonName={salonProfile.name || salonName}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}

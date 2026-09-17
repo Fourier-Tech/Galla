@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare } from "lucide-react";
-import { DashboardOrder, DashboardProduct } from "@/types/dashboard";
+import { DashboardOrder, DashboardProduct, DashboardSupplier } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-m
 interface OverviewTabProps {
   orders: DashboardOrder[];
   products: DashboardProduct[];
+  suppliers?: DashboardSupplier[];
   expensesTotal: number;
   salonName?: string;
   onOpenNewOrder: () => void;
@@ -28,6 +29,7 @@ interface OverviewTabProps {
 export function OverviewTab({
   orders,
   products,
+  suppliers = [],
   expensesTotal,
   salonName,
   onOpenNewOrder,
@@ -69,6 +71,8 @@ export function OverviewTab({
     return sum + (Number(o.todayPaid ?? (o.isToday ? o.paid : 0)) || 0);
   }, 0);
   const pendingAmount = calculatePendingAmount(orders);
+  // Money owed to dealers/suppliers (pending credit balance yet to be paid)
+  const dealerDues = suppliers.reduce((sum, s) => sum + (Number(s.totalPending) || 0), 0);
   const lowStockProducts = products.filter((p) => p.sell <= 2);
 
   // Recent Counter Orders table shows orders from the last 24 hours, sorted by latest activity (settlements, completions, creation)
@@ -221,34 +225,51 @@ export function OverviewTab({
         </div>
       </div>
 
-      {/* 4 Major KPI Numbers Grid (Fixed) */}
-      <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-px bg-galla-line border border-galla-line rounded-[5px] overflow-hidden">
+      {/* 5 Major KPI Numbers Grid (Fixed) */}
+      <div className="shrink-0 grid grid-cols-2 lg:grid-cols-5 gap-px bg-galla-line border border-galla-line rounded-[5px] overflow-hidden">
         <div className="bg-galla-surface">
           <StatBlock
-            label="Income Today"
+            label="Income"
+            badge="Today"
             value={formatRupee(todayIncome)}
+            subtext="Collected today"
             tone="sage"
           />
         </div>
         <div className="bg-galla-surface">
           <StatBlock
-            label="Expense Today"
+            label="Expense"
+            badge="Today"
             value={formatRupee(expensesTotal)}
+            subtext="Spent today"
             tone="brick"
           />
         </div>
         <div className="bg-galla-surface">
           <StatBlock
-            label="Advance Payment"
+            label="Advance"
+            badge="Today"
             value={formatRupee(advancePayment)}
+            subtext="Booking deposits today"
             tone="brass"
           />
         </div>
         <div className="bg-galla-surface">
           <StatBlock
-            label="Pending Amount"
+            label="Customer Dues"
+            badge="Overall"
             value={formatRupee(pendingAmount)}
+            subtext="Unpaid across orders"
             tone="ink"
+          />
+        </div>
+        <div className="bg-galla-surface col-span-2 lg:col-span-1">
+          <StatBlock
+            label="Dealer Dues"
+            badge="Overall"
+            value={formatRupee(dealerDues)}
+            subtext="Owed to suppliers"
+            tone={dealerDues > 0 ? "brick" : "ink"}
           />
         </div>
       </div>

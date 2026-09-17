@@ -199,7 +199,10 @@ export default async function DashboardPage() {
           { $match: { tenantId: tenantObjectId } },
           { $group: { _id: null, total: { $sum: "$amount" } } },
         ]),
-        Supplier.find({ tenantId: tenantObjectId, isActive: true }).sort({ name: 1 }).lean(),
+        Supplier.find({
+          tenantId: tenantObjectId,
+          $or: [{ isActive: true }, { totalPending: { $gt: 0 } }],
+        }).sort({ name: 1 }).lean(),
       ]);
 
       initialTotalOrdersCount = count;
