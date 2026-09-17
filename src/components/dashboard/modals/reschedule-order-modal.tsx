@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { rescheduleOrderAction } from "@/app/dashboard/actions";
-import { formatBookingDate, formatAppointmentTime, getBookingUrgency, formatRupee } from "@/lib/utils";
+import { formatBookingDate, formatAppointmentTime, getBookingUrgency, formatRupee, getLocalDateString } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 interface RescheduleOrderModalProps {
@@ -41,9 +41,9 @@ function RescheduleOrderModalContent({
   onClose: () => void;
   onRescheduleSuccess: (updatedOrder: DashboardOrder) => void;
 }) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getLocalDateString();
   const initialDate = order.scheduledFor
-    ? new Date(order.scheduledFor).toISOString().split("T")[0]
+    ? getLocalDateString(order.scheduledFor)
     : todayStr;
 
   const isDueOrder =
@@ -99,7 +99,7 @@ function RescheduleOrderModalContent({
   const setPresetDate = (daysFromNow: number) => {
     const d = new Date();
     d.setDate(d.getDate() + daysFromNow);
-    setNewDate(d.toISOString().split("T")[0]);
+    setNewDate(getLocalDateString(d));
   };
 
   return (

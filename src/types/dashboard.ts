@@ -161,12 +161,32 @@ export type TabId =
   | "orders"
   | "services"
   | "inventory"
+  | "suppliers"
   | "customers"
   | "expenses"
   | "analytics"
   | "profile";
 
 export type UserRole = "owner" | "staff";
+
+export interface DashboardPurchaseOrderItem {
+  productId: string;
+  productName: string;
+  quantityForSell: number;
+  quantityForUse: number;
+  purchaseCost: number;
+  expectedSellPrice: number;
+  itemTotalCost: number;
+}
+
+export interface DashboardPurchaseOrderPayment {
+  amount: number;
+  paymentMode: "cash" | "upi" | "card" | "bank_transfer";
+  notes?: string;
+  recordedBy?: "owner" | "staff";
+  type?: "initial" | "settlement" | "full_payment" | string;
+  recordedAt?: string;
+}
 
 export interface DashboardPurchaseOrder {
   id: string;
@@ -176,6 +196,8 @@ export interface DashboardPurchaseOrder {
   supplierPhone?: string;
   supplierCompany?: string;
   itemsCount: number;
+  items?: DashboardPurchaseOrderItem[];
+  payments?: DashboardPurchaseOrderPayment[];
   totalAmount: number;
   amountPaid: number;
   amountPending: number;
@@ -184,6 +206,7 @@ export interface DashboardPurchaseOrder {
   invoiceDate: string;
   dealerInvoiceNumber?: string;
   notes?: string;
+  recordedBy?: "owner" | "staff" | string;
   createdAt: string;
 }
 

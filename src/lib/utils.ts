@@ -106,10 +106,13 @@ export function formatOrderTime(date: Date | string | undefined): string {
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
 }
 
-export function getLocalDateString(isoOrDate?: string | Date): string | null {
-  if (!isoOrDate) return null;
-  const d = new Date(isoOrDate);
-  if (isNaN(d.getTime())) return null;
+export function getLocalDateString(isoOrDate: string | Date = new Date()): string {
+  if (!isoOrDate) return "";
+  if (typeof isoOrDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(isoOrDate)) {
+    return isoOrDate;
+  }
+  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  if (isNaN(d.getTime())) return "";
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -135,7 +138,13 @@ export function formatDisplayDate(dateStr: string): string {
 
 export function formatBookingDate(date: Date | string | undefined): string {
   if (!date) return "";
-  const d = new Date(date);
+  let d: Date;
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, day] = date.split("-").map(Number);
+    d = new Date(y, m - 1, day);
+  } else {
+    d = new Date(date);
+  }
   if (isNaN(d.getTime())) return "";
   return d.toLocaleDateString("en-IN", {
     day: "numeric",
@@ -154,7 +163,13 @@ export interface BookingUrgency {
 
 export function getBookingUrgency(dateInput: Date | string | undefined): BookingUrgency | null {
   if (!dateInput) return null;
-  const d = new Date(dateInput);
+  let d: Date;
+  if (typeof dateInput === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    const [y, m, day] = dateInput.split("-").map(Number);
+    d = new Date(y, m - 1, day);
+  } else {
+    d = new Date(dateInput);
+  }
   if (isNaN(d.getTime())) return null;
 
   // ponytail: Midnight comparison uses local date. Upgrade path: pass tenant timezone offset if multi-country support is needed.

@@ -14,6 +14,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { OverviewTab } from "@/components/dashboard/tabs/overview-tab";
 import { OrdersTab } from "@/components/dashboard/tabs/orders-tab";
 import { InventoryTab } from "@/components/dashboard/tabs/inventory-tab";
+import { SuppliersTab } from "@/components/dashboard/tabs/suppliers-tab";
 import { CustomersTab } from "@/components/dashboard/tabs/customers-tab";
 import { ExpensesTab } from "@/components/dashboard/tabs/expenses-tab";
 import { AnalyticsTab } from "@/components/dashboard/tabs/analytics-tab";
@@ -343,6 +344,26 @@ export function DashboardClient({
     setPackages((prev) => prev.filter((p) => p.id !== packageId));
   };
 
+  const handleAddSupplier = (newSupplier: DashboardSupplier) => {
+    setSuppliers((prev) => [newSupplier, ...prev]);
+  };
+
+  const handleUpdateSupplier = (updatedSupplier: DashboardSupplier) => {
+    setSuppliers((prev) =>
+      prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+    );
+  };
+
+  const handleUpdateCustomer = (updatedCustomer: DashboardCustomer) => {
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === updatedCustomer.id || c.phone === updatedCustomer.phone
+          ? { ...c, ...updatedCustomer }
+          : c
+      )
+    );
+  };
+
   return (
     <div className="flex w-full min-h-screen bg-galla-paper text-galla-ink">
       {/* Sidebar Navigation */}
@@ -427,13 +448,25 @@ export function DashboardClient({
             />
           )}
 
+          {activeTab === "suppliers" && (
+            <SuppliersTab
+              suppliers={suppliers}
+              products={products}
+              onAddSupplier={handleAddSupplier}
+              onUpdateSupplier={handleUpdateSupplier}
+              onStockInSuccess={handleStockInSuccess}
+            />
+          )}
+
           {activeTab === "customers" && (
             <CustomersTab
               customers={customers}
+              orders={orders}
               salonName={salonProfile?.name || salonName}
               onOpenSettle={(order) => setSettleOrder(order)}
               onOpenRefund={(order) => setRefundOrder(order)}
               onOpenReschedule={handleRescheduleOrder}
+              onUpdateCustomer={handleUpdateCustomer}
             />
           )}
 

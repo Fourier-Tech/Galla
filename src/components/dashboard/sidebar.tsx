@@ -14,6 +14,7 @@ import {
   LucideIcon,
   Store,
   Sparkles,
+  Truck,
 } from "lucide-react";
 import { TabId, UserRole } from "@/types/dashboard";
 
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "orders", label: "Orders", icon: Receipt, ownerOnly: false },
   { id: "services", label: "Services & Packages", icon: Sparkles, ownerOnly: true },
   { id: "inventory", label: "Inventory", icon: Package, ownerOnly: false },
+  { id: "suppliers", label: "Suppliers & Bills", icon: Truck, ownerOnly: false },
   { id: "customers", label: "Customers", icon: Users, ownerOnly: false },
   { id: "expenses", label: "Expenses", icon: Wallet, ownerOnly: false },
   { id: "analytics", label: "Analytics", icon: BarChart3, ownerOnly: true },

@@ -223,3 +223,47 @@ export const updatePackageSchema = z.object({
 });
 
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>;
+
+export const createSupplierSchema = z.object({
+  name: z.string().trim().min(1, "Supplier name is required"),
+  companyName: z.string().optional(),
+  phone: z.string().trim().min(1, "Phone number is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  address: z.string().optional(),
+  gstin: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
+
+export const updateSupplierSchema = z.object({
+  id: z.string().min(1, "Supplier ID is required"),
+  name: z.string().trim().min(1, "Supplier name is required"),
+  companyName: z.string().optional(),
+  phone: z.string().trim().min(1, "Phone number is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  address: z.string().optional(),
+  gstin: z.string().optional(),
+  notes: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
+
+export const deleteSupplierSchema = z.object({
+  id: z.string().min(1, "Supplier ID is required"),
+});
+
+export type DeleteSupplierInput = z.infer<typeof deleteSupplierSchema>;
+
+export const updateCustomerSchema = z.object({
+  id: z.string().optional(),
+  originalPhone: z.string().optional(),
+  name: z.string().trim().min(1, "Customer name is required"),
+  phone: z.string().trim().min(1, "Phone number is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  gender: z.enum(["female", "male", "other"]).optional(),
+  notes: z.string().optional(),
+});
+
+export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;

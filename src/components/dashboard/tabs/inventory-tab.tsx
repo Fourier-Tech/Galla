@@ -9,7 +9,6 @@ import {
   X,
   Plus,
   Tag,
-  FileText,
   Pencil,
   Trash2,
   Loader2,
@@ -21,7 +20,6 @@ import { formatRupee } from "@/lib/utils";
 import { TransferStockModal } from "@/components/dashboard/modals/transfer-stock-modal";
 import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
 import { ProductModal } from "@/components/dashboard/modals/product-modal";
-import { PurchaseOrdersView } from "@/components/dashboard/purchase-orders-view";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { deleteProductAction } from "@/app/dashboard/actions";
 
@@ -70,7 +68,6 @@ export function InventoryTab({
   const [productToEdit, setProductToEdit] = useState<DashboardProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<DashboardProduct | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [currentView, setCurrentView] = useState<"inventory" | "bills">("inventory");
 
   // Lock background scrolling when any inventory modal is open
   const isAnyModalOpen = Boolean(
@@ -314,28 +311,6 @@ export function InventoryTab({
     }
   };
 
-  if (currentView === "bills") {
-    return (
-      <div className="space-y-6 w-full">
-        <PurchaseOrdersView
-          onBack={() => setCurrentView("inventory")}
-          onOpenStockIn={() => setIsStockInModalOpen(true)}
-        />
-
-        {/* Stock In Modal (Accessible from Bills view too) */}
-        <StockInModal
-          isOpen={isStockInModalOpen}
-          onClose={() => setIsStockInModalOpen(false)}
-          products={products}
-          suppliers={suppliers}
-          onStockInSuccess={(updatedBatch) => {
-            onStockInSuccess?.(updatedBatch);
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 w-full">
       {/* Header & Main Actions */}
@@ -365,14 +340,6 @@ export function InventoryTab({
           >
             <PackagePlus className="h-4 w-4 text-galla-teal" />
             <span>Stock In (PO)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentView("bills")}
-            className="inline-flex items-center gap-1.5 bg-galla-surface border border-galla-line hover:bg-galla-paper text-galla-ink font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-2xs transition-all cursor-pointer"
-          >
-            <FileText className="h-4 w-4 text-galla-ink-soft" />
-            <span>Orders &amp; Bills</span>
           </button>
         </div>
       </div>

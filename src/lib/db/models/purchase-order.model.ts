@@ -10,6 +10,15 @@ export interface IPurchaseOrderItem {
   itemTotalCost: number;
 }
 
+export interface IPurchaseOrderPayment {
+  amount: number;
+  paymentMode: "cash" | "upi" | "card" | "bank_transfer";
+  notes?: string;
+  recordedBy?: "owner" | "staff";
+  type?: "initial" | "settlement" | "full_payment" | string;
+  recordedAt?: Date;
+}
+
 export interface IPurchaseOrder extends Document {
   tenantId: Types.ObjectId;
   purchaseOrderNumber: string;
@@ -20,6 +29,7 @@ export interface IPurchaseOrder extends Document {
     companyName?: string;
   };
   items: IPurchaseOrderItem[];
+  payments?: IPurchaseOrderPayment[];
   totalAmount: number;
   amountPaid: number;
   amountPending: number;
@@ -32,6 +42,22 @@ export interface IPurchaseOrder extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const PurchaseOrderPaymentSchema = new Schema<IPurchaseOrderPayment>(
+  {
+    amount: { type: Number, required: true, min: 0 },
+    paymentMode: {
+      type: String,
+      enum: ["cash", "upi", "card", "bank_transfer"],
+      required: true,
+    },
+    notes: { type: String, trim: true },
+    recordedBy: { type: String, enum: ["owner", "staff"], default: "owner" },
+    type: { type: String, default: "settlement" },
+    recordedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 
 const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>(
   {
@@ -115,6 +141,10 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
         validator: (v: IPurchaseOrderItem[]) => v.length > 0,
         message: "Purchase order must contain at least one product line item",
       },
+    },
+    payments: {
+      type: [PurchaseOrderPaymentSchema],
+      default: [],
     },
     totalAmount: {
       type: Number,

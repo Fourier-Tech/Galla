@@ -34,6 +34,10 @@ import {
   updateServiceSchema,
   createPackageSchema,
   updatePackageSchema,
+  createSupplierSchema,
+  updateSupplierSchema,
+  deleteSupplierSchema,
+  updateCustomerSchema,
 } from "@/lib/validations/dashboard";
 import {
   DashboardOrder,
@@ -43,7 +47,9 @@ import {
   DashboardService,
   DashboardPackage,
   DashboardPurchaseOrder,
+  DashboardPurchaseOrderPayment,
   DashboardSupplier,
+  DashboardCustomer,
   OrderType,
   DashboardPaymentMode,
 } from "@/types/dashboard";
@@ -1477,6 +1483,19 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               companyName: supplier.companyName || input.supplierCompany || undefined,
             },
             items: poItems,
+            payments:
+              finalAmountPaid > 0
+                ? [
+                    {
+                      amount: finalAmountPaid,
+                      paymentMode:
+                        input.paymentMode === "credit" ? "cash" : input.paymentMode,
+                      notes: input.notes || undefined,
+                      recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                      type: finalAmountPaid >= totalAmount ? "full_payment" : "initial",
+                    },
+                  ]
+                : [],
             totalAmount,
             amountPaid: finalAmountPaid,
             amountPending,
@@ -1593,8 +1612,29 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
       }
 
       // Update PurchaseOrder
+      const priorPaid = po.amountPaid;
       po.amountPaid += input.amount;
       po.amountPending = Math.max(0, po.amountPending - input.amount);
+
+      if (!po.payments) po.payments = [];
+      if (po.payments.length === 0 && priorPaid > 0) {
+        po.payments.push({
+          amount: priorPaid,
+          paymentMode: po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
+          notes: po.notes,
+          recordedBy: po.recordedBy || "owner",
+          type: "initial",
+        });
+      }
+
+      po.payments.push({
+        amount: input.amount,
+        paymentMode: input.paymentMode,
+        notes: input.notes?.trim() || undefined,
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        type: "settlement",
+        recordedAt: new Date(),
+      });
 
       // Recalculate paymentStatus using the same rule:
       // if (amountPaid >= totalAmount) → "paid"
@@ -1654,8 +1694,23 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         supplierId: result.po.supplierId?.toString() || "",
         supplierName: result.po.supplierSnapshot.name,
         supplierPhone: result.po.supplierSnapshot.phone ? formatPhoneNumber(result.po.supplierSnapshot.phone) : undefined,
-        supplierCompany: result.po.supplierSnapshot.companyName,
         itemsCount: result.po.items?.length || 0,
+        items: (result.po.items || []).map((it: any) => ({
+          productId: it.productId?.toString() || "",
+          productName: it.productName || "Product",
+          quantityForSell: it.quantityForSell || 0,
+          quantityForUse: it.quantityForUse || 0,
+          purchaseCost: it.purchaseCost || 0,
+          expectedSellPrice: it.expectedSellPrice || 0,
+          itemTotalCost: it.itemTotalCost || 0,
+        })),
+        payments: (result.po.payments || []).map((p: any) => ({
+          amount: p.amount,
+          paymentMode: p.paymentMode,
+          notes: p.notes,
+          recordedBy: p.recordedBy,
+          type: p.type || "settlement",
+        })),
         totalAmount: result.po.totalAmount,
         amountPaid: result.po.amountPaid,
         amountPending: result.po.amountPending,
@@ -1726,24 +1781,129 @@ export async function getPurchaseOrdersAction(options?: {
 
     const rawOrders = await PurchaseOrder.find(filter).sort(sortOrder).lean();
 
-    const purchaseOrders: DashboardPurchaseOrder[] = rawOrders.map((po) => ({
-      id: po._id.toString(),
-      purchaseOrderNumber: po.purchaseOrderNumber,
-      supplierId: po.supplierId?.toString() || "",
-      supplierName: po.supplierSnapshot?.name || "Unknown Supplier",
-      supplierPhone: po.supplierSnapshot?.phone ? formatPhoneNumber(po.supplierSnapshot.phone) : undefined,
-      supplierCompany: po.supplierSnapshot?.companyName,
-      itemsCount: po.items?.length || 0,
-      totalAmount: po.totalAmount,
-      amountPaid: po.amountPaid,
-      amountPending: po.amountPending,
-      paymentMode: po.paymentMode,
-      paymentStatus: po.paymentStatus,
-      invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
-      dealerInvoiceNumber: po.dealerInvoiceNumber,
-      notes: po.notes,
-      createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
-    }));
+    const poIds = rawOrders.map((po) => po._id);
+    const linkedExpenses = await Expense.find({
+      tenantId: tenantObjectId,
+      linkedPurchaseOrderId: { $in: poIds },
+    })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const expensesByPoId = new Map<string, typeof linkedExpenses>();
+    for (const exp of linkedExpenses) {
+      if (exp.linkedPurchaseOrderId) {
+        const key = exp.linkedPurchaseOrderId.toString();
+        const list = expensesByPoId.get(key) || [];
+        list.push(exp);
+        expensesByPoId.set(key, list);
+      }
+    }
+
+    // Lookup linked suppliers so bills always display the latest live supplier phone, name, and company
+    const supplierIds = Array.from(
+      new Set(
+        rawOrders
+          .map((po) => po.supplierId?.toString())
+          .filter((id): id is string => Boolean(id) && Types.ObjectId.isValid(id))
+      )
+    ).map((id) => new Types.ObjectId(id));
+
+    const suppliersList =
+      supplierIds.length > 0
+        ? await Supplier.find({
+            _id: { $in: supplierIds },
+            tenantId: tenantObjectId,
+          }).lean()
+        : [];
+
+    const suppliersById = new Map(
+      suppliersList.map((s) => [s._id.toString(), s])
+    );
+
+    const purchaseOrders: DashboardPurchaseOrder[] = rawOrders.map((po) => {
+      let payments: DashboardPurchaseOrderPayment[] = [];
+      if (po.payments && po.payments.length > 0) {
+        payments = po.payments.map((p: any) => ({
+          amount: p.amount,
+          paymentMode: p.paymentMode,
+          notes: p.notes,
+          recordedBy: p.recordedBy,
+          type: p.type || "settlement",
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : po.createdAt
+            ? new Date(po.createdAt).toISOString()
+            : undefined,
+        }));
+      } else {
+        const poExps = expensesByPoId.get(po._id.toString()) || [];
+        if (poExps.length > 0) {
+          payments = poExps.map((e, idx) => ({
+            amount: e.amount,
+            paymentMode: e.paymentMode as any,
+            notes: e.notes,
+            recordedBy: e.recordedBy,
+            type:
+              idx === 0 && poExps.length > 1
+                ? "initial"
+                : e.title?.toLowerCase().includes("stock in")
+                ? "initial"
+                : "settlement",
+            recordedAt: e.expenseDate
+              ? new Date(e.expenseDate).toISOString()
+              : e.createdAt
+              ? new Date(e.createdAt).toISOString()
+              : undefined,
+          }));
+        } else if (po.amountPaid > 0) {
+          payments = [
+            {
+              amount: po.amountPaid,
+              paymentMode: po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
+              notes: po.notes,
+              recordedBy: po.recordedBy || "owner",
+              type: po.amountPaid >= po.totalAmount ? "full_payment" : "initial",
+              recordedAt: po.createdAt ? new Date(po.createdAt).toISOString() : undefined,
+            },
+          ];
+        }
+      }
+
+      const liveSupplier = po.supplierId ? suppliersById.get(po.supplierId.toString()) : null;
+      const supplierName = liveSupplier?.name || po.supplierSnapshot?.name || "Unknown Supplier";
+      const supplierPhone = liveSupplier?.phone || po.supplierSnapshot?.phone;
+      const supplierCompany = liveSupplier?.companyName || po.supplierSnapshot?.companyName;
+
+      return {
+        id: po._id.toString(),
+        purchaseOrderNumber: po.purchaseOrderNumber,
+        supplierId: po.supplierId?.toString() || "",
+        supplierName,
+        supplierPhone: supplierPhone ? formatPhoneNumber(supplierPhone) : undefined,
+        supplierCompany,
+        itemsCount: po.items?.length || 0,
+        items: (po.items || []).map((it: any) => ({
+          productId: it.productId?.toString() || "",
+          productName: it.productName || "Product",
+          quantityForSell: it.quantityForSell || 0,
+          quantityForUse: it.quantityForUse || 0,
+          purchaseCost: it.purchaseCost || 0,
+          expectedSellPrice: it.expectedSellPrice || 0,
+          itemTotalCost: it.itemTotalCost || 0,
+        })),
+        payments,
+        totalAmount: po.totalAmount,
+        amountPaid: po.amountPaid,
+        amountPending: po.amountPending,
+        paymentMode: po.paymentMode,
+        paymentStatus: po.paymentStatus,
+        invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+        dealerInvoiceNumber: po.dealerInvoiceNumber,
+        notes: po.notes,
+        recordedBy: po.recordedBy || undefined,
+        createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
+      };
+    });
 
     return { success: true, purchaseOrders };
   } catch (error) {
@@ -2862,4 +3022,345 @@ export async function getCustomerOrdersAction(input: {
     return { success: false, error: "Failed to fetch customer orders" };
   }
 }
+
+export async function createSupplierAction(rawInput: unknown): Promise<{
+  success: boolean;
+  supplier?: DashboardSupplier;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = createSupplierSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    const normalizedPhone = formatPhoneNumber(input.phone);
+
+    const newDoc = await Supplier.create({
+      tenantId: tenantObjectId,
+      name: input.name.trim(),
+      companyName: input.companyName?.trim() || undefined,
+      phone: normalizedPhone,
+      email: input.email?.trim() || undefined,
+      address: input.address?.trim() || undefined,
+      gstin: input.gstin?.trim() || undefined,
+      notes: input.notes?.trim() || undefined,
+      totalPurchases: 0,
+      totalPaid: 0,
+      totalPending: 0,
+      isActive: true,
+    });
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "supplier_created");
+
+    return {
+      success: true,
+      supplier: {
+        id: newDoc._id.toString(),
+        name: newDoc.name,
+        companyName: newDoc.companyName,
+        phone: formatPhoneNumber(newDoc.phone),
+        email: newDoc.email,
+        address: newDoc.address,
+        gstin: newDoc.gstin,
+        notes: newDoc.notes,
+        totalPurchases: newDoc.totalPurchases || 0,
+        totalPaid: newDoc.totalPaid || 0,
+        totalPending: newDoc.totalPending || 0,
+        isActive: newDoc.isActive !== false,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to create supplier:", error);
+    return { success: false, error: "Failed to persist supplier to database" };
+  }
+}
+
+export async function updateSupplierAction(rawInput: unknown): Promise<{
+  success: boolean;
+  supplier?: DashboardSupplier;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = updateSupplierSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    const supplier = await Supplier.findOne({
+      _id: new Types.ObjectId(input.id),
+      tenantId: tenantObjectId,
+    });
+
+    if (!supplier) {
+      return { success: false, error: "Supplier not found" };
+    }
+
+    const oldName = supplier.name;
+    const oldPhone = supplier.phone;
+    const oldCompany = supplier.companyName;
+
+    supplier.name = input.name.trim();
+    supplier.companyName = input.companyName?.trim() || undefined;
+    if (input.phone) {
+      supplier.phone = formatPhoneNumber(input.phone);
+    }
+    supplier.email = input.email?.trim() || undefined;
+    supplier.address = input.address?.trim() || undefined;
+    supplier.gstin = input.gstin?.trim() || undefined;
+    supplier.notes = input.notes?.trim() || undefined;
+    if (input.isActive !== undefined) {
+      supplier.isActive = input.isActive;
+    }
+
+    await supplier.save();
+
+    // Sync supplierSnapshot in all purchase orders linked to this supplier
+    if (
+      supplier.phone !== oldPhone ||
+      supplier.name !== oldName ||
+      supplier.companyName !== oldCompany
+    ) {
+      await PurchaseOrder.updateMany(
+        {
+          tenantId: tenantObjectId,
+          $or: [
+            { supplierId: supplier._id },
+            ...(oldPhone ? [{ "supplierSnapshot.phone": oldPhone }] : []),
+            { "supplierSnapshot.name": oldName },
+          ],
+        },
+        {
+          $set: {
+            "supplierSnapshot.name": supplier.name,
+            "supplierSnapshot.phone": supplier.phone,
+            "supplierSnapshot.companyName": supplier.companyName,
+          },
+        }
+      );
+    }
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "supplier_updated");
+
+    return {
+      success: true,
+      supplier: {
+        id: supplier._id.toString(),
+        name: supplier.name,
+        companyName: supplier.companyName,
+        phone: formatPhoneNumber(supplier.phone),
+        email: supplier.email,
+        address: supplier.address,
+        gstin: supplier.gstin,
+        notes: supplier.notes,
+        totalPurchases: supplier.totalPurchases || 0,
+        totalPaid: supplier.totalPaid || 0,
+        totalPending: supplier.totalPending || 0,
+        isActive: supplier.isActive !== false,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to update supplier:", error);
+    return { success: false, error: "Failed to update supplier in database" };
+  }
+}
+
+export async function deleteSupplierAction(rawInput: unknown): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = deleteSupplierSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const { id } = parseResult.data;
+    await connectToDatabase();
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found" };
+    }
+
+    await Supplier.findOneAndUpdate(
+      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
+      { $set: { isActive: false } }
+    );
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "supplier_updated");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete supplier:", error);
+    return { success: false, error: "Failed to delete supplier" };
+  }
+}
+
+export async function updateCustomerAction(rawInput: unknown): Promise<{
+  success: boolean;
+  customer?: DashboardCustomer;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = updateCustomerSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+
+    // Locate existing customer by ID or phone
+    const normalizedNewPhone = formatPhoneNumber(input.phone);
+    let customer = null;
+    if (input.id && Types.ObjectId.isValid(input.id)) {
+      customer = await Customer.findOne({
+        _id: new Types.ObjectId(input.id),
+        tenantId: tenantObjectId,
+      });
+    }
+    if (!customer && input.originalPhone) {
+      const origPhone = formatPhoneNumber(input.originalPhone);
+      customer = await Customer.findOne({
+        phone: origPhone,
+        tenantId: tenantObjectId,
+      });
+    }
+    if (!customer) {
+      customer = await Customer.findOne({
+        phone: normalizedNewPhone,
+        tenantId: tenantObjectId,
+      });
+    }
+
+    if (!customer) {
+      return { success: false, error: "Customer profile not found" };
+    }
+
+    const oldPhone = customer.phone;
+    const oldName = customer.name;
+
+    // If phone number is changing, verify no other customer has this phone
+    if (normalizedNewPhone !== customer.phone) {
+      const existingWithPhone = await Customer.findOne({
+        tenantId: tenantObjectId,
+        phone: normalizedNewPhone,
+        _id: { $ne: customer._id },
+      });
+      if (existingWithPhone) {
+        return {
+          success: false,
+          error: `Another customer with phone ${normalizedNewPhone} already exists.`,
+        };
+      }
+      customer.phone = normalizedNewPhone;
+    }
+
+    customer.name = input.name.trim();
+    customer.email = input.email?.trim() || undefined;
+    customer.gender = input.gender || undefined;
+    customer.notes = input.notes?.trim() || undefined;
+
+    await customer.save();
+
+    // Sync order snapshots if name or phone changed
+    if (customer.name !== oldName || customer.phone !== oldPhone) {
+      await Order.updateMany(
+        {
+          tenantId: tenantObjectId,
+          $or: [
+            { customerId: customer._id },
+            { "customerSnapshot.phone": oldPhone },
+          ],
+        },
+        {
+          $set: {
+            "customerSnapshot.name": customer.name,
+            "customerSnapshot.phone": customer.phone,
+          },
+        }
+      );
+    }
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "customer_updated");
+
+    const mappedCustomer: DashboardCustomer = {
+      id: customer._id.toString(),
+      phone: formatPhoneNumber(customer.phone),
+      name: customer.name,
+      email: customer.email || undefined,
+      gender: customer.gender || undefined,
+      notes: customer.notes || undefined,
+      visits: customer.stats?.totalVisits ?? 0,
+      lastVisit: customer.stats?.lastVisitAt
+        ? new Date(customer.stats.lastVisitAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+        : "Never",
+      lastVisitRaw: customer.stats?.lastVisitAt
+        ? new Date(customer.stats.lastVisitAt).toISOString()
+        : customer.updatedAt
+        ? new Date(customer.updatedAt).toISOString()
+        : undefined,
+      totalSpent: typeof customer.stats?.totalSpend === "number" ? customer.stats.totalSpend : 0,
+      outstandingDue: typeof customer.stats?.outstandingBalance === "number" ? customer.stats.outstandingBalance : 0,
+      createdAt: customer.createdAt ? new Date(customer.createdAt).toISOString() : undefined,
+    };
+
+    return {
+      success: true,
+      customer: mappedCustomer,
+    };
+  } catch (error) {
+    console.error("Failed to update customer:", error);
+    return { success: false, error: "Failed to update customer" };
+  }
+}
+
 

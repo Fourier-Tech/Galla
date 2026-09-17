@@ -26,7 +26,7 @@ import {
   DashboardProduct,
 } from "@/types/dashboard";
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime } from "@/lib/utils";
+import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 function getPhoneDigits(val: string): string {
@@ -110,7 +110,7 @@ export function NewOrderModal({
   const [advance, setAdvance] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [includePreviousDue, setIncludePreviousDue] = useState(false);
-  const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [bookingDate, setBookingDate] = useState(() => getLocalDateString());
   const [bookingTime, setBookingTime] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -304,7 +304,7 @@ export function NewOrderModal({
     setAdvance("");
     setDueDate("");
     setIncludePreviousDue(false);
-    setBookingDate(new Date().toISOString().split("T")[0]);
+    setBookingDate(getLocalDateString());
     setBookingTime("");
     setShowConfirm(false);
     setErrorMsg(null);
@@ -1303,7 +1303,7 @@ export function NewOrderModal({
                   <input
                     type="date"
                     value={dueDate}
-                    min={new Date().toISOString().split("T")[0]}
+                    min={getLocalDateString()}
                     onChange={(e) => setDueDate(e.target.value)}
                     className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none focus:border-amber-500 transition-all cursor-pointer"
                   />
@@ -1359,7 +1359,7 @@ export function NewOrderModal({
                       <input
                         type="date"
                         value={bookingDate}
-                        min={new Date().toISOString().split("T")[0]}
+                        min={getLocalDateString()}
                         onChange={(e) => setBookingDate(e.target.value)}
                         className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
                           settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"

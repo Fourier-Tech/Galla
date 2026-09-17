@@ -16,13 +16,14 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { DashboardPurchaseOrder } from "@/types/dashboard";
+import { DashboardPurchaseOrder, DashboardSupplier } from "@/types/dashboard";
 import { formatRupee, formatPhoneNumber } from "@/lib/utils";
 import {
   getPurchaseOrdersAction,
   recordPurchaseOrderPaymentAction,
 } from "@/app/dashboard/actions";
-import { ConfirmModal } from "./modals/confirm-modal";
+import { PurchaseBillDetailsModal } from "./modals/purchase-bill-details-modal";
+import { SettlePurchaseBillModal } from "./modals/settle-purchase-bill-modal";
 
 function formatInvoiceDate(dateStr?: string | Date): string {
   if (!dateStr) return "";
@@ -32,31 +33,60 @@ function formatInvoiceDate(dateStr?: string | Date): string {
 }
 
 interface PurchaseOrdersViewProps {
-  onBack: () => void;
+  onBack?: () => void;
   onOpenStockIn?: () => void;
   onPaymentRecorded?: (updatedPO: DashboardPurchaseOrder) => void;
+  showHeader?: boolean;
+  searchQuery?: string;
+  suppliers?: DashboardSupplier[];
 }
 
 export function PurchaseOrdersView({
   onBack,
   onOpenStockIn,
   onPaymentRecorded,
+  showHeader = true,
+  searchQuery: externalSearchQuery,
+  suppliers,
 }: PurchaseOrdersViewProps) {
   const [orders, setOrders] = useState<DashboardPurchaseOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterPendingOnly, setFilterPendingOnly] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  const activeSearchQuery = externalSearchQuery !== undefined ? externalSearchQuery : localSearchQuery;
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
+  // Selected bill for view modal
+  const [selectedBillForDetails, setSelectedBillForDetails] = useState<DashboardPurchaseOrder | null>(null);
+
   // "Pay Now" settlement dialog state
   const [selectedPOForPayment, setSelectedPOForPayment] = useState<DashboardPurchaseOrder | null>(null);
-  const [payAmount, setPayAmount] = useState("");
-  const [payMode, setPayMode] = useState<"cash" | "upi" | "card" | "bank_transfer">("cash");
-  const [payNotes, setPayNotes] = useState("");
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [showConfirmPayment, setShowConfirmPayment] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
+
+  // Sync orders whenever suppliers prop is updated
+  useEffect(() => {
+    if (!suppliers || suppliers.length === 0) return;
+    const supMap = new Map(suppliers.map((s) => [s.id, s]));
+    setOrders((prev) =>
+      prev.map((o) => {
+        const s = supMap.get(o.supplierId);
+        if (!s) return o;
+        if (
+          s.phone !== o.supplierPhone ||
+          s.name !== o.supplierName ||
+          s.companyName !== o.supplierCompany
+        ) {
+          return {
+            ...o,
+            supplierName: s.name || o.supplierName,
+            supplierPhone: s.phone ? formatPhoneNumber(s.phone) : o.supplierPhone,
+            supplierCompany: s.companyName !== undefined ? s.companyName : o.supplierCompany,
+          };
+        }
+        return o;
+      })
+    );
+  }, [suppliers]);
 
   useEffect(() => {
     let ignore = false;
@@ -90,7 +120,7 @@ export function PurchaseOrdersView({
   const filteredOrders = useMemo(() => {
     return orders.filter((po) => {
       const matchesPending = !filterPendingOnly || po.paymentStatus !== "paid";
-      const q = searchQuery.trim().toLowerCase();
+      const q = activeSearchQuery.trim().toLowerCase();
       const matchesSearch =
         !q ||
         po.purchaseOrderNumber.toLowerCase().includes(q) ||
@@ -98,7 +128,7 @@ export function PurchaseOrdersView({
         (po.dealerInvoiceNumber && po.dealerInvoiceNumber.toLowerCase().includes(q));
       return matchesPending && matchesSearch;
     });
-  }, [orders, filterPendingOnly, searchQuery]);
+  }, [orders, filterPendingOnly, activeSearchQuery]);
 
   const totalCount = filteredOrders.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -111,98 +141,56 @@ export function PurchaseOrdersView({
 
   const handleOpenPayNow = (po: DashboardPurchaseOrder) => {
     setSelectedPOForPayment(po);
-    setPayAmount(String(po.amountPending));
-    setPayMode("cash");
-    setPayNotes("");
-    setPayError(null);
   };
 
-  const handlePromptPaymentConfirm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPOForPayment) return;
-    setPayError(null);
-
-    const parsed = Number(payAmount);
-    if (isNaN(parsed) || parsed <= 0) {
-      setPayError("Please enter a valid payment amount greater than ₹0");
-      return;
+  const handlePaymentSuccess = (updatedPO: DashboardPurchaseOrder) => {
+    setOrders((prev) => prev.map((o) => (o.id === updatedPO.id ? updatedPO : o)));
+    if (selectedBillForDetails?.id === updatedPO.id) {
+      setSelectedBillForDetails(updatedPO);
     }
-
-    if (parsed > selectedPOForPayment.amountPending) {
-      setPayError(
-        `Payment cannot exceed current pending balance of ${formatRupee(selectedPOForPayment.amountPending)}`
-      );
-      return;
-    }
-
-    setShowConfirmPayment(true);
-  };
-
-  const executeConfirmPayment = async () => {
-    if (!selectedPOForPayment) return;
-    setShowConfirmPayment(false);
-    setPayError(null);
-
-    const parsed = Number(payAmount);
-    setIsProcessingPayment(true);
-    try {
-      const res = await recordPurchaseOrderPaymentAction({
-        purchaseOrderId: selectedPOForPayment.id,
-        amount: parsed,
-        paymentMode: payMode,
-        notes: payNotes.trim() || undefined,
-      });
-
-      if (res.success && res.purchaseOrder) {
-        const updated = res.purchaseOrder;
-        setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-        onPaymentRecorded?.(updated);
-        setSelectedPOForPayment(null);
-      } else {
-        setPayError(res.error || "Failed to record payment");
-      }
-    } catch {
-      setPayError("Network error occurred while recording payment");
-    } finally {
-      setIsProcessingPayment(false);
-    }
+    onPaymentRecorded?.(updatedPO);
+    setSelectedPOForPayment(null);
   };
 
   return (
     <div className="space-y-6 w-full animate-in fade-in duration-150">
       {/* Top Header with Back Button */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
-            Purchase Orders &amp; Bills
-          </h2>
-          <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
-            Track dealer stock-in orders, credit balances &bull; record later settlements
-          </p>
-          <div className="mt-1.5">
+      {showHeader && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+              Purchase Orders &amp; Bills
+            </h2>
+            <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
+              Track dealer stock-in orders, credit balances &bull; record later settlements
+            </p>
+            {onBack && (
+              <div className="mt-1.5">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="inline-flex items-center mt-3 gap-1 text-[12px] font-sans font-medium text-galla-teal hover:text-galla-teal/80 hover:underline cursor-pointer transition-colors group bg-transparent border-0 p-0"
+                  title="Return to products and stock list"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+                  <span>Back to Inventory</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {onOpenStockIn && (
             <button
               type="button"
-              onClick={onBack}
-              className="inline-flex items-center mt-3 gap-1 text-[12px] font-sans font-medium text-galla-teal hover:text-galla-teal/80 hover:underline cursor-pointer transition-colors group bg-transparent border-0 p-0"
-              title="Return to products and stock list"
+              onClick={onOpenStockIn}
+              className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer self-start sm:self-auto shrink-0"
             >
-              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-              <span>Back to Inventory</span>
+              <PackagePlus className="h-4 w-4" />
+              <span>Stock In (PO)</span>
             </button>
-          </div>
+          )}
         </div>
-
-        {onOpenStockIn && (
-          <button
-            type="button"
-            onClick={onOpenStockIn}
-            className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer self-start sm:self-auto shrink-0"
-          >
-            <PackagePlus className="h-4 w-4" />
-            <span>Stock In (PO)</span>
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Main Ledger Card Container */}
       <div className="bg-galla-surface border border-galla-line rounded-[6px] shadow-2xs overflow-hidden">
@@ -249,31 +237,33 @@ export function PurchaseOrdersView({
             )}
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line w-full sm:w-72 text-[12.5px]">
-            <Search className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search PO#, supplier, invoice..."
-              className="w-full bg-transparent outline-none text-galla-ink placeholder:text-galla-ink-soft/60"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
+          {externalSearchQuery === undefined && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line w-full sm:w-72 text-[12.5px]">
+              <Search className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
+              <input
+                type="text"
+                value={localSearchQuery}
+                onChange={(e) => {
+                  setLocalSearchQuery(e.target.value);
                   setPage(1);
                 }}
-                className="text-galla-ink-soft hover:text-galla-ink"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+                placeholder="Search PO#, supplier, invoice..."
+                className="w-full bg-transparent outline-none text-galla-ink placeholder:text-galla-ink-soft/60"
+              />
+              {localSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocalSearchQuery("");
+                    setPage(1);
+                  }}
+                  className="text-galla-ink-soft hover:text-galla-ink"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Ledger Rows */}
@@ -306,11 +296,12 @@ export function PurchaseOrdersView({
               return (
                 <div
                   key={po.id}
-                  className="p-[18px] sm:px-[21px] hover:bg-galla-paper/20 transition-colors flex flex-col lg:grid lg:grid-cols-[170px_1fr_180px_130px_160px_110px] gap-3 lg:gap-4 lg:items-center"
+                  onClick={() => setSelectedBillForDetails(po)}
+                  className="p-[18px] sm:px-[21px] hover:bg-galla-paper/40 transition-colors flex flex-col lg:grid lg:grid-cols-[170px_1fr_180px_130px_160px_110px] gap-3 lg:gap-4 lg:items-center cursor-pointer group"
                 >
                   {/* PO Number & Badge */}
                   <div>
-                    <div className="font-heading font-semibold text-[14.5px] text-galla-ink">
+                    <div className="font-heading font-semibold text-[14.5px] text-galla-ink group-hover:text-galla-teal transition-colors">
                       {po.purchaseOrderNumber}
                     </div>
                     <div className="mt-1">
@@ -391,7 +382,10 @@ export function PurchaseOrdersView({
                     {po.amountPending > 0 ? (
                       <button
                         type="button"
-                        onClick={() => handleOpenPayNow(po)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenPayNow(po);
+                        }}
                         className="w-full lg:w-auto px-3.5 py-1.5 rounded-[4px] bg-galla-teal hover:opacity-95 text-white font-sans text-[12px] font-medium shadow-xs transition-all cursor-pointer text-center"
                       >
                         Pay Now
@@ -453,142 +447,56 @@ export function PurchaseOrdersView({
         </div>
       </div>
 
-      {/* "Pay Now" Settlement Dialog */}
-      {selectedPOForPayment && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
-        >
-          <div className="w-full max-w-[420px] bg-galla-surface border border-galla-line rounded-[6px] shadow-2xl p-[20px] animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-galla-line">
-              <div>
-                <h4 className="font-heading font-semibold text-[16px] text-galla-ink">
-                  Record Later Settlement
-                </h4>
-                <p className="font-sans text-[11.5px] text-galla-ink-soft mt-0.5">
-                  Order {selectedPOForPayment.purchaseOrderNumber} &bull; {selectedPOForPayment.supplierName}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPOForPayment(null)}
-                className="text-galla-ink-soft hover:text-galla-ink p-1 cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      {/* Settle Purchase Bill Modal (Enriched to mirror SettleOrderModal) */}
+      <SettlePurchaseBillModal
+        bill={
+          selectedPOForPayment
+            ? (() => {
+                const livePO = orders.find((o) => o.id === selectedPOForPayment.id);
+                const base = livePO || selectedPOForPayment;
+                const sup = suppliers?.find((s) => s.id === base.supplierId);
+                return sup
+                  ? {
+                      ...base,
+                      supplierName: sup.name || base.supplierName,
+                      supplierPhone: sup.phone ? formatPhoneNumber(sup.phone) : base.supplierPhone,
+                      supplierCompany: sup.companyName !== undefined ? sup.companyName : base.supplierCompany,
+                    }
+                  : base;
+              })()
+            : null
+        }
+        isOpen={Boolean(selectedPOForPayment)}
+        onClose={() => setSelectedPOForPayment(null)}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
 
-            <form onSubmit={handlePromptPaymentConfirm} className="space-y-3.5 pt-3.5">
-              {payError && (
-                <div className="p-2.5 bg-red-50 border border-red-200 text-red-800 rounded-[4px] text-[12px] font-sans flex items-start gap-1.5">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-                  <span>{payError}</span>
-                </div>
-              )}
-
-              <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[4px] flex items-center justify-between">
-                <div>
-                  <div className="font-sans text-[11px] text-galla-ink-soft">Total PO Amount</div>
-                  <div className="font-heading font-semibold text-[14px] text-galla-ink">
-                    {formatRupee(selectedPOForPayment.totalAmount)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-sans text-[11px] text-amber-800 font-medium">Pending Due</div>
-                  <div className="font-heading font-semibold text-[16px] text-amber-800 tabular-nums">
-                    {formatRupee(selectedPOForPayment.amountPending)}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-sans text-[12px] font-medium text-galla-ink mb-1">
-                  Amount to Pay Now (₹) <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={selectedPOForPayment.amountPending}
-                  step="any"
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  placeholder={String(selectedPOForPayment.amountPending)}
-                  className="w-full px-2.5 py-1.5 rounded-[4px] bg-galla-paper/20 border border-galla-line font-sans text-[13px] text-galla-ink outline-none tabular-nums"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-sans text-[12px] font-medium text-galla-ink mb-1">
-                  Payment Mode
-                </label>
-                <select
-                  value={payMode}
-                  onChange={(e) => setPayMode(e.target.value as "cash" | "upi" | "card" | "bank_transfer")}
-                  className="w-full px-2.5 py-1.5 rounded-[4px] bg-galla-paper/20 border border-galla-line font-sans text-[12px] text-galla-ink outline-none cursor-pointer"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="upi">UPI</option>
-                  <option value="card">Card</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-sans text-[12px] font-medium text-galla-ink mb-1">
-                  Payment Notes (optional)
-                </label>
-                <input
-                  type="text"
-                  value={payNotes}
-                  onChange={(e) => setPayNotes(e.target.value)}
-                  placeholder="e.g. Cleared 2nd installment"
-                  className="w-full px-2.5 py-1.5 rounded-[4px] bg-galla-paper/20 border border-galla-line font-sans text-[12px] text-galla-ink outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPOForPayment(null)}
-                  disabled={isProcessingPayment}
-                  className="px-3 py-1.5 rounded-[4px] border border-galla-line font-sans text-[12px] text-galla-ink hover:bg-galla-paper cursor-pointer disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isProcessingPayment}
-                  className="inline-flex items-center gap-1 px-4 py-1.5 rounded-[4px] bg-galla-teal hover:opacity-95 text-white font-sans text-[12px] font-medium shadow-xs cursor-pointer disabled:opacity-60"
-                >
-                  {isProcessingPayment && <Loader2 className="h-3 w-3 animate-spin" />}
-                  <span>{isProcessingPayment ? "Recording..." : "Confirm Payment"}</span>
-                </button>
-              </div>
-            </form>
-
-            <ConfirmModal
-              isOpen={showConfirmPayment}
-              title="Confirm Settlement Payment"
-              description={
-                <span>
-                  Are you sure you want to record a payment of{" "}
-                  <strong className="font-semibold text-galla-ink">{formatRupee(Number(payAmount) || 0)}</strong> via{" "}
-                  <strong className="font-semibold text-galla-ink">{payMode.toUpperCase()}</strong> for PO{" "}
-                  <strong className="font-semibold text-galla-ink">#{selectedPOForPayment.purchaseOrderNumber}</strong> to{" "}
-                  <strong className="font-semibold text-galla-ink">&ldquo;{selectedPOForPayment.supplierName}&rdquo;</strong>?
-                </span>
-              }
-              confirmLabel="Yes, Record Payment"
-              cancelLabel="Cancel"
-              isLoading={isProcessingPayment}
-              onConfirm={executeConfirmPayment}
-              onClose={() => setShowConfirmPayment(false)}
-            />
-          </div>
-        </div>
-      )}
+      {/* Purchase Bill Details Modal */}
+      <PurchaseBillDetailsModal
+        bill={
+          selectedBillForDetails
+            ? (() => {
+                const livePO = orders.find((o) => o.id === selectedBillForDetails.id);
+                const base = livePO || selectedBillForDetails;
+                const sup = suppliers?.find((s) => s.id === base.supplierId);
+                return sup
+                  ? {
+                      ...base,
+                      supplierName: sup.name || base.supplierName,
+                      supplierPhone: sup.phone ? formatPhoneNumber(sup.phone) : base.supplierPhone,
+                      supplierCompany: sup.companyName !== undefined ? sup.companyName : base.supplierCompany,
+                    }
+                  : base;
+              })()
+            : null
+        }
+        isOpen={Boolean(selectedBillForDetails)}
+        onClose={() => setSelectedBillForDetails(null)}
+        onOpenPayNow={(bill) => {
+          setSelectedBillForDetails(null);
+          handleOpenPayNow(bill);
+        }}
+      />
     </div>
   );
 }

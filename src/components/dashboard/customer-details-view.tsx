@@ -19,35 +19,55 @@ import {
   Receipt,
   TrendingUp,
   CreditCard,
+  Pencil,
+  RotateCcw,
 } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { getCustomerOrdersAction } from "@/app/dashboard/actions";
 import { formatRupee, formatPhoneNumber } from "@/lib/utils";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
+import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 
 interface CustomerDetailsViewProps {
   customer: DashboardCustomer;
   onBack: () => void;
   salonName?: string;
+  globalOrders?: DashboardOrder[];
   onOpenSettle?: (order: DashboardOrder) => void;
   onOpenRefund?: (order: DashboardOrder) => void;
   onOpenReschedule?: (order: DashboardOrder) => void;
+  onOpenEditCustomer?: (customer: DashboardCustomer) => void;
 }
 
 export function CustomerDetailsView({
   customer,
   onBack,
   salonName,
+  globalOrders,
   onOpenSettle,
   onOpenRefund,
   onOpenReschedule,
+  onOpenEditCustomer,
 }: CustomerDetailsViewProps) {
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "service" | "product" | "package">("all");
   const [selectedOrder, setSelectedOrder] = useState<DashboardOrder | null>(null);
+  const [rescheduleOrder, setRescheduleOrder] = useState<DashboardOrder | null>(null);
+
+  // Sync local customer orders when global orders update (settlement, refund, reschedule)
+  useEffect(() => {
+    if (!globalOrders || globalOrders.length === 0) return;
+    const globalMap = new Map(globalOrders.map((o) => [o.id, o]));
+    setOrders((prev) =>
+      prev.map((o) => {
+        const updated = globalMap.get(o.id);
+        return updated ? { ...o, ...updated } : o;
+      })
+    );
+  }, [globalOrders]);
 
   useEffect(() => {
     let ignore = false;
@@ -300,6 +320,17 @@ export function CustomerDetailsView({
               <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
               <span>WhatsApp</span>
             </a>
+          )}
+          {onOpenEditCustomer && (
+            <button
+              type="button"
+              onClick={() => onOpenEditCustomer(customer)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line hover:bg-galla-paper text-galla-ink font-sans text-[12.5px] font-medium shadow-2xs transition-all cursor-pointer"
+              title={`Edit ${customer.name}'s details`}
+            >
+              <Pencil className="h-3.5 w-3.5 text-galla-teal" />
+              <span>Edit</span>
+            </button>
           )}
         </div>
       </div>
@@ -587,7 +618,7 @@ export function CustomerDetailsView({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 flex-wrap sm:flex-nowrap">
                       <div className="text-right">
                         <div className="font-mono text-[13.5px] font-bold text-galla-ink">
                           {formatRupee(order.amount)}
@@ -604,6 +635,57 @@ export function CustomerDetailsView({
                       </div>
 
                       <StatusPill status={order.status} />
+
+                      {/* Relative Action Buttons based on order status */}
+                      <div
+                        className="flex items-center gap-1.5 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* 1. Settle & Done: for orders with pending due balance / advance */}
+                        {!isPaidFull &&
+                          order.status !== "cancelled_refunded" &&
+                          order.status !== "cancelled_converted" &&
+                          onOpenSettle && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenSettle(order)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11.5px] font-sans font-medium rounded-[5px] bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs"
+                              title={`Settle ${formatRupee(pendingBalance)} remaining balance and complete order`}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span>Settle &amp; Done</span>
+                            </button>
+                          )}
+
+                        {/* 2. Reschedule: for upcoming scheduled appointments or pending due orders */}
+                        {(Boolean(order.scheduledFor) || !isPaidFull) &&
+                          order.status !== "completed" &&
+                          order.status !== "cancelled_refunded" &&
+                          order.status !== "cancelled_converted" && (
+                            <button
+                              type="button"
+                              onClick={() => setRescheduleOrder(order)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11.5px] font-sans font-medium rounded-[5px] bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all cursor-pointer shadow-2xs"
+                              title="Reschedule appointment or payment due date"
+                            >
+                              <Calendar className="h-3.5 w-3.5 text-galla-teal" />
+                              <span>Reschedule</span>
+                            </button>
+                          )}
+
+                        {/* 3. Refund: for completed orders with payment */}
+                        {order.status === "completed" && order.paid > 0 && onOpenRefund && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenRefund(order)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11.5px] font-sans font-medium rounded-[5px] bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs"
+                            title="Process refund for this order"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 text-rose-600" />
+                            <span>Refund</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -627,7 +709,27 @@ export function CustomerDetailsView({
         salonName={salonName}
         onOpenSettle={onOpenSettle}
         onOpenRefund={onOpenRefund}
-        onOpenReschedule={onOpenReschedule}
+        onOpenReschedule={(ord) => {
+          setSelectedOrder(null);
+          setRescheduleOrder(ord);
+        }}
+      />
+
+      {/* Reschedule Order Modal */}
+      <RescheduleOrderModal
+        order={rescheduleOrder}
+        isOpen={Boolean(rescheduleOrder)}
+        onClose={() => setRescheduleOrder(null)}
+        onRescheduleSuccess={(updated) => {
+          setOrders((prev) =>
+            prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o))
+          );
+          if (selectedOrder?.id === updated.id) {
+            setSelectedOrder((prev) => (prev ? { ...prev, ...updated } : null));
+          }
+          onOpenReschedule?.(updated);
+          setRescheduleOrder(null);
+        }}
       />
     </div>
   );

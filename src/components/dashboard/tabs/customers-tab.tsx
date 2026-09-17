@@ -1,28 +1,37 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Search, ChevronRight, User, Wallet, Calendar, AlertCircle } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, User, Wallet, Calendar, AlertCircle } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { formatPhoneNumber, formatRupee } from "@/lib/utils";
 import { CustomerDetailsView } from "@/components/dashboard/customer-details-view";
+import { CustomerModal } from "@/components/dashboard/modals/customer-modal";
 
 interface CustomersTabProps {
   customers: DashboardCustomer[];
+  orders?: DashboardOrder[];
   salonName?: string;
   onOpenSettle?: (order: DashboardOrder) => void;
   onOpenRefund?: (order: DashboardOrder) => void;
   onOpenReschedule?: (order: DashboardOrder) => void;
+  onUpdateCustomer?: (customer: DashboardCustomer) => void;
 }
 
 export function CustomersTab({
   customers,
+  orders,
   salonName,
   onOpenSettle,
   onOpenRefund,
   onOpenReschedule,
+  onUpdateCustomer,
 }: CustomersTabProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<DashboardCustomer | null>(null);
+  const [customerToEdit, setCustomerToEdit] = useState<DashboardCustomer | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   const formattedCustomers = useMemo(() => {
     return customers.map((c) => ({
@@ -33,28 +42,76 @@ export function CustomersTab({
 
   const filteredCustomers = useMemo(() => {
     const term = search.toLowerCase().trim();
-    if (!term) return formattedCustomers;
+    const baseList = !term
+      ? formattedCustomers
+      : (() => {
+          const termDigits = term.replace(/\D/g, "");
+          return formattedCustomers.filter((c) => {
+            const nameMatch = c.name.toLowerCase().includes(term);
+            const phoneMatch = c.phone.toLowerCase().includes(term);
+            const digitMatch = termDigits.length > 0 && c.phone.replace(/\D/g, "").includes(termDigits);
+            return nameMatch || phoneMatch || digitMatch;
+          });
+        })();
 
-    const termDigits = term.replace(/\D/g, "");
-    return formattedCustomers.filter((c) => {
-      const nameMatch = c.name.toLowerCase().includes(term);
-      const phoneMatch = c.phone.toLowerCase().includes(term);
-      const digitMatch = termDigits.length > 0 && c.phone.replace(/\D/g, "").includes(termDigits);
-      return nameMatch || phoneMatch || digitMatch;
+    return [...baseList].sort((a, b) => {
+      const aDue = Boolean(a.outstandingDue && a.outstandingDue > 0);
+      const bDue = Boolean(b.outstandingDue && b.outstandingDue > 0);
+
+      // Prioritize customers with pending dues first
+      if (aDue && !bDue) return -1;
+      if (!aDue && bDue) return 1;
+
+      // Then sort alphabetically A-Z / a-z
+      const nameComp = (a.name || "").localeCompare(b.name || "", undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+      if (nameComp !== 0) return nameComp;
+      return (a.name || "").localeCompare(b.name || "");
     });
   }, [formattedCustomers, search]);
+
+  const totalCount = filteredCustomers.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  const paginatedCustomers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredCustomers.slice(start, start + pageSize);
+  }, [filteredCustomers, currentPage, pageSize]);
 
   // Sub-view: Customer Detail View (same pattern as Orders & Bills in Inventory tab)
   if (selectedCustomer) {
     return (
-      <CustomerDetailsView
-        customer={selectedCustomer}
-        onBack={() => setSelectedCustomer(null)}
-        salonName={salonName}
-        onOpenSettle={onOpenSettle}
-        onOpenRefund={onOpenRefund}
-        onOpenReschedule={onOpenReschedule}
-      />
+      <>
+        <CustomerDetailsView
+          customer={selectedCustomer}
+          onBack={() => setSelectedCustomer(null)}
+          salonName={salonName}
+          globalOrders={orders}
+          onOpenSettle={onOpenSettle}
+          onOpenRefund={onOpenRefund}
+          onOpenReschedule={onOpenReschedule}
+          onOpenEditCustomer={(c) => {
+            setCustomerToEdit(c);
+            setIsEditModalOpen(true);
+          }}
+        />
+
+        <CustomerModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setCustomerToEdit(null);
+          }}
+          customerToEdit={customerToEdit}
+          onSaveCustomer={(updated) => {
+            setSelectedCustomer(updated);
+            onUpdateCustomer?.(updated);
+          }}
+        />
+      </>
     );
   }
 
@@ -81,82 +138,131 @@ export function CustomersTab({
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             placeholder="Search by phone or name"
             className="w-full bg-transparent font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 outline-none"
           />
         </div>
       </div>
 
-      {/* Customer List */}
-      <div className="bg-galla-surface border border-galla-line rounded-[8px] divide-y divide-galla-line overflow-hidden shadow-2xs">
-        {filteredCustomers.map((customer) => {
-          const initials = customer.name
-            ? customer.name
-                .split(" ")
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join("")
-                .toUpperCase()
-            : "C";
+      {/* Customer List Container */}
+      <div className="bg-galla-surface border border-galla-line rounded-[8px] shadow-2xs overflow-hidden">
+        <div className="divide-y divide-galla-line">
+          {paginatedCustomers.map((customer) => {
+            const initials = customer.name
+              ? customer.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()
+              : "C";
 
-          return (
-            <div
-              key={customer.phone}
-              onClick={() => setSelectedCustomer(customer)}
-              className="flex items-center justify-between px-[20px] py-[15px] hover:bg-galla-paper/40 transition-all cursor-pointer group"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-heading font-bold text-[13.5px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
-                  {initials}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-sans font-semibold text-[15px] text-galla-ink group-hover:text-galla-teal transition-colors">
-                      {customer.name}
-                    </span>
-                    {customer.outstandingDue && customer.outstandingDue > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
-                        <AlertCircle className="h-3 w-3" />
-                        <span>Due: {formatRupee(customer.outstandingDue)}</span>
+            return (
+              <div
+                key={customer.phone}
+                onClick={() => setSelectedCustomer(customer)}
+                className="flex items-center justify-between px-[20px] py-[15px] hover:bg-galla-paper/40 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-heading font-bold text-[13.5px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-sans font-semibold text-[15px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                        {customer.name}
                       </span>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft mt-0.5">
-                    <span className="font-mono">{customer.phone}</span>
-                    {customer.totalSpent && customer.totalSpent > 0 ? (
-                      <>
-                        <span>&bull;</span>
-                        <span>
-                          Spent: <strong className="text-galla-ink font-semibold">{formatRupee(customer.totalSpent)}</strong>
+                      {customer.outstandingDue && customer.outstandingDue > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>Due: {formatRupee(customer.outstandingDue)}</span>
                         </span>
-                      </>
-                    ) : null}
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft mt-0.5">
+                      <span className="font-mono">{customer.phone}</span>
+                      {customer.totalSpent && customer.totalSpent > 0 ? (
+                        <>
+                          <span>&bull;</span>
+                          <span>
+                            Spent: <strong className="text-galla-ink font-semibold">{formatRupee(customer.totalSpent)}</strong>
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-3 text-right shrink-0">
-                <div>
-                  <div className="font-sans font-semibold text-[14px] text-galla-ink">
-                    {customer.visits} {customer.visits === 1 ? "visit" : "visits"}
+                <div className="flex items-center gap-3 text-right shrink-0">
+                  <div>
+                    <div className="font-sans font-semibold text-[14px] text-galla-ink">
+                      {customer.visits} {customer.visits === 1 ? "visit" : "visits"}
+                    </div>
+                    <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
+                      Last visit: {customer.lastVisit}
+                    </div>
                   </div>
-                  <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-                    Last visit: {customer.lastVisit}
-                  </div>
+                  <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all" />
                 </div>
-                <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all" />
               </div>
+            );
+          })}
+
+          {filteredCustomers.length === 0 && (
+            <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">
+              No customers match your search criteria.
             </div>
-          );
-        })}
+          )}
+        </div>
 
-        {filteredCustomers.length === 0 && (
-          <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">
-            No customers match your search criteria.
+        {/* Pagination Footer */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3 bg-galla-paper/50 border-t border-galla-line">
+          <div className="font-sans text-[12.5px] text-galla-ink-soft">
+            {totalCount > 0 ? (
+              <>
+                Showing <span className="font-medium text-galla-ink">{(currentPage - 1) * pageSize + 1}</span> to{" "}
+                <span className="font-medium text-galla-ink">{Math.min(currentPage * pageSize, totalCount)}</span> of{" "}
+                <span className="font-medium text-galla-ink">{totalCount}</span> customers
+              </>
+            ) : (
+              "0 customers to display"
+            )}
           </div>
-        )}
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] font-sans font-medium rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink hover:bg-galla-paper transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+              title="Load previous 20 customers"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span>Previous</span>
+            </button>
+
+            <div className="flex items-center px-2 font-sans text-[12px] text-galla-ink font-medium">
+              Page {currentPage} of {totalPages}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] font-sans font-medium rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink hover:bg-galla-paper transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+              title="Load next 20 customers"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
