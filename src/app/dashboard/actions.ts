@@ -241,6 +241,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                       mode: input.paymentMode || "cash",
                       recordedAt: new Date(),
                       recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                      type: orderInitialStatus === "advance_paid" || isAdvancePreOrder || (amountPending > 0)
+                        ? "advance"
+                        : "full_payment",
                     },
                   ]
                 : [],
@@ -276,6 +279,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               mode: input.paymentMode || "cash",
               recordedAt: new Date(),
               recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              type: "settlement",
             });
             prevOrder.notes = prevOrder.notes
               ? `${prevOrder.notes} | Cleared via Order ${orderNumber}`
@@ -374,6 +378,35 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         customerPhone: formattedPhone || undefined,
         itemsSummary: (newDoc.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
         latestActivityAt: new Date().toISOString(),
+        subtotal: newDoc.subtotal ?? newDoc.totalAmount,
+        discountType: newDoc.discountType,
+        discountValue: newDoc.discountValue,
+        discountAmount: newDoc.discountAmount,
+        notes: newDoc.notes || undefined,
+        recordedBy: newDoc.recordedBy || undefined,
+        payments: (newDoc.payments || []).map((p: any) => ({
+          amount: p.amount,
+          mode: p.mode,
+          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedBy: p.recordedBy,
+          type: p.type || undefined,
+        })),
+        lineItems: (newDoc.lineItems || []).map((li: any) => ({
+          name: li.name,
+          itemType: li.itemType,
+          unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
+          quantity: typeof li.quantity === "number" ? li.quantity : 1,
+          discount: li.discount,
+          finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
+          fulfilled: li.fulfilled,
+          packageDetails: li.packageDetails ? {
+            isCustomized: li.packageDetails.isCustomized,
+            components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({
+              name: c.name,
+              componentPrice: c.componentPrice,
+            })) : [],
+          } : undefined,
+        })),
       },
     };
   } catch (error) {
@@ -436,6 +469,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         mode: paymentMode,
         recordedAt: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        type: "settlement",
       });
       order.paymentMode = paymentMode;
     }
@@ -525,6 +559,35 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         customerPhone: order.customerSnapshot?.phone || undefined,
         itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
         latestActivityAt: order.completedAt ? new Date(order.completedAt).toISOString() : new Date().toISOString(),
+        subtotal: order.subtotal ?? order.totalAmount,
+        discountType: order.discountType,
+        discountValue: order.discountValue,
+        discountAmount: order.discountAmount,
+        notes: order.notes || undefined,
+        recordedBy: order.recordedBy || undefined,
+        payments: (order.payments || []).map((p: any) => ({
+          amount: p.amount,
+          mode: p.mode,
+          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedBy: p.recordedBy,
+          type: p.type || undefined,
+        })),
+        lineItems: (order.lineItems || []).map((li: any) => ({
+          name: li.name,
+          itemType: li.itemType,
+          unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
+          quantity: typeof li.quantity === "number" ? li.quantity : 1,
+          discount: li.discount,
+          finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
+          fulfilled: li.fulfilled,
+          packageDetails: li.packageDetails ? {
+            isCustomized: li.packageDetails.isCustomized,
+            components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({
+              name: c.name,
+              componentPrice: c.componentPrice,
+            })) : [],
+          } : undefined,
+        })),
       },
     };
   } catch (error) {
@@ -770,6 +833,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         isToday: isSameDay,
         isLast24Hours: true,
         createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+        refundedAt: order.refundDetails?.refundedAt ? new Date(order.refundDetails.refundedAt).toISOString() : new Date().toISOString(),
         latestActivityAt: new Date().toISOString(),
         refundAmount: refundAmount,
         refundReason: order.refundDetails?.refundReason || refundReason?.trim() || undefined,

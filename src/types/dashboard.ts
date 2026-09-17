@@ -12,6 +12,28 @@ export type OrderType = "Product sale" | "Service booking" | "Package sale";
 export type DashboardPaymentMode = "cash" | "upi" | "card" | "split";
 export type DashboardRefundMode = "cash" | "upi" | "card";
 
+export interface DashboardOrderLineItem {
+  name: string;
+  itemType: "product" | "service" | "package";
+  unitPrice: number;
+  quantity: number;
+  discount?: number;
+  finalPrice: number;
+  fulfilled?: boolean;
+  packageDetails?: {
+    isCustomized?: boolean;
+    components?: { name: string; componentPrice: number }[];
+  };
+}
+
+export interface DashboardOrderPayment {
+  amount: number;
+  mode: DashboardPaymentMode;
+  recordedAt: string;
+  recordedBy?: string;
+  type?: "advance" | "settlement" | "full_payment" | string;
+}
+
 export interface DashboardOrder {
   id: string;
   customer: string;
@@ -27,6 +49,7 @@ export interface DashboardOrder {
   isLast24Hours?: boolean;
   createdAt?: string;
   completedAt?: string;
+  refundedAt?: string;
   latestActivityAt?: string;
   refundAmount?: number;
   refundReason?: string;
@@ -37,6 +60,14 @@ export interface DashboardOrder {
   scheduledFor?: string;
   scheduledTime?: string;
   customerPhone?: string;
+  subtotal?: number;
+  discountType?: "flat" | "percentage";
+  discountValue?: number;
+  discountAmount?: number;
+  notes?: string;
+  lineItems?: DashboardOrderLineItem[];
+  payments?: DashboardOrderPayment[];
+  recordedBy?: "owner" | "staff";
 }
 
 export interface DashboardProduct {

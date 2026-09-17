@@ -7,6 +7,7 @@ import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
+import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 
 interface OverviewTabProps {
   orders: DashboardOrder[];
@@ -41,6 +42,7 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [reschedulingOrder, setReschedulingOrder] = useState<DashboardOrder | null>(null);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<DashboardOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleComplete = async (id: string) => {
@@ -352,7 +354,8 @@ export function OverviewTab({
                   return (
                     <div
                       key={order.id}
-                      className="grid grid-cols-[85px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/30 transition-colors"
+                      onClick={() => setSelectedOrderDetails(order)}
+                      className="grid grid-cols-[85px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
                     >
                   <span className="font-mono text-[13px] text-galla-ink-soft">
                     {order.id}
@@ -366,6 +369,7 @@ export function OverviewTab({
                       <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
                         <a
                           href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="hover:text-galla-teal hover:underline transition-colors"
                           title={`Call ${order.customer}: ${order.customerPhone}`}
                         >
@@ -386,7 +390,10 @@ export function OverviewTab({
                       <div className="mt-1">
                         <button
                           type="button"
-                          onClick={() => setReschedulingOrder(order)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReschedulingOrder(order);
+                          }}
                           className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
                           title="Click to set payment due date"
                         >
@@ -441,7 +448,10 @@ export function OverviewTab({
                           <div className="space-y-1 mt-0.5">
                             <button
                               type="button"
-                              onClick={() => setReschedulingOrder(order)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReschedulingOrder(order);
+                              }}
                               className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${badgeStyle}`}
                               title="Click to reschedule payment due date"
                             >
@@ -457,6 +467,7 @@ export function OverviewTab({
                                 {order.customerPhone ? (
                                   <a
                                     href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
                                     title={`Call client: ${order.customerPhone}`}
                                   >
@@ -468,6 +479,7 @@ export function OverviewTab({
                                 {waUrl ? (
                                   <a
                                     href={waUrl}
+                                    onClick={(e) => e.stopPropagation()}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
@@ -543,6 +555,7 @@ export function OverviewTab({
                               {order.customerPhone ? (
                                 <a
                                   href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
                                   title={`Call client: ${order.customerPhone}`}
                                 >
@@ -554,6 +567,7 @@ export function OverviewTab({
                               {waUrl ? (
                                 <a
                                   href={waUrl}
+                                  onClick={(e) => e.stopPropagation()}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
@@ -683,7 +697,10 @@ export function OverviewTab({
                   {order.status === "completed" ? (
                     onOpenRefund && order.paid > 0 ? (
                       <button
-                        onClick={() => onOpenRefund(order)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenRefund(order);
+                        }}
                         className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
                         title="Process refund for this order"
                       >
@@ -696,7 +713,10 @@ export function OverviewTab({
                     <>
                       {isAppointmentDue && (
                         <button
-                          onClick={() => handleComplete(order.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleComplete(order.id);
+                          }}
                           disabled={loadingId === order.id}
                           className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
                           title="Mark service as completed"
@@ -713,7 +733,10 @@ export function OverviewTab({
                       )}
                       {onOpenRefund && order.paid > 0 ? (
                         <button
-                          onClick={() => onOpenRefund(order)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenRefund(order);
+                          }}
                           className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
                           title="Process refund"
                         >
@@ -727,7 +750,10 @@ export function OverviewTab({
                     <>
                       {isAppointmentDue && (
                         <button
-                          onClick={() => (onOpenSettle ? onOpenSettle(order) : handleComplete(order.id))}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenSettle ? onOpenSettle(order) : handleComplete(order.id);
+                          }}
                           disabled={loadingId === order.id}
                           className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
                           title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
@@ -744,7 +770,10 @@ export function OverviewTab({
                       )}
                       {onOpenRefund && order.paid > 0 ? (
                         <button
-                          onClick={() => onOpenRefund(order)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenRefund(order);
+                          }}
                           className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
                           title="Process refund"
                         >
@@ -795,6 +824,20 @@ export function OverviewTab({
             onRescheduleOrder(updated);
           }
         }}
+      />
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        order={selectedOrderDetails}
+        isOpen={Boolean(selectedOrderDetails)}
+        onClose={() => setSelectedOrderDetails(null)}
+        salonName={salonName}
+        onOpenSettle={onOpenSettle}
+        onOpenReschedule={(ord) => {
+          setSelectedOrderDetails(null);
+          setReschedulingOrder(ord);
+        }}
+        onOpenRefund={onOpenRefund}
       />
     </div>
   );

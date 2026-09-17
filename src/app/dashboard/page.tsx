@@ -285,6 +285,7 @@ export default async function DashboardPage() {
           isLast24Hours,
           createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
           completedAt: o.completedAt ? new Date(o.completedAt).toISOString() : undefined,
+          refundedAt: o.refundDetails?.refundedAt ? new Date(o.refundDetails.refundedAt).toISOString() : undefined,
           latestActivityAt: latestActivityDate ? new Date(latestActivityDate).toISOString() : undefined,
           scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
           scheduledTime: o.scheduledTime || undefined,
@@ -321,6 +322,35 @@ export default async function DashboardPage() {
             }
             return undefined;
           })(),
+          subtotal: typeof o.subtotal === "number" ? o.subtotal : (typeof o.totalAmount === "number" ? o.totalAmount : 0),
+          discountType: o.discountType,
+          discountValue: o.discountValue,
+          discountAmount: o.discountAmount,
+          notes: o.notes || undefined,
+          recordedBy: o.recordedBy || undefined,
+          payments: o.payments && Array.isArray(o.payments) ? o.payments.map((p: any) => ({
+            amount: p.amount,
+            mode: p.mode,
+            recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+            recordedBy: p.recordedBy,
+            type: p.type || undefined,
+          })) : undefined,
+          lineItems: o.lineItems && Array.isArray(o.lineItems) ? o.lineItems.map((li: any) => ({
+            name: li.name,
+            itemType: li.itemType,
+            unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
+            quantity: typeof li.quantity === "number" ? li.quantity : 1,
+            discount: li.discount,
+            finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
+            fulfilled: li.fulfilled,
+            packageDetails: li.packageDetails ? {
+              isCustomized: li.packageDetails.isCustomized,
+              components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({
+                name: c.name,
+                componentPrice: c.componentPrice,
+              })) : [],
+            } : undefined,
+          })) : undefined,
         };
       });
 
