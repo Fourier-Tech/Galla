@@ -29,18 +29,14 @@ export function RefundOrderModal({
 
   if (!isOpen || !order) return null;
 
+  const parsedAmount = Number(refundAmount) || 0;
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    const parsedAmount = Number(refundAmount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setErrorMsg("Please enter a valid refund amount");
-      return;
-    }
-
-    if (parsedAmount > order.paid) {
-      setErrorMsg(`Refund cannot exceed the amount collected (${formatRupee(order.paid)})`);
       return;
     }
 
@@ -149,25 +145,39 @@ export function RefundOrderModal({
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
             />
             <div className="flex items-center justify-between text-[11px] text-galla-ink-soft mt-1">
-              <span>Max refundable: {formatRupee(order.paid)}</span>
-              {Number(refundAmount) > 0 && Number(refundAmount) < order.paid && (
-                <span className="text-galla-teal font-medium">
-                  Shop keeps: {formatRupee(order.paid - Number(refundAmount))}
-                </span>
+              <span>Collected: {formatRupee(order.paid)}</span>
+              {parsedAmount > 0 && (
+                parsedAmount < order.paid ? (
+                  <span className="text-galla-teal font-medium">
+                    Shop keeps: {formatRupee(order.paid - parsedAmount)}
+                  </span>
+                ) : parsedAmount > order.paid ? (
+                  <span className="text-amber-700 font-medium">
+                    Extra compensation: +{formatRupee(parsedAmount - order.paid)}
+                  </span>
+                ) : (
+                  <span className="text-galla-ink-soft font-medium">Shop keeps: ₹0</span>
+                )
               )}
             </div>
 
             {/* Live Accounting Deduction Preview */}
-            {Number(refundAmount) > 0 && Number(refundAmount) <= order.paid && (
+            {parsedAmount > 0 && (
               <div className="mt-2.5 p-2.5 bg-galla-paper border border-galla-line rounded-[4px] text-[11.5px] font-sans space-y-1">
                 <div className="flex justify-between text-red-700 font-medium">
                   <span>Cash Outflow (Given to Customer):</span>
-                  <span className="tabular-nums">−{formatRupee(Number(refundAmount))}</span>
+                  <span className="tabular-nums">−{formatRupee(parsedAmount)}</span>
                 </div>
-                {Number(refundAmount) < order.paid && (
+                {parsedAmount < order.paid && (
                   <div className="flex justify-between text-galla-teal font-medium">
                     <span>Retained by Salon (Shop Keeps):</span>
-                    <span className="tabular-nums">+{formatRupee(order.paid - Number(refundAmount))}</span>
+                    <span className="tabular-nums">+{formatRupee(order.paid - parsedAmount)}</span>
+                  </div>
+                )}
+                {parsedAmount > order.paid && (
+                  <div className="flex justify-between text-amber-700 font-medium">
+                    <span>Extra Compensation (Above Paid):</span>
+                    <span className="tabular-nums">+{formatRupee(parsedAmount - order.paid)}</span>
                   </div>
                 )}
                 {order.paid < order.amount && (
@@ -226,12 +236,12 @@ export function RefundOrderModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !refundAmount || Number(refundAmount) <= 0}
+              disabled={isSubmitting || !refundAmount || parsedAmount <= 0}
               className="w-2/3 bg-red-600 hover:bg-red-700 text-white font-sans text-[13px] font-medium py-[9px] rounded-[5px] shadow-sm transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {isSubmitting
                 ? "Processing..."
-                : `Confirm Refund ${refundAmount ? `(${formatRupee(Number(refundAmount))})` : ""}`}
+                : `Confirm Refund ${refundAmount ? `(${formatRupee(parsedAmount)})` : ""}`}
             </button>
           </div>
         </form>
@@ -243,11 +253,16 @@ export function RefundOrderModal({
           description={
             <span>
               Are you sure you want to cancel and refund{" "}
-              <strong className="font-semibold text-red-600">{formatRupee(Number(refundAmount) || 0)}</strong> via{" "}
+              <strong className="font-semibold text-red-600">{formatRupee(parsedAmount)}</strong> via{" "}
               <strong className="font-semibold text-galla-ink">{refundMode.toUpperCase()}</strong> for Order{" "}
               <strong className="font-semibold text-galla-ink">#{order.id}</strong> (
               <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong>)?
-              This will update the order status and record a refund expense.
+              {parsedAmount > order.paid && (
+                <span className="block mt-2 text-amber-700 font-medium">
+                  Note: Includes {formatRupee(parsedAmount - order.paid)} extra compensation above collected amount.
+                </span>
+              )}
+              {" "}This will update the order status and record a refund expense.
             </span>
           }
           confirmLabel="Yes, Process Refund"

@@ -712,13 +712,6 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "This order is already marked as refunded" };
     }
 
-    if (refundAmount > order.amountPaid) {
-      return {
-        success: false,
-        error: `Refund amount (₹${refundAmount}) cannot exceed total amount paid (₹${order.amountPaid})`,
-      };
-    }
-
     const prevPending = order.amountPending || 0;
 
     // Determine if refund happened on the same calendar day the order was created
@@ -775,6 +768,29 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         isToday: true,
         createdAt: expenseDoc.expenseDate ? new Date(expenseDoc.expenseDate).toISOString() : new Date().toISOString(),
       };
+    } else if (refundAmount > prevAmountPaid) {
+      // Same-day refund where refund exceeds collected amount: record the excess compensation as an expense
+      const excessAmount = refundAmount - prevAmountPaid;
+      const expenseDoc = await Expense.create({
+        tenantId,
+        title: `Customer Compensation (Excess Refund) — Order ${order.orderNumber} (${order.customerSnapshot?.name || "Customer"})`,
+        category: "refund",
+        amount: excessAmount,
+        paymentMode: refundMode,
+        notes: refundReason || `Excess refund compensation for order ${order.orderNumber}`,
+        expenseDate: new Date(),
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+      });
+
+      newExpense = {
+        id: expenseDoc._id.toString(),
+        desc: expenseDoc.title,
+        amount: expenseDoc.amount,
+        category: "Refund",
+        time: "Today, Just now",
+        isToday: true,
+        createdAt: expenseDoc.expenseDate ? new Date(expenseDoc.expenseDate).toISOString() : new Date().toISOString(),
+      };
     }
 
     order.amountPending = 0;
@@ -798,7 +814,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         },
         {
           $inc: {
-            "stats.totalSpend": -refundAmount,
+            "stats.totalSpend": -Math.min(prevAmountPaid, refundAmount),
             "stats.outstandingBalance": -prevPending,
           },
         }
