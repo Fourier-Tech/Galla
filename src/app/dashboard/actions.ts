@@ -23,8 +23,10 @@ import {
   refundOrderSchema,
   createExpenseSchema,
   transferStockSchema,
+  consumeUseStockSchema,
   createPurchaseOrderSchema,
   recordPurchaseOrderPaymentSchema,
+  reschedulePurchaseOrderSchema,
   fulfillOrderLineItemSchema,
   createProductSchema,
   updateProductSchema,
@@ -433,6 +435,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             paymentMode: input.paymentMode || "cash",
             scheduledFor: input.bookingDate ? new Date(input.bookingDate) : undefined,
             scheduledTime: input.bookingTime ? input.bookingTime.trim() : undefined,
+            notes: input.notes?.trim() || undefined,
             payments:
               input.paidAmount > 0
                 ? [
@@ -1204,6 +1207,7 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
         category: input.category,
         time: "Today, Just now",
         isToday: true,
+        notes: newDoc.notes || undefined,
         createdAt: newDoc.expenseDate ? new Date(newDoc.expenseDate).toISOString() : new Date().toISOString(),
       },
     };
@@ -1230,7 +1234,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { productId, quantity } = parseResult.data;
+    const { productId, quantity, direction } = parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -1245,14 +1249,25 @@ export async function transferStockAction(rawInput: unknown): Promise<{
         throw new Error("Product not found");
       }
 
-      if (product.sellStock < quantity) {
-        throw new Error(
-          `Insufficient stock: requested ${quantity} pcs, but only ${product.sellStock} pcs available in retail`
-        );
+      if (direction === "use_to_sell") {
+        if (product.useStock < quantity) {
+          throw new Error(
+            `Insufficient internal stock: requested ${quantity} pcs, but only ${product.useStock} pcs available in salon use`
+          );
+        }
+        product.useStock -= quantity;
+        product.sellStock += quantity;
+      } else {
+        // default "sell_to_use"
+        if (product.sellStock < quantity) {
+          throw new Error(
+            `Insufficient stock: requested ${quantity} pcs, but only ${product.sellStock} pcs available in retail`
+          );
+        }
+        product.sellStock -= quantity;
+        product.useStock += quantity;
       }
 
-      product.sellStock -= quantity;
-      product.useStock += quantity;
       await product.save({ session: dbSession });
 
       // Invariant: Moving stock from sellStock -> useStock records an automatic Expense strictly at purchase price, NOT retail sell price
@@ -1325,6 +1340,123 @@ export async function transferStockAction(rawInput: unknown): Promise<{
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Failed to transfer inventory";
+    return { success: false, error: errorMsg };
+  }
+}
+
+export async function consumeUseStockAction(rawInput: unknown): Promise<{
+  success: boolean;
+  updatedProduct?: DashboardProduct;
+  newExpense?: DashboardExpense;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = consumeUseStockSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const { productId, quantity, reason, notes } = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const result = await withTransaction(async (dbSession) => {
+      const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
+      if (product.useStock < quantity) {
+        throw new Error(
+          `Insufficient internal stock: requested ${quantity} pcs, but only ${product.useStock} pcs available in salon use`
+        );
+      }
+
+      product.useStock -= quantity;
+      await product.save({ session: dbSession });
+
+      // Invariant: Deducting/consuming stock from salon use records an operational expense at purchase price
+      const unitCost =
+        typeof product.purchaseCost === "number" && !isNaN(product.purchaseCost)
+          ? product.purchaseCost
+          : 0;
+      const consumptionCost = unitCost * quantity;
+
+      const reasonLabels: Record<string, string> = {
+        service: "Used in Service",
+        finished: "Emptied / Finished",
+        damaged: "Damaged / Expired",
+        other: "Other Consumption",
+      };
+      const reasonLabel = reasonLabels[reason] || "Salon Consumption";
+
+      let expense = null;
+      if (consumptionCost > 0) {
+        const [createdExpense] = await Expense.create(
+          [
+            {
+              tenantId,
+              title: `Internal consumption — ${quantity}x ${product.name} (${reasonLabel})`,
+              category: "stock_transfer_internal",
+              amount: consumptionCost,
+              paymentMode: "internal_transfer",
+              linkedProductId: product._id,
+              linkedQuantity: quantity,
+              notes: notes?.trim()
+                ? `${notes.trim()} (Deducted ${quantity} pcs from salon use. Purchase price ₹${unitCost}/pc)`
+                : `Deducted ${quantity} pcs from salon internal use (${reasonLabel}). Expense calculated using purchase price (₹${unitCost}/pc).`,
+              expenseDate: new Date(),
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            },
+          ],
+          { session: dbSession }
+        );
+        expense = createdExpense;
+      }
+
+      return { product, expense };
+    });
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "stock_consumed");
+
+    return {
+      success: true,
+      updatedProduct: {
+        id: result.product._id.toString(),
+        name: result.product.name,
+        category: result.product.category,
+        sell: result.product.sellStock,
+        use: result.product.useStock,
+        price: result.product.expectedSellPrice,
+        purchaseCost: result.product.purchaseCost,
+        lowStockThreshold: result.product.lowStockThreshold,
+        description: result.product.description,
+        barcode: result.product.barcode,
+        isActive: result.product.isActive,
+      },
+      newExpense: result.expense
+        ? {
+            id: result.expense._id.toString(),
+            desc: result.expense.title,
+            amount: result.expense.amount,
+            category: "Day-to-day",
+            time: "Today, Just now",
+            isToday: true,
+          }
+        : undefined,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to consume internal stock";
     return { success: false, error: errorMsg };
   }
 }
@@ -1633,37 +1765,101 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
       const updatedProductsList: DashboardProduct[] = [];
       const poItems = [];
 
+      // Guard: Ensure no duplicate products are passed in a single PO
+      const seenItemKeys = new Set<string>();
       for (const item of input.items) {
-        const product = await Product.findOne({ _id: item.productId, tenantId }).session(dbSession);
-        if (!product) {
-          throw new Error(`Product not found: ${item.productName}`);
+        const itemKey = item.productId && item.productId !== "__new__"
+          ? `id:${item.productId}`
+          : `name:${item.productName.trim().toLowerCase()}`;
+        if (seenItemKeys.has(itemKey)) {
+          throw new Error(
+            `Duplicate product "${item.productName}": A purchase order cannot contain the same product multiple times. Please combine the quantities into one entry.`
+          );
+        }
+        seenItemKeys.add(itemKey);
+      }
+
+      for (const item of input.items) {
+        let product = null;
+        if (item.productId && item.productId !== "__new__" && Types.ObjectId.isValid(item.productId)) {
+          product = await Product.findOne({ _id: new Types.ObjectId(item.productId), tenantId }).session(dbSession);
         }
 
-        const priceChanged =
-          product.expectedSellPrice !== item.expectedSellPrice ||
-          product.purchaseCost !== item.purchaseCost;
+        // If not found by ID or if adding a new product, check if a product with the same name exists
+        if (!product) {
+          const escapedName = item.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          product = await Product.findOne({
+            tenantId: new Types.ObjectId(tenantId),
+            name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+          }).session(dbSession);
+        }
 
         let targetProduct = product;
 
-        if (!priceChanged) {
-          product.sellStock += item.quantityForSell;
-          product.useStock += item.quantityForUse;
-          await product.save({ session: dbSession });
-
+        if (!product) {
+          // Create new product on the fly
+          const [createdProduct] = await Product.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                name: item.productName.trim(),
+                category: item.category?.trim() || "General Supplies",
+                unit: "pieces",
+                sellStock: item.quantityForSell,
+                useStock: item.quantityForUse,
+                purchaseCost: item.purchaseCost,
+                expectedSellPrice: item.expectedSellPrice,
+                lowStockThreshold: 5,
+                isActive: true,
+              },
+            ],
+            { session: dbSession }
+          );
+          targetProduct = createdProduct;
           updatedProductsList.push({
-            id: product._id.toString(),
-            name: product.name,
-            category: product.category,
-            sell: product.sellStock,
-            use: product.useStock,
-            price: product.expectedSellPrice,
-            purchaseCost: product.purchaseCost,
-            lowStockThreshold: product.lowStockThreshold,
-            description: product.description,
-            barcode: product.barcode,
-            isActive: product.isActive,
+            id: createdProduct._id.toString(),
+            name: createdProduct.name,
+            category: createdProduct.category,
+            sell: createdProduct.sellStock,
+            use: createdProduct.useStock,
+            price: createdProduct.expectedSellPrice,
+            purchaseCost: createdProduct.purchaseCost,
+            lowStockThreshold: createdProduct.lowStockThreshold,
+            description: createdProduct.description,
+            barcode: createdProduct.barcode,
+            isActive: createdProduct.isActive,
           });
         } else {
+          const priceChanged =
+            product.expectedSellPrice !== item.expectedSellPrice ||
+            product.purchaseCost !== item.purchaseCost;
+
+          if (!priceChanged) {
+            targetProduct = product;
+            product.sellStock += item.quantityForSell;
+            product.useStock += item.quantityForUse;
+            if (item.category?.trim() && (!product.category || product.category === "General Supplies" || product.category === "General")) {
+              product.category = item.category.trim();
+            }
+            if (product.isActive === false) {
+              product.isActive = true;
+            }
+            await product.save({ session: dbSession });
+
+            updatedProductsList.push({
+              id: product._id.toString(),
+              name: product.name,
+              category: product.category,
+              sell: product.sellStock,
+              use: product.useStock,
+              price: product.expectedSellPrice,
+              purchaseCost: product.purchaseCost,
+              lowStockThreshold: product.lowStockThreshold,
+              description: product.description,
+              barcode: product.barcode,
+              isActive: product.isActive,
+            });
+          } else {
           // New price detected: automatic batch separation (supporting 2 or more price points)
           const baseName = product.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
           const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1772,7 +1968,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               isActive: s.isActive,
             });
           }
-          if (!activeSiblings.some((s) => s._id.equals(targetProduct._id))) {
+          if (targetProduct && !activeSiblings.some((s) => s._id.equals(targetProduct!._id))) {
             updatedProductsList.push({
               id: targetProduct._id.toString(),
               name: targetProduct.name,
@@ -1788,28 +1984,34 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             });
           }
         }
+      }
 
-        const itemTotal = (item.quantityForSell + item.quantityForUse) * item.purchaseCost;
-        poItems.push({
-          productId: targetProduct._id,
-          productName: targetProduct.name,
-          quantityForSell: item.quantityForSell,
-          quantityForUse: item.quantityForUse,
-          purchaseCost: item.purchaseCost,
-          expectedSellPrice: item.expectedSellPrice,
-          itemTotalCost: itemTotal,
-        });
+        if (targetProduct) {
+          const itemTotal = (item.quantityForSell + item.quantityForUse) * item.purchaseCost;
+          poItems.push({
+            productId: targetProduct._id,
+            productName: targetProduct.name,
+            quantityForSell: item.quantityForSell,
+            quantityForUse: item.quantityForUse,
+            purchaseCost: item.purchaseCost,
+            expectedSellPrice: item.expectedSellPrice,
+            itemTotalCost: itemTotal,
+          });
+        }
       }
 
       const totalAmount = poItems.reduce((sum, it) => sum + it.itemTotalCost, 0);
 
-      // Rule 1: paymentMode and amountPaid calculation
-      // If paymentMode is "credit" and no amountPaid is given, default amountPaid to 0
-      let finalAmountPaid = input.amountPaid;
-      if (input.paymentMode === "credit" && (finalAmountPaid === undefined || finalAmountPaid === null)) {
-        finalAmountPaid = 0;
-      } else if (finalAmountPaid === undefined || finalAmountPaid === null) {
-        finalAmountPaid = totalAmount; // Default full payment for cash/upi if unspecified
+      // Rule 1: settlementMode, paymentMode and amountPaid calculation
+      let finalAmountPaid: number;
+      if (input.settlementMode === "completed" || input.settlementMode === "paid_full") {
+        finalAmountPaid = totalAmount;
+      } else if (input.settlementMode === "pending" || input.settlementMode === "advance") {
+        finalAmountPaid = input.amountPaid !== undefined && input.amountPaid !== null ? input.amountPaid : 0;
+      } else if (input.paymentMode === "credit") {
+        finalAmountPaid = input.amountPaid !== undefined && input.amountPaid !== null ? input.amountPaid : 0;
+      } else {
+        finalAmountPaid = input.amountPaid !== undefined && input.amountPaid !== null ? input.amountPaid : totalAmount;
       }
 
       // Auto-calculate paymentStatus — do NOT let it be set manually:
@@ -1827,6 +2029,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
 
       // Auto-calculate amountPending = totalAmount - amountPaid
       const amountPending = Math.max(0, totalAmount - finalAmountPaid);
+      const effectivePaymentMode = finalAmountPaid <= 0 ? "credit" : input.paymentMode === "credit" ? "cash" : input.paymentMode;
 
       // Find or create Supplier in the same transaction
       const tenantObjectId = new Types.ObjectId(tenantId);
@@ -1902,7 +2105,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                     {
                       amount: finalAmountPaid,
                       paymentMode:
-                        input.paymentMode === "credit" ? "cash" : input.paymentMode,
+                        effectivePaymentMode === "credit" ? "cash" : effectivePaymentMode,
                       notes: input.notes || undefined,
                       recordedBy: session.user.role === "staff" ? "staff" : "owner",
                       type: finalAmountPaid >= totalAmount ? "full_payment" : "initial",
@@ -1912,8 +2115,12 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             totalAmount,
             amountPaid: finalAmountPaid,
             amountPending,
-            paymentMode: input.paymentMode,
+            paymentMode: effectivePaymentMode,
             paymentStatus,
+            settlementMode: input.settlementMode || "completed",
+            dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+            expectedDeliveryDate: input.expectedDeliveryDate ? new Date(input.expectedDeliveryDate) : undefined,
+            deliveryTime: input.deliveryTime?.trim() || undefined,
             invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
             dealerInvoiceNumber: input.dealerInvoiceNumber || undefined,
             notes: input.notes || undefined,
@@ -1939,11 +2146,11 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               category: "inventory_purchase",
               amount: finalAmountPaid,
               paymentMode:
-                input.paymentMode === "cash" ||
-                input.paymentMode === "upi" ||
-                input.paymentMode === "card" ||
-                input.paymentMode === "bank_transfer"
-                  ? input.paymentMode
+                effectivePaymentMode === "cash" ||
+                effectivePaymentMode === "upi" ||
+                effectivePaymentMode === "card" ||
+                effectivePaymentMode === "bank_transfer"
+                  ? effectivePaymentMode
                   : "cash",
               linkedPurchaseOrderId: createdPO._id,
               expenseDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
@@ -2142,6 +2349,10 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         amountPending: result.po.amountPending,
         paymentMode: result.po.paymentMode,
         paymentStatus: result.po.paymentStatus,
+        settlementMode: result.po.settlementMode,
+        dueDate: result.po.dueDate ? new Date(result.po.dueDate).toISOString() : undefined,
+        expectedDeliveryDate: result.po.expectedDeliveryDate ? new Date(result.po.expectedDeliveryDate).toISOString() : undefined,
+        deliveryTime: result.po.deliveryTime,
         invoiceDate: result.po.invoiceDate ? new Date(result.po.invoiceDate).toISOString() : new Date().toISOString(),
         dealerInvoiceNumber: result.po.dealerInvoiceNumber,
         notes: result.po.notes,
@@ -2166,6 +2377,73 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Failed to record purchase order payment";
+    return { success: false, error: errorMsg };
+  }
+}
+
+export async function reschedulePurchaseOrderAction(rawInput: unknown): Promise<{
+  success: boolean;
+  purchaseOrder?: DashboardPurchaseOrder;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized session" };
+    }
+
+    const parseResult = reschedulePurchaseOrderSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return { success: false, error: parseResult.error.issues[0].message };
+    }
+
+    const input = parseResult.data;
+    await connectToDatabase();
+
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, error: "Tenant not found for current session" };
+    }
+
+    const tenantObjectId = new Types.ObjectId(tenantId);
+    const query = Types.ObjectId.isValid(input.purchaseOrderId)
+      ? { tenantId: tenantObjectId, $or: [{ _id: new Types.ObjectId(input.purchaseOrderId) }, { purchaseOrderNumber: input.purchaseOrderId }] }
+      : { tenantId: tenantObjectId, purchaseOrderNumber: input.purchaseOrderId };
+
+    const po = await PurchaseOrder.findOne(query);
+    if (!po) {
+      return { success: false, error: "Purchase order not found" };
+    }
+
+    if (input.expectedDeliveryDate !== undefined) {
+      po.expectedDeliveryDate = input.expectedDeliveryDate ? new Date(input.expectedDeliveryDate) : undefined;
+    }
+    if (input.deliveryTime !== undefined) {
+      po.deliveryTime = input.deliveryTime?.trim() || undefined;
+    }
+    if (input.dueDate !== undefined) {
+      po.dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
+    }
+    if (po.expectedDeliveryDate && (!po.settlementMode || po.settlementMode === "completed")) {
+      if (po.paymentStatus === "partial" || po.notes?.toLowerCase().includes("advance")) {
+        po.settlementMode = "advance";
+      }
+    }
+
+    await po.save();
+
+    revalidatePath("/dashboard");
+    broadcastUpdate(tenantId, "purchase_order_updated");
+
+    const refreshed = await getPurchaseOrdersAction();
+    const updatedPO = refreshed.purchaseOrders?.find((p) => p.id === po._id.toString());
+
+    return {
+      success: true,
+      purchaseOrder: updatedPO,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to reschedule purchase order";
     return { success: false, error: errorMsg };
   }
 }
@@ -2323,11 +2601,16 @@ export async function getPurchaseOrdersAction(options?: {
         amountPending: po.amountPending,
         paymentMode: po.paymentMode,
         paymentStatus: po.paymentStatus,
+        settlementMode: po.settlementMode,
+        dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
+        expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
+        deliveryTime: po.deliveryTime,
         invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
         dealerInvoiceNumber: po.dealerInvoiceNumber,
         notes: po.notes,
         recordedBy: po.recordedBy || undefined,
         createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
+        updatedAt: po.updatedAt ? new Date(po.updatedAt).toISOString() : undefined,
       };
     });
 

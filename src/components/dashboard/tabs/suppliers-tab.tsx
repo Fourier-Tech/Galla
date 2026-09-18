@@ -23,7 +23,7 @@ import {
   DashboardProduct,
   DashboardPurchaseOrder,
 } from "@/types/dashboard";
-import { formatPhoneNumber, formatRupee } from "@/lib/utils";
+import { formatRupee, formatPhoneNumber, BillStatusKey } from "@/lib/utils";
 import { PurchaseOrdersView } from "@/components/dashboard/purchase-orders-view";
 import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
 import { SupplierModal } from "@/components/dashboard/modals/supplier-modal";
@@ -35,6 +35,8 @@ interface SuppliersTabProps {
   onAddSupplier: (supplier: DashboardSupplier) => void;
   onUpdateSupplier: (supplier: DashboardSupplier) => void;
   onStockInSuccess?: (updatedProducts: DashboardProduct[]) => void;
+  salonName?: string;
+  initialFilter?: "all" | BillStatusKey;
 }
 
 export function SuppliersTab({
@@ -43,6 +45,8 @@ export function SuppliersTab({
   onAddSupplier,
   onUpdateSupplier,
   onStockInSuccess,
+  salonName,
+  initialFilter,
 }: SuppliersTabProps) {
   const [subView, setSubView] = useState<"bills" | "suppliers">("bills");
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,6 +133,7 @@ export function SuppliersTab({
         <SupplierDetailsView
           supplier={activeSelectedSupplier}
           onBack={() => setSelectedSupplier(null)}
+          salonName={salonName}
           onOpenEditSupplier={handleOpenEditSupplier}
           onSupplierUpdated={(updatedSupplier) => {
             onUpdateSupplier(updatedSupplier);
@@ -274,6 +279,8 @@ export function SuppliersTab({
             searchQuery={searchQuery}
             onOpenStockIn={() => setIsStockInModalOpen(true)}
             suppliers={suppliers}
+            salonName={salonName}
+            initialFilter={initialFilter}
           />
         </div>
       )}
@@ -364,6 +371,17 @@ export function SuppliersTab({
                           </>
                         )}
                       </div>
+                      {supplier.notes && (
+                        <div
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                          title={`Note: ${supplier.notes}`}
+                        >
+                          <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                            Note
+                          </span>
+                          <span className="truncate font-medium">{supplier.notes}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

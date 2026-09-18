@@ -140,6 +140,7 @@ export function NewOrderModal({
   const [includePreviousDue, setIncludePreviousDue] = useState(false);
   const [bookingDate, setBookingDate] = useState(() => getLocalDateString());
   const [bookingTime, setBookingTime] = useState("");
+  const [notes, setNotes] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -365,6 +366,7 @@ export function NewOrderModal({
     setIncludePreviousDue(false);
     setBookingDate(getLocalDateString());
     setBookingTime("");
+    setNotes("");
     setShowConfirm(false);
     setErrorMsg(null);
     setShowSuggestions(false);
@@ -561,6 +563,7 @@ export function NewOrderModal({
         paymentMode: paymentMode,
         bookingDate: resolvedBookingDate,
         bookingTime: resolvedBookingTime,
+        notes: notes.trim() || undefined,
         lineItems,
         clearedDueOrderIds,
         clearedDueAmount,
@@ -1582,6 +1585,20 @@ export function NewOrderModal({
                 </div>
               </div>
             )}
+
+            {/* Order Notes / Special Instructions (Optional) */}
+            <div className="space-y-1">
+              <label className="block text-[11.5px] font-medium text-galla-ink">
+                Order Notes / Instructions <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+              </label>
+              <textarea
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Client requested herbal wash, delivery notes, payment memo..."
+                className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal resize-none"
+              />
+            </div>
 
             {/* Step 3 Actions */}
             <div className="pt-2 flex items-center justify-between shrink-0">

@@ -10,6 +10,7 @@ import { Product } from "@/lib/db/models/product.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { Supplier } from "@/lib/db/models/supplier.model";
+import { PurchaseOrder } from "@/lib/db/models/purchase-order.model";
 import { Service } from "@/lib/db/models/service.model";
 import { PackageTemplate } from "@/lib/db/models/package-template.model";
 import { connectToDatabase } from "@/lib/db/mongodb";
@@ -25,6 +26,7 @@ import {
   DashboardOrder,
   DashboardProduct,
   DashboardSupplier,
+  DashboardPurchaseOrder,
   DashboardSalonProfile,
   DashboardService,
   DashboardPackage,
@@ -97,6 +99,7 @@ export default async function DashboardPage() {
   let initialProducts: DashboardProduct[] = [];
   let initialSuppliers: DashboardSupplier[] = [];
   let initialCustomers: DashboardCustomer[] = [];
+  let initialPurchaseOrders: DashboardPurchaseOrder[] = [];
   let initialExpenses: DashboardExpense[] = [];
   let initialTotalExpensesCount = 0;
   let initialExpensesTotalAmount = 0;
@@ -173,6 +176,7 @@ export default async function DashboardPage() {
         expenseCategoryAgg,
         expenseSumAgg,
         rawSuppliers,
+        rawPurchaseOrders,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
         Product.find({ tenantId: tenantObjectId }).sort({ createdAt: 1 }).lean(),
@@ -203,6 +207,7 @@ export default async function DashboardPage() {
           tenantId: tenantObjectId,
           $or: [{ isActive: true }, { totalPending: { $gt: 0 } }],
         }).sort({ name: 1 }).lean(),
+        PurchaseOrder.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(100).lean(),
       ]);
 
       initialTotalOrdersCount = count;
@@ -413,6 +418,38 @@ export default async function DashboardPage() {
         isActive: s.isActive !== false,
       }));
 
+      initialPurchaseOrders = (rawPurchaseOrders || []).map((po: any) => ({
+        id: po._id.toString(),
+        purchaseOrderNumber: po.purchaseOrderNumber,
+        supplierId: po.supplierId?.toString() || "",
+        supplierName: po.supplierSnapshot?.name || "Supplier",
+        supplierPhone: po.supplierSnapshot?.phone ? formatPhoneNumber(po.supplierSnapshot.phone) : undefined,
+        supplierCompany: po.supplierSnapshot?.companyName,
+        itemsCount: po.items?.length || 0,
+        items: (po.items || []).map((it: any) => ({
+          productId: it.productId?.toString() || "",
+          productName: it.productName || "Product",
+          quantityForSell: it.quantityForSell || 0,
+          quantityForUse: it.quantityForUse || 0,
+          purchaseCost: it.purchaseCost || 0,
+          expectedSellPrice: it.expectedSellPrice || 0,
+          itemTotalCost: it.itemTotalCost || 0,
+        })),
+        totalAmount: po.totalAmount,
+        amountPaid: po.amountPaid,
+        amountPending: po.amountPending,
+        paymentMode: po.paymentMode,
+        paymentStatus: po.paymentStatus,
+        settlementMode: po.settlementMode,
+        dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
+        expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
+        deliveryTime: po.deliveryTime,
+        invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+        dealerInvoiceNumber: po.dealerInvoiceNumber,
+        notes: po.notes,
+        createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
+      }));
+
       // Background migration for any legacy unformatted customer phones in DB
       const unformatted = rawCustomers.filter(
         (c) => c.phone && (!c.phone.startsWith("+91 ") || c.phone.length !== 15)
@@ -436,6 +473,7 @@ export default async function DashboardPage() {
         category: mapExpenseCategory(e.category, e.title),
         time: formatOrderTime(e.expenseDate || e.createdAt),
         isToday: checkIsToday(e.expenseDate || e.createdAt),
+        notes: e.notes || undefined,
         createdAt: (e.expenseDate || e.createdAt)
           ? new Date(e.expenseDate || e.createdAt).toISOString()
           : undefined,
@@ -522,6 +560,7 @@ export default async function DashboardPage() {
       initialTotalOrdersCount={initialTotalOrdersCount}
       initialProducts={initialProducts}
       initialSuppliers={initialSuppliers}
+      initialPurchaseOrders={initialPurchaseOrders}
       initialCustomers={initialCustomers}
       initialExpenses={initialExpenses}
       initialTotalExpensesCount={initialTotalExpensesCount}

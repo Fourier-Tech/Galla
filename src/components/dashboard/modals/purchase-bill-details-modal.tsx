@@ -20,7 +20,15 @@ import {
   DashboardPurchaseOrder,
   DashboardPurchaseOrderPayment,
 } from "@/types/dashboard";
-import { formatRupee, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
+import {
+  formatRupee,
+  formatPhoneNumber,
+  formatBookingDate,
+  formatAppointmentTime,
+  getBookingUrgency,
+  getSupplierWhatsAppReminderUrl,
+  formatDisplayNumber,
+} from "@/lib/utils";
 
 function formatDateTime(dateStr?: string | Date | null): string | null {
   if (!dateStr) return null;
@@ -44,6 +52,7 @@ interface PurchaseBillDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPayNow?: (bill: DashboardPurchaseOrder) => void;
+  salonName?: string;
 }
 
 export function PurchaseBillDetailsModal({
@@ -51,6 +60,7 @@ export function PurchaseBillDetailsModal({
   isOpen,
   onClose,
   onOpenPayNow,
+  salonName,
 }: PurchaseBillDetailsModalProps) {
   React.useEffect(() => {
     if (!isOpen) return;
@@ -91,19 +101,49 @@ export function PurchaseBillDetailsModal({
     return [];
   }, [bill]);
 
-  const directWaUrl = useMemo(() => {
+  const waUrl = useMemo(() => {
     if (!bill?.supplierPhone) return null;
-    // ponytail: Assumes Indian 10-digit mobile numbers (+91). Upgrade path: Add country code support to tenant profile if expanding internationally.
-    const cleaned = bill.supplierPhone.replace(/\D/g, "");
-    if (!cleaned) return null;
-    const standardNumber =
-      cleaned.length === 10
-        ? `91${cleaned}`
-        : cleaned.startsWith("0") && cleaned.length === 11
-        ? `91${cleaned.slice(1)}`
-        : cleaned;
-    return `https://api.whatsapp.com/send/?phone=${standardNumber}`;
-  }, [bill?.supplierPhone]);
+    const isAdvance =
+      bill.settlementMode === "advance" ||
+      Boolean(bill.expectedDeliveryDate) ||
+      Boolean(bill.notes && /advance/i.test(bill.notes));
+    const deliveryDate =
+      bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined);
+
+    const itemsSummary =
+      bill.items && bill.items.length > 0
+        ? bill.items
+            .map(
+              (it) =>
+                `${it.productName} (${(it.quantityForSell || 0) + (it.quantityForUse || 0)} pcs)`
+            )
+            .join(", ")
+        : undefined;
+
+    const reminderMode: "advance" | "payment_due" | "delivery" = isAdvance
+      ? "advance"
+      : bill.amountPending > 0
+      ? "payment_due"
+      : "delivery";
+
+    return getSupplierWhatsAppReminderUrl({
+      phone: bill.supplierPhone,
+      supplierName: bill.supplierName,
+      salonName: salonName,
+      poNumber: bill.purchaseOrderNumber,
+      dealerInvoiceNumber: bill.dealerInvoiceNumber,
+      deliveryDate,
+      deliveryTime: bill.deliveryTime,
+      dueDate: bill.dueDate,
+      totalAmount: bill.totalAmount,
+      amountPaid: bill.amountPaid,
+      amountPending: bill.amountPending,
+      itemsSummary,
+      items: bill.items,
+      mode: reminderMode,
+      isAdvance,
+    });
+  }, [bill, salonName]);
 
   if (!isOpen || !bill) return null;
 
@@ -283,16 +323,16 @@ export function PurchaseBillDetailsModal({
                   <Phone className="h-3.5 w-3.5 text-galla-teal" />
                   <span>Call</span>
                 </a>
-                {directWaUrl && (
+                {waUrl && (
                   <a
-                    href={directWaUrl}
+                    href={waUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12px] font-sans font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
-                    title="Open WhatsApp chat"
+                    title="Send inquiry to supplier via WhatsApp"
                   >
                     <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
-                    <span>WhatsApp</span>
+                    <span>WhatsApp Msg</span>
                   </a>
                 )}
               </div>
@@ -391,6 +431,77 @@ export function PurchaseBillDetailsModal({
               </div>
             )}
           </div>
+
+          {/* Settlement Mode & Dates Banner (If present) */}
+          {(bill.dueDate || bill.expectedDeliveryDate || (bill.notes && /advance/i.test(bill.notes)) || (bill.settlementMode && bill.settlementMode !== "completed")) && (() => {
+            const isAdvance =
+              bill.settlementMode === "advance" ||
+              Boolean(bill.expectedDeliveryDate) ||
+              Boolean(bill.notes && /advance/i.test(bill.notes));
+            const deliveryTarget =
+              bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined);
+            const deliveryUrgency = deliveryTarget ? getBookingUrgency(deliveryTarget) : null;
+            const isDeliveryToday = deliveryUrgency?.tone === "today";
+            const isDeliveryOverdue = deliveryUrgency?.tone === "overdue";
+
+            const dueTarget = bill.dueDate;
+            const dueUrgency = (dueTarget && dueAmount > 0) ? getBookingUrgency(dueTarget) : null;
+            const isDueToday = dueUrgency?.tone === "today";
+            const isDueOverdue = dueUrgency?.tone === "overdue";
+
+            return (
+              <div className="p-3 bg-galla-paper/40 border border-galla-line rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px]">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-heading uppercase tracking-wider text-[11px] font-semibold text-galla-ink-soft">
+                    Settlement Mode:
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-galla-surface border border-galla-line text-galla-ink">
+                    {bill.settlementMode === "pending"
+                      ? "Pending / Payment Due"
+                      : isAdvance
+                      ? "Advance Order"
+                      : bill.settlementMode === "paid_full"
+                      ? "Paid in Full"
+                      : "Completed"}
+                  </span>
+                  {isDeliveryToday && (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                      🚨 Delivery Expected Today
+                    </span>
+                  )}
+                  {isDeliveryOverdue && (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
+                      ⚠️ Delivery Overdue
+                    </span>
+                  )}
+                  {isDueToday && (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                      🚨 Payment Due Today
+                    </span>
+                  )}
+                  {isDueOverdue && (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
+                      ⚠️ Payment Overdue
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  {bill.dueDate && (
+                    <div className="text-rose-700 font-medium font-sans">
+                      Payment Due: <strong>{formatBookingDate(bill.dueDate)}</strong>
+                    </div>
+                  )}
+                  {deliveryTarget && (
+                    <div className="text-galla-teal font-medium font-sans">
+                      Expected Arrival: <strong>{formatBookingDate(deliveryTarget)}</strong>
+                      {bill.deliveryTime ? ` at ${formatAppointmentTime(bill.deliveryTime)}` : ""}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Stock In Items Breakdown ("What we buy from supplier with Price, Qty, Total and Final Total") */}
           <div className="border border-galla-line rounded-[8px] overflow-hidden bg-galla-surface shadow-2xs">

@@ -25,12 +25,13 @@ import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
 import { SettleOrderModal } from "@/components/dashboard/modals/settle-order-modal";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
-import { calculatePendingAmount, formatPhoneNumber } from "@/lib/utils";
+import { calculatePendingAmount, formatPhoneNumber, BillStatusKey } from "@/lib/utils";
 import {
   DashboardSalonProfile,
   DashboardService,
   DashboardPackage,
   DashboardSupplier,
+  DashboardPurchaseOrder,
   OrderStatus,
 } from "@/types/dashboard";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
@@ -43,6 +44,7 @@ interface DashboardClientProps {
   initialTotalOrdersCount?: number;
   initialProducts?: DashboardProduct[];
   initialSuppliers?: DashboardSupplier[];
+  initialPurchaseOrders?: DashboardPurchaseOrder[];
   initialCustomers?: DashboardCustomer[];
   initialExpenses?: DashboardExpense[];
   initialSalonProfile?: DashboardSalonProfile;
@@ -62,6 +64,7 @@ export function DashboardClient({
   initialTotalOrdersCount = 0,
   initialProducts = [],
   initialSuppliers = [],
+  initialPurchaseOrders = [],
   initialCustomers = [],
   initialExpenses = [],
   initialSalonProfile,
@@ -78,6 +81,8 @@ export function DashboardClient({
   const [activeTab, setActiveTab] = useState<TabId>(activeTabDefault);
   const [ordersFilter, setOrdersFilter] = useState<OrderStatus | "all">("all");
   const [ordersNavKey, setOrdersNavKey] = useState(0);
+  const [billsFilter, setBillsFilter] = useState<BillStatusKey | "all">("all");
+  const [billsNavKey, setBillsNavKey] = useState(0);
 
   const handleNavigateToAdvanceOrders = () => {
     setOrdersFilter("advance_paid");
@@ -91,10 +96,20 @@ export function DashboardClient({
     setActiveTab("orders");
   };
 
+  const handleNavigateToStockDeliveries = (filter: "pending" | "advance" = "pending") => {
+    setBillsFilter(filter);
+    setBillsNavKey((k) => k + 1);
+    setActiveTab("suppliers");
+  };
+
   const handleSelectTab = (tab: TabId) => {
     if (tab === "orders") {
       setOrdersFilter("all");
       setOrdersNavKey((k) => k + 1);
+    }
+    if (tab === "suppliers") {
+      setBillsFilter("all");
+      setBillsNavKey((k) => k + 1);
     }
     setActiveTab(tab);
   };
@@ -102,6 +117,7 @@ export function DashboardClient({
   const [orders, setOrders] = useState<DashboardOrder[]>(initialOrders);
   const [products, setProducts] = useState<DashboardProduct[]>(initialProducts);
   const [suppliers, setSuppliers] = useState<DashboardSupplier[]>(initialSuppliers);
+  const [purchaseOrders, setPurchaseOrders] = useState<DashboardPurchaseOrder[]>(initialPurchaseOrders);
   const [customers, setCustomers] = useState<DashboardCustomer[]>(initialCustomers);
   const [expenses, setExpenses] = useState<DashboardExpense[]>(initialExpenses);
   const [services, setServices] = useState<DashboardService[]>(initialServices);
@@ -391,12 +407,14 @@ export function DashboardClient({
               orders={orders}
               products={products}
               suppliers={suppliers}
+              purchaseOrders={purchaseOrders}
               expensesTotal={expensesTotal}
               salonName={salonProfile.name || salonName}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
               onNavigateToAdvanceOrders={handleNavigateToAdvanceOrders}
               onNavigateToDueOrders={handleNavigateToDueOrders}
+              onNavigateToStockDeliveries={handleNavigateToStockDeliveries}
               onCompleteOrder={handleCompleteOrder}
               onOpenRefund={(order) => setRefundOrder(order)}
               onOpenSettle={(order) => setSettleOrder(order)}
@@ -450,8 +468,11 @@ export function DashboardClient({
 
           {activeTab === "suppliers" && (
             <SuppliersTab
+              key={`suppliers-${billsNavKey}`}
               suppliers={suppliers}
               products={products}
+              salonName={salonProfile?.name || salonName}
+              initialFilter={billsFilter}
               onAddSupplier={handleAddSupplier}
               onUpdateSupplier={handleUpdateSupplier}
               onStockInSuccess={handleStockInSuccess}

@@ -15,7 +15,7 @@ interface ProductModalProps {
   existingProducts?: DashboardProduct[];
 }
 
-const COMMON_PRODUCT_CATEGORIES = [
+export const COMMON_PRODUCT_CATEGORIES = [
   "Shampoos & Conditioners",
   "Hair Color & Developers",
   "Hair Serums & Oils",

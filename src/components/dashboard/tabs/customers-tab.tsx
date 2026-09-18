@@ -34,11 +34,31 @@ export function CustomersTab({
   const pageSize = 20;
 
   const formattedCustomers = useMemo(() => {
-    return customers.map((c) => ({
-      ...c,
-      phone: formatPhoneNumber(c.phone),
-    }));
-  }, [customers]);
+    const orderStatsByPhone = new Map<string, { due: number; spent: number }>();
+    if (orders && orders.length > 0) {
+      for (const o of orders) {
+        if (!o.customerPhone) continue;
+        const cleanP = formatPhoneNumber(o.customerPhone);
+        const curr = orderStatsByPhone.get(cleanP) || { due: 0, spent: 0 };
+        if (o.status !== "cancelled_refunded" && o.status !== "cancelled_converted") {
+          curr.spent += o.paid || 0;
+          curr.due += Math.max(0, o.amount - o.paid);
+        }
+        orderStatsByPhone.set(cleanP, curr);
+      }
+    }
+
+    return customers.map((c) => {
+      const cleanPhone = formatPhoneNumber(c.phone);
+      const computed = orderStatsByPhone.get(cleanPhone);
+      return {
+        ...c,
+        phone: cleanPhone,
+        outstandingDue: computed !== undefined ? computed.due : c.outstandingDue,
+        totalSpent: computed !== undefined ? computed.spent : c.totalSpent,
+      };
+    });
+  }, [customers, orders]);
 
   const filteredCustomers = useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -194,6 +214,17 @@ export function CustomersTab({
                         </>
                       ) : null}
                     </div>
+                    {customer.notes && (
+                      <div
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                        title={`Note: ${customer.notes}`}
+                      >
+                        <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                          Note
+                        </span>
+                        <span className="truncate font-medium">{customer.notes}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

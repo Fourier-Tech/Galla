@@ -184,6 +184,7 @@ export async function GET(request: Request) {
       category: mapExpenseCategory(e.category, e.title),
       time: formatOrderTime(e.expenseDate || e.createdAt),
       isToday: checkIsToday(e.expenseDate || e.createdAt),
+      notes: e.notes || undefined,
       createdAt: (e.expenseDate || e.createdAt)
         ? new Date(e.expenseDate || e.createdAt).toISOString()
         : undefined,

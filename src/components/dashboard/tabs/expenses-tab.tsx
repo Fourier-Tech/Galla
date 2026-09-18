@@ -448,6 +448,17 @@ export function ExpensesTab({
                   </span>
                   <span>{expense.time}</span>
                 </div>
+                {expense.notes && (
+                  <div
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                    title={`Note: ${expense.notes}`}
+                  >
+                    <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                      Note
+                    </span>
+                    <span className="truncate font-medium">{expense.notes}</span>
+                  </div>
+                )}
               </div>
 
               <div className="font-heading font-semibold text-[16px] text-galla-brick tabular-nums">

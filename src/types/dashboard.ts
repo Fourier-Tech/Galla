@@ -107,6 +107,7 @@ export interface DashboardExpense {
   category: "Inventory purchase" | "Day-to-day" | "Salary" | "Rent" | "Refund";
   time: string;
   isToday?: boolean;
+  notes?: string;
   createdAt?: string;
 }
 
@@ -206,10 +207,16 @@ export interface DashboardPurchaseOrder {
   paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "credit";
   paymentStatus: "paid" | "partial" | "unpaid";
   invoiceDate: string;
+  dueDate?: string;
+  expectedDeliveryDate?: string;
+  deliveryTime?: string;
+  settlementMode?: "completed" | "pending" | "advance" | "paid_full";
   dealerInvoiceNumber?: string;
   notes?: string;
   recordedBy?: "owner" | "staff" | string;
   createdAt: string;
+  updatedAt?: string;
+  lastUpdatedTime?: string;
 }
 
 export interface DashboardSupplier {

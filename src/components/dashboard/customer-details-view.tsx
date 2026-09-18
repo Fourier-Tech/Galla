@@ -14,7 +14,6 @@ import {
   ShoppingBag,
   Scissors,
   Package,
-  Sparkles,
   Search,
   Receipt,
   TrendingUp,
@@ -24,7 +23,7 @@ import {
 } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { getCustomerOrdersAction } from "@/app/dashboard/actions";
-import { formatRupee, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
+import { formatRupee, formatPhoneNumber, formatDisplayNumber, calculatePendingAmount } from "@/lib/utils";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
@@ -97,28 +96,35 @@ export function CustomerDetailsView({
 
   // Financial & Visit Metrics
   const metrics = useMemo(() => {
-    const totalOrders = orders.length;
-    const totalSpendFromOrders = orders
-      .filter((o) => o.status !== "cancelled_refunded")
-      .reduce((sum, o) => sum + (o.paid || 0), 0);
+    const validOrders = orders.filter(
+      (o) => o.status !== "cancelled_refunded" && o.status !== "cancelled_converted"
+    );
 
-    const totalSpend = customer.totalSpent && customer.totalSpent > 0
+    const totalOrders = validOrders.length;
+    const totalSpendFromOrders = validOrders.reduce((sum, o) => sum + (o.paid || 0), 0);
+    const pendingDuesFromOrders = calculatePendingAmount(orders);
+
+    const totalSpend = !isLoading
+      ? totalSpendFromOrders
+      : customer.totalSpent && customer.totalSpent > 0
       ? customer.totalSpent
-      : totalSpendFromOrders;
+      : 0;
 
-    const totalVisits = customer.visits > 0
-      ? customer.visits
-      : Math.max(totalOrders, 1);
+    const outstandingDue = !isLoading
+      ? pendingDuesFromOrders
+      : typeof customer.outstandingDue === "number" && customer.outstandingDue > 0
+      ? customer.outstandingDue
+      : 0;
+
+    const totalVisits = !isLoading
+      ? totalOrders > 0
+        ? totalOrders
+        : orders.length > 0
+        ? 1
+        : customer.visits || 0
+      : customer.visits || 0;
 
     const avgTicket = totalVisits > 0 ? Math.round(totalSpend / totalVisits) : totalSpend;
-
-    const pendingDues = orders
-      .filter((o) => o.status !== "cancelled_refunded" && o.status !== "cancelled_converted")
-      .reduce((sum, o) => sum + Math.max(0, o.amount - o.paid), 0);
-
-    const outstandingDue = typeof customer.outstandingDue === "number" && customer.outstandingDue > 0
-      ? customer.outstandingDue
-      : pendingDues;
 
     // Recency status
     let recencyStatus: { label: string; tone: "active" | "due" | "dormant" } = {
@@ -141,7 +147,7 @@ export function CustomerDetailsView({
     }
 
     return { totalSpend, totalVisits, avgTicket, outstandingDue, recencyStatus };
-  }, [orders, customer]);
+  }, [orders, customer, isLoading]);
 
   // Customer Analysis: Why they use us (Services vs Products vs Packages)
   const analysis = useMemo(() => {
@@ -200,23 +206,6 @@ export function CustomerDetailsView({
     // Preferred payment mode
     const preferredPaymentMode = Object.entries(paymentModeFrequency).sort((a, b) => b[1] - a[1])[0]?.[0];
 
-    // Customer Persona
-    let persona = "Regular Client";
-    let personaDescription = "Enjoys salon services and retail offerings";
-    if (packageSpend > 0 || (metrics.totalSpend >= 5000 && serviceCount >= 3)) {
-      persona = "VIP High-Value Client";
-      personaDescription = "High lifetime value client with premium visits";
-    } else if (servicePct >= 65) {
-      persona = "Service Regular";
-      personaDescription = "Visits primarily for salon & beauty treatments";
-    } else if (productPct >= 60) {
-      persona = "Retail Enthusiast";
-      personaDescription = "Frequently purchases retail home-care products";
-    } else if (totalCalculatedSpend > 0) {
-      persona = "Balanced Client";
-      personaDescription = "Equally books treatments and takes home retail supplies";
-    }
-
     return {
       serviceSpend,
       productSpend,
@@ -229,8 +218,6 @@ export function CustomerDetailsView({
       packagePct,
       topItems,
       preferredPaymentMode,
-      persona,
-      personaDescription,
     };
   }, [orders, metrics.totalSpend]);
 
@@ -336,8 +323,23 @@ export function CustomerDetailsView({
         </div>
       </div>
 
+      {/* Client Notes / Preferences Banner */}
+      {customer.notes && (
+        <div className="p-3.5 rounded-[8px] bg-amber-50/70 border border-amber-200/80 text-amber-950 flex items-start gap-2.5 shadow-2xs">
+          <MessageSquare className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] font-heading font-semibold uppercase tracking-wider text-amber-900 block">
+              Client Preferences &amp; Notes
+            </span>
+            <p className="text-[12.5px] text-amber-900/90 mt-0.5 whitespace-pre-wrap font-sans">
+              {customer.notes}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {/* Total Spent */}
         <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
           <div className="flex items-center justify-between">
@@ -411,24 +413,6 @@ export function CustomerDetailsView({
           </div>
           <span className="text-[11.5px] text-galla-ink-soft mt-1 block">
             {metrics.outstandingDue > 0 ? "Pending payment on orders" : "Fully settled (₹0 balance)"}
-          </span>
-        </div>
-
-        {/* Client Persona */}
-        <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
-              Client Persona
-            </span>
-            <div className="h-7 w-7 rounded-[5px] bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
-              <Sparkles className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="text-[15.5px] font-bold font-heading text-galla-ink mt-2 truncate">
-            {analysis.persona}
-          </div>
-          <span className="text-[11.5px] text-galla-ink-soft mt-1 block truncate">
-            {analysis.personaDescription}
           </span>
         </div>
       </div>
@@ -613,9 +597,17 @@ export function CustomerDetailsView({
                             {order.time}
                           </span>
                         </div>
-                        <div className="text-[12.5px] text-galla-ink font-medium mt-0.5 truncate">
-                          {order.itemsSummary || "Counter order"}
-                        </div>
+                        {order.notes && (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                            title={`Note: ${order.notes}`}
+                          >
+                            <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                              Note
+                            </span>
+                            <span className="truncate font-medium">{order.notes}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -624,8 +616,16 @@ export function CustomerDetailsView({
                         <div className="font-mono text-[13.5px] font-bold text-galla-ink">
                           {formatRupee(order.amount)}
                         </div>
-                        <div className="text-[11px] font-sans text-galla-ink-soft">
-                          {isPaidFull ? (
+                        <div className="text-[11px] font-sans">
+                          {order.status === "cancelled_refunded" ? (
+                            <span className="text-red-700 font-medium">
+                              {order.refundAmount
+                                ? `${formatRupee(order.refundAmount)} refunded`
+                                : "Refunded"}
+                            </span>
+                          ) : order.status === "cancelled_converted" ? (
+                            <span className="text-purple-700 font-medium">Converted</span>
+                          ) : isPaidFull ? (
                             <span className="text-emerald-700 font-medium">Paid in full</span>
                           ) : (
                             <span className="text-rose-700 font-medium">

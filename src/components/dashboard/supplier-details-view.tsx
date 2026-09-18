@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   MessageSquare,
   Package,
-  Sparkles,
   Search,
   Receipt,
   TrendingUp,
@@ -20,21 +19,36 @@ import {
   FileText,
   Loader2,
   X,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import { DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import {
   getPurchaseOrdersAction,
   recordPurchaseOrderPaymentAction,
 } from "@/app/dashboard/actions";
-import { formatRupee, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
+import {
+  formatRupee,
+  formatPhoneNumber,
+  formatBookingDate,
+  formatAppointmentTime,
+  formatOrderTime,
+  getBookingUrgency,
+  getSupplierWhatsAppReminderUrl,
+  getBillStatus,
+  formatDisplayNumber,
+} from "@/lib/utils";
 import { PurchaseBillDetailsModal } from "@/components/dashboard/modals/purchase-bill-details-modal";
+import { ReschedulePurchaseOrderModal } from "@/components/dashboard/modals/reschedule-purchase-order-modal";
 import { SettlePurchaseBillModal } from "@/components/dashboard/modals/settle-purchase-bill-modal";
+import { StatusPill } from "@/components/dashboard/status-pill";
 
 interface SupplierDetailsViewProps {
   supplier: DashboardSupplier;
   onBack: () => void;
   onOpenEditSupplier?: (supplier: DashboardSupplier) => void;
   onSupplierUpdated?: (updatedSupplier: DashboardSupplier) => void;
+  salonName?: string;
 }
 
 export function SupplierDetailsView({
@@ -42,6 +56,7 @@ export function SupplierDetailsView({
   onBack,
   onOpenEditSupplier,
   onSupplierUpdated,
+  salonName,
 }: SupplierDetailsViewProps) {
   const [bills, setBills] = useState<DashboardPurchaseOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +68,30 @@ export function SupplierDetailsView({
 
   // Pay Now dialog state
   const [selectedPOForPayment, setSelectedPOForPayment] = useState<DashboardPurchaseOrder | null>(null);
+
+  // Reschedule modal state
+  const [reschedulingState, setReschedulingState] = useState<{
+    po: DashboardPurchaseOrder;
+    mode: "delivery" | "due_date";
+  } | null>(null);
+
+  const handleOpenReschedule = (po: DashboardPurchaseOrder, mode: "delivery" | "due_date") => {
+    setReschedulingState({ po, mode });
+  };
+
+  const handleRescheduleSuccess = (updatedPO: DashboardPurchaseOrder) => {
+    const enrichedPO = {
+      ...updatedPO,
+      lastUpdatedTime: "Today, Just now",
+      updatedAt: new Date().toISOString(),
+    };
+    setBills((prev) =>
+      prev.map((b) => (b.id === enrichedPO.id ? enrichedPO : b))
+    );
+    if (selectedBill?.id === enrichedPO.id) {
+      setSelectedBill(enrichedPO);
+    }
+  };
 
   // Fetch supplier purchase bills
   useEffect(() => {
@@ -169,23 +208,6 @@ export function SupplierDetailsView({
       (a, b) => b[1] - a[1]
     )[0]?.[0];
 
-    // Supplier Persona
-    let persona = "Wholesale Supplier";
-    let personaDescription = "Provides salon products & consumable inventory";
-    if (metrics.totalPurchases >= 50000 || bills.length >= 5) {
-      persona = "Key Strategic Vendor";
-      personaDescription = "High-volume wholesale distributor for salon inventory";
-    } else if (retailPct >= 70) {
-      persona = "Retail Products Distributor";
-      personaDescription = "Supplies predominantly retail resale inventory";
-    } else if (salonPct >= 70) {
-      persona = "Salon Consumables Supplier";
-      personaDescription = "Supplies professional salon treatment materials";
-    } else if (totalCalculated > 0) {
-      persona = "Balanced Inventory Dealer";
-      personaDescription = "Supplies both retail merchandise and in-salon materials";
-    }
-
     return {
       retailSpend,
       salonSpend,
@@ -195,8 +217,6 @@ export function SupplierDetailsView({
       salonPct,
       topItems,
       preferredPaymentMode,
-      persona,
-      personaDescription,
     };
   }, [bills, metrics.totalPurchases]);
 
@@ -228,8 +248,8 @@ export function SupplierDetailsView({
       cleaned.length === 10
         ? `91${cleaned}`
         : cleaned.startsWith("0") && cleaned.length === 11
-        ? `91${cleaned.slice(1)}`
-        : cleaned;
+          ? `91${cleaned.slice(1)}`
+          : cleaned;
     return `https://api.whatsapp.com/send/?phone=${standardNumber}`;
   }, [supplier.phone]);
 
@@ -350,8 +370,23 @@ export function SupplierDetailsView({
         </div>
       </div>
 
-      {/* KPI Cards Grid (4 Columns - Matching Customer Details View) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Supplier Notes & Terms Banner */}
+      {supplier.notes && (
+        <div className="p-3.5 rounded-[8px] bg-amber-50/70 border border-amber-200/80 text-amber-950 flex items-start gap-2.5 shadow-2xs">
+          <MessageSquare className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] font-heading font-semibold uppercase tracking-wider text-amber-900 block">
+              Supplier Notes &amp; Terms
+            </span>
+            <p className="text-[12.5px] text-amber-900/90 mt-0.5 whitespace-pre-wrap font-sans">
+              {supplier.notes}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Cards Grid (3 Columns - Matching Customer Details View) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {/* Total Purchases */}
         <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
           <div className="flex items-center justify-between">
@@ -395,11 +430,10 @@ export function SupplierDetailsView({
               Outstanding Dues
             </span>
             <div
-              className={`h-7 w-7 rounded-[5px] flex items-center justify-center border ${
-                metrics.totalPending > 0
+              className={`h-7 w-7 rounded-[5px] flex items-center justify-center border ${metrics.totalPending > 0
                   ? "bg-rose-50 border-rose-200 text-rose-700"
                   : "bg-emerald-50 border-emerald-200 text-emerald-700"
-              }`}
+                }`}
             >
               {metrics.totalPending > 0 ? (
                 <AlertCircle className="h-3.5 w-3.5" />
@@ -409,9 +443,8 @@ export function SupplierDetailsView({
             </div>
           </div>
           <div
-            className={`text-[22px] font-bold font-heading mt-2 ${
-              metrics.totalPending > 0 ? "text-rose-700" : "text-emerald-700"
-            }`}
+            className={`text-[22px] font-bold font-heading mt-2 ${metrics.totalPending > 0 ? "text-rose-700" : "text-emerald-700"
+              }`}
           >
             {formatRupee(metrics.totalPending)}
           </div>
@@ -419,24 +452,6 @@ export function SupplierDetailsView({
             {metrics.totalPending > 0
               ? `${metrics.pendingCount} unpaid / partial bill(s)`
               : "Fully settled (₹0 balance)"}
-          </span>
-        </div>
-
-        {/* Supplier Profile / Relationship */}
-        <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
-              Supplier Profile
-            </span>
-            <div className="h-7 w-7 rounded-[5px] bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
-              <Sparkles className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="text-[15.5px] font-bold font-heading text-galla-ink mt-2 truncate">
-            {analysis.persona}
-          </div>
-          <span className="text-[11.5px] text-galla-ink-soft mt-1 block truncate">
-            {analysis.personaDescription}
           </span>
         </div>
       </div>
@@ -541,11 +556,10 @@ export function SupplierDetailsView({
                   key={tab.key}
                   type="button"
                   onClick={() => setStatusFilter(tab.key)}
-                  className={`px-2.5 py-1 rounded-[4px] transition-all cursor-pointer ${
-                    statusFilter === tab.key
+                  className={`px-2.5 py-1 rounded-[4px] transition-all cursor-pointer ${statusFilter === tab.key
                       ? "bg-galla-surface text-galla-ink font-semibold shadow-2xs"
                       : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -585,6 +599,72 @@ export function SupplierDetailsView({
                     ? bill.items.map((it) => it.productName).join(", ")
                     : `Stock In (${bill.itemsCount || 1} item)`;
 
+                const isAdvance =
+                  bill.settlementMode === "advance" ||
+                  Boolean(bill.expectedDeliveryDate) ||
+                  Boolean(bill.notes && /advance/i.test(bill.notes));
+                const targetDelivery =
+                  bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined);
+                const dUrgency = targetDelivery ? getBookingUrgency(targetDelivery) : null;
+                const isDelivToday = dUrgency?.tone === "today";
+                const isDelivOverdue = dUrgency?.tone === "overdue";
+
+                const dDateStr = targetDelivery ? formatBookingDate(targetDelivery) : "";
+                const dTimeStr = bill.deliveryTime ? formatAppointmentTime(bill.deliveryTime) : "";
+                const dFullSlot = dTimeStr ? `${dDateStr}, ${dTimeStr}` : dDateStr;
+
+                const dBadgeStyle = isDelivToday
+                  ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold shadow-xs"
+                  : isDelivOverdue
+                    ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                    : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
+
+                const dBadgeLabel = isDelivToday
+                  ? `🚨 Delivery Today (${dFullSlot})`
+                  : isDelivOverdue
+                    ? `⚠️ Delivery Overdue (${dFullSlot})`
+                    : `Expected: ${dFullSlot}`;
+
+                // Payment Due Date & Urgency
+                const targetDueDate = bill.dueDate || (bill.paymentMode === "credit" ? bill.invoiceDate : undefined);
+                const dueUrgency = (pendingBalance > 0 && targetDueDate) ? getBookingUrgency(targetDueDate) : null;
+                const isDueToday = dueUrgency?.tone === "today";
+                const isDueOverdue = dueUrgency?.tone === "overdue";
+
+                const dueDateStr = targetDueDate ? formatBookingDate(targetDueDate) : "";
+                const dueBadgeStyle = isDueToday
+                  ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold shadow-xs"
+                  : isDueOverdue
+                    ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                    : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
+
+                const dueBadgeLabel = isDueToday
+                  ? `🚨 Payment Due Today (${dueDateStr})`
+                  : isDueOverdue
+                    ? `⚠️ Payment Overdue (${dueDateStr})`
+                    : `Due: ${dueDateStr}`;
+
+                const billWaUrl = getSupplierWhatsAppReminderUrl({
+                  phone: supplier.phone,
+                  supplierName: supplier.name,
+                  salonName: salonName,
+                  poNumber: bill.purchaseOrderNumber,
+                  dealerInvoiceNumber: bill.dealerInvoiceNumber,
+                  deliveryDate: targetDelivery,
+                  deliveryTime: bill.deliveryTime,
+                  dueDate: bill.dueDate,
+                  totalAmount: bill.totalAmount,
+                  amountPaid: bill.amountPaid,
+                  amountPending: pendingBalance,
+                  itemsSummary,
+                  items: bill.items,
+                  mode: isAdvance ? "advance" : pendingBalance > 0 ? "payment_due" : "delivery",
+                  isAdvance,
+                });
+
+                const billStatus = getBillStatus(bill);
+                const isBillCompleted = billStatus.statusKey === "completed" || bill.amountPending <= 0;
+
                 return (
                   <div
                     key={bill.id}
@@ -606,12 +686,73 @@ export function SupplierDetailsView({
                             </span>
                           )}
                           <span className="text-[11.5px] font-sans text-galla-ink-soft">
-                            {bill.itemsCount || bill.items?.length || 1} item(s)
+                            Stock Order &bull; {formatOrderTime(bill.createdAt || bill.invoiceDate)}
                           </span>
                         </div>
-                        <div className="text-[12.5px] text-galla-ink font-medium mt-0.5 truncate">
-                          {itemsSummary}
-                        </div>
+                        {bill.notes && (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                            title={`Note: ${bill.notes}`}
+                          >
+                            <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                              Note
+                            </span>
+                            <span className="truncate font-medium">{bill.notes}</span>
+                          </div>
+                        )}
+
+                        {/* Delivery Schedule & Due Urgency */}
+                        {!isBillCompleted && (targetDelivery || (pendingBalance > 0 && targetDueDate)) && (
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {targetDelivery && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenReschedule(bill, "delivery");
+                                }}
+                                className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-[4px] border shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${dBadgeStyle}`}
+                                title="Click to reschedule delivery date & time"
+                              >
+                                <Calendar className="h-3 w-3 shrink-0" />
+                                <span>{dBadgeLabel}</span>
+                                <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                  Reschedule
+                                </span>
+                              </button>
+                            )}
+                            {pendingBalance > 0 && targetDueDate && targetDueDate !== targetDelivery && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenReschedule(bill, "due_date");
+                                }}
+                                className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-[4px] border shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${dueBadgeStyle}`}
+                                title="Click to reschedule payment due date"
+                              >
+                                <Clock className="h-3 w-3 shrink-0" />
+                                <span>{dueBadgeLabel}</span>
+                                <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                  Reschedule
+                                </span>
+                              </button>
+                            )}
+                            {billWaUrl && (
+                              <a
+                                href={billWaUrl}
+                                onClick={(e) => e.stopPropagation()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
+                                title="Send WhatsApp message regarding this bill"
+                              >
+                                <MessageSquare className="h-3 w-3 text-emerald-700" />
+                                <span>WhatsApp Msg</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -622,7 +763,10 @@ export function SupplierDetailsView({
                         </div>
                         <div className="text-[11px] font-sans text-galla-ink-soft">
                           {isPaidFull ? (
-                            <span className="text-emerald-700 font-medium">Paid in full</span>
+                            <span className="text-galla-ink-soft/80 font-medium">
+                              Settled
+                              {bill.paymentMode && ` • ${bill.paymentMode.toUpperCase()}`}
+                            </span>
                           ) : (
                             <span className="text-rose-700 font-medium">
                               Due: {formatRupee(pendingBalance)}
@@ -631,17 +775,10 @@ export function SupplierDetailsView({
                         </div>
                       </div>
 
-                      <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-sans px-2 py-0.5 rounded-[4px] border font-medium uppercase tracking-wider ${
-                          isPaidFull
-                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                            : bill.paymentStatus === "partial"
-                            ? "bg-amber-50 text-amber-800 border-amber-200"
-                            : "bg-rose-50 text-rose-800 border-rose-200"
-                        }`}
-                      >
-                        {isPaidFull ? "Paid" : bill.paymentStatus === "partial" ? "Partial" : "Unpaid"}
-                      </span>
+                      <StatusPill
+                        status={getBillStatus(bill).pillStatus}
+                        customLabel={getBillStatus(bill).label}
+                      />
 
                       {!isPaidFull && (
                         <button
@@ -676,15 +813,16 @@ export function SupplierDetailsView({
         bill={
           selectedBill
             ? {
-                ...selectedBill,
-                supplierName: supplier.name || selectedBill.supplierName,
-                supplierPhone: supplier.phone ? formatPhoneNumber(supplier.phone) : selectedBill.supplierPhone,
-                supplierCompany: supplier.companyName !== undefined ? supplier.companyName : selectedBill.supplierCompany,
-              }
+              ...selectedBill,
+              supplierName: supplier.name || selectedBill.supplierName,
+              supplierPhone: supplier.phone ? formatPhoneNumber(supplier.phone) : selectedBill.supplierPhone,
+              supplierCompany: supplier.companyName !== undefined ? supplier.companyName : selectedBill.supplierCompany,
+            }
             : null
         }
         isOpen={Boolean(selectedBill)}
         onClose={() => setSelectedBill(null)}
+        salonName={salonName}
         onOpenPayNow={(bill) => {
           setSelectedBill(null);
           handleOpenPayNow(bill);
@@ -696,16 +834,25 @@ export function SupplierDetailsView({
         bill={
           selectedPOForPayment
             ? {
-                ...selectedPOForPayment,
-                supplierName: supplier.name || selectedPOForPayment.supplierName,
-                supplierPhone: supplier.phone ? formatPhoneNumber(supplier.phone) : selectedPOForPayment.supplierPhone,
-                supplierCompany: supplier.companyName !== undefined ? supplier.companyName : selectedPOForPayment.supplierCompany,
-              }
+              ...selectedPOForPayment,
+              supplierName: supplier.name || selectedPOForPayment.supplierName,
+              supplierPhone: supplier.phone ? formatPhoneNumber(supplier.phone) : selectedPOForPayment.supplierPhone,
+              supplierCompany: supplier.companyName !== undefined ? supplier.companyName : selectedPOForPayment.supplierCompany,
+            }
             : null
         }
         isOpen={Boolean(selectedPOForPayment)}
         onClose={() => setSelectedPOForPayment(null)}
         onPaymentSuccess={handlePaymentSuccess}
+      />
+
+      {/* Reschedule PO Delivery / Due Date Modal */}
+      <ReschedulePurchaseOrderModal
+        po={reschedulingState?.po || null}
+        mode={reschedulingState?.mode}
+        isOpen={Boolean(reschedulingState)}
+        onClose={() => setReschedulingState(null)}
+        onRescheduleSuccess={handleRescheduleSuccess}
       />
     </div>
   );

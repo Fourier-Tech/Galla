@@ -35,6 +35,7 @@ export const createOrderSchema = z.object({
     .optional(),
   clearedDueOrderIds: z.array(z.string()).optional(),
   clearedDueAmount: z.number().optional(),
+  notes: z.string().optional(),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
@@ -78,13 +79,25 @@ export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export const transferStockSchema = z.object({
   productId: z.string().min(1, "Product ID is required"),
   quantity: z.number().int("Quantity must be an integer").min(1, "Quantity must be at least 1").default(1),
+  direction: z.enum(["sell_to_use", "use_to_sell"]).default("sell_to_use"),
 });
 
 export type TransferStockInput = z.infer<typeof transferStockSchema>;
 
-export const purchaseOrderItemInputSchema = z.object({
+export const consumeUseStockSchema = z.object({
   productId: z.string().min(1, "Product ID is required"),
-  productName: z.string().min(1, "Product name is required"),
+  quantity: z.number().int("Quantity must be an integer").min(1, "Quantity must be at least 1").default(1),
+  reason: z.enum(["service", "finished", "damaged", "other"]).default("service"),
+  notes: z.string().optional(),
+});
+
+export type ConsumeUseStockInput = z.infer<typeof consumeUseStockSchema>;
+
+export const purchaseOrderItemInputSchema = z.object({
+  productId: z.string().optional(),
+  isNewProduct: z.boolean().optional(),
+  productName: z.string().min(1, "Product name is required").trim(),
+  category: z.string().optional(),
   quantityForSell: z.number().int().min(0, "Quantity for sell cannot be negative").default(0),
   quantityForUse: z.number().int().min(0, "Quantity for use cannot be negative").default(0),
   purchaseCost: z.number().min(0, "Purchase cost cannot be negative"),
@@ -99,6 +112,10 @@ export const createPurchaseOrderSchema = z.object({
   items: z.array(purchaseOrderItemInputSchema).min(1, "At least one item is required in a purchase order"),
   paymentMode: z.enum(["cash", "upi", "card", "bank_transfer", "credit"]).default("cash"),
   amountPaid: z.number().min(0, "Paid amount cannot be negative").optional(),
+  settlementMode: z.enum(["completed", "pending", "advance", "paid_full"]).optional().default("completed"),
+  dueDate: z.string().optional(),
+  expectedDeliveryDate: z.string().optional(),
+  deliveryTime: z.string().optional(),
   dealerInvoiceNumber: z.string().optional(),
   invoiceDate: z.string().optional(),
   notes: z.string().optional(),
@@ -114,6 +131,15 @@ export const recordPurchaseOrderPaymentSchema = z.object({
 });
 
 export type RecordPurchaseOrderPaymentInput = z.infer<typeof recordPurchaseOrderPaymentSchema>;
+
+export const reschedulePurchaseOrderSchema = z.object({
+  purchaseOrderId: z.string().min(1, "Purchase order ID is required"),
+  expectedDeliveryDate: z.string().optional(),
+  deliveryTime: z.string().optional(),
+  dueDate: z.string().optional(),
+});
+
+export type ReschedulePurchaseOrderInput = z.infer<typeof reschedulePurchaseOrderSchema>;
 
 export const fulfillOrderLineItemSchema = z.object({
   orderId: z.string().min(1, "Order ID is required"),

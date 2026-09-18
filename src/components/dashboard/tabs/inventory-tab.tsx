@@ -4,7 +4,6 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import {
   MoveRight,
   PackagePlus,
-  AlertTriangle,
   Search,
   X,
   Plus,
@@ -14,6 +13,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ArrowRightLeft,
 } from "lucide-react";
 import { DashboardProduct, DashboardExpense, DashboardSupplier } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
@@ -149,10 +149,6 @@ export function InventoryTab({
     return cats.sort();
   }, [products]);
 
-  // Pillar 3: Low stock identification (sellStock <= lowStockThreshold or 2)
-  const lowStockProducts = useMemo(() => {
-    return products.filter((p) => p.isActive !== false && p.sell <= (p.lowStockThreshold ?? 2));
-  }, [products]);
 
   // Keep displayed products in sync when products prop changes
   if (products !== prevProducts) {
@@ -247,14 +243,6 @@ export function InventoryTab({
     setDisplayedProducts(inMem.slice(0, pageSize));
   };
 
-  const handleToggleLowStock = () => {
-    const nextVal = !filterLowStockOnly;
-    setFilterLowStockOnly(nextVal);
-    setPage(1);
-    const inMem = filterInMemory(selectedCategory, searchQuery, nextVal);
-    setTotalCount(inMem.length);
-    setDisplayedProducts(inMem.slice(0, pageSize));
-  };
 
   const handleResetFilters = () => {
     setSelectedCategory("all");
@@ -275,6 +263,9 @@ export function InventoryTab({
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense
   ) => {
+    setDisplayedProducts((prev) =>
+      prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
+    );
     if (onTransferSuccess) {
       onTransferSuccess(updatedProduct, newExpense);
     } else if (onMoveStock) {
@@ -344,33 +335,6 @@ export function InventoryTab({
         </div>
       </div>
 
-      {/* Low Stock Warning Banner */}
-      {lowStockProducts.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-[16px] bg-red-50/90 border border-red-200 rounded-[5px] text-red-900 animate-in fade-in">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-heading font-semibold text-[14px]">
-                Low Stock Alert ({lowStockProducts.length} items)
-              </h4>
-              <p className="font-sans text-[12.5px] text-red-700 mt-0.5">
-                The following products have dropped to or below their alert threshold. Reorder stock soon.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleToggleLowStock}
-            className={`px-3 py-1.5 rounded-[4px] font-sans text-[12px] font-medium transition-colors cursor-pointer shrink-0 self-start sm:self-auto ${
-              filterLowStockOnly
-                ? "bg-red-800 text-white"
-                : "bg-red-100 text-red-900 hover:bg-red-200"
-            }`}
-          >
-            {filterLowStockOnly ? "Show All Items" : "Filter Low Stock"}
-          </button>
-        </div>
-      )}
 
       {/* 1. Search Bar (First Row, matching Orders & Expenses tab) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -464,13 +428,13 @@ export function InventoryTab({
           <table className="w-full text-left border-collapse min-w-[920px]">
             <thead>
               <tr className="border-b border-galla-line bg-galla-paper/70 font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
-                <th className="w-[26%] py-3.5 pl-6 pr-4 text-left font-semibold">Product</th>
+                <th className="w-[24%] py-3.5 pl-6 pr-4 text-left font-semibold">Product</th>
                 <th className="w-[18%] py-3.5 px-4 text-left font-semibold">Category</th>
                 <th className="w-[12%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Purchase Price</th>
                 <th className="w-[11%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Sell Price</th>
                 <th className="w-[12%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Sell Stock</th>
                 <th className="w-[9%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Use Stock</th>
-                <th className="w-[6%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Transfer</th>
+                <th className="w-[8%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Move / Use</th>
                 <th className="w-[6%] py-3.5 pl-4 pr-6 text-right font-semibold whitespace-nowrap">Actions</th>
               </tr>
             </thead>
@@ -516,6 +480,11 @@ export function InventoryTab({
                             </span>
                           )}
                         </div>
+                        {product.description && (
+                          <div className="font-sans text-[12px] text-galla-ink-soft truncate max-w-xs mt-0.5" title={product.description}>
+                            {product.description}
+                          </div>
+                        )}
                       </td>
 
                       {/* Category Badge */}
@@ -572,17 +541,17 @@ export function InventoryTab({
                         {product.use} pcs
                       </td>
 
-                      {/* Transfer */}
+                      {/* Transfer / Use */}
                       <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleOpenTransfer(product)}
-                          disabled={product.sell <= 0}
+                          disabled={product.sell <= 0 && product.use <= 0}
                           className="inline-flex items-center gap-1 text-[12.5px] font-sans font-medium text-galla-teal hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-opacity"
-                          title="Move units from Retail to Salon internal consumption"
+                          title="Transfer between retail and salon use, or deduct consumed stock"
                         >
-                          <span>Move</span>
-                          <MoveRight className="h-3.5 w-3.5" />
+                          <span>Move / Use</span>
+                          <ArrowRightLeft className="h-3.5 w-3.5" />
                         </button>
                       </td>
 

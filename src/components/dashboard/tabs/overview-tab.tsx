@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare } from "lucide-react";
-import { DashboardOrder, DashboardProduct, DashboardSupplier } from "@/types/dashboard";
+import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck } from "lucide-react";
+import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 
@@ -13,12 +13,14 @@ interface OverviewTabProps {
   orders: DashboardOrder[];
   products: DashboardProduct[];
   suppliers?: DashboardSupplier[];
+  purchaseOrders?: DashboardPurchaseOrder[];
   expensesTotal: number;
   salonName?: string;
   onOpenNewOrder: () => void;
   onOpenNewExpense: () => void;
   onNavigateToAdvanceOrders?: () => void;
   onNavigateToDueOrders?: () => void;
+  onNavigateToStockDeliveries?: (filter?: "pending" | "advance") => void;
   onCompleteOrder?: (orderId: string) => Promise<void> | void;
   onOpenRefund?: (order: DashboardOrder) => void;
   onNavigateToInventory?: () => void;
@@ -30,12 +32,14 @@ export function OverviewTab({
   orders,
   products,
   suppliers = [],
+  purchaseOrders = [],
   expensesTotal,
   salonName,
   onOpenNewOrder,
   onOpenNewExpense,
   onNavigateToAdvanceOrders,
   onNavigateToDueOrders,
+  onNavigateToStockDeliveries,
   onCompleteOrder,
   onOpenRefund,
   onNavigateToInventory,
@@ -58,40 +62,45 @@ export function OverviewTab({
   };
   // Today's Total Income: sum of all revenue actually collected today across all orders (new orders, advance payments, and settlements)
   // Excludes fully refunded orders (whose net retained amount is 0) so refunds do not inflate income
-  const todayIncome = orders.reduce((sum, o) => {
-    if (o.status === "cancelled_refunded" && (!o.paid || o.paid === 0)) {
-      return sum;
-    }
-    return sum + (Number(o.todayPaid ?? (o.isToday ? o.paid : 0)) || 0);
-  }, 0);
+  const todayIncome = useMemo(() => {
+    return orders.reduce((sum, o) => {
+      if (o.status === "cancelled_refunded" && !o.refundAmount) return sum;
+      return sum + (o.todayPaid ?? (o.isToday ? o.paid : 0));
+    }, 0);
+  }, [orders]);
 
-  // Active advance payments collected today for upcoming bookings (excluding cancelled/refunded)
-  const advancePayment = orders.reduce((sum, o) => {
-    if (o.status !== "advance_paid" && o.status !== "paid_full") return sum;
-    return sum + (Number(o.todayPaid ?? (o.isToday ? o.paid : 0)) || 0);
-  }, 0);
-  const pendingAmount = calculatePendingAmount(orders);
-  // Money owed to dealers/suppliers (pending credit balance yet to be paid)
-  const dealerDues = suppliers.reduce((sum, s) => sum + (Number(s.totalPending) || 0), 0);
-  const lowStockProducts = products.filter((p) => p.sell <= 2);
+  // Overall Customer Outstanding Dues
+  const pendingAmount = useMemo(() => calculatePendingAmount(orders), [orders]);
 
-  // Recent Counter Orders table shows orders from the last 24 hours, sorted by latest activity (settlements, completions, creation)
-  const recent24hOrders = useMemo(() => {
-    const base = orders.filter((o) => o.isLast24Hours !== false);
-    const sorted = [...base].sort((a, b) => {
-      const timeA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const timeB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return timeB - timeA;
+  // Overall Dealer / Supplier Dues (sum of all pending amounts owed to active suppliers)
+  const dealerDues = useMemo(() => {
+    return suppliers.reduce((sum, s) => sum + (s.totalPending || 0), 0);
+  }, [suppliers]);
+
+  // Low stock products
+  const lowStockProducts = useMemo(() => {
+    return products.filter((p) => {
+      const threshold = p.lowStockThreshold ?? 5;
+      return p.sell <= threshold;
     });
+  }, [products]);
 
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return sorted;
+  // Total Advance Bookings deposit received today
+  const advancePayment = useMemo(() => {
+    return orders
+      .filter((o) => (o.status === "advance_paid" || o.status === "paid_full") && o.isToday)
+      .reduce((sum, o) => sum + (o.advanceAmount ?? o.paid), 0);
+  }, [orders]);
 
-    return sorted.filter((o) => {
-      const idMatch = o.id?.toLowerCase().includes(q);
-      const customerMatch = o.customer?.toLowerCase().includes(q);
-      const typeMatch = o.type?.toLowerCase().includes(q);
-      const statusMatch = o.status?.toLowerCase().replace(/_/g, " ").includes(q);
+  // Recent 24h Orders
+  const recent24hOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (!searchQuery.trim()) return o.isToday || o.isLast24Hours;
+      const q = searchQuery.toLowerCase();
+      const idMatch = o.id.toLowerCase().includes(q);
+      const customerMatch = o.customer.toLowerCase().includes(q);
+      const typeMatch = o.type.toLowerCase().includes(q);
+      const statusMatch = o.status.toLowerCase().includes(q);
       const refundReasonMatch = o.refundReason?.toLowerCase().includes(q);
       return Boolean(idMatch || customerMatch || typeMatch || statusMatch || refundReasonMatch);
     });
@@ -124,6 +133,48 @@ export function OverviewTab({
     });
   }, [orders]);
 
+  // Supplier Deliveries & Dues: Urgency triggers strictly on the selected date (Today) or if Overdue
+  const urgentSupplierDeliveries = useMemo(() => {
+    return (purchaseOrders || []).filter((po) => {
+      if (po.paymentStatus === "paid" && po.settlementMode === "completed") return false;
+      const isAdvanceOrScheduled =
+        po.settlementMode === "advance" ||
+        Boolean(po.expectedDeliveryDate) ||
+        Boolean(po.notes && /advance/i.test(po.notes));
+      const targetDate = po.expectedDeliveryDate || (isAdvanceOrScheduled ? po.dueDate || po.invoiceDate : undefined);
+      if (!targetDate) return false;
+      const urgency = getBookingUrgency(targetDate);
+      return urgency && (urgency.tone === "today" || urgency.tone === "overdue");
+    });
+  }, [purchaseOrders]);
+
+  const urgentSupplierDues = useMemo(() => {
+    return (purchaseOrders || []).filter((po) => {
+      if (po.amountPending <= 0) return false;
+      const dueTarget = po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined);
+      if (!dueTarget) return false;
+      const urgency = getBookingUrgency(dueTarget);
+      return urgency && (urgency.tone === "today" || urgency.tone === "overdue");
+    });
+  }, [purchaseOrders]);
+
+  const urgentSupplierItems = useMemo(() => {
+    const map = new Map<string, DashboardPurchaseOrder>();
+    urgentSupplierDeliveries.forEach((p) => map.set(p.id, p));
+    urgentSupplierDues.forEach((p) => map.set(p.id, p));
+    return Array.from(map.values());
+  }, [urgentSupplierDeliveries, urgentSupplierDues]);
+
+  const supplierItemsToday = useMemo(() => {
+    return urgentSupplierItems.filter((po) => {
+      const dTarget = po.expectedDeliveryDate || (po.notes && /advance/i.test(po.notes) ? po.invoiceDate : undefined);
+      const pTarget = po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined);
+      const uD = dTarget ? getBookingUrgency(dTarget) : null;
+      const uP = pTarget ? getBookingUrgency(pTarget) : null;
+      return uD?.tone === "today" || uP?.tone === "today";
+    });
+  }, [urgentSupplierItems]);
+
   return (
     <div className="flex flex-col h-full min-h-0 space-y-3.5 w-full">
       {/* Section Header (Fixed) */}
@@ -141,11 +192,10 @@ export function OverviewTab({
           {onNavigateToAdvanceOrders && (
             <button
               onClick={onNavigateToAdvanceOrders}
-              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${
-                upcomingAdvanceOrders.length > 0
+              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${upcomingAdvanceOrders.length > 0
                   ? "bg-amber-50/90 hover:bg-amber-100 border-amber-300 text-amber-900 ring-2 ring-amber-400/40"
                   : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
-              }`}
+                }`}
               title={
                 upcomingAdvanceOrders.length > 0
                   ? `${upcomingAdvanceOrders.length} advance booking(s) near (Today - 2 days)`
@@ -164,9 +214,8 @@ export function OverviewTab({
               <span>Advance Bookings</span>
               {upcomingAdvanceOrders.length > 0 && (
                 <span
-                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-amber-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${
-                    upcomingAdvanceOrders.length > 9 ? "min-w-5 px-1.5" : "w-5"
-                  }`}
+                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-amber-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${upcomingAdvanceOrders.length > 9 ? "min-w-5 px-1.5" : "w-5"
+                    }`}
                 >
                   {upcomingAdvanceOrders.length}
                 </span>
@@ -176,11 +225,10 @@ export function OverviewTab({
           {onNavigateToDueOrders && (
             <button
               onClick={onNavigateToDueOrders}
-              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${
-                dueOrdersToClear.length > 0
+              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${dueOrdersToClear.length > 0
                   ? "bg-rose-50/90 hover:bg-rose-100 border-rose-300 text-rose-900 ring-2 ring-rose-400/40"
                   : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
-              }`}
+                }`}
               title={
                 dueOrdersToClear.length > 0
                   ? `${dueOrdersToClear.length} customer payment(s) due today or overdue`
@@ -199,11 +247,78 @@ export function OverviewTab({
               <span>Dues to Clear</span>
               {dueOrdersToClear.length > 0 && (
                 <span
-                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-rose-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${
-                    dueOrdersToClear.length > 9 ? "min-w-5 px-1.5" : "w-5"
-                  }`}
+                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-rose-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${dueOrdersToClear.length > 9 ? "min-w-5 px-1.5" : "w-5"
+                    }`}
                 >
                   {dueOrdersToClear.length}
+                </span>
+              )}
+            </button>
+          )}
+          {onNavigateToStockDeliveries && (
+            <button
+              onClick={() => {
+                const hasAdvanceData =
+                  urgentSupplierDeliveries.length > 0 ||
+                  (purchaseOrders || []).some((po) => getBillStatus(po).statusKey === "advance");
+
+                const hasPendingData =
+                  urgentSupplierDues.length > 0 ||
+                  (purchaseOrders || []).some((po) => getBillStatus(po).statusKey === "pending");
+
+                let targetFilter: "pending" | "advance" = "pending";
+                if (!hasPendingData && hasAdvanceData) {
+                  // Pending is not available -> redirect to Advance
+                  targetFilter = "advance";
+                } else {
+                  // Both available or only Pending available -> redirect to Pending
+                  targetFilter = "pending";
+                }
+                onNavigateToStockDeliveries(targetFilter);
+              }}
+              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${supplierItemsToday.length > 0
+                  ? "bg-rose-50/90 hover:bg-rose-100 border-rose-300 text-rose-900 ring-2 ring-rose-400/40"
+                  : urgentSupplierItems.length > 0
+                    ? "bg-amber-50/90 hover:bg-amber-100 border-amber-300 text-amber-900 ring-2 ring-amber-400/40"
+                    : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
+                }`}
+              title={
+                supplierItemsToday.length > 0
+                  ? `${supplierItemsToday.length} supplier delivery / payment due TODAY`
+                  : urgentSupplierItems.length > 0
+                    ? `${urgentSupplierItems.length} supplier delivery / payment overdue`
+                    : "View Supplier Bills & Deliveries"
+              }
+            >
+              <div className="relative flex items-center justify-center">
+                <Truck
+                  className={`h-4 w-4 ${supplierItemsToday.length > 0
+                      ? "text-rose-700"
+                      : urgentSupplierItems.length > 0
+                        ? "text-amber-700"
+                        : "text-galla-ink-soft"
+                    }`}
+                />
+                {urgentSupplierItems.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span
+                      className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${supplierItemsToday.length > 0 ? "bg-rose-400" : "bg-amber-400"
+                        }`}
+                    ></span>
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${supplierItemsToday.length > 0 ? "bg-rose-600" : "bg-amber-600"
+                        }`}
+                    ></span>
+                  </span>
+                )}
+              </div>
+              <span>Stock Deliveries &amp; Dues</span>
+              {urgentSupplierItems.length > 0 && (
+                <span
+                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold text-white leading-none shadow-2xs shrink-0 tabular-nums ${supplierItemsToday.length > 0 ? "bg-rose-600" : "bg-amber-600"
+                    } ${urgentSupplierItems.length > 9 ? "min-w-5 px-1.5" : "w-5"}`}
+                >
+                  {urgentSupplierItems.length}
                 </span>
               )}
             </button>
@@ -308,6 +423,7 @@ export function OverviewTab({
         </div>
       )}
 
+
       {/* Recent Orders Section (Flex-1 scrollable table) */}
       <div className="flex-1 flex flex-col min-h-0 space-y-2">
         <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -378,80 +494,168 @@ export function OverviewTab({
                       onClick={() => setSelectedOrderDetails(order)}
                       className="grid grid-cols-[115px_minmax(180px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
                     >
-                  <span className="font-mono text-[13px] text-galla-ink-soft">
-                    {formatDisplayNumber(order.id)}
-                  </span>
+                      <span className="font-mono text-[13px] text-galla-ink-soft">
+                        {formatDisplayNumber(order.id)}
+                      </span>
 
-                  <div className="min-w-0 pr-4">
-                    <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
-                      {order.customer}
-                    </div>
-                    {order.customerPhone && (
-                      <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
-                        <a
-                          href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="hover:text-galla-teal hover:underline transition-colors"
-                          title={`Call ${order.customer}: ${order.customerPhone}`}
-                        >
-                          {formatPhoneNumber(order.customerPhone)}
-                        </a>
-                      </div>
-                    )}
-                    <div className="font-sans text-[12px] text-galla-ink-soft truncate">
-                      {order.type} &bull; {order.time}
-                    </div>
-                    {order.lastUpdatedTime && (
-                      <div className="font-sans text-[11px] text-galla-ink-soft/75 mt-0.5 flex items-center gap-1 truncate">
-                        <span className="text-galla-ink-soft/60">Last update:</span>
-                        <span className="font-medium text-galla-ink-soft">{order.lastUpdatedTime}</span>
-                      </div>
-                    )}
-                    {isDueOrder && !order.scheduledFor && (
-                      <div className="mt-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setReschedulingOrder(order);
-                          }}
-                          className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
-                          title="Click to set payment due date"
-                        >
-                          <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
-                          <span>Set Due Date</span>
-                          <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                            + Add
-                          </span>
-                        </button>
-                      </div>
-                    )}
-                    {(isPendingOrder || isDueOrder) && order.scheduledFor && (() => {
-                      if (isDueOrder) {
-                        const isToday = urgency?.tone === "today";
-                        const isOverdue = urgency?.tone === "overdue";
-                        const isUrgent = Boolean(isToday || isOverdue);
+                      <div className="min-w-0 pr-4">
+                        <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
+                          {order.customer}
+                        </div>
+                        {order.customerPhone && (
+                          <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
+                            <a
+                              href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-galla-teal hover:underline transition-colors"
+                              title={`Call ${order.customer}: ${order.customerPhone}`}
+                            >
+                              {formatPhoneNumber(order.customerPhone)}
+                            </a>
+                          </div>
+                        )}
+                        <div className="font-sans text-[12px] text-galla-ink-soft truncate">
+                          {order.type} &bull; {order.time}
+                        </div>
+                        {order.lastUpdatedTime && (
+                          <div className="font-sans text-[11px] text-galla-ink-soft/75 mt-0.5 flex items-center gap-1 truncate">
+                            <span className="text-galla-ink-soft/60">Last update:</span>
+                            <span className="font-medium text-galla-ink-soft">{order.lastUpdatedTime}</span>
+                          </div>
+                        )}
+                        {isDueOrder && !order.scheduledFor && (
+                          <div className="mt-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReschedulingOrder(order);
+                              }}
+                              className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
+                              title="Click to set payment due date"
+                            >
+                              <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                              <span>Set Due Date</span>
+                              <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                + Add
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                        {(isPendingOrder || isDueOrder) && order.scheduledFor && (() => {
+                          if (isDueOrder) {
+                            const isToday = urgency?.tone === "today";
+                            const isOverdue = urgency?.tone === "overdue";
+                            const isUrgent = Boolean(isToday || isOverdue);
 
-                        const dateStr = formatBookingDate(order.scheduledFor);
-                        const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
-                        const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
+                            const dateStr = formatBookingDate(order.scheduledFor);
+                            const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
+                            const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
 
-                        const badgeStyle = isOverdue
-                          ? "text-red-900 bg-red-100 border-red-300 font-semibold"
-                          : isToday
-                          ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
-                          : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
+                            const badgeStyle = isOverdue
+                              ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                              : isToday
+                                ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
+                                : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
-                        const badgeLabel = isOverdue
-                          ? `⚠️ Overdue Due Date (${fullSlotStr})`
-                          : isToday
-                          ? `🚨 Due Today (${fullSlotStr})`
-                          : `Due: ${fullSlotStr}`;
+                            const badgeLabel = isOverdue
+                              ? `⚠️ Overdue Due Date (${fullSlotStr})`
+                              : isToday
+                                ? `🚨 Due Today (${fullSlotStr})`
+                                : `Due: ${fullSlotStr}`;
 
-                        const showContactOptions = isUrgent;
+                            const showContactOptions = isUrgent;
 
-                        const waUrl = showContactOptions
-                          ? getWhatsAppReminderUrl({
+                            const waUrl = showContactOptions
+                              ? getWhatsAppReminderUrl({
+                                phone: order.customerPhone,
+                                customerName: order.customer,
+                                salonName: salonName || "our salon",
+                                bookingDate: order.scheduledFor,
+                                bookingTime: order.scheduledTime,
+                                orderType: order.type,
+                                productName: order.itemsSummary,
+                                orderId: order.id,
+                                pendingAmount: Math.max(0, order.amount - order.paid),
+                                isPaymentDue: true,
+                              })
+                              : null;
+
+                            return (
+                              <div className="space-y-1 mt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setReschedulingOrder(order);
+                                  }}
+                                  className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${badgeStyle}`}
+                                  title="Click to reschedule payment due date"
+                                >
+                                  <Calendar className="h-3 w-3 shrink-0" />
+                                  <span>{badgeLabel}</span>
+                                  <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                    Reschedule
+                                  </span>
+                                </button>
+
+                                {showContactOptions && (
+                                  <div className="flex items-center gap-1.5 pt-0.5">
+                                    {order.customerPhone ? (
+                                      <a
+                                        href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
+                                        title={`Call client: ${order.customerPhone}`}
+                                      >
+                                        <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
+                                        <span>Call</span>
+                                      </a>
+                                    ) : null}
+
+                                    {waUrl ? (
+                                      <a
+                                        href={waUrl}
+                                        onClick={(e) => e.stopPropagation()}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
+                                        title="Send pending balance reminder via WhatsApp"
+                                      >
+                                        <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
+                                        <span>WhatsApp Msg</span>
+                                      </a>
+                                    ) : null}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          const isProductSale = order.type === "Product sale";
+                          const isToday = urgency?.tone === "today";
+                          const isTomorrow = urgency?.tone === "tomorrow";
+                          const isIn2Days = urgency?.tone === "in_2_days";
+
+                          const badgeStyle = (isProductSale && isTomorrow)
+                            ? "text-rose-800 bg-rose-50/90 border-rose-300 font-semibold"
+                            : isToday
+                              ? "text-rose-800 bg-rose-50/90 border-rose-200"
+                              : isTomorrow
+                                ? "text-amber-800 bg-amber-50/90 border-amber-200"
+                                : isIn2Days
+                                  ? "text-blue-800 bg-blue-50/90 border-blue-200"
+                                  : "text-amber-800 bg-amber-50/90 border-amber-200/80";
+
+                          const dateStr = formatBookingDate(order.scheduledFor);
+                          const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
+                          const suffix = timeStr ? ` • ${timeStr}` : "";
+
+                          const showContactOptions = isProductSale
+                            ? (isToday || urgency?.tone === "overdue")
+                            : isTomorrow;
+
+                          const waUrl = showContactOptions
+                            ? getWhatsAppReminderUrl({
                               phone: order.customerPhone,
                               customerName: order.customer,
                               salonName: salonName || "our salon",
@@ -461,205 +665,150 @@ export function OverviewTab({
                               productName: order.itemsSummary,
                               orderId: order.id,
                               pendingAmount: Math.max(0, order.amount - order.paid),
-                              isPaymentDue: true,
                             })
-                          : null;
+                            : null;
 
-                        return (
-                          <div className="space-y-1 mt-0.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setReschedulingOrder(order);
-                              }}
-                              className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${badgeStyle}`}
-                              title="Click to reschedule payment due date"
+                          return (
+                            <div className="space-y-1 mt-0.5">
+                              <div className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium ${badgeStyle}`}>
+                                <Calendar className="h-3 w-3 shrink-0" />
+                                <span>
+                                  {isProductSale && isTomorrow
+                                    ? `🚨 Urgent (Tomorrow${suffix})`
+                                    : isProductSale && isToday
+                                      ? `🛍️ Pickup Today${suffix}`
+                                      : isToday
+                                        ? `🚨 Today${suffix}`
+                                        : isTomorrow
+                                          ? `⏰ Tomorrow${suffix}`
+                                          : isIn2Days
+                                            ? `📅 In 2 Days${suffix}`
+                                            : `Booked: ${dateStr}${suffix}`}
+                                </span>
+                              </div>
+
+                              {showContactOptions && (
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                  {order.customerPhone ? (
+                                    <a
+                                      href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
+                                      title={`Call client: ${order.customerPhone}`}
+                                    >
+                                      <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
+                                      <span>Call</span>
+                                    </a>
+                                  ) : null}
+
+                                  {waUrl ? (
+                                    <a
+                                      href={waUrl}
+                                      onClick={(e) => e.stopPropagation()}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
+                                      title={isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
+                                    >
+                                      <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
+                                      <span>{isProductSale ? "WhatsApp Msg" : "Reminder"}</span>
+                                    </a>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {order.status === "cancelled_refunded" &&
+                          order.refundReason &&
+                          order.refundReason !== "Customer requested refund" &&
+                          order.refundReason !== "Customer refund at counter" && (
+                            <div
+                              className="inline-flex items-center gap-1 font-sans text-[11.5px] text-red-700/90 mt-1 bg-red-50/80 border border-red-200/80 px-1.5 py-0.5 rounded-[4px] max-w-full truncate"
+                              title={`Refund Reason: ${order.refundReason}`}
                             >
-                              <Calendar className="h-3 w-3 shrink-0" />
-                              <span>{badgeLabel}</span>
-                              <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                                Reschedule
+                              <span className="font-semibold text-red-800 shrink-0">Reason:</span>
+                              <span className="truncate">{order.refundReason}</span>
+                            </div>
+                          )}
+                      </div>
+
+                      <div className="text-right">
+                        <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                          {formatRupee(order.amount)}
+                        </div>
+                        {order.status === "cancelled_refunded" ? (
+                          <div className="space-y-0.5 mt-0.5">
+                            {order.advanceAmount && order.advanceAmount > 0 && (
+                              <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                                <span>{formatRupee(order.advanceAmount)} adv. paid</span>
+                                {(order.advancePaymentMode || order.paymentMode) && (
+                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    {order.advancePaymentMode || order.paymentMode}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>
+                                {order.refundAmount
+                                  ? `${formatRupee(order.refundAmount)} refunded`
+                                  : "Refunded"}
                               </span>
-                            </button>
-
-                            {showContactOptions && (
-                              <div className="flex items-center gap-1.5 pt-0.5">
-                                {order.customerPhone ? (
-                                  <a
-                                    href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
-                                    title={`Call client: ${order.customerPhone}`}
-                                  >
-                                    <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
-                                    <span>Call</span>
-                                  </a>
-                                ) : null}
-
-                                {waUrl ? (
-                                  <a
-                                    href={waUrl}
-                                    onClick={(e) => e.stopPropagation()}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
-                                    title="Send pending balance reminder via WhatsApp"
-                                  >
-                                    <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
-                                    <span>WhatsApp Msg</span>
-                                  </a>
-                                ) : null}
+                              {order.refundMode && (
+                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.refundMode}
+                                </span>
+                              )}
+                            </div>
+                            {isPartialRefund && (
+                              <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
+                                {formatRupee(order.paid)} kept
                               </div>
                             )}
                           </div>
-                        );
-                      }
-                      const isProductSale = order.type === "Product sale";
-                      const isToday = urgency?.tone === "today";
-                      const isTomorrow = urgency?.tone === "tomorrow";
-                      const isIn2Days = urgency?.tone === "in_2_days";
-
-                      const badgeStyle = (isProductSale && isTomorrow)
-                        ? "text-rose-800 bg-rose-50/90 border-rose-300 font-semibold"
-                        : isToday
-                        ? "text-rose-800 bg-rose-50/90 border-rose-200"
-                        : isTomorrow
-                        ? "text-amber-800 bg-amber-50/90 border-amber-200"
-                        : isIn2Days
-                        ? "text-blue-800 bg-blue-50/90 border-blue-200"
-                        : "text-amber-800 bg-amber-50/90 border-amber-200/80";
-
-                      const dateStr = formatBookingDate(order.scheduledFor);
-                      const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
-                      const suffix = timeStr ? ` • ${timeStr}` : "";
-
-                      const showContactOptions = isProductSale
-                        ? (isToday || urgency?.tone === "overdue")
-                        : isTomorrow;
-
-                      const waUrl = showContactOptions
-                        ? getWhatsAppReminderUrl({
-                            phone: order.customerPhone,
-                            customerName: order.customer,
-                            salonName: salonName || "our salon",
-                            bookingDate: order.scheduledFor,
-                            bookingTime: order.scheduledTime,
-                            orderType: order.type,
-                            productName: order.itemsSummary,
-                            orderId: order.id,
-                            pendingAmount: Math.max(0, order.amount - order.paid),
-                          })
-                        : null;
-
-                      return (
-                        <div className="space-y-1 mt-0.5">
-                          <div className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium ${badgeStyle}`}>
-                            <Calendar className="h-3 w-3 shrink-0" />
-                            <span>
-                              {isProductSale && isTomorrow
-                                ? `🚨 Urgent (Tomorrow${suffix})`
-                                : isProductSale && isToday
-                                ? `🛍️ Pickup Today${suffix}`
-                                : isToday
-                                ? `🚨 Today${suffix}`
-                                : isTomorrow
-                                ? `⏰ Tomorrow${suffix}`
-                                : isIn2Days
-                                ? `📅 In 2 Days${suffix}`
-                                : `Booked: ${dateStr}${suffix}`}
-                            </span>
+                        ) : order.status === "cancelled_converted" ? (
+                          <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
+                            Converted
                           </div>
-
-                          {showContactOptions && (
-                            <div className="flex items-center gap-1.5 pt-0.5">
-                              {order.customerPhone ? (
-                                <a
-                                  href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
-                                  title={`Call client: ${order.customerPhone}`}
-                                >
-                                  <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
-                                  <span>Call</span>
-                                </a>
-                              ) : null}
-
-                              {waUrl ? (
-                                <a
-                                  href={waUrl}
-                                  onClick={(e) => e.stopPropagation()}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
-                                  title={isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
-                                >
-                                  <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
-                                  <span>{isProductSale ? "WhatsApp Msg" : "Reminder"}</span>
-                                </a>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {order.status === "cancelled_refunded" &&
-                      order.refundReason &&
-                      order.refundReason !== "Customer requested refund" &&
-                      order.refundReason !== "Customer refund at counter" && (
-                      <div
-                        className="inline-flex items-center gap-1 font-sans text-[11.5px] text-red-700/90 mt-1 bg-red-50/80 border border-red-200/80 px-1.5 py-0.5 rounded-[4px] max-w-full truncate"
-                        title={`Refund Reason: ${order.refundReason}`}
-                      >
-                        <span className="font-semibold text-red-800 shrink-0">Reason:</span>
-                        <span className="truncate">{order.refundReason}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-right">
-                    <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
-                      {formatRupee(order.amount)}
-                    </div>
-                    {order.status === "cancelled_refunded" ? (
-                      <div className="space-y-0.5 mt-0.5">
-                        {order.advanceAmount && order.advanceAmount > 0 && (
-                          <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                            <span>{formatRupee(order.advanceAmount)} adv. paid</span>
-                            {(order.advancePaymentMode || order.paymentMode) && (
-                              <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                {order.advancePaymentMode || order.paymentMode}
-                              </span>
+                        ) : order.paid < order.amount ? (
+                          <div className="space-y-0.5 mt-0.5">
+                            {order.paid > 0 && (
+                              <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                                <span>{formatRupee(order.paid)} adv.</span>
+                                {order.paymentMode && (
+                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    {order.paymentMode}
+                                  </span>
+                                )}
+                              </div>
                             )}
+                            <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
+                              {formatRupee(order.amount - order.paid)} due
+                            </div>
                           </div>
-                        )}
-                        <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
-                          <span>
-                            {order.refundAmount
-                              ? `${formatRupee(order.refundAmount)} refunded`
-                              : "Refunded"}
-                          </span>
-                          {order.refundMode && (
-                            <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                              {order.refundMode}
-                            </span>
-                          )}
-                        </div>
-                        {isPartialRefund && (
-                          <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                            {formatRupee(order.paid)} kept
+                        ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < order.amount ? (
+                          <div className="space-y-0.5 mt-0.5">
+                            <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>{formatRupee(order.advanceAmount)} adv.</span>
+                              {order.advancePaymentMode && (
+                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.advancePaymentMode}
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>{formatRupee(order.amount - order.advanceAmount)} settled</span>
+                              {order.paymentMode && (
+                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.paymentMode}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ) : order.status === "cancelled_converted" ? (
-                      <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
-                        Converted
-                      </div>
-                    ) : order.paid < order.amount ? (
-                      <div className="space-y-0.5 mt-0.5">
-                        {order.paid > 0 && (
-                          <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                            <span>{formatRupee(order.paid)} adv.</span>
+                        ) : (
+                          <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
+                            <span>Settled</span>
                             {order.paymentMode && (
                               <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                 {order.paymentMode}
@@ -667,183 +816,142 @@ export function OverviewTab({
                             )}
                           </div>
                         )}
-                        <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
-                          {formatRupee(order.amount - order.paid)} due
-                        </div>
                       </div>
-                    ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < order.amount ? (
-                      <div className="space-y-0.5 mt-0.5">
-                        <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                          <span>{formatRupee(order.advanceAmount)} adv.</span>
-                          {order.advancePaymentMode && (
-                            <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                              {order.advancePaymentMode}
-                            </span>
-                          )}
-                        </div>
-                        <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                          <span>{formatRupee(order.amount - order.advanceAmount)} settled</span>
-                          {order.paymentMode && (
-                            <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                              {order.paymentMode}
-                            </span>
-                          )}
-                        </div>
+
+                      <div className="flex justify-center">
+                        <StatusPill
+                          status={order.status}
+                          customLabel={
+                            isPartialRefund && order.refundAmount
+                              ? `${formatRupee(order.refundAmount)} Refunded`
+                              : undefined
+                          }
+                          title={order.refundReason ? `Reason: ${order.refundReason}` : undefined}
+                        />
                       </div>
-                    ) : (
-                      <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
-                        <span>Settled</span>
-                        {order.paymentMode && (
-                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                            {order.paymentMode}
-                          </span>
+
+                      <div className="flex items-center justify-end gap-2">
+                        {order.status === "completed" ? (
+                          onOpenRefund && order.paid > 0 ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenRefund(order);
+                              }}
+                              className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
+                              title="Process refund for this order"
+                            >
+                              Refund
+                            </button>
+                          ) : (
+                            <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                          )
+                        ) : order.status === "paid_full" ? (
+                          <>
+                            {isAppointmentDue && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleComplete(order.id);
+                                }}
+                                disabled={loadingId === order.id}
+                                className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                                title="Mark service as completed"
+                              >
+                                {loadingId === order.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                                ) : (
+                                  <>
+                                    <span>Mark Done</span>
+                                    <Check className="h-3.5 w-3.5 text-green-700" />
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            {onOpenRefund && order.paid > 0 ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenRefund(order);
+                                }}
+                                className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
+                                title="Process refund"
+                              >
+                                Refund
+                              </button>
+                            ) : !isAppointmentDue ? (
+                              <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                            ) : null}
+                          </>
+                        ) : order.status === "advance_paid" || order.status === "created" ? (
+                          <>
+                            {isAppointmentDue && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenSettle ? onOpenSettle(order) : handleComplete(order.id);
+                                }}
+                                disabled={loadingId === order.id}
+                                className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                                title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
+                              >
+                                {loadingId === order.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                                ) : (
+                                  <>
+                                    <span>Settle &amp; Done</span>
+                                    <Check className="h-3.5 w-3.5 text-green-700" />
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            {onOpenRefund && order.paid > 0 ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenRefund(order);
+                                }}
+                                className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
+                                title="Process refund"
+                              >
+                                Refund
+                              </button>
+                            ) : !isAppointmentDue ? (
+                              <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                         )}
                       </div>
+                    </div>
+                  );
+                })}
+
+                {recent24hOrders.length === 0 && (
+                  <div className="p-8 text-center font-sans text-[13px] text-galla-ink-soft space-y-1.5">
+                    {searchQuery ? (
+                      <>
+                        <p>No counter orders matching &ldquo;{searchQuery}&rdquo;</p>
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery("")}
+                          className="text-galla-teal hover:underline text-[12px] font-medium cursor-pointer"
+                        >
+                          Clear search filter
+                        </button>
+                      </>
+                    ) : (
+                      <p>No orders recorded in the last 24 hours.</p>
                     )}
                   </div>
 
-                  <div className="flex justify-center">
-                    <StatusPill
-                      status={order.status}
-                      customLabel={
-                        isPartialRefund && order.refundAmount
-                          ? `${formatRupee(order.refundAmount)} Refunded`
-                          : order.status === "paid_full" && (order.type === "Product sale" || order.lineItems?.some((li) => li.itemType === "product" && !li.fulfilled))
-                          ? "Paid • Delivery Pending"
-                          : order.status === "advance_paid" && (order.type === "Product sale" || order.lineItems?.some((li) => li.itemType === "product" && !li.fulfilled))
-                          ? "Adv. • Delivery Pending"
-                          : undefined
-                      }
-                      title={order.refundReason ? `Reason: ${order.refundReason}` : undefined}
-                    />
-                  </div>
-
-                <div className="flex items-center justify-end gap-2">
-                  {order.status === "completed" ? (
-                    onOpenRefund && order.paid > 0 ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenRefund(order);
-                        }}
-                        className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
-                        title="Process refund for this order"
-                      >
-                        Refund
-                      </button>
-                    ) : (
-                      <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                    )
-                  ) : order.status === "paid_full" ? (
-                    <>
-                      {isAppointmentDue && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const hasPending = order.lineItems?.some((li) => !li.fulfilled);
-                            if (hasPending && onOpenSettle) {
-                              onOpenSettle(order);
-                            } else {
-                              handleComplete(order.id);
-                            }
-                          }}
-                          disabled={loadingId === order.id}
-                          className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                          title={order.lineItems?.some((li) => !li.fulfilled) ? "Deliver products and complete order" : "Mark service as completed"}
-                        >
-                          {loadingId === order.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                          ) : (
-                            <>
-                              <span>{order.lineItems?.some((li) => !li.fulfilled) ? "Deliver & Done" : "Mark Done"}</span>
-                              <Check className="h-3.5 w-3.5 text-green-700" />
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {onOpenRefund && order.paid > 0 ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenRefund(order);
-                          }}
-                          className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
-                          title="Process refund"
-                        >
-                          Refund
-                        </button>
-                      ) : !isAppointmentDue ? (
-                        <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                      ) : null}
-                    </>
-                  ) : order.status === "advance_paid" || order.status === "created" ? (
-                    <>
-                      {isAppointmentDue && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenSettle ? onOpenSettle(order) : handleComplete(order.id);
-                          }}
-                          disabled={loadingId === order.id}
-                          className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                          title={`Settle ${formatRupee(order.amount - order.paid)} remaining balance and complete order`}
-                        >
-                          {loadingId === order.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
-                          ) : (
-                            <>
-                              <span>Settle &amp; Done</span>
-                              <Check className="h-3.5 w-3.5 text-green-700" />
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {onOpenRefund && order.paid > 0 ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenRefund(order);
-                          }}
-                          className="inline-flex items-center text-[12px] font-sans font-medium px-2 py-1 rounded-[4px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 hover:border-red-400 transition-all cursor-pointer shadow-2xs"
-                          title="Process refund"
-                        >
-                          Refund
-                        </button>
-                      ) : !isAppointmentDue ? (
-                        <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-            {recent24hOrders.length === 0 && (
-              <div className="p-8 text-center font-sans text-[13px] text-galla-ink-soft space-y-1.5">
-                {searchQuery ? (
-                  <>
-                    <p>No counter orders matching &ldquo;{searchQuery}&rdquo;</p>
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery("")}
-                      className="text-galla-teal hover:underline text-[12px] font-medium cursor-pointer"
-                    >
-                      Clear search filter
-                    </button>
-                  </>
-                ) : (
-                  <p>No orders recorded in the last 24 hours.</p>
                 )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
       <RescheduleOrderModal
         order={reschedulingOrder}

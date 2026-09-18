@@ -211,6 +211,62 @@ export function formatAppointmentTime(timeStr?: string | null): string {
   return `${String(displayH).padStart(2, "0")}:${displayM} ${period}`;
 }
 
+export function getUrgencyBadgeConfig(
+  dateInput: Date | string | undefined,
+  timeInput?: string | null,
+  context: "booking" | "delivery" | "due_date" = "booking"
+): {
+  urgency: BookingUrgency | null;
+  isUrgent: boolean;
+  isOverdue: boolean;
+  isToday: boolean;
+  formattedDate: string;
+  formattedSlot: string;
+  badgeStyle: string;
+  badgeLabel: string;
+} {
+  const urgency = getBookingUrgency(dateInput);
+  const formattedDate = formatBookingDate(dateInput);
+  const formattedTime = timeInput ? formatAppointmentTime(timeInput) : null;
+  const formattedSlot = formattedTime ? `${formattedDate}, ${formattedTime}` : formattedDate;
+
+  const isToday = urgency?.tone === "today";
+  const isOverdue = urgency?.tone === "overdue";
+  const isTomorrow = urgency?.tone === "tomorrow";
+  const isUrgent = Boolean(isToday || isOverdue);
+
+  let badgeStyle = "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
+  if (isOverdue) {
+    badgeStyle = "text-red-900 bg-red-100 border-red-300 font-semibold";
+  } else if (isToday) {
+    badgeStyle = "text-rose-800 bg-rose-50 border-rose-300 font-semibold";
+  } else if (isTomorrow) {
+    badgeStyle = "text-amber-900 bg-amber-50 border-amber-300 font-medium";
+  }
+
+  let prefix = "";
+  if (context === "due_date") {
+    prefix = isOverdue ? "⚠️ Overdue Due Date" : isToday ? "🚨 Due Today" : "Due:";
+  } else if (context === "delivery") {
+    prefix = isOverdue ? "⚠️ Delivery Overdue" : isToday ? "🚨 Delivery Today" : "Delivery:";
+  } else {
+    prefix = isOverdue ? "⚠️ Overdue" : isToday ? "🚨 Today" : "Scheduled:";
+  }
+
+  const badgeLabel = `${prefix} (${formattedSlot})`;
+
+  return {
+    urgency,
+    isUrgent,
+    isOverdue,
+    isToday,
+    formattedDate,
+    formattedSlot,
+    badgeStyle,
+    badgeLabel,
+  };
+}
+
 export function getWhatsAppReminderUrl(options: {
   phone?: string;
   customerName: string;
@@ -232,8 +288,8 @@ export function getWhatsAppReminderUrl(options: {
     cleaned.length === 10
       ? `91${cleaned}`
       : cleaned.startsWith("0") && cleaned.length === 11
-      ? `91${cleaned.slice(1)}`
-      : cleaned;
+        ? `91${cleaned.slice(1)}`
+        : cleaned;
 
   const formattedDate = formatBookingDate(options.bookingDate);
   const formattedTime = formatAppointmentTime(options.bookingTime);
@@ -269,13 +325,13 @@ export function getWhatsAppReminderUrl(options: {
   // Service appointment reminder format
   const message = formattedTime
     ? `Hello ${options.customerName}! 👋\n\n` +
-      `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate} at ${formattedTime}).\n\n` +
-      `Please let us know if you need to reschedule or adjust your time.\n\n` +
-      `We look forward to welcoming you!`
+    `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate} at ${formattedTime}).\n\n` +
+    `Please let us know if you need to reschedule or adjust your time.\n\n` +
+    `We look forward to welcoming you!`
     : `Hello ${options.customerName}! 👋\n\n` +
-      `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate}).\n\n` +
-      `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
-      `We look forward to welcoming you!`;
+    `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate}).\n\n` +
+    `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
+    `We look forward to welcoming you!`;
 
   return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
 }
@@ -294,3 +350,160 @@ export function formatDisplayNumber(num?: string | null): string {
   return num;
 }
 
+export function getSupplierWhatsAppReminderUrl(options: {
+  phone?: string;
+  supplierName: string;
+  salonName?: string;
+  poNumber: string;
+  dealerInvoiceNumber?: string;
+  deliveryDate?: Date | string;
+  deliveryTime?: string;
+  dueDate?: Date | string;
+  totalAmount: number;
+  amountPaid: number;
+  amountPending: number;
+  itemsSummary?: string;
+  items?: {
+    productName: string;
+    quantityForSell?: number;
+    quantityForUse?: number;
+    itemTotalCost?: number;
+  }[];
+  mode?: "delivery" | "payment_due" | "advance";
+  isAdvance?: boolean;
+}): string | null {
+  if (!options.phone) return null;
+  const cleaned = options.phone.replace(/\D/g, "");
+  if (!cleaned) return null;
+
+  // ponytail: Assumes Indian 10-digit mobile numbers (+91). Upgrade path: Add country code support to tenant profile if expanding internationally.
+  const standardNumber =
+    cleaned.length === 10
+      ? `91${cleaned}`
+      : cleaned.startsWith("0") && cleaned.length === 11
+        ? `91${cleaned.slice(1)}`
+        : cleaned;
+
+  const salonDisplayName = options.salonName?.trim() || "our salon";
+  const hasDealerInvoice = Boolean(options.dealerInvoiceNumber && options.dealerInvoiceNumber.trim());
+  const dealerInv = options.dealerInvoiceNumber?.trim();
+
+  // User rule: "don't show our bill no. show their bill no."
+  const billReference = hasDealerInvoice
+    ? `your Bill / Invoice *#${dealerInv}*`
+    : `our stock purchase`;
+
+  // Format products list
+  let itemsFormatted = "";
+  if (options.items && options.items.length > 0) {
+    itemsFormatted = options.items
+      .map((it: any) => {
+        const name = it.productName || it.name || "Product";
+        const qty =
+          (it.quantityForSell || 0) + (it.quantityForUse || 0) ||
+          it.quantity ||
+          0;
+        const qtyStr = qty > 0 ? ` (${qty} pcs)` : "";
+        const cost = it.itemTotalCost ?? it.totalCost ?? (it.unitPrice && qty ? it.unitPrice * qty : undefined);
+        const costStr = cost ? ` - ${formatRupee(cost)}` : "";
+        return `• ${name}${qtyStr}${costStr}`;
+      })
+      .join("\n");
+  } else if (options.itemsSummary) {
+    itemsFormatted = options.itemsSummary
+      .split(",")
+      .map((s) => `• ${s.trim()}`)
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  const formattedDeliveryDate = options.deliveryDate ? formatBookingDate(options.deliveryDate) : "";
+  const formattedDeliveryTime = options.deliveryTime ? formatAppointmentTime(options.deliveryTime) : "";
+  const deliveryStr = formattedDeliveryDate
+    ? `${formattedDeliveryDate}${formattedDeliveryTime ? ` at ${formattedDeliveryTime}` : ""}`
+    : "Expected soon";
+
+  const formattedDueDate = options.dueDate ? formatBookingDate(options.dueDate) : "Immediate / On Delivery";
+
+  // Case 1: Advance Order Message
+  if (options.mode === "advance" || options.isAdvance) {
+    const message =
+      `Hello ${options.supplierName}! 👋\n\n` +
+      `This is an update from *${salonDisplayName}* regarding our advance order for ${billReference}.\n\n` +
+      (itemsFormatted ? `📦 *Products Ordered:*\n${itemsFormatted}\n\n` : "") +
+      (hasDealerInvoice ? `📄 *Bill / Invoice No:* #${dealerInv}\n` : "") +
+      `💰 *Total Amount:* ${formatRupee(options.totalAmount)}\n` +
+      `✅ *Advance Paid:* ${formatRupee(options.amountPaid)}\n` +
+      `⏳ *Balance Remaining:* ${formatRupee(options.amountPending)}\n` +
+      `📅 *Expected Delivery:* ${deliveryStr}\n\n` +
+      `Could you please share the current dispatch / delivery status of this advance order?\n\n` +
+      `Thank you!`;
+
+    return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+  }
+
+  // Case 2: Pending Payment Message (Salon owes supplier, inviting supplier to collect payment)
+  if (options.mode === "payment_due" || options.amountPending > 0) {
+    const message =
+      `Hello ${options.supplierName}! 👋\n\n` +
+      `This is a payment update from *${salonDisplayName}* regarding ${billReference}.\n\n` +
+      (itemsFormatted ? `📦 *Products / Stock:*\n${itemsFormatted}\n\n` : "") +
+      (hasDealerInvoice ? `📄 *Your Bill / Invoice No:* #${dealerInv}\n` : "") +
+      `💰 *Total Bill:* ${formatRupee(options.totalAmount)}\n` +
+      `✅ *Paid So Far:* ${formatRupee(options.amountPaid)}\n` +
+      `⏳ *Pending Balance Due:* ${formatRupee(options.amountPending)}\n` +
+      (options.dueDate ? `📅 *Due Date:* ${formattedDueDate}\n\n` : `\n`) +
+      `Your pending payment of *${formatRupee(options.amountPending)}* is ready for collection. Please visit our salon to collect your payment or let us know your preferred payment method (UPI / Bank Transfer / Cash) so we can settle it right away.\n\n` +
+      `Thank you!`;
+
+    return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+  }
+
+  // Case 3: Fully Paid / Delivery Inquiry
+  const message =
+    `Hello ${options.supplierName}! 👋\n\n` +
+    `This is an inquiry from *${salonDisplayName}* regarding ${billReference}.\n\n` +
+    (itemsFormatted ? `📦 *Products:*\n${itemsFormatted}\n\n` : "") +
+    (hasDealerInvoice ? `📄 *Bill / Invoice No:* #${dealerInv}\n` : "") +
+    `📅 *Expected Delivery:* ${deliveryStr}\n` +
+    `💰 *Total Bill:* ${formatRupee(options.totalAmount)}\n` +
+    `✨ *Payment Status:* Fully Paid\n\n` +
+    `Could you please share the current delivery / dispatch status of this shipment?\n\n` +
+    `Thank you!`;
+
+  return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+}
+
+export type BillStatusKey = "advance" | "completed" | "pending";
+
+export function getBillStatus(po: {
+  amountPending: number;
+  amountPaid: number;
+  totalAmount: number;
+  paymentStatus?: "paid" | "partial" | "unpaid";
+  settlementMode?: "advance" | "pending" | "paid_full" | "completed";
+  expectedDeliveryDate?: Date | string;
+  notes?: string;
+  paymentMode?: string;
+}): {
+  statusKey: BillStatusKey;
+  pillStatus: "advance_paid" | "completed" | "created";
+  label: string;
+} {
+  const isAdvance =
+    po.settlementMode === "advance" ||
+    Boolean(po.expectedDeliveryDate) ||
+    Boolean(po.notes && /advance/i.test(po.notes));
+
+  const isCleared = po.paymentStatus === "paid" || po.amountPending <= 0;
+
+  if (isAdvance && !isCleared) {
+    return { statusKey: "advance", pillStatus: "advance_paid", label: "Advance" };
+  }
+
+  if (isCleared) {
+    return { statusKey: "completed", pillStatus: "completed", label: "Completed" };
+  }
+
+  return { statusKey: "pending", pillStatus: "created", label: "Pending" };
+}
