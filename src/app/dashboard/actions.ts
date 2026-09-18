@@ -439,17 +439,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
 function buildOrderLookupQuery(tenantId: Types.ObjectId | string, orderId: string) {
   const trimmed = orderId.trim();
   const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(^|\\b|-)${escaped}$`, "i");
-  if (Types.ObjectId.isValid(trimmed)) {
-    return {
-      tenantId,
-      $or: [{ _id: new Types.ObjectId(trimmed) }, { orderNumber: trimmed }, { orderNumber: regex }],
-    };
-  }
-  return {
-    tenantId,
-    $or: [{ orderNumber: trimmed }, { orderNumber: regex }],
-  };
+  const or: any[] = [{ orderNumber: trimmed }, { orderNumber: new RegExp(`(^|\\b|-)${escaped}$`, "i") }];
+  if (Types.ObjectId.isValid(trimmed)) or.unshift({ _id: new Types.ObjectId(trimmed) });
+  return { tenantId, $or: or };
 }
 
 export async function completeOrderAction(rawInput: unknown): Promise<{

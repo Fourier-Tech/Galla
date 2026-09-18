@@ -294,25 +294,3 @@ export function formatDisplayNumber(num?: string | null): string {
   return num;
 }
 
-/**
- * Returns optional palette color class for the sequence number prefix
- * Inflow: P, S, K, M -> text-galla-teal
- * Outflow: PO, EXP -> text-galla-brick
- */
-export function getSequenceBadgeClass(num?: string | null): string {
-  if (!num) return "text-galla-ink";
-  const display = formatDisplayNumber(num);
-  if (display.startsWith("EXP-") || display.startsWith("PO-")) {
-    return "text-galla-brick";
-  }
-  if (
-    display.startsWith("P-") ||
-    display.startsWith("S-") ||
-    display.startsWith("K-") ||
-    display.startsWith("M-")
-  ) {
-    return "text-galla-teal";
-  }
-  return "text-galla-ink";
-}
-

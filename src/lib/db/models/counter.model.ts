@@ -39,11 +39,7 @@ export interface ICounter extends Document {
 
 export interface ICounterModel extends Model<ICounter> {
   getNextTenantCode(session?: ClientSession): Promise<string>;
-  getNextSequence(
-    optionsOrTenantId: NextSequenceOptions | Types.ObjectId | string,
-    legacyName?: string,
-    legacyPrefix?: string
-  ): Promise<SequenceResult>;
+  getNextSequence(options: NextSequenceOptions): Promise<SequenceResult>;
 }
 
 const CounterSchema = new Schema<ICounter>(
@@ -86,25 +82,10 @@ CounterSchema.statics.getNextTenantCode = async function (
 };
 
 CounterSchema.statics.getNextSequence = async function (
-  optionsOrTenantId: NextSequenceOptions | Types.ObjectId | string,
-  legacyName?: string,
-  legacyPrefix?: string
+  options: NextSequenceOptions
 ): Promise<SequenceResult> {
-  // Legacy fallback if called with (tenantId, name, prefix)
-  if (typeof optionsOrTenantId === "string" || optionsOrTenantId instanceof Types.ObjectId) {
-    const tenantId = optionsOrTenantId;
-    const counter = await this.findOneAndUpdate(
-      { tenantId, name: legacyName || "default" },
-      { $inc: { seq: 1 } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-    const paddedSeq = String(counter.seq).padStart(4, "0");
-    const num = `${legacyPrefix || legacyName || "SEQ"}-${paddedSeq}`;
-    return { fullNumber: num, shortNumber: num, seq: counter.seq };
-  }
-
-  const { tenantId, type, date, session } = optionsOrTenantId;
-  let tenantCode = optionsOrTenantId.tenantCode;
+  const { tenantId, type, date, session } = options;
+  let tenantCode = options.tenantCode;
 
   // Resolve tenantCode if not provided
   if (!tenantCode) {
