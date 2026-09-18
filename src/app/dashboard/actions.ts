@@ -54,7 +54,7 @@ import {
   DashboardPaymentMode,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
-import { formatPhoneNumber, checkIsToday, checkIsLast24Hours, formatOrderTime } from "@/lib/utils";
+import { formatPhoneNumber, checkIsToday, checkIsLast24Hours, formatOrderTime, formatDisplayNumber } from "@/lib/utils";
 
 interface SessionLike {
   user?: {
@@ -125,23 +125,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
-    const dbOrderType =
-      input.orderType === "Service booking"
-        ? "service_booking"
-        : input.orderType === "Package sale"
-          ? "package_sale"
-          : "product_sale";
-
     const isFullPayment = input.paidAmount >= input.totalAmount;
     const amountPending = Math.max(0, input.totalAmount - input.paidAmount);
     const formattedPhone = input.customerPhone ? formatPhoneNumber(input.customerPhone) : "";
-
-    const defaultItemType: "service" | "package" | "product" =
-      dbOrderType === "service_booking"
-        ? "service"
-        : dbOrderType === "package_sale"
-          ? "package"
-          : "product";
 
     const mappedLineItems: IOrderLineItem[] =
       input.lineItems && input.lineItems.length > 0
@@ -159,7 +145,12 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           }))
         : [
             {
-              itemType: defaultItemType,
+              itemType:
+                input.orderType === "Service booking"
+                  ? "service"
+                  : input.orderType === "Package sale"
+                    ? "package"
+                    : "product",
               itemId: new Types.ObjectId(),
               name: `${input.orderType} — ${input.customerName}`,
               unitPrice: input.totalAmount,
@@ -170,11 +161,27 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             },
           ];
 
+    // Determine order type based on item types: P (product), S (service), K (package), or M (mixed)
+    const distinctItemTypes = new Set(mappedLineItems.map((item) => item.itemType));
+    let dbOrderType: "product_sale" | "service_booking" | "package_sale" | "mixed";
+    if (distinctItemTypes.size > 1) {
+      dbOrderType = "mixed";
+    } else if (distinctItemTypes.has("product")) {
+      dbOrderType = "product_sale";
+    } else if (distinctItemTypes.has("package")) {
+      dbOrderType = "package_sale";
+    } else {
+      dbOrderType = "service_booking";
+    }
+
     // Execute atomic order creation and stock clamping inside transaction
     const newDoc = await withTransaction(async (dbSession) => {
-      // Auto-generate order number based on tenant count
-      const orderCount = await Order.countDocuments({ tenantId }).session(dbSession);
-      const orderNumber = `#${1042 + orderCount}`;
+      // Auto-generate atomic sequence number scoped by { tenantId, type, YYMM }
+      const { fullNumber: orderNumber } = await Counter.getNextSequence({
+        tenantId,
+        type: dbOrderType,
+        session: dbSession,
+      });
 
       // Advance / Pre-order Support:
       // If customer is paying advance or booking for future pickup, counter orders specially for them.
@@ -265,11 +272,19 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           id,
           id.startsWith("#") ? id.slice(1) : `#${id}`,
         ]);
+        const idRegexes = input.clearedDueOrderIds.map(
+          (id) => new RegExp(`(^|\\b|-)${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+        );
+        const objectIds = input.clearedDueOrderIds
+          .filter((id) => Types.ObjectId.isValid(id))
+          .map((id) => new Types.ObjectId(id));
+
         const previousOrders = await Order.find({
           tenantId,
           $or: [
             { orderNumber: { $in: orderIds } },
-            ...(Types.ObjectId.isValid(input.clearedDueOrderIds[0]) ? [{ _id: { $in: input.clearedDueOrderIds } }] : []),
+            { orderNumber: { $in: idRegexes } },
+            ...(objectIds.length > 0 ? [{ _id: { $in: objectIds } }] : []),
           ],
         }).session(dbSession);
 
@@ -421,6 +436,22 @@ export async function createOrderAction(rawInput: unknown): Promise<{
   }
 }
 
+function buildOrderLookupQuery(tenantId: Types.ObjectId | string, orderId: string) {
+  const trimmed = orderId.trim();
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(^|\\b|-)${escaped}$`, "i");
+  if (Types.ObjectId.isValid(trimmed)) {
+    return {
+      tenantId,
+      $or: [{ _id: new Types.ObjectId(trimmed) }, { orderNumber: trimmed }, { orderNumber: regex }],
+    };
+  }
+  return {
+    tenantId,
+    $or: [{ orderNumber: trimmed }, { orderNumber: regex }],
+  };
+}
+
 export async function completeOrderAction(rawInput: unknown): Promise<{
   success: boolean;
   order?: DashboardOrder;
@@ -445,10 +476,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
-    // Match order by orderNumber (e.g. "#1042") or by ObjectId
-    const query = Types.ObjectId.isValid(orderId)
-      ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
-      : { tenantId, orderNumber: orderId };
+    const query = buildOrderLookupQuery(tenantId, orderId);
 
     const order = await Order.findOne(query);
     if (!order) {
@@ -626,9 +654,7 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
-    const query = Types.ObjectId.isValid(orderId)
-      ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
-      : { tenantId, orderNumber: orderId };
+    const query = buildOrderLookupQuery(tenantId, orderId);
 
     const order = await Order.findOne(query);
     if (!order) {
@@ -705,9 +731,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
-    const query = Types.ObjectId.isValid(orderId)
-      ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
-      : { tenantId, orderNumber: orderId };
+    const query = buildOrderLookupQuery(tenantId, orderId);
 
     const order = await Order.findOne(query);
     if (!order) {
@@ -754,9 +778,14 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     if (!isSameDay) {
       // Next-day (or later) refund: past day's income stays closed, and an outflow Expense is recorded for TODAY
       // so today's counter cash drawer reconciles with physical cash handed out
+      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+        tenantId,
+        type: "expense",
+      });
       const expenseDoc = await Expense.create({
         tenantId,
-        title: `Customer Refund — Order ${order.orderNumber} (${order.customerSnapshot?.name || "Customer"})`,
+        expenseNumber,
+        title: `Customer Refund — Order ${formatDisplayNumber(order.orderNumber)} (${order.customerSnapshot?.name || "Customer"})`,
         category: "refund",
         amount: refundAmount,
         paymentMode: refundMode,
@@ -767,6 +796,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 
       newExpense = {
         id: expenseDoc._id.toString(),
+        expenseNumber: expenseDoc.expenseNumber,
         desc: expenseDoc.title,
         amount: expenseDoc.amount,
         category: "Refund",
@@ -777,9 +807,14 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     } else if (refundAmount > prevAmountPaid) {
       // Same-day refund where refund exceeds collected amount: record the excess compensation as an expense
       const excessAmount = refundAmount - prevAmountPaid;
+      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+        tenantId,
+        type: "expense",
+      });
       const expenseDoc = await Expense.create({
         tenantId,
-        title: `Customer Compensation (Excess Refund) — Order ${order.orderNumber} (${order.customerSnapshot?.name || "Customer"})`,
+        expenseNumber,
+        title: `Customer Compensation (Excess Refund) — Order ${formatDisplayNumber(order.orderNumber)} (${order.customerSnapshot?.name || "Customer"})`,
         category: "refund",
         amount: excessAmount,
         paymentMode: refundMode,
@@ -790,6 +825,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 
       newExpense = {
         id: expenseDoc._id.toString(),
+        expenseNumber: expenseDoc.expenseNumber,
         desc: expenseDoc.title,
         amount: expenseDoc.amount,
         category: "Refund",
@@ -913,14 +949,22 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
     else if (input.category === "Rent") dbCategory = "rent";
     else if (input.category === "Refund") dbCategory = "refund";
 
+    const expenseDate = new Date();
+    const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+      tenantId,
+      type: "expense",
+      date: expenseDate,
+    });
+
     const newDoc = await Expense.create({
       tenantId,
+      expenseNumber,
       title: input.desc,
       category: dbCategory,
       amount: input.amount,
       paymentMode: input.paymentMode || "cash",
       notes: input.notes?.trim() || undefined,
-      expenseDate: new Date(),
+      expenseDate,
       recordedBy: session.user.role === "staff" ? "staff" : "owner",
     });
 
@@ -931,6 +975,7 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
       success: true,
       expense: {
         id: newDoc._id.toString(),
+        expenseNumber: newDoc.expenseNumber,
         desc: newDoc.title,
         amount: newDoc.amount,
         category: input.category,
@@ -994,10 +1039,17 @@ export async function transferStockAction(rawInput: unknown): Promise<{
           : 0;
       const transferCost = unitCost * quantity;
 
+      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+        tenantId,
+        type: "expense",
+        session: dbSession,
+      });
+
       const [expense] = await Expense.create(
         [
           {
             tenantId,
+            expenseNumber,
             title: `Internal transfer — ${quantity}x ${product.name}`,
             category: "stock_transfer_internal",
             amount: transferCost,
@@ -1040,6 +1092,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       },
       newExpense: {
         id: result.expense._id.toString(),
+        expenseNumber: result.expense.expenseNumber,
         desc: result.expense.title,
         amount: result.expense.amount,
         category: "Day-to-day",
@@ -1344,8 +1397,11 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
     }
 
     const result = await withTransaction(async (dbSession) => {
-      const year = new Date().getFullYear();
-      const poNumber = await Counter.getNextSequence(tenantId, "purchase_order", `PO-${year}`);
+      const { fullNumber: poNumber } = await Counter.getNextSequence({
+        tenantId,
+        type: "purchase_order",
+        session: dbSession,
+      });
 
       const updatedProductsList: DashboardProduct[] = [];
       const poItems = [];
@@ -1512,11 +1568,17 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
 
       // Record corresponding Expense if amount paid > 0
       if (finalAmountPaid > 0) {
+        const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+          tenantId: tenantObjectId,
+          type: "expense",
+          session: dbSession,
+        });
         await Expense.create(
           [
             {
               tenantId: tenantObjectId,
-              title: `Stock In (PO ${poNumber}) — ${input.supplierName}`,
+              expenseNumber,
+              title: `Stock In (${formatDisplayNumber(poNumber)}) — ${input.supplierName}`,
               category: "inventory_purchase",
               amount: finalAmountPaid,
               paymentMode:
@@ -1663,11 +1725,18 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
       }
 
       // Record Expense for this payment
+      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+        tenantId: tenantObjectId,
+        type: "expense",
+        session: dbSession,
+      });
+
       await Expense.create(
         [
           {
             tenantId: tenantObjectId,
-            title: `PO Payment (${po.purchaseOrderNumber}) — ${po.supplierSnapshot?.name || "Supplier"}`,
+            expenseNumber,
+            title: `PO Payment (${formatDisplayNumber(po.purchaseOrderNumber)}) — ${po.supplierSnapshot?.name || "Supplier"}`,
             category: "inventory_purchase",
             amount: input.amount,
             paymentMode: input.paymentMode,

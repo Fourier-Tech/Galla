@@ -5,7 +5,7 @@ import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Cal
 import { DashboardOrder, DashboardProduct, DashboardSupplier } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 
@@ -346,7 +346,7 @@ export function OverviewTab({
           <div className="overflow-x-auto flex-1 flex flex-col min-h-0">
             <div className="min-w-[900px] flex-1 flex flex-col">
               {/* Sticky Table Header */}
-              <div className="shrink-0 grid grid-cols-[85px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[11px] bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em] z-10">
+              <div className="shrink-0 grid grid-cols-[115px_minmax(180px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[11px] bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em] z-10">
                 <span>Order</span>
                 <span>Customer &amp; Service</span>
                 <span className="text-right">Settlement</span>
@@ -376,10 +376,10 @@ export function OverviewTab({
                     <div
                       key={order.id}
                       onClick={() => setSelectedOrderDetails(order)}
-                      className="grid grid-cols-[85px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
+                      className="grid grid-cols-[115px_minmax(180px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
                     >
                   <span className="font-mono text-[13px] text-galla-ink-soft">
-                    {order.id}
+                    {formatDisplayNumber(order.id)}
                   </span>
 
                   <div className="min-w-0 pr-4">

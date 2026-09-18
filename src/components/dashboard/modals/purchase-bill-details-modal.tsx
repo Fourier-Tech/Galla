@@ -20,7 +20,7 @@ import {
   DashboardPurchaseOrder,
   DashboardPurchaseOrderPayment,
 } from "@/types/dashboard";
-import { formatRupee, formatPhoneNumber } from "@/lib/utils";
+import { formatRupee, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
 
 function formatDateTime(dateStr?: string | Date | null): string | null {
   if (!dateStr) return null;
@@ -205,7 +205,7 @@ export function PurchaseBillDetailsModal({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-heading font-bold text-[18px] text-galla-ink tracking-tight">
-                  Bill {bill.purchaseOrderNumber}
+                  Bill {formatDisplayNumber(bill.purchaseOrderNumber)}
                 </h2>
                 <span
                   className={`inline-flex items-center gap-1 text-[11px] font-sans px-2 py-0.5 rounded-[4px] border font-medium uppercase tracking-wider ${

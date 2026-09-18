@@ -224,6 +224,11 @@ export function ProfileTab({
               <h3 className="font-heading font-semibold text-[20px] text-galla-ink tracking-tight truncate">
                 {name || "Salon Profile"}
               </h3>
+              {salonProfile.tenantCode && (
+                <span className="font-mono text-[12px] font-semibold px-2 py-0.5 rounded-[3px] bg-galla-paper border border-galla-line text-galla-ink">
+                  Shop #{salonProfile.tenantCode}
+                </span>
+              )}
               <span className="inline-flex items-center px-2 py-0.5 rounded-[3px] bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-heading font-semibold uppercase tracking-wider">
                 Active Store
               </span>

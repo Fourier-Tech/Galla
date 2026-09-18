@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { completeOrderAction } from "@/app/dashboard/actions";
-import { formatRupee, formatBookingDate } from "@/lib/utils";
+import { formatRupee, formatBookingDate, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 interface SettleOrderModalProps {
@@ -103,7 +103,7 @@ function SettleOrderModalContent({
               Settle &amp; Complete Order
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft">
-              {order.id} &bull; <strong className="text-galla-ink font-medium">{order.customer}</strong>
+              {formatDisplayNumber(order.id)} &bull; <strong className="text-galla-ink font-medium">{order.customer}</strong>
               {order.scheduledFor ? ` • Booked: ${formatBookingDate(order.scheduledFor)}` : ""}
             </p>
           </div>
@@ -281,7 +281,7 @@ function SettleOrderModalContent({
               Are you sure you want to collect <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
               <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong> from{" "}
               <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> and mark Order{" "}
-              <strong className="font-semibold text-galla-ink">#{order.id}</strong> as fully settled &amp; completed?
+              <strong className="font-semibold text-galla-ink">{formatDisplayNumber(order.id)}</strong> as fully settled &amp; completed?
             </span>
           }
           confirmLabel="Yes, Settle Order"

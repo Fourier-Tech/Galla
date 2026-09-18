@@ -430,6 +430,7 @@ export default async function DashboardPage() {
 
       initialExpenses = rawExpenses.map((e) => ({
         id: e._id.toString(),
+        expenseNumber: e.expenseNumber,
         desc: e.title,
         amount: e.amount,
         category: mapExpenseCategory(e.category, e.title),
@@ -492,6 +493,7 @@ export default async function DashboardPage() {
 
       initialSalonProfile = {
         id: tenant._id.toString(),
+        tenantCode: tenant.tenantCode || "",
         name: tenant.name || "",
         slug: tenant.slug || "",
         email: ownerUser?.ownerEmail || "",

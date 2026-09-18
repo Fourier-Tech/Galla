@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { rescheduleOrderAction } from "@/app/dashboard/actions";
-import { formatBookingDate, formatAppointmentTime, getBookingUrgency, formatRupee, getLocalDateString } from "@/lib/utils";
+import { formatBookingDate, formatAppointmentTime, getBookingUrgency, formatRupee, getLocalDateString, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 interface RescheduleOrderModalProps {
@@ -116,7 +116,7 @@ function RescheduleOrderModalContent({
                 : "Reschedule & Set Time"}
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-              Order {order.id} &bull; <strong className="text-galla-ink">{order.customer}</strong>
+              Order {formatDisplayNumber(order.id)} &bull; <strong className="text-galla-ink">{order.customer}</strong>
               {order.amount > order.paid ? (
                 <span className="text-rose-700 font-semibold ml-1">
                   (Due: {formatRupee(order.amount - order.paid)})
@@ -287,7 +287,7 @@ function RescheduleOrderModalContent({
           description={
             <span>
               Are you sure you want to {isDueOrder ? (order.scheduledFor ? "reschedule the payment due date for" : "set the payment due date for") : "reschedule"} Order{" "}
-              <strong className="font-semibold text-galla-ink">#{order.id}</strong> for{" "}
+              <strong className="font-semibold text-galla-ink">{formatDisplayNumber(order.id)}</strong> for{" "}
               <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> to{" "}
               <strong className="font-semibold text-galla-ink">{formatBookingDate(newDate)}</strong>
               {newTime ? (

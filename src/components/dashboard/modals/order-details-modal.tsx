@@ -26,6 +26,7 @@ import {
   formatAppointmentTime,
   formatPhoneNumber,
   getWhatsAppReminderUrl,
+  formatDisplayNumber,
 } from "@/lib/utils";
 
 interface OrderDetailsModalProps {
@@ -130,7 +131,7 @@ export function OrderDetailsModal({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-heading font-bold text-[18px] text-galla-ink tracking-tight">
-                  Order {order.id}
+                  Order {formatDisplayNumber(order.id)}
                 </h2>
                 <StatusPill status={order.status} />
               </div>

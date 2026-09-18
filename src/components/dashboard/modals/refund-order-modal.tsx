@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, AlertCircle } from "lucide-react";
 import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
 import { refundOrderAction } from "@/app/dashboard/actions";
-import { formatRupee, formatBookingDate } from "@/lib/utils";
+import { formatRupee, formatBookingDate, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 interface RefundOrderModalProps {
@@ -82,7 +82,7 @@ export function RefundOrderModal({
               Process Refund
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft">
-              {order.id} &bull; {order.customer}
+              {formatDisplayNumber(order.id)} &bull; {order.customer}
               {order.scheduledFor ? ` • Booked: ${formatBookingDate(order.scheduledFor)}` : ""}
             </p>
           </div>
@@ -255,7 +255,7 @@ export function RefundOrderModal({
               Are you sure you want to cancel and refund{" "}
               <strong className="font-semibold text-red-600">{formatRupee(parsedAmount)}</strong> via{" "}
               <strong className="font-semibold text-galla-ink">{refundMode.toUpperCase()}</strong> for Order{" "}
-              <strong className="font-semibold text-galla-ink">#{order.id}</strong> (
+              <strong className="font-semibold text-galla-ink">{formatDisplayNumber(order.id)}</strong> (
               <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong>)?
               {parsedAmount > order.paid && (
                 <span className="block mt-2 text-amber-700 font-medium">

@@ -21,6 +21,7 @@ export type ExpensePaymentMode =
 
 export interface IExpense extends Document {
   tenantId: Types.ObjectId;
+  expenseNumber?: string;
   title: string;
   category: ExpenseCategory;
   amount: number;
@@ -44,6 +45,11 @@ const ExpenseSchema = new Schema<IExpense>(
       required: [true, "Tenant ID is strictly required"],
       index: true,
       immutable: true,
+    },
+    expenseNumber: {
+      type: String,
+      trim: true,
+      index: true,
     },
     title: {
       type: String,
@@ -120,6 +126,7 @@ const ExpenseSchema = new Schema<IExpense>(
 
 ExpenseSchema.index({ tenantId: 1, expenseDate: -1 });
 ExpenseSchema.index({ tenantId: 1, category: 1 });
+ExpenseSchema.index({ tenantId: 1, expenseNumber: 1 });
 
 export const Expense: Model<IExpense> =
   mongoose.models.Expense || mongoose.model<IExpense>("Expense", ExpenseSchema);

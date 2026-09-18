@@ -119,10 +119,11 @@ export async function GET(request: Request) {
       query.expenseDate = dateFilter;
     }
 
-    // Search filter (title, recipient, notes, or exact amount)
+    // Search filter (expenseNumber, title, recipient, notes, or exact amount)
     if (search) {
       const regex = new RegExp(search, "i");
       const searchConditions: Record<string, unknown>[] = [
+        { expenseNumber: regex },
         { title: regex },
         { recipient: regex },
         { notes: regex },
@@ -177,6 +178,7 @@ export async function GET(request: Request) {
 
     const expenses: DashboardExpense[] = rawExpenses.map((e) => ({
       id: e._id.toString(),
+      expenseNumber: e.expenseNumber,
       desc: e.title,
       amount: e.amount,
       category: mapExpenseCategory(e.category, e.title),

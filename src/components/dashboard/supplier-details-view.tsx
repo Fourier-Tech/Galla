@@ -26,7 +26,7 @@ import {
   getPurchaseOrdersAction,
   recordPurchaseOrderPaymentAction,
 } from "@/app/dashboard/actions";
-import { formatRupee, formatPhoneNumber } from "@/lib/utils";
+import { formatRupee, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
 import { PurchaseBillDetailsModal } from "@/components/dashboard/modals/purchase-bill-details-modal";
 import { SettlePurchaseBillModal } from "@/components/dashboard/modals/settle-purchase-bill-modal";
 
@@ -209,8 +209,9 @@ export function SupplierDetailsView({
 
       // Search filter
       const q = search.trim().toLowerCase();
-      if (!q) return true;
-      const poMatch = b.purchaseOrderNumber.toLowerCase().includes(q);
+      const poMatch =
+        b.purchaseOrderNumber.toLowerCase().includes(q) ||
+        formatDisplayNumber(b.purchaseOrderNumber).toLowerCase().includes(q);
       const invMatch = b.dealerInvoiceNumber && b.dealerInvoiceNumber.toLowerCase().includes(q);
       const notesMatch = b.notes && b.notes.toLowerCase().includes(q);
       const itemMatch = b.items?.some((it) => it.productName.toLowerCase().includes(q));
@@ -597,7 +598,7 @@ export function SupplierDetailsView({
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-[13px] font-bold text-galla-ink group-hover:text-galla-teal transition-colors">
-                            {bill.purchaseOrderNumber}
+                            {formatDisplayNumber(bill.purchaseOrderNumber)}
                           </span>
                           {bill.dealerInvoiceNumber && (
                             <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line">

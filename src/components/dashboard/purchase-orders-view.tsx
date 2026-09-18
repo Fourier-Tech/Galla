@@ -17,7 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { DashboardPurchaseOrder, DashboardSupplier } from "@/types/dashboard";
-import { formatRupee, formatPhoneNumber } from "@/lib/utils";
+import { formatRupee, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
 import {
   getPurchaseOrdersAction,
   recordPurchaseOrderPaymentAction,
@@ -124,6 +124,7 @@ export function PurchaseOrdersView({
       const matchesSearch =
         !q ||
         po.purchaseOrderNumber.toLowerCase().includes(q) ||
+        formatDisplayNumber(po.purchaseOrderNumber).toLowerCase().includes(q) ||
         po.supplierName.toLowerCase().includes(q) ||
         (po.dealerInvoiceNumber && po.dealerInvoiceNumber.toLowerCase().includes(q));
       return matchesPending && matchesSearch;
@@ -302,7 +303,7 @@ export function PurchaseOrdersView({
                   {/* PO Number & Badge */}
                   <div>
                     <div className="font-heading font-semibold text-[14.5px] text-galla-ink group-hover:text-galla-teal transition-colors">
-                      {po.purchaseOrderNumber}
+                      {formatDisplayNumber(po.purchaseOrderNumber)}
                     </div>
                     <div className="mt-1">
                       {isPaid && (

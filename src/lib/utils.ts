@@ -279,3 +279,40 @@ export function getWhatsAppReminderUrl(options: {
 
   return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
 }
+
+/**
+ * Strips the 4-digit tenant code prefix from standard Galla sequence numbers
+ * for in-app display (e.g. "0007-S-2609-0014" -> "S-2609-0014", "0007-PO-2609-0004" -> "PO-2609-0004", "0007-EXP-2609-0032" -> "EXP-2609-0032").
+ * Leaves legacy or non-matching numbers (e.g. "#1042", "PO-2026-0001") unchanged.
+ */
+export function formatDisplayNumber(num?: string | null): string {
+  if (!num) return "";
+  const match = num.match(/^\d{4}-([A-Z]+-\d{4}-\d{4})$/);
+  if (match) {
+    return match[1];
+  }
+  return num;
+}
+
+/**
+ * Returns optional palette color class for the sequence number prefix
+ * Inflow: P, S, K, M -> text-galla-teal
+ * Outflow: PO, EXP -> text-galla-brick
+ */
+export function getSequenceBadgeClass(num?: string | null): string {
+  if (!num) return "text-galla-ink";
+  const display = formatDisplayNumber(num);
+  if (display.startsWith("EXP-") || display.startsWith("PO-")) {
+    return "text-galla-brick";
+  }
+  if (
+    display.startsWith("P-") ||
+    display.startsWith("S-") ||
+    display.startsWith("K-") ||
+    display.startsWith("M-")
+  ) {
+    return "text-galla-teal";
+  }
+  return "text-galla-ink";
+}
+

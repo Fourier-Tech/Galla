@@ -7,6 +7,7 @@ export interface ITenantSettings {
 }
 
 export interface ITenant extends Document {
+  tenantCode?: string;
   name: string;
   slug: string;
   status: "active" | "suspended" | "trial";
@@ -23,6 +24,13 @@ export interface ITenant extends Document {
 
 const TenantSchema = new Schema<ITenant>(
   {
+    tenantCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      immutable: true,
+      trim: true,
+    },
     name: {
       type: String,
       required: [true, "Tenant name is required"],

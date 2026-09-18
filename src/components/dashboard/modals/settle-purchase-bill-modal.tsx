@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { X, AlertCircle, Check, Loader2, CreditCard } from "lucide-react";
 import { DashboardPurchaseOrder } from "@/types/dashboard";
 import { recordPurchaseOrderPaymentAction } from "@/app/dashboard/actions";
-import { formatRupee } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 interface SettlePurchaseBillModalProps {
@@ -135,7 +135,7 @@ function SettlePurchaseBillModalContent({
                 Record Later Settlement
               </h3>
               <p className="font-sans text-[12px] text-galla-ink-soft">
-                Bill #{bill.purchaseOrderNumber} &bull; <strong className="text-galla-ink font-medium">{bill.supplierName}</strong>
+                Bill {formatDisplayNumber(bill.purchaseOrderNumber)} &bull; <strong className="text-galla-ink font-medium">{bill.supplierName}</strong>
                 {bill.dealerInvoiceNumber ? ` • Inv #${bill.dealerInvoiceNumber}` : ""}
               </p>
             </div>
@@ -313,7 +313,7 @@ function SettlePurchaseBillModalContent({
             <span>
               Record settlement payment of <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
               <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong> for PO{" "}
-              <strong className="font-semibold text-galla-ink">#{bill.purchaseOrderNumber}</strong> to{" "}
+              <strong className="font-semibold text-galla-ink">{formatDisplayNumber(bill.purchaseOrderNumber)}</strong> to{" "}
               <strong className="font-semibold text-galla-ink">&ldquo;{bill.supplierName}&rdquo;</strong>?
               This will update the supplier pending balance and log a corresponding business expense.
             </span>

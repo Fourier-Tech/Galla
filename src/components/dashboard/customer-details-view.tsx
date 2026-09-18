@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { getCustomerOrdersAction } from "@/app/dashboard/actions";
-import { formatRupee, formatPhoneNumber } from "@/lib/utils";
+import { formatRupee, formatPhoneNumber, formatDisplayNumber } from "@/lib/utils";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
@@ -244,8 +244,9 @@ export function CustomerDetailsView({
 
       // Search filter
       const q = search.trim().toLowerCase();
-      if (!q) return true;
-      const idMatch = o.id.toLowerCase().includes(q);
+      const idMatch =
+        o.id.toLowerCase().includes(q) ||
+        formatDisplayNumber(o.id).toLowerCase().includes(q);
       const itemsMatch = o.itemsSummary?.toLowerCase().includes(q);
       const timeMatch = o.time?.toLowerCase().includes(q);
       return idMatch || itemsMatch || timeMatch;
@@ -603,7 +604,7 @@ export function CustomerDetailsView({
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-[13px] font-bold text-galla-ink">
-                            {order.id}
+                            {formatDisplayNumber(order.id)}
                           </span>
                           <span className="text-[11px] font-sans px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line">
                             {order.type}

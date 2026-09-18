@@ -26,7 +26,7 @@ import {
   DashboardProduct,
 } from "@/types/dashboard";
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString } from "@/lib/utils";
+import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 function getPhoneDigits(val: string): string {
@@ -1212,7 +1212,7 @@ export function NewOrderModal({
                       <div>
                         <span className="font-medium">Previous Due to Settle</span>
                         <div className="text-[10px] text-amber-700/80">
-                          Order {customerDueOrders.map((o) => o.id).join(", ")} will be marked settled
+                          Order {customerDueOrders.map((o) => formatDisplayNumber(o.id)).join(", ")} will be marked settled
                         </div>
                       </div>
                       <span className="font-heading font-bold text-rose-700">

@@ -17,6 +17,7 @@ import {
   getLocalDateString,
   getFirstDayOfCurrentMonth,
   formatDisplayDate,
+  formatDisplayNumber,
 } from "@/lib/utils";
 
 interface ExpensesTabProps {
@@ -430,7 +431,12 @@ export function ExpensesTab({
                 <div className="font-sans font-semibold text-[15px] text-galla-ink">
                   {expense.desc}
                 </div>
-                <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
+                <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5 flex-wrap">
+                  {expense.expenseNumber && (
+                    <span className="font-mono text-[11.5px] font-semibold text-galla-brick mr-1">
+                      {formatDisplayNumber(expense.expenseNumber)}
+                    </span>
+                  )}
                   <span
                     className={`inline-block px-2 py-0.5 rounded-[3px] border mr-2 text-[11.5px] font-medium ${
                       expense.category === "Refund"

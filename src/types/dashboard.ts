@@ -101,6 +101,7 @@ export interface DashboardCustomer {
 
 export interface DashboardExpense {
   id?: string;
+  expenseNumber?: string;
   desc: string;
   amount: number;
   category: "Inventory purchase" | "Day-to-day" | "Salary" | "Rent" | "Refund";
@@ -111,6 +112,7 @@ export interface DashboardExpense {
 
 export interface DashboardSalonProfile {
   id: string;
+  tenantCode?: string;
   name: string;
   slug: string;
   email: string;

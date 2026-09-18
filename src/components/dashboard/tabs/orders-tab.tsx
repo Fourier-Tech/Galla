@@ -28,6 +28,7 @@ import {
   getBookingUrgency,
   getWhatsAppReminderUrl,
   formatPhoneNumber,
+  formatDisplayNumber,
 } from "@/lib/utils";
 
 interface OrdersTabProps {
@@ -525,7 +526,7 @@ export function OrdersTab({
         <div className="overflow-x-auto">
           <div className="min-w-[920px]">
             {/* Table Header */}
-            <div className="grid grid-cols-[85px_minmax(220px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
+            <div className="grid grid-cols-[115px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
               <span>Order</span>
               <span>Customer &amp; Service</span>
               <span className="text-right">Settlement</span>
@@ -554,10 +555,10 @@ export function OrdersTab({
                   <div
                     key={order.id}
                     onClick={() => setSelectedOrderDetails(order)}
-                    className="grid grid-cols-[85px_minmax(220px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[16px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
+                    className="grid grid-cols-[115px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[16px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
                   >
                     <span className="font-mono text-[13px] text-galla-ink-soft">
-                      {order.id}
+                      {formatDisplayNumber(order.id)}
                     </span>
 
                     <div className="min-w-0 pr-4">

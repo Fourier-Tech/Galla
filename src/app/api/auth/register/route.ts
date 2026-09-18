@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
+import { Counter } from "@/lib/db/models/counter.model";
 import {
   generateUnique8DigitCode,
   calculateRotationDate,
@@ -45,21 +46,44 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate clean slug for tenant
+    // Generate clean slug base for tenant
     const baseSlug = salonName
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const tenantSlug = `${baseSlug}-${randomSuffix}`;
 
-    // Create Tenant
-    const tenant = await Tenant.create({
-      name: salonName.trim(),
-      slug: tenantSlug,
-      status: "active",
-    });
+    // Global sequential tenant code
+    const tenantCode = await Counter.getNextTenantCode();
+
+    // Create Tenant with slug collision retry loop (max 5 attempts)
+    let tenant = null;
+    const maxAttempts = 5;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const tenantSlug = `${baseSlug}-${randomSuffix}`;
+      try {
+        tenant = await Tenant.create({
+          name: salonName.trim(),
+          slug: tenantSlug,
+          tenantCode,
+          status: "active",
+        });
+        break;
+      } catch (err: any) {
+        const isSlugCollision =
+          err?.code === 11000 &&
+          (err?.keyPattern?.slug || JSON.stringify(err).includes("slug"));
+        if (isSlugCollision && attempt < maxAttempts) {
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!tenant) {
+      throw new Error("Failed to provision tenant workspace after multiple attempts");
+    }
 
     const now = new Date();
     const rotationDate = calculateRotationDate(now);
@@ -93,6 +117,7 @@ export async function POST(request: Request) {
       {
         message: "Salon workspace provisioned successfully with 8-digit access codes",
         tenantId: tenant._id.toString(),
+        tenantCode: tenant.tenantCode,
         salonName: tenant.name,
         ownerEmail: cleanEmail,
         ownerCode: ownerGen.code,
