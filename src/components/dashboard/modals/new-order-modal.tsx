@@ -34,6 +34,34 @@ function getPhoneDigits(val: string): string {
   return digits.length > 10 ? digits.slice(-10) : digits;
 }
 
+function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]) {
+  if (!pkg.products || pkg.products.length === 0) {
+    return { hasProducts: false, isOutOfStock: false, missingNames: [] };
+  }
+
+  const missingNames: string[] = [];
+
+  for (const pItem of pkg.products) {
+    const cleanItemName = pItem.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase();
+    const matchingProducts = products.filter((p) => {
+      if (p.id === pItem.productId) return true;
+      const base = p.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase();
+      return base === cleanItemName;
+    });
+
+    const totalAvailable = matchingProducts.reduce((sum, p) => sum + (p.sell || 0) + (p.use || 0), 0);
+    if (totalAvailable < (pItem.quantity || 1)) {
+      missingNames.push(pItem.name);
+    }
+  }
+
+  return {
+    hasProducts: true,
+    isOutOfStock: missingNames.length > 0,
+    missingNames,
+  };
+}
+
 export interface SelectedOrderItem {
   id: string;
   type: "service" | "package" | "product";
@@ -228,6 +256,37 @@ export function NewOrderModal({
   const totalPreviousDue = useMemo(() => {
     return customerDueOrders.reduce((sum, o) => sum + Math.max(0, o.amount - o.paid), 0);
   }, [customerDueOrders]);
+
+  // Out of stock items tracking (products with low retail stock or packages with missing products)
+  const outOfStockItems = useMemo(() => {
+    const list: { name: string; type: "product" | "package"; missing?: string[] }[] = [];
+    for (const item of selectedItems) {
+      if (item.type === "product") {
+        const prod = liveProducts.find((p) => p.id === item.id);
+        if (prod && prod.sell < (item.quantity || 1)) {
+          list.push({ name: item.name, type: "product" });
+        }
+      } else if (item.type === "package") {
+        const pkg = packages.find((p) => p.id === item.id);
+        if (pkg) {
+          const info = getPackageStockInfo(pkg, liveProducts);
+          if (info.isOutOfStock) {
+            list.push({ name: item.name, type: "package", missing: info.missingNames });
+          }
+        }
+      }
+    }
+    return list;
+  }, [selectedItems, liveProducts, packages]);
+
+  const hasOutOfStockItems = outOfStockItems.length > 0;
+
+  // If items are out of stock and settlementMode is immediate, switch to advance/pre-order
+  useEffect(() => {
+    if (hasOutOfStockItems && (settlementMode === "completed" || settlementMode === "pay_later")) {
+      setSettlementMode("paid_full");
+    }
+  }, [hasOutOfStockItems, settlementMode]);
 
   // Pricing calculations
   const calculatedSubtotal = useMemo(() => {
@@ -442,7 +501,11 @@ export function NewOrderModal({
 
     try {
       const formattedPhone = phone.trim() ? formatPhoneNumber(phone) : undefined;
-      const status = settlementMode === "completed"
+      const status = hasOutOfStockItems
+        ? paidAmount >= finalTotal
+          ? "paid_full"
+          : "advance_paid"
+        : settlementMode === "completed"
         ? "completed"
         : settlementMode === "paid_full"
         ? "paid_full"
@@ -919,6 +982,7 @@ export function NewOrderModal({
                   filteredPackages.map((p) => {
                     const isSelected = selectedItems.some((i) => i.id === p.id && i.type === "package");
                     const price = p.packagePrice || 0;
+                    const stockInfo = getPackageStockInfo(p, liveProducts);
                     return (
                       <div
                         key={p.id}
@@ -947,12 +1011,32 @@ export function NewOrderModal({
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
                           <div>
-                            <div className="font-heading font-medium text-[13.5px] text-galla-ink">
-                              {p.name}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-heading font-medium text-[13.5px] text-galla-ink">
+                                {p.name}
+                              </span>
+                              {stockInfo.isOutOfStock && (
+                                <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                                  Advance Only &bull; Out of Stock
+                                </span>
+                              )}
+                              {stockInfo.hasProducts && !stockInfo.isOutOfStock && (
+                                <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                  Products In Stock
+                                </span>
+                              )}
                             </div>
-                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5 truncate max-w-xs">
-                              {p.services.length} services included: {p.services.map((s) => s.name).join(", ")}
+                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5 truncate max-w-sm">
+                              {p.services.length} services ({p.services.map((s) => s.name).join(", ")})
+                              {p.products && p.products.length > 0 && (
+                                <> &bull; {p.products.length} products ({p.products.map((pr) => pr.name).join(", ")})</>
+                              )}
                             </div>
+                            {stockInfo.isOutOfStock && (
+                              <div className="text-[11px] text-amber-700 font-medium mt-0.5">
+                                ⚠️ Missing stock: {stockInfo.missingNames.join(", ")}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1114,6 +1198,19 @@ export function NewOrderModal({
               </div>
             </div>
 
+            {/* Out of Stock Notice Banner */}
+            {hasOutOfStockItems && (
+              <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-[6px] text-amber-950 space-y-1 animate-in fade-in duration-150">
+                <div className="flex items-center gap-1.5 font-semibold text-[12.5px]">
+                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
+                  <span>Stock Notice: Advance Booking / Delivery Pending</span>
+                </div>
+                <p className="text-[11.5px] text-amber-800 leading-snug">
+                  This order includes products currently out of stock ({outOfStockItems.map((it) => it.name).join(", ")}). Delivery cannot be handed over immediately. You can collect full payment or an advance deposit now; physical fulfillment will take place upon stock arrival.
+                </p>
+              </div>
+            )}
+
             {/* Previous Due Alert & Inclusion Checkbox */}
             {customerDueOrders.length > 0 && totalPreviousDue > 0 && (
               <div className="p-3 bg-amber-50/75 border border-amber-300 rounded-[6px] space-y-2 animate-in fade-in duration-150">
@@ -1248,16 +1345,20 @@ export function NewOrderModal({
                 onChange={(e) => setSettlementMode(e.target.value as "completed" | "pay_later" | "advance" | "paid_full")}
                 className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs"
               >
-                <option value="completed">Completed (Paid in full now)</option>
-                <option value="pay_later">Pay Later / Due (Delivery now, payment later)</option>
+                <option value="completed" disabled={hasOutOfStockItems}>
+                  Completed (Paid in full now{hasOutOfStockItems ? " — Unavailable: items out of stock" : ""})
+                </option>
+                <option value="pay_later" disabled={hasOutOfStockItems}>
+                  Pay Later / Due (Delivery now, payment later{hasOutOfStockItems ? " — Unavailable: items out of stock" : ""})
+                </option>
                 <option value="advance">
-                  {orderType === "Product sale"
-                    ? "Pre-order / Advance (Partial deposit, pickup later)"
+                  {orderType === "Product sale" || hasOutOfStockItems
+                    ? "Advance / Pre-order (Partial deposit, delivery upon stock arrival)"
                     : "Advance Booking (Partial deposit, appointment later)"}
                 </option>
                 <option value="paid_full">
-                  {orderType === "Product sale"
-                    ? "Pre-order (Paid in full, pickup later)"
+                  {orderType === "Product sale" || hasOutOfStockItems
+                    ? "Pre-order (Paid in full, delivery upon stock arrival)"
                     : "Advance Booking (Paid in full, appointment later)"}
                 </option>
               </select>

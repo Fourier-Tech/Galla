@@ -573,6 +573,20 @@ export function StockInModal({
                         placeholder="0"
                       />
                     </div>
+
+                    {(() => {
+                      const matched = products.find((p) => String(p.id) === item.productId);
+                      const isPriceChanged =
+                        matched &&
+                        ((matched.price !== undefined && Number(item.expectedSellPrice) !== matched.price) ||
+                          (matched.purchaseCost !== undefined && Number(item.purchaseCost) !== matched.purchaseCost));
+                      if (!isPriceChanged) return null;
+                      return (
+                        <div className="col-span-2 sm:col-span-4 mt-1 text-[11.5px] font-sans text-blue-800 bg-blue-50/80 border border-blue-200/80 px-2 py-1 rounded-[4px]">
+                          ✨ <strong>New Price Detected:</strong> Incoming stock will be automatically saved as a separate <em>(New)</em> batch, leaving current stock as <em>(Old)</em>.
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

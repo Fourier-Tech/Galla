@@ -66,6 +66,9 @@ export function OrderDetailsModal({
   const isAdvance = order.status === "advance_paid";
   const isCompleted = order.status === "completed";
   const isRefunded = order.status === "cancelled_refunded";
+  const hasPendingDelivery = Boolean(
+    order.lineItems && order.lineItems.some((li) => !li.fulfilled)
+  );
 
   // Only prefill reminder text if order is in advance booking (advance_paid) or has payment due
   // For completed orders (like #1056) or full counter sales, leave message blank
@@ -377,9 +380,32 @@ export function OrderDetailsModal({
                               <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
                                 <CheckCircle2 className="h-3 w-3" /> Delivered / Handed over
                               </span>
+                            ) : order.paid >= order.amount ? (
+                              <span className="text-blue-700 font-medium inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Fully Paid &bull; Delivery Pending (Awaiting Stock Pickup)
+                              </span>
+                            ) : order.paid > 0 ? (
+                              <span className="text-amber-800 font-medium inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Advance Received &bull; Delivery Pending
+                              </span>
                             ) : (
                               <span className="text-amber-700 font-medium inline-flex items-center gap-1">
                                 <Clock className="h-3 w-3" /> Pending Pickup / Backorder
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Package Fulfillment status */}
+                        {item.itemType === "package" && (
+                          <div className="pl-5 text-[11px]">
+                            {item.fulfilled ? (
+                              <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> Package Rendered &bull; Products Deducted
+                              </span>
+                            ) : (
+                              <span className="text-indigo-700 font-medium inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Advance Booking &bull; Products deducted on order completion
                               </span>
                             )}
                           </div>
@@ -588,6 +614,8 @@ export function OrderDetailsModal({
               </span>
             ) : isCompleted ? (
               <span className="text-emerald-700 font-medium">Order is complete &amp; paid</span>
+            ) : hasPendingDelivery ? (
+              <span className="text-blue-700 font-medium">Paid in full &bull; Delivery pending stock pickup</span>
             ) : null}
           </div>
 
@@ -602,6 +630,20 @@ export function OrderDetailsModal({
                 className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs"
               >
                 Settle Due ({formatRupee(dueAmount)})
+              </button>
+            )}
+
+            {!isDue && !isCompleted && hasPendingDelivery && onOpenSettle && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenSettle(order);
+                }}
+                className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Deliver &amp; Complete Order</span>
               </button>
             )}
 

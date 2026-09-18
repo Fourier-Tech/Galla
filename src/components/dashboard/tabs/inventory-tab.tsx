@@ -501,8 +501,20 @@ export function InventoryTab({
                     >
                       {/* Product Name */}
                       <td className="py-3.5 pl-6 pr-4 align-middle">
-                        <div className="font-sans font-semibold text-[14px] text-galla-ink">
-                          {product.name}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-sans font-semibold text-[14px] text-galla-ink">
+                            {product.name}
+                          </span>
+                          {product.name.includes("(Old)") && (
+                            <span className="text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                              Old Batch
+                            </span>
+                          )}
+                          {product.name.includes("(New)") && (
+                            <span className="text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                              New Batch
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -519,9 +531,22 @@ export function InventoryTab({
                         {formatRupee(product.purchaseCost || 0)}
                       </td>
 
-                      {/* Sell Price */}
-                      <td className="py-3.5 px-4 text-right align-middle font-heading font-semibold text-[14.5px] text-galla-ink tabular-nums whitespace-nowrap">
-                        {formatRupee(product.price)}
+                      {/* Sell Price & Margin */}
+                      <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                        <div className="font-heading font-semibold text-[14.5px] text-galla-ink tabular-nums">
+                          {formatRupee(product.price)}
+                        </div>
+                        {product.purchaseCost !== undefined && (
+                          <div className="text-[11px] font-mono text-emerald-700 font-medium tabular-nums mt-0.5">
+                            +{formatRupee(Math.max(0, product.price - (product.purchaseCost || 0)))} (
+                            {product.price > 0
+                              ? Math.round(
+                                  ((product.price - (product.purchaseCost || 0)) / product.price) * 100
+                                )
+                              : 0}
+                            % margin)
+                          </div>
+                        )}
                       </td>
 
                       {/* Sell Stock */}
@@ -643,6 +668,7 @@ export function InventoryTab({
       {/* Transfer Stock Modal (Pillar 2: Stock Move with custom quantity) */}
       <TransferStockModal
         product={transferTargetProduct}
+        allProducts={products}
         isOpen={Boolean(transferTargetProduct)}
         onClose={() => setTransferTargetProduct(null)}
         onTransferSuccess={handleTransferComplete}

@@ -9,6 +9,7 @@ import { ConfirmModal } from "./confirm-modal";
 
 interface TransferStockModalProps {
   product: DashboardProduct | null;
+  allProducts?: DashboardProduct[];
   isOpen: boolean;
   onClose: () => void;
   onTransferSuccess: (updatedProduct: DashboardProduct, newExpense?: DashboardExpense) => void;
@@ -16,6 +17,7 @@ interface TransferStockModalProps {
 
 export function TransferStockModal({
   product,
+  allProducts,
   isOpen,
   onClose,
   onTransferSuccess,
@@ -26,6 +28,7 @@ export function TransferStockModal({
     <TransferStockModalContent
       key={product.id}
       product={product}
+      allProducts={allProducts}
       onClose={onClose}
       onTransferSuccess={onTransferSuccess}
     />
@@ -34,10 +37,12 @@ export function TransferStockModal({
 
 function TransferStockModalContent({
   product,
+  allProducts,
   onClose,
   onTransferSuccess,
 }: {
   product: DashboardProduct;
+  allProducts?: DashboardProduct[];
   onClose: () => void;
   onTransferSuccess: (updatedProduct: DashboardProduct, newExpense?: DashboardExpense) => void;
 }) {
@@ -51,6 +56,25 @@ function TransferStockModalContent({
 
   const estUnitCost = product.purchaseCost !== undefined && product.purchaseCost !== null ? product.purchaseCost : 0;
   const estTotalCost = isValidQty ? numQty * estUnitCost : 0;
+  const unitProfit = Math.max(0, product.price - estUnitCost);
+  const marginPct = product.price > 0 ? Math.round((unitProfit / product.price) * 100) : 0;
+
+  // Check if sibling batches exist (e.g. Old vs New)
+  const baseName = product.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase();
+  const siblingBatches = allProducts
+    ? allProducts.filter(
+        (p) =>
+          String(p.id) !== String(product.id) &&
+          p.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase() === baseName
+      )
+    : [];
+
+  const currentMargin = product.price > 0 ? (product.price - estUnitCost) / product.price : 0;
+  const lowerMarginSibling = siblingBatches.find((s) => {
+    const sCost = s.purchaseCost || 0;
+    const sMargin = s.price > 0 ? (s.price - sCost) / s.price : 0;
+    return sMargin < currentMargin && s.sell > 0;
+  });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,8 +152,13 @@ function TransferStockModalContent({
         <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Target Product Summary Card */}
           <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[5px] space-y-2">
-            <div className="font-sans font-semibold text-[14px] text-galla-ink">
-              {product.name}
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-sans font-semibold text-[14px] text-galla-ink truncate">
+                {product.name}
+              </span>
+              <span className="text-[11px] font-mono font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
+                +{formatRupee(unitProfit)} ({marginPct}% margin)
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-[12px] font-sans">
               <div className="text-galla-ink-soft">
@@ -141,6 +170,15 @@ function TransferStockModalContent({
                 <span className="font-medium text-galla-ink">{product.use} pcs</span>
               </div>
             </div>
+            {lowerMarginSibling ? (
+              <div className="text-[11.5px] font-sans text-amber-900 bg-amber-50/90 border border-amber-200/90 p-2 rounded-[4px] leading-relaxed">
+                💡 <strong>Prioritize Lower Margin Batch:</strong> &ldquo;{lowerMarginSibling.name}&rdquo; has a lower profit margin ({Math.round(((lowerMarginSibling.price - (lowerMarginSibling.purchaseCost || 0)) / (lowerMarginSibling.price || 1)) * 100)}%). Moving the lower-margin batch to salon use is recommended to preserve high-margin stock for retail sales.
+              </div>
+            ) : siblingBatches.length > 0 ? (
+              <div className="text-[11.5px] font-sans text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-[4px] leading-relaxed">
+                ✓ <strong>Best for Internal Use:</strong> This batch has the lowest profit margin ({marginPct}%). Recommended for salon treatment usage.
+              </div>
+            ) : null}
           </div>
 
           {/* Quantity Input */}

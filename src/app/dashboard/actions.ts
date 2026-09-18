@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { Types } from "mongoose";
+import { ClientSession, Types } from "mongoose";
 import { auth } from "@/auth";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Order, type IOrderLineItem } from "@/lib/db/models/order.model";
-import { Product } from "@/lib/db/models/product.model";
+import { Product, type IProduct } from "@/lib/db/models/product.model";
 import { PurchaseOrder } from "@/lib/db/models/purchase-order.model";
 import { Supplier } from "@/lib/db/models/supplier.model";
 import { Counter } from "@/lib/db/models/counter.model";
@@ -93,6 +93,167 @@ async function resolveTenantId(session: SessionLike): Promise<Types.ObjectId | n
 
   return null;
 }
+
+/**
+ * Resolves all product batches belonging to a product family (by ID or base name),
+ * sorted by profit margin ascending (i.e. the "not better" / lower margin batch is prioritized first for salon usage).
+ */
+async function getProductBatchesForInternalUse(
+  tenantId: Types.ObjectId | string,
+  productId: Types.ObjectId | string,
+  session?: ClientSession
+): Promise<IProduct[]> {
+  const primary = await Product.findOne({ _id: productId, tenantId }).session(session || null);
+  if (!primary) return [];
+  const baseName = primary.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+  const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const candidates = await Product.find({
+    tenantId,
+    isActive: true,
+    name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
+  }).session(session || null);
+
+  // Sort ascending by profit margin: (Sell - Cost) / Sell
+  return candidates.sort((a, b) => {
+    const marginA = a.expectedSellPrice > 0 ? (a.expectedSellPrice - a.purchaseCost) / a.expectedSellPrice : 0;
+    const marginB = b.expectedSellPrice > 0 ? (b.expectedSellPrice - b.purchaseCost) / b.expectedSellPrice : 0;
+    return marginA - marginB;
+  });
+}
+
+/**
+ * Checks if all required products for a package template are available in stock.
+ * Returns { available: boolean; missing: { name: string; needed: number; available: number }[] }
+ */
+async function checkPackageProductsAvailability(
+  tenantId: Types.ObjectId | string,
+  templateId: Types.ObjectId | string,
+  packageQuantity: number,
+  session?: ClientSession
+): Promise<{
+  available: boolean;
+  missing: { name: string; needed: number; available: number }[];
+}> {
+  const template = await PackageTemplate.findOne({ _id: templateId, tenantId }).session(session || null);
+  if (!template || !template.products || template.products.length === 0) {
+    return { available: true, missing: [] };
+  }
+
+  const missing: { name: string; needed: number; available: number }[] = [];
+
+  for (const pItem of template.products) {
+    const needed = packageQuantity * pItem.quantity;
+    const batches = await getProductBatchesForInternalUse(tenantId, pItem.productId, session);
+    const totalAvailable = batches.reduce(
+      (sum, b) => sum + Math.max(0, b.useStock) + Math.max(0, b.sellStock),
+      0
+    );
+    if (totalAvailable < needed) {
+      missing.push({
+        name: pItem.name,
+        needed,
+        available: totalAvailable,
+      });
+    }
+  }
+
+  return {
+    available: missing.length === 0,
+    missing,
+  };
+}
+
+/**
+ * Deducts package product requirements from stock:
+ * - Checks useStock first, falls back to sellStock
+ * - Prioritizes the lower profit margin batch for in-salon consumption
+ */
+async function deductPackageProductsFromStock(
+  tenantId: Types.ObjectId | string,
+  templateId: Types.ObjectId | string,
+  packageQuantity: number,
+  session?: ClientSession
+): Promise<void> {
+  const template = await PackageTemplate.findOne({ _id: templateId, tenantId }).session(session || null);
+  if (!template || !template.products || template.products.length === 0) return;
+
+  for (const pItem of template.products) {
+    let remaining = packageQuantity * pItem.quantity;
+    const batches = await getProductBatchesForInternalUse(tenantId, pItem.productId, session);
+    for (const batch of batches) {
+      if (remaining <= 0) break;
+      const takeUse = Math.min(batch.useStock, remaining);
+      batch.useStock -= takeUse;
+      remaining -= takeUse;
+      if (remaining > 0 && batch.sellStock > 0) {
+        const takeSell = Math.min(batch.sellStock, remaining);
+        batch.sellStock -= takeSell;
+        remaining -= takeSell;
+      }
+      await batch.save(session ? { session } : undefined);
+    }
+    if (batches.length > 0) {
+      await cleanupProductBatchNames(tenantId, batches[0].name, session);
+    }
+  }
+}
+
+/**
+ * Ensures that when batches are emptied (0 stock) or deleted, if only ONE active product
+ * remains with stock (or only one active product exists for that base name), its name is
+ * restored to the clean original name without (Old)/(New)/(Batch...).
+ * Any emptied 0-stock sibling batches are soft-deactivated to keep inventory clean.
+ */
+async function cleanupProductBatchNames(
+  tenantId: Types.ObjectId | string,
+  baseName: string,
+  session?: ClientSession
+): Promise<IProduct | null> {
+  const cleanBase = baseName.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+  const escapedBase = cleanBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const candidates = await Product.find({
+    tenantId,
+    isActive: true,
+    name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
+  }).session(session || null);
+
+  if (candidates.length === 0) return null;
+
+  if (candidates.length === 1) {
+    if (candidates[0].name !== cleanBase) {
+      candidates[0].name = cleanBase;
+      await candidates[0].save(session ? { session } : undefined);
+      return candidates[0];
+    }
+    return null;
+  }
+
+  // Multiple active candidates exist. Check which have stock:
+  const stocked = candidates.filter((p) => p.sellStock > 0 || p.useStock > 0);
+
+  if (stocked.length === 1) {
+    const soleStocked = stocked[0];
+
+    // Deactivate zero-stock siblings so they no longer clutter inventory or collide on unique index
+    for (const other of candidates) {
+      if (!other._id.equals(soleStocked._id) && other.sellStock === 0 && other.useStock === 0) {
+        other.isActive = false;
+        await other.save(session ? { session } : undefined);
+      }
+    }
+
+    if (soleStocked.name !== cleanBase) {
+      soleStocked.name = cleanBase;
+      await soleStocked.save(session ? { session } : undefined);
+      return soleStocked;
+    }
+  }
+
+  return null;
+}
+
+
 
 function mapOrderType(type?: string): OrderType {
   if (type === "service_booking") return "Service booking";
@@ -191,6 +352,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         input.status !== "completed" &&
         (Boolean(input.bookingDate) || input.status === "advance_paid" || input.status === "paid_full");
       let hasUnfulfilledProduct = false;
+      const affectedProductNames = new Set<string>();
 
       for (const item of mappedLineItems) {
         if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
@@ -198,30 +360,55 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           if (prod) {
             // Snapshot current purchaseCost for profit calculation
             item.purchaseCost = typeof prod.purchaseCost === "number" ? prod.purchaseCost : 0;
-            if (isAdvancePreOrder) {
+            const available = Math.max(0, prod.sellStock);
+            const requested = item.quantity || 1;
+
+            if (isAdvancePreOrder || available < requested) {
+              // Pre-order or out of stock: cannot fulfill now; delivery pending upon arrival
               item.fulfilled = false;
               hasUnfulfilledProduct = true;
             } else {
-              const available = Math.max(0, prod.sellStock);
-              const requested = item.quantity || 1;
-              if (available >= requested) {
-                prod.sellStock -= requested;
-                item.fulfilled = isFullPayment;
-              } else {
-                // Insufficient stock: clamp decrement so sellStock never goes negative (never below 0)
-                prod.sellStock = 0;
-                item.fulfilled = input.status === "completed" ? true : false;
-                hasUnfulfilledProduct = input.status !== "completed";
-              }
+              prod.sellStock -= requested;
+              item.fulfilled = isFullPayment;
+              if (!item.fulfilled) hasUnfulfilledProduct = true;
               await prod.save({ session: dbSession });
+              affectedProductNames.add(prod.name);
             }
+          }
+        } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
+          // Check package products stock availability
+          const stockCheck = await checkPackageProductsAvailability(
+            tenantId,
+            item.itemId,
+            item.quantity || 1,
+            dbSession
+          );
+
+          if (!stockCheck.available || isAdvancePreOrder) {
+            // Missing package products or advance booking: delivery pending upon stock arrival/settlement
+            item.fulfilled = false;
+            hasUnfulfilledProduct = true;
+          } else {
+            item.fulfilled = isFullPayment;
+            if (!item.fulfilled) hasUnfulfilledProduct = true;
+            await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1, dbSession);
           }
         }
       }
 
+      for (const pName of affectedProductNames) {
+        await cleanupProductBatchNames(tenantId, pName, dbSession);
+      }
+
       let orderInitialStatus = input.status;
-      if (hasUnfulfilledProduct && orderInitialStatus === "completed" && isAdvancePreOrder) {
-        orderInitialStatus = input.paidAmount > 0 ? "paid_full" : "created";
+      if (hasUnfulfilledProduct) {
+        if (input.paidAmount >= input.totalAmount) {
+          orderInitialStatus = "paid_full";
+        } else if (input.paidAmount > 0) {
+          orderInitialStatus = "advance_paid";
+        } else {
+          orderInitialStatus = "created";
+        }
       }
 
       const [createdOrder] = await Order.create(
@@ -475,6 +662,40 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Order not found" };
     }
 
+    // Validate stock for all unfulfilled products and package products before allowing completion!
+    if (order.lineItems && order.lineItems.length > 0) {
+      for (const item of order.lineItems) {
+        if (!item.fulfilled) {
+          if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
+            const prod = await Product.findOne({ _id: item.itemId, tenantId });
+            const qty = item.quantity || 1;
+            if (!prod || prod.sellStock < qty) {
+              const available = prod?.sellStock || 0;
+              return {
+                success: false,
+                error: `Cannot complete delivery: Product "${item.name}" is out of stock (${available} available, ${qty} needed). Please stock in first before completing delivery.`,
+              };
+            }
+          } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
+            const stockCheck = await checkPackageProductsAvailability(
+              tenantId,
+              item.itemId,
+              item.quantity || 1
+            );
+            if (!stockCheck.available) {
+              const missingDesc = stockCheck.missing
+                .map((m) => `"${m.name}" (${m.available} available, ${m.needed} needed)`)
+                .join(", ");
+              return {
+                success: false,
+                error: `Cannot complete delivery: Package "${item.name}" requires out of stock products: ${missingDesc}. Please stock in first before completing delivery.`,
+              };
+            }
+          }
+        }
+      }
+    }
+
     // Default remaining balance from current total and paid
     const defaultRemaining = Math.max(0, order.totalAmount - order.amountPaid);
     const amountToCollect = remainingAmount !== undefined ? remainingAmount : defaultRemaining;
@@ -531,19 +752,29 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       );
     }
 
-    // Mark line items fulfilled & deduct stock upon customer pickup for backordered / pre-ordered products
+    // Mark line items fulfilled & deduct stock upon customer pickup for backordered / pre-ordered products & packages
+    const affectedProductNames = new Set<string>();
     if (order.lineItems && order.lineItems.length > 0) {
       for (const item of order.lineItems) {
-        if (!item.fulfilled && item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
-          const prod = await Product.findOne({ _id: item.itemId, tenantId });
-          if (prod) {
-            const qty = item.quantity || 1;
-            prod.sellStock = Math.max(0, prod.sellStock - qty);
-            await prod.save();
+        if (!item.fulfilled) {
+          if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
+            const prod = await Product.findOne({ _id: item.itemId, tenantId });
+            if (prod) {
+              const qty = item.quantity || 1;
+              prod.sellStock = Math.max(0, prod.sellStock - qty);
+              await prod.save();
+              affectedProductNames.add(prod.name);
+            }
+          } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
+            await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1);
           }
         }
         item.fulfilled = true;
       }
+    }
+
+    for (const pName of affectedProductNames) {
+      await cleanupProductBatchNames(tenantId, pName);
     }
 
     await order.save();
@@ -1318,6 +1549,8 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
       return { success: false, error: "Product not found or access denied" };
     }
 
+    const baseName = product.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+
     if (reactivate) {
       const escapedName = product.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const existingActive = await Product.findOne({
@@ -1336,6 +1569,8 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
         _id: product._id,
         tenantId: new Types.ObjectId(tenantId),
       });
+      // Restore clean name to remaining batch if only 1 active batch remains
+      await cleanupProductBatchNames(tenantId, baseName);
     }
 
     revalidatePath("/dashboard");
@@ -1404,30 +1639,160 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
           throw new Error(`Product not found: ${item.productName}`);
         }
 
-        product.sellStock += item.quantityForSell;
-        product.useStock += item.quantityForUse;
-        product.purchaseCost = item.purchaseCost;
-        product.expectedSellPrice = item.expectedSellPrice;
-        await product.save({ session: dbSession });
+        const priceChanged =
+          product.expectedSellPrice !== item.expectedSellPrice ||
+          product.purchaseCost !== item.purchaseCost;
 
-        updatedProductsList.push({
-          id: product._id.toString(),
-          name: product.name,
-          category: product.category,
-          sell: product.sellStock,
-          use: product.useStock,
-          price: product.expectedSellPrice,
-          purchaseCost: product.purchaseCost,
-          lowStockThreshold: product.lowStockThreshold,
-          description: product.description,
-          barcode: product.barcode,
-          isActive: product.isActive,
-        });
+        let targetProduct = product;
+
+        if (!priceChanged) {
+          product.sellStock += item.quantityForSell;
+          product.useStock += item.quantityForUse;
+          await product.save({ session: dbSession });
+
+          updatedProductsList.push({
+            id: product._id.toString(),
+            name: product.name,
+            category: product.category,
+            sell: product.sellStock,
+            use: product.useStock,
+            price: product.expectedSellPrice,
+            purchaseCost: product.purchaseCost,
+            lowStockThreshold: product.lowStockThreshold,
+            description: product.description,
+            barcode: product.barcode,
+            isActive: product.isActive,
+          });
+        } else {
+          // New price detected: automatic batch separation (supporting 2 or more price points)
+          const baseName = product.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+          const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+          // Find all active products in this product family
+          const activeSiblings = await Product.find({
+            tenantId,
+            isActive: true,
+            name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
+          }).session(dbSession);
+
+          // 1. If an active sibling already has this exact price, add stock to it
+          const matchingSibling = activeSiblings.find(
+            (p) => p.expectedSellPrice === item.expectedSellPrice && p.purchaseCost === item.purchaseCost
+          );
+
+          if (matchingSibling) {
+            matchingSibling.sellStock += item.quantityForSell;
+            matchingSibling.useStock += item.quantityForUse;
+            await matchingSibling.save({ session: dbSession });
+            targetProduct = matchingSibling;
+          } else {
+            const totalBatches = activeSiblings.length + 1;
+
+            if (totalBatches === 2) {
+              // 2 prices: label older as (Old) and incoming as (New)
+              const existing = activeSiblings[0];
+              if (!existing.name.endsWith("(Old)")) {
+                existing.name = `${baseName} (Old)`;
+                await existing.save({ session: dbSession });
+              }
+
+              const [createdNew] = await Product.create(
+                [
+                  {
+                    tenantId,
+                    name: `${baseName} (New)`,
+                    category: product.category,
+                    unit: "pieces",
+                    purchaseCost: item.purchaseCost,
+                    expectedSellPrice: item.expectedSellPrice,
+                    sellStock: item.quantityForSell,
+                    useStock: item.quantityForUse,
+                    lowStockThreshold: product.lowStockThreshold,
+                    description: product.description,
+                    isActive: true,
+                  },
+                ],
+                { session: dbSession }
+              );
+              targetProduct = createdNew;
+            } else {
+              // More than 2 prices: label each batch with its price tag (Batch ₹...) so owner can distinguish any number of prices
+              for (const sib of activeSiblings) {
+                const tag = `${baseName} (Batch ₹${sib.expectedSellPrice})`;
+                if (sib.name !== tag) {
+                  const conflict = activeSiblings.some((o) => !o._id.equals(sib._id) && o.name === tag);
+                  if (!conflict) {
+                    sib.name = tag;
+                    await sib.save({ session: dbSession });
+                  }
+                }
+              }
+
+              let newTag = `${baseName} (Batch ₹${item.expectedSellPrice})`;
+              const exists = activeSiblings.some((s) => s.name === newTag);
+              if (exists) {
+                newTag = `${baseName} (Batch ₹${item.expectedSellPrice} - New)`;
+              }
+
+              const [createdNew] = await Product.create(
+                [
+                  {
+                    tenantId,
+                    name: newTag,
+                    category: product.category,
+                    unit: "pieces",
+                    purchaseCost: item.purchaseCost,
+                    expectedSellPrice: item.expectedSellPrice,
+                    sellStock: item.quantityForSell,
+                    useStock: item.quantityForUse,
+                    lowStockThreshold: product.lowStockThreshold,
+                    description: product.description,
+                    isActive: true,
+                  },
+                ],
+                { session: dbSession }
+              );
+              targetProduct = createdNew;
+            }
+          }
+
+          // Push all active siblings and targetProduct to updatedProductsList
+          for (const s of activeSiblings) {
+            updatedProductsList.push({
+              id: s._id.toString(),
+              name: s.name,
+              category: s.category,
+              sell: s.sellStock,
+              use: s.useStock,
+              price: s.expectedSellPrice,
+              purchaseCost: s.purchaseCost,
+              lowStockThreshold: s.lowStockThreshold,
+              description: s.description,
+              barcode: s.barcode,
+              isActive: s.isActive,
+            });
+          }
+          if (!activeSiblings.some((s) => s._id.equals(targetProduct._id))) {
+            updatedProductsList.push({
+              id: targetProduct._id.toString(),
+              name: targetProduct.name,
+              category: targetProduct.category,
+              sell: targetProduct.sellStock,
+              use: targetProduct.useStock,
+              price: targetProduct.expectedSellPrice,
+              purchaseCost: targetProduct.purchaseCost,
+              lowStockThreshold: targetProduct.lowStockThreshold,
+              description: targetProduct.description,
+              barcode: targetProduct.barcode,
+              isActive: targetProduct.isActive,
+            });
+          }
+        }
 
         const itemTotal = (item.quantityForSell + item.quantityForUse) * item.purchaseCost;
         poItems.push({
-          productId: product._id,
-          productName: product.name,
+          productId: targetProduct._id,
+          productName: targetProduct.name,
           quantityForSell: item.quantityForSell,
           quantityForUse: item.quantityForUse,
           purchaseCost: item.purchaseCost,
@@ -2202,6 +2567,11 @@ export async function fulfillOrderLineItemAction(rawInput: unknown): Promise<{
         prod.sellStock -= qtyNeeded;
         await prod.save({ session: dbSession });
 
+        const cleaned = await cleanupProductBatchNames(tenantId, prod.name, dbSession);
+        if (cleaned && cleaned._id.equals(prod._id)) {
+          prod.name = cleaned.name;
+        }
+
         updatedProduct = {
           id: prod._id.toString(),
           name: prod.name,
@@ -2215,6 +2585,22 @@ export async function fulfillOrderLineItemAction(rawInput: unknown): Promise<{
           barcode: prod.barcode,
           isActive: prod.isActive,
         };
+      } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
+        const stockCheck = await checkPackageProductsAvailability(
+          tenantId,
+          item.itemId,
+          item.quantity || 1,
+          dbSession
+        );
+        if (!stockCheck.available) {
+          const missingDesc = stockCheck.missing
+            .map((m) => `"${m.name}" (${m.available} available, ${m.needed} needed)`)
+            .join(", ");
+          throw new Error(
+            `Cannot fulfill package: Required products are out of stock: ${missingDesc}. Please stock in first.`
+          );
+        }
+        await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1, dbSession);
       }
 
       item.fulfilled = true;
