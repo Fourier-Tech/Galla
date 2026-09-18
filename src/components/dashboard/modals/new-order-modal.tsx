@@ -548,9 +548,13 @@ export function NewOrderModal({
         quantity: item.quantity,
         finalPrice: item.price * item.quantity,
       }));
+      // Auto-correct name if phone conflict exists
+      const resolvedCustomerName = phoneConflictCustomer
+        ? phoneConflictCustomer.name
+        : customer.trim();
 
       const res = await createOrderAction({
-        customerName: customer.trim(),
+        customerName: resolvedCustomerName,
         customerPhone: formattedPhone,
         orderType: resolvedOrderType,
         totalAmount: finalTotal,
@@ -859,7 +863,6 @@ export function NewOrderModal({
                   filteredProducts.map((p) => {
                     const isSelected = selectedItems.some((i) => i.id === String(p.id) && i.type === "product");
                     const isOutOfStock = p.sell <= 0;
-                    const stockLabel = p.sell > 0 ? `${p.sell} in stock` : "out of stock";
                     return (
                       <div
                         key={p.id}
@@ -888,11 +891,8 @@ export function NewOrderModal({
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
                           <div>
-                            <div className="font-heading font-medium text-[13.5px] text-galla-ink flex items-center gap-2">
-                              <span>{p.name}</span>
-                              <span className="font-mono text-[11px] text-galla-ink-soft">
-                                — {stockLabel} — {formatRupee(p.price)}
-                              </span>
+                            <div className="font-heading font-medium text-[13.5px] text-galla-ink">
+                              {p.name}
                             </div>
                             <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
                               {isOutOfStock ? (

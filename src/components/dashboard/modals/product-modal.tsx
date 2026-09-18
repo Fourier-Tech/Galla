@@ -181,7 +181,7 @@ export function ProductModal({
           price: parsedPrice,
           purchaseCost: parsedCost,
           lowStockThreshold: parsedThreshold,
-          description: description.trim() || undefined,
+          description: description.trim(),
         });
 
         if (res.success && res.product) {

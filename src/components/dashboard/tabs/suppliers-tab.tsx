@@ -149,6 +149,7 @@ export function SuppliersTab({
             setSupplierToEdit(null);
           }}
           supplierToEdit={supplierToEdit}
+          suppliers={suppliers}
           onSaveSupplier={(savedSupplier) => {
             if (supplierToEdit) {
               onUpdateSupplier(savedSupplier);
@@ -504,6 +505,7 @@ export function SuppliersTab({
           setSupplierToEdit(null);
         }}
         supplierToEdit={supplierToEdit}
+        suppliers={suppliers}
         onSaveSupplier={(savedSupplier) => {
           if (supplierToEdit) {
             onUpdateSupplier(savedSupplier);

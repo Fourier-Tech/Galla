@@ -115,11 +115,11 @@ async function getProductBatchesForInternalUse(
     name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
   }).session(session || null);
 
-  // Sort ascending by profit margin: (Sell - Cost) / Sell
+  // Sort ascending by absolute profit: (Sell - Cost) — use lowest-profit batch for internal use first
   return candidates.sort((a, b) => {
-    const marginA = a.expectedSellPrice > 0 ? (a.expectedSellPrice - a.purchaseCost) / a.expectedSellPrice : 0;
-    const marginB = b.expectedSellPrice > 0 ? (b.expectedSellPrice - b.purchaseCost) / b.expectedSellPrice : 0;
-    return marginA - marginB;
+    const profitA = Math.max(0, a.expectedSellPrice - a.purchaseCost);
+    const profitB = Math.max(0, b.expectedSellPrice - b.purchaseCost);
+    return profitA - profitB;
   });
 }
 
@@ -1615,8 +1615,22 @@ export async function updateProductAction(rawInput: unknown): Promise<{
     product.expectedSellPrice = input.price;
     product.purchaseCost = input.purchaseCost;
     product.lowStockThreshold = input.lowStockThreshold;
-    product.barcode = input.barcode?.trim() || undefined;
-    product.description = input.description?.trim() || undefined;
+    if (input.barcode !== undefined) {
+      const trimmedBarcode = input.barcode.trim();
+      if (trimmedBarcode) {
+        product.barcode = trimmedBarcode;
+      } else {
+        product.set("barcode", undefined);
+      }
+    }
+    if (input.description !== undefined) {
+      const trimmedDesc = input.description.trim();
+      if (trimmedDesc) {
+        product.description = trimmedDesc;
+      } else {
+        product.set("description", undefined);
+      }
+    }
 
     await product.save();
 
@@ -3219,17 +3233,28 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
+    const descriptionToSet = input.description !== undefined ? input.description.trim() : undefined;
+
+    const updateDoc: any = {
+      $set: {
+        name: input.name,
+        category: input.category,
+        price: input.price,
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      },
+    };
+
+    if (descriptionToSet !== undefined) {
+      if (descriptionToSet.length > 0) {
+        updateDoc.$set.description = descriptionToSet;
+      } else {
+        updateDoc.$unset = { description: 1 };
+      }
+    }
+
     const updated = (await Service.findOneAndUpdate(
       { _id: new Types.ObjectId(input.id), tenantId: new Types.ObjectId(tenantId) },
-      {
-        $set: {
-          name: input.name,
-          category: input.category,
-          price: input.price,
-          description: input.description || undefined,
-          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-        },
-      },
+      updateDoc,
       { new: true }
     ).lean()) as IService | null;
 
@@ -3448,19 +3473,30 @@ export async function updatePackageAction(rawInput: unknown): Promise<{
       componentPrice: p.componentPrice,
     }));
 
+    const descriptionToSet = input.description !== undefined ? input.description.trim() : undefined;
+
+    const updateDoc: any = {
+      $set: {
+        name: input.name,
+        pricingType: input.pricingType,
+        packagePrice: input.packagePrice,
+        services,
+        products,
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      },
+    };
+
+    if (descriptionToSet !== undefined) {
+      if (descriptionToSet.length > 0) {
+        updateDoc.$set.description = descriptionToSet;
+      } else {
+        updateDoc.$unset = { description: 1 };
+      }
+    }
+
     const updated = (await PackageTemplate.findOneAndUpdate(
       { _id: new Types.ObjectId(input.id), tenantId: new Types.ObjectId(tenantId) },
-      {
-        $set: {
-          name: input.name,
-          description: input.description || undefined,
-          pricingType: input.pricingType,
-          packagePrice: input.packagePrice,
-          services,
-          products,
-          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-        },
-      },
+      updateDoc,
       { new: true }
     ).lean()) as IPackageTemplate | null;
 

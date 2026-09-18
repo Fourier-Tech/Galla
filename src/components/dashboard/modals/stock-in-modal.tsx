@@ -110,6 +110,16 @@ export function StockInModal({
       .slice(0, 5);
   }, [supplierName, allSuppliers]);
 
+  // Warn if phone matches an existing supplier with a different name
+  const phoneConflictSupplier = useMemo(() => {
+    const digits = supplierPhone.replace(/\D/g, "").slice(-10);
+    if (digits.length < 10 || !supplierName.trim()) return null;
+    return allSuppliers.find((s) => {
+      const sDigits = (s.phone || "").replace(/\D/g, "").slice(-10);
+      return sDigits === digits && s.name.trim().toLowerCase() !== supplierName.trim().toLowerCase();
+    }) || null;
+  }, [supplierPhone, supplierName, allSuppliers]);
+
   // Unique list of categories (merges common categories with any custom categories in existing products)
   const availableCategories = useMemo(() => {
     const cats = new Set<string>(COMMON_PRODUCT_CATEGORIES);
@@ -489,7 +499,10 @@ export function StockInModal({
     setErrorMsg(null);
 
     try {
-      const trimmedSupplier = supplierName.trim();
+      // Auto-correct name if phone conflict exists
+      const trimmedSupplier = phoneConflictSupplier
+        ? phoneConflictSupplier.name
+        : supplierName.trim();
       const parsedItems = items.map((it) => ({
         productId: it.isNewProduct ? undefined : it.productId,
         isNewProduct: it.isNewProduct,
@@ -505,7 +518,7 @@ export function StockInModal({
       }));
 
       const res = await createPurchaseOrderAction({
-        supplierId: selectedSupplierId || undefined,
+        supplierId: phoneConflictSupplier ? phoneConflictSupplier.id : (selectedSupplierId || undefined),
         supplierName: trimmedSupplier,
         supplierPhone: supplierPhone.trim() ? formatPhoneNumber(supplierPhone) : undefined,
         dealerInvoiceNumber: dealerInvoiceNumber.trim() || undefined,
@@ -674,8 +687,27 @@ export function StockInModal({
                   if (supplierPhone.trim()) setSupplierPhone(formatPhoneNumber(supplierPhone));
                 }}
                 placeholder="+91 98250 00000"
-                className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
+                className={`w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border font-sans text-[13px] text-galla-ink focus:ring-1 outline-none transition-all ${phoneConflictSupplier ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400" : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"}`}
               />
+              {phoneConflictSupplier && (
+                <div className="flex items-start gap-1.5 mt-1 p-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[11.5px] rounded-[4px] font-sans">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+                  <div className="leading-tight">
+                    <span>This number is already registered to </span>
+                    <strong>{phoneConflictSupplier.name}</strong>{phoneConflictSupplier.companyName ? ` (${phoneConflictSupplier.companyName})` : ""}.
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSupplierName(phoneConflictSupplier.name);
+                        setSelectedSupplierId(phoneConflictSupplier.id);
+                      }}
+                      className="ml-1 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
+                    >
+                      Use {phoneConflictSupplier.name}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

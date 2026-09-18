@@ -99,11 +99,11 @@ function TransferStockModalContent({
       )
     : [];
 
-  const currentMargin = product.price > 0 ? (product.price - estUnitCost) / product.price : 0;
-  const lowerMarginSibling = siblingBatches.find((s) => {
+  const currentProfit = Math.max(0, product.price - estUnitCost);
+  const lowerProfitSibling = siblingBatches.find((s) => {
     const sCost = s.purchaseCost || 0;
-    const sMargin = s.price > 0 ? (s.price - sCost) / s.price : 0;
-    return sMargin < currentMargin && s.sell > 0;
+    const sProfit = Math.max(0, s.price - sCost);
+    return sProfit < currentProfit && s.sell > 0;
   });
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -280,13 +280,13 @@ function TransferStockModalContent({
                 </span>
               </div>
             </div>
-            {lowerMarginSibling ? (
+            {lowerProfitSibling ? (
               <div className="text-[11.5px] font-sans text-amber-900 bg-amber-50/90 border border-amber-200/90 p-2 rounded-[4px] leading-relaxed">
-                💡 <strong>Prioritize Lower Margin Batch:</strong> &ldquo;{lowerMarginSibling.name}&rdquo; has a lower profit margin ({Math.round(((lowerMarginSibling.price - (lowerMarginSibling.purchaseCost || 0)) / (lowerMarginSibling.price || 1)) * 100)}%). Moving the lower-margin batch to salon use is recommended to preserve high-margin stock for retail sales.
+                ⚠️ <strong>Keep This for Retail:</strong> This batch earns {formatRupee(unitProfit)} profit per unit. Use &ldquo;{lowerProfitSibling.name}&rdquo; ({formatRupee(Math.max(0, lowerProfitSibling.price - (lowerProfitSibling.purchaseCost || 0)))}/unit profit) for salon use instead.
               </div>
             ) : siblingBatches.length > 0 ? (
               <div className="text-[11.5px] font-sans text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-[4px] leading-relaxed">
-                ✓ <strong>Best for Internal Use:</strong> This batch has the lowest profit margin ({marginPct}%). Recommended for salon treatment usage.
+                ✓ <strong>Best for Internal Use:</strong> This batch has the lowest profit at {formatRupee(unitProfit)} per unit. Recommended for salon treatment usage.
               </div>
             ) : null}
           </div>

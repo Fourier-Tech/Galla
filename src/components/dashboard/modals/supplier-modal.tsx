@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, Truck, AlertCircle, Loader2 } from "lucide-react";
 import { DashboardSupplier } from "@/types/dashboard";
 import { createSupplierAction, updateSupplierAction } from "@/app/dashboard/actions";
@@ -11,6 +11,7 @@ interface SupplierModalProps {
   onClose: () => void;
   onSaveSupplier: (supplier: DashboardSupplier) => void;
   supplierToEdit?: DashboardSupplier | null;
+  suppliers?: DashboardSupplier[];
 }
 
 export function SupplierModal({
@@ -18,6 +19,7 @@ export function SupplierModal({
   onClose,
   onSaveSupplier,
   supplierToEdit,
+  suppliers = [],
 }: SupplierModalProps) {
   const isEditMode = Boolean(supplierToEdit);
 
@@ -31,6 +33,17 @@ export function SupplierModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Warn if phone matches an existing supplier with a different name
+  const phoneConflictSupplier = useMemo(() => {
+    const digits = phone.replace(/\D/g, "").slice(-10);
+    if (digits.length < 10 || !name.trim()) return null;
+    return suppliers.find((s) => {
+      if (supplierToEdit && s.id === supplierToEdit.id) return false;
+      const sDigits = (s.phone || "").replace(/\D/g, "").slice(-10);
+      return sDigits === digits && s.name.trim().toLowerCase() !== name.trim().toLowerCase();
+    }) || null;
+  }, [phone, name, suppliers, supplierToEdit]);
 
   // Sync state when modal opens or target changes
   useEffect(() => {
@@ -82,7 +95,7 @@ export function SupplierModal({
     e.preventDefault();
     setErrorMsg(null);
 
-    const trimmedName = name.trim();
+    const trimmedName = phoneConflictSupplier ? phoneConflictSupplier.name : name.trim();
     if (!trimmedName) {
       setErrorMsg("Supplier name is required.");
       return;
@@ -223,8 +236,24 @@ export function SupplierModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="98250 12345"
-                className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line text-[13.5px] font-sans text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none"
+                className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans text-galla-ink focus:ring-1 outline-none ${phoneConflictSupplier ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400" : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"}`}
               />
+              {phoneConflictSupplier && (
+                <div className="flex items-start gap-1.5 mt-1 p-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[11.5px] rounded-[4px] font-sans">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+                  <div className="leading-tight">
+                    <span>This number is already registered to </span>
+                    <strong>{phoneConflictSupplier.name}</strong>{phoneConflictSupplier.companyName ? ` (${phoneConflictSupplier.companyName})` : ""}.
+                    <button
+                      type="button"
+                      onClick={() => setName(phoneConflictSupplier.name)}
+                      className="ml-1 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
+                    >
+                      Use {phoneConflictSupplier.name}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className="block font-sans text-[12.5px] font-medium text-galla-ink mb-1">

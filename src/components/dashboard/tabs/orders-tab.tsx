@@ -970,10 +970,6 @@ export function OrdersTab({
                         customLabel={
                           isPartialRefund && order.refundAmount
                             ? `${formatRupee(order.refundAmount)} Refunded`
-                            : order.status === "paid_full" && (order.type === "Product sale" || order.lineItems?.some((li) => li.itemType === "product" && !li.fulfilled))
-                            ? "Paid • Delivery Pending"
-                            : order.status === "advance_paid" && (order.type === "Product sale" || order.lineItems?.some((li) => li.itemType === "product" && !li.fulfilled))
-                            ? "Adv. • Delivery Pending"
                             : undefined
                         }
                         title={order.refundReason ? `Reason: ${order.refundReason}` : undefined}

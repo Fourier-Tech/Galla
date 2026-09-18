@@ -102,7 +102,7 @@ export function ServiceModal({
           name: trimmedName,
           category: finalCategory,
           price: numPrice,
-          description: description.trim() || undefined,
+          description: description.trim(),
           isActive,
         });
 

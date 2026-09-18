@@ -118,6 +118,21 @@ export function OrderDetailsModal({
     }
   };
 
+  const itemsSubtotal =
+    typeof order.subtotal === "number" && order.subtotal > 0
+      ? order.subtotal
+      : order.lineItems && order.lineItems.length > 0
+      ? order.lineItems.reduce(
+          (sum, item) => sum + (item.finalPrice || item.unitPrice * (item.quantity || 1)),
+          0
+        )
+      : order.amount;
+
+  const expectedNet = Math.max(0, itemsSubtotal - (order.discountAmount || 0));
+  const extraOnBill = order.amount > expectedNet ? order.amount - expectedNet : 0;
+  const overpaid = order.paid > order.amount ? order.paid - order.amount : 0;
+  const totalExtra = extraOnBill + overpaid;
+
   return (
     <div
       role="dialog"
@@ -442,61 +457,92 @@ export function OrderDetailsModal({
 
           {/* Billing & Financial Breakdown */}
           <div className="p-4 bg-galla-paper/40 border border-galla-line rounded-[8px] space-y-2">
-            <span className="block font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
-              Payment &amp; Financial Summary
-            </span>
-
-            {typeof order.subtotal === "number" && order.subtotal !== order.amount && (
-              <div className="flex justify-between text-[13px] text-galla-ink-soft">
-                <span>Subtotal:</span>
-                <span className="tabular-nums font-mono">{formatRupee(order.subtotal)}</span>
-              </div>
-            )}
-
-            {order.discountAmount && order.discountAmount > 0 ? (
-              <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
-                <span>
-                  Discount {order.discountType === "percentage" ? `(${order.discountValue}%)` : ""}:
+                <span className="block font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
+                  Payment &amp; Financial Summary
                 </span>
-                <span className="tabular-nums font-mono">- {formatRupee(order.discountAmount)}</span>
-              </div>
-            ) : null}
 
-            <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
-              <span>Total Bill Amount:</span>
-              <span className="tabular-nums text-[16px]">{formatRupee(order.amount)}</span>
-            </div>
+                {(typeof order.subtotal === "number" || (order.lineItems && order.lineItems.length > 0)) &&
+                  (itemsSubtotal !== order.amount || extraOnBill > 0) && (
+                    <div className="flex justify-between text-[13px] text-galla-ink-soft">
+                      <span>Subtotal:</span>
+                      <span className="tabular-nums font-mono">{formatRupee(itemsSubtotal)}</span>
+                    </div>
+                  )}
 
-            <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium">
-              <span className="inline-flex items-center gap-1.5">
-                <Wallet className="h-3.5 w-3.5" />
-                <span>Amount Paid:</span>
-                {order.paymentMode && (
-                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                    {order.paymentMode}
-                  </span>
+                {order.discountAmount && order.discountAmount > 0 ? (
+                  <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
+                    <span>
+                      Discount {order.discountType === "percentage" ? `(${order.discountValue}%)` : ""}:
+                    </span>
+                    <span className="tabular-nums font-mono">- {formatRupee(order.discountAmount)}</span>
+                  </div>
+                ) : null}
+
+                {extraOnBill > 0 && (
+                  <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span>Extra Paid:</span>
+                    </span>
+                    <span className="tabular-nums font-mono">+{formatRupee(extraOnBill)}</span>
+                  </div>
                 )}
-              </span>
-              <span className="tabular-nums font-mono">{formatRupee(order.paid)}</span>
-            </div>
 
-            {isDue ? (
-              <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
-                <span className="inline-flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span>Pending Due Balance:</span>
-                </span>
-                <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
-              </div>
-            ) : isCompleted ? (
-              <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
-                <span className="inline-flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Balance:</span>
-                </span>
-                <span>Fully Settled (₹0 Due)</span>
-              </div>
-            ) : null}
+                <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
+                  <span>Total Bill Amount:</span>
+                  <span className="tabular-nums text-[16px]">{formatRupee(order.amount)}</span>
+                </div>
+
+                <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span>Amount Paid:</span>
+                    {order.paymentMode && (
+                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                        {order.paymentMode}
+                      </span>
+                    )}
+                  </span>
+                  <span className="tabular-nums font-mono">{formatRupee(order.paid)}</span>
+                </div>
+
+                {overpaid > 0 && (
+                  <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span>Overpaid Extra:</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                        +{formatRupee(overpaid)}
+                      </span>
+                    </span>
+                    <span className="tabular-nums font-mono">+{formatRupee(overpaid)}</span>
+                  </div>
+                )}
+
+                {isDue ? (
+                  <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
+                    <span className="inline-flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      <span>Pending Due Balance:</span>
+                    </span>
+                    <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
+                  </div>
+                ) : isCompleted ? (
+                  <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
+                    <span className="inline-flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Balance:</span>
+                    </span>
+                    {totalExtra > 0 ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span>Fully Settled</span>
+                        <span className="text-[10.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                          +{formatRupee(totalExtra)} Extra Paid
+                        </span>
+                      </span>
+                    ) : (
+                      <span>Fully Settled (₹0 Due)</span>
+                    )}
+                  </div>
+                ) : null}
 
             {/* Payment History Log */}
             {order.payments && order.payments.length > 0 && (() => {

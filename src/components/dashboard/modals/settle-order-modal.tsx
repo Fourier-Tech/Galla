@@ -117,15 +117,6 @@ function SettleOrderModalContent({
           </button>
         </div>
 
-        {order.lineItems?.some((li) => !li.fulfilled) && (
-          <div className="mb-3.5 p-2.5 bg-blue-50/80 border border-blue-200 rounded-[5px] text-[11.5px] text-blue-900 flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-blue-700 shrink-0 mt-0.5" />
-            <span>
-              <strong>Delivery Fulfillment:</strong> Completing this order fulfills pending items and deducts stock from inventory. All physical items must be in stock.
-            </span>
-          </div>
-        )}
-
         {/* Order Payment Summary Card */}
         <div className="mb-4 p-3 bg-galla-paper/70 border border-galla-line rounded-[5px] space-y-1.5 text-[12.5px] font-sans">
           <div className="flex justify-between text-galla-ink-soft">

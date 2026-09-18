@@ -200,7 +200,7 @@ export function PackageModal({
         const res = await updatePackageAction({
           id: packageToEdit.id,
           name: trimmedName,
-          description: description.trim() || undefined,
+          description: description.trim(),
           pricingType,
           packagePrice: finalPrice,
           services: selectedServices,
