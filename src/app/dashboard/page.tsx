@@ -184,7 +184,7 @@ export default async function DashboardPage() {
         Customer.find({ tenantId: tenantObjectId, isActive: true })
           .sort({ "stats.lastVisitAt": -1, updatedAt: -1 })
           .lean(),
-        Expense.find({ tenantId: tenantObjectId })
+        Expense.find({ tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } })
           .sort({ expenseDate: -1, createdAt: -1 })
           .limit(20)
           .lean(),
@@ -195,13 +195,13 @@ export default async function DashboardPage() {
           { $match: { tenantId: tenantObjectId } },
           { $group: { _id: "$status", count: { $sum: 1 } } },
         ]),
-        Expense.countDocuments({ tenantId: tenantObjectId }),
+        Expense.countDocuments({ tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } }),
         Expense.aggregate([
-          { $match: { tenantId: tenantObjectId } },
+          { $match: { tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } } },
           { $group: { _id: "$category", count: { $sum: 1 } } },
         ]),
         Expense.aggregate([
-          { $match: { tenantId: tenantObjectId } },
+          { $match: { tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } } },
           { $group: { _id: null, total: { $sum: "$amount" } } },
         ]),
         Supplier.find({
@@ -490,6 +490,11 @@ export default async function DashboardPage() {
         createdAt: (e.expenseDate || e.createdAt)
           ? new Date(e.expenseDate || e.createdAt).toISOString()
           : undefined,
+        paymentMode: e.paymentMode || undefined,
+        recipient: e.recipient || undefined,
+        recordedBy: e.recordedBy || undefined,
+        linkedPurchaseOrderId: e.linkedPurchaseOrderId?.toString() || undefined,
+        linkedOrderId: e.linkedOrderId?.toString() || undefined,
       }));
 
       initialTotalExpensesCount = expensesCount;

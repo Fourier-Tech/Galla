@@ -109,6 +109,11 @@ export interface DashboardExpense {
   isToday?: boolean;
   notes?: string;
   createdAt?: string;
+  paymentMode?: string;
+  recipient?: string;
+  recordedBy?: string;
+  linkedPurchaseOrderId?: string;
+  linkedOrderId?: string;
 }
 
 export interface DashboardSalonProfile {

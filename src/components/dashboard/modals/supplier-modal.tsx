@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { X, Truck, AlertCircle, Loader2 } from "lucide-react";
 import { DashboardSupplier } from "@/types/dashboard";
 import { createSupplierAction, updateSupplierAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber } from "@/lib/utils";
+import { formatPhoneNumber, getPhoneDigits } from "@/lib/utils";
 
 interface SupplierModalProps {
   isOpen: boolean;
@@ -34,16 +34,33 @@ export function SupplierModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Check if an existing supplier with the exact same name and phone number already exists
+  const existingExactSupplier = useMemo(() => {
+    const digits = getPhoneDigits(phone);
+    const trimmedName = name.trim().toLowerCase();
+    if (digits.length < 10 || !trimmedName) return null;
+    return (
+      suppliers.find((s) => {
+        if (supplierToEdit && s.id === supplierToEdit.id) return false;
+        const sDigits = getPhoneDigits(s.phone);
+        return sDigits === digits && s.name.trim().toLowerCase() === trimmedName;
+      }) || null
+    );
+  }, [phone, name, suppliers, supplierToEdit]);
+
   // Warn if phone matches an existing supplier with a different name
   const phoneConflictSupplier = useMemo(() => {
-    const digits = phone.replace(/\D/g, "").slice(-10);
+    if (existingExactSupplier) return null;
+    const digits = getPhoneDigits(phone);
     if (digits.length < 10 || !name.trim()) return null;
-    return suppliers.find((s) => {
-      if (supplierToEdit && s.id === supplierToEdit.id) return false;
-      const sDigits = (s.phone || "").replace(/\D/g, "").slice(-10);
-      return sDigits === digits && s.name.trim().toLowerCase() !== name.trim().toLowerCase();
-    }) || null;
-  }, [phone, name, suppliers, supplierToEdit]);
+    return (
+      suppliers.find((s) => {
+        if (supplierToEdit && s.id === supplierToEdit.id) return false;
+        const sDigits = getPhoneDigits(s.phone);
+        return sDigits === digits && s.name.trim().toLowerCase() !== name.trim().toLowerCase();
+      }) || null
+    );
+  }, [phone, name, suppliers, supplierToEdit, existingExactSupplier]);
 
   // Sync state when modal opens or target changes
   useEffect(() => {
@@ -95,9 +112,14 @@ export function SupplierModal({
     e.preventDefault();
     setErrorMsg(null);
 
-    const trimmedName = phoneConflictSupplier ? phoneConflictSupplier.name : name.trim();
+    const trimmedName = name.trim() || phoneConflictSupplier?.name || "";
     if (!trimmedName) {
       setErrorMsg("Supplier name is required.");
+      return;
+    }
+
+    if (existingExactSupplier && !isEditMode) {
+      setErrorMsg(`A supplier with this name and mobile number is already registered.`);
       return;
     }
 
@@ -206,7 +228,11 @@ export function SupplierModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Ramesh Patel"
-              className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line text-[13.5px] font-sans text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none"
+              className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans text-galla-ink focus:ring-1 outline-none ${
+                existingExactSupplier && !isEditMode
+                  ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400"
+                  : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
+              }`}
             />
           </div>
 
@@ -236,20 +262,39 @@ export function SupplierModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="98250 12345"
-                className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans text-galla-ink focus:ring-1 outline-none ${phoneConflictSupplier ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400" : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"}`}
+                className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans text-galla-ink focus:ring-1 outline-none ${
+                  (existingExactSupplier && !isEditMode) || phoneConflictSupplier
+                    ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400"
+                    : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
+                }`}
               />
+              {existingExactSupplier && !isEditMode && (
+                <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-900 text-[12px] rounded-[4px] font-sans">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                  <div className="leading-tight">
+                    <span>A supplier with name </span>
+                    <strong className="font-semibold">{existingExactSupplier.name}</strong>
+                    <span> and mobile number </span>
+                    <strong className="font-semibold">{formatPhoneNumber(existingExactSupplier.phone)}</strong>
+                    <span> is already registered.</span>
+                  </div>
+                </div>
+              )}
               {phoneConflictSupplier && (
                 <div className="flex items-start gap-1.5 mt-1 p-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[11.5px] rounded-[4px] font-sans">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
                   <div className="leading-tight">
-                    <span>This number is already registered to </span>
+                    <span>This number is registered to </span>
                     <strong>{phoneConflictSupplier.name}</strong>{phoneConflictSupplier.companyName ? ` (${phoneConflictSupplier.companyName})` : ""}.
+                    <span> Saving will update the supplier name to </span>
+                    <strong>{name.trim() || phoneConflictSupplier.name}</strong>
+                    <span> permanently.</span>
                     <button
                       type="button"
                       onClick={() => setName(phoneConflictSupplier.name)}
-                      className="ml-1 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
+                      className="ml-1.5 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
                     >
-                      Use {phoneConflictSupplier.name}
+                      Keep {phoneConflictSupplier.name}
                     </button>
                   </div>
                 </div>
@@ -323,11 +368,12 @@ export function SupplierModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              disabled={isSubmitting || Boolean(existingExactSupplier && !isEditMode)}
+              title={existingExactSupplier && !isEditMode ? "This supplier is already registered" : undefined}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              <span>{isEditMode ? "Save Changes" : "Register Supplier"}</span>
+              <span>{isEditMode ? "Save Changes" : existingExactSupplier ? "Already Registered" : "Register Supplier"}</span>
             </button>
           </div>
         </form>

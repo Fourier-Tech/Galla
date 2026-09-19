@@ -31,6 +31,7 @@ export interface IExpense extends Document {
   linkedProductId?: Types.ObjectId;
   linkedQuantity?: number;
   linkedPurchaseOrderId?: Types.ObjectId;
+  linkedOrderId?: Types.ObjectId;
   notes?: string;
   recordedBy: "owner" | "staff";
   createdAt: Date;
@@ -108,6 +109,10 @@ const ExpenseSchema = new Schema<IExpense>(
     linkedPurchaseOrderId: {
       type: Schema.Types.ObjectId,
       ref: "PurchaseOrder",
+    },
+    linkedOrderId: {
+      type: Schema.Types.ObjectId,
+      ref: "Order",
     },
     notes: {
       type: String,

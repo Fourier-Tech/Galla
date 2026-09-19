@@ -26,20 +26,23 @@ import {
   DashboardProduct,
 } from "@/types/dashboard";
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber } from "@/lib/utils";
+import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber, getPhoneDigits } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
-
-function getPhoneDigits(val: string): string {
-  const digits = val.replace(/\D/g, "");
-  return digits.length > 10 ? digits.slice(-10) : digits;
-}
 
 function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]) {
   if (!pkg.products || pkg.products.length === 0) {
-    return { hasProducts: false, isOutOfStock: false, missingNames: [] };
+    return {
+      hasProducts: false,
+      isOutOfStock: false,
+      missingNames: [],
+      hasRetailBackup: false,
+      retailAvailable: 0,
+    };
   }
 
   const missingNames: string[] = [];
+  let hasRetailBackup = false;
+  let totalRetail = 0;
 
   for (const pItem of pkg.products) {
     const cleanItemName = pItem.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase();
@@ -49,9 +52,15 @@ function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]
       return base === cleanItemName;
     });
 
-    const totalAvailable = matchingProducts.reduce((sum, p) => sum + (p.sell || 0) + (p.use || 0), 0);
-    if (totalAvailable < (pItem.quantity || 1)) {
+    const useAvailable = matchingProducts.reduce((sum, p) => sum + (p.use || 0), 0);
+    const sellAvailable = matchingProducts.reduce((sum, p) => sum + (p.sell || 0), 0);
+
+    if (useAvailable < (pItem.quantity || 1)) {
       missingNames.push(pItem.name);
+      if (sellAvailable >= (pItem.quantity || 1)) {
+        hasRetailBackup = true;
+        totalRetail += sellAvailable;
+      }
     }
   }
 
@@ -59,6 +68,8 @@ function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]
     hasProducts: true,
     isOutOfStock: missingNames.length > 0,
     missingNames,
+    hasRetailBackup,
+    retailAvailable: totalRetail,
   };
 }
 
@@ -553,10 +564,8 @@ export function NewOrderModal({
         quantity: item.quantity,
         finalPrice: item.price * item.quantity,
       }));
-      // Auto-correct name if phone conflict exists
-      const resolvedCustomerName = phoneConflictCustomer
-        ? phoneConflictCustomer.name
-        : customer.trim();
+      // Use the customer name entered by the user; fallback to existing customer name or Walk-in Guest
+      const resolvedCustomerName = customer.trim() || phoneConflictCustomer?.name || "Walk-in Guest";
 
       const res = await createOrderAction({
         customerName: resolvedCustomerName,
@@ -715,14 +724,17 @@ export function NewOrderModal({
                 <div className="mt-1.5 flex items-start gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-[4px] p-2">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="leading-tight">
-                    <span>This mobile number is already registered with </span>
+                    <span>This mobile number is registered with </span>
                     <span className="font-semibold">{phoneConflictCustomer.name}</span>.
+                    <span> Creating this order will update the customer name to </span>
+                    <span className="font-semibold">{customer.trim() || phoneConflictCustomer.name}</span>
+                    <span> permanently.</span>
                     <button
                       type="button"
                       onClick={() => setCustomer(phoneConflictCustomer.name)}
-                      className="ml-1 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
+                      className="ml-1.5 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
                     >
-                      Use {phoneConflictCustomer.name}
+                      Keep {phoneConflictCustomer.name}
                     </button>
                   </div>
                 </div>
@@ -1025,7 +1037,7 @@ export function NewOrderModal({
                               </span>
                               {stockInfo.isOutOfStock && (
                                 <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
-                                  Advance Only &bull; Out of Stock
+                                  Advance Only &bull; No In-Use Stock
                                 </span>
                               )}
                               {stockInfo.hasProducts && !stockInfo.isOutOfStock && (
@@ -1034,7 +1046,7 @@ export function NewOrderModal({
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5 truncate max-w-sm">
+                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5 max-w-md line-clamp-2">
                               {p.services.length} services ({p.services.map((s) => s.name).join(", ")})
                               {p.products && p.products.length > 0 && (
                                 <> &bull; {p.products.length} products ({p.products.map((pr) => pr.name).join(", ")})</>
@@ -1042,7 +1054,13 @@ export function NewOrderModal({
                             </div>
                             {stockInfo.isOutOfStock && (
                               <div className="text-[11px] text-amber-700 font-medium mt-0.5">
-                                ⚠️ Missing stock: {stockInfo.missingNames.join(", ")}
+                                ⚠️ Missing in-use stock: {stockInfo.missingNames.join(", ")}
+                                {stockInfo.hasRetailBackup && (
+                                  <span className="text-amber-900 font-normal">
+                                    {" "}
+                                    ({stockInfo.retailAvailable} pcs on retail shelf — use &lsquo;Move / Use&rsquo; in Inventory to transfer)
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>

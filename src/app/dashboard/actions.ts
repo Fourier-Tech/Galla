@@ -27,8 +27,6 @@ import {
   createPurchaseOrderSchema,
   recordPurchaseOrderPaymentSchema,
   reschedulePurchaseOrderSchema,
-  markPurchaseOrderDeliveredSchema,
-  fulfillOrderLineItemSchema,
   createProductSchema,
   updateProductSchema,
   deleteProductSchema,
@@ -39,7 +37,6 @@ import {
   updatePackageSchema,
   createSupplierSchema,
   updateSupplierSchema,
-  deleteSupplierSchema,
   updateCustomerSchema,
 } from "@/lib/validations/dashboard";
 import {
@@ -148,7 +145,7 @@ async function checkPackageProductsAvailability(
     const needed = packageQuantity * pItem.quantity;
     const batches = await getProductBatchesForInternalUse(tenantId, pItem.productId, session);
     const totalAvailable = batches.reduce(
-      (sum, b) => sum + Math.max(0, b.useStock) + Math.max(0, b.sellStock),
+      (sum, b) => sum + Math.max(0, b.useStock),
       0
     );
     if (totalAvailable < needed) {
@@ -167,8 +164,7 @@ async function checkPackageProductsAvailability(
 }
 
 /**
- * Deducts package product requirements from stock:
- * - Checks useStock first, falls back to sellStock
+ * Deducts package product requirements strictly from internal useStock:
  * - Prioritizes the lower profit margin batch for in-salon consumption
  */
 async function deductPackageProductsFromStock(
@@ -188,11 +184,6 @@ async function deductPackageProductsFromStock(
       const takeUse = Math.min(batch.useStock, remaining);
       batch.useStock -= takeUse;
       remaining -= takeUse;
-      if (remaining > 0 && batch.sellStock > 0) {
-        const takeSell = Math.min(batch.sellStock, remaining);
-        batch.sellStock -= takeSell;
-        remaining -= takeSell;
-      }
       await batch.save(session ? { session } : undefined);
     }
     if (batches.length > 0) {
@@ -396,6 +387,12 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             item.fulfilled = isFullPayment;
             if (!item.fulfilled) hasUnfulfilledProduct = true;
             await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1, dbSession);
+            const pkgTpl = await PackageTemplate.findOne({ _id: item.itemId, tenantId }).session(dbSession);
+            if (pkgTpl && pkgTpl.products) {
+              for (const pr of pkgTpl.products) {
+                affectedProductNames.add(pr.name);
+              }
+            }
           }
         }
       }
@@ -538,8 +535,14 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         }).session(dbSession);
 
         if (existingCustomer) {
+          const oldName = existingCustomer.name;
+          const trimmedName = input.customerName?.trim();
+          const nameChanged = Boolean(trimmedName && trimmedName !== "Walk-in Guest" && trimmedName !== oldName);
+
           existingCustomer.phone = formattedPhone;
-          existingCustomer.name = input.customerName || existingCustomer.name;
+          if (trimmedName && trimmedName !== "Walk-in Guest") {
+            existingCustomer.name = trimmedName;
+          }
           if (!existingCustomer.stats) {
             existingCustomer.stats = { totalVisits: 0, totalSpend: 0, outstandingBalance: 0, lastVisitAt: new Date() };
           }
@@ -549,8 +552,39 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           existingCustomer.stats.outstandingBalance = Math.max(0, (existingCustomer.stats.outstandingBalance || 0) + netBalanceAdjustment);
           existingCustomer.stats.lastVisitAt = new Date();
           await existingCustomer.save({ session: dbSession });
+
+          createdOrder.customerId = existingCustomer._id;
+          await createdOrder.save({ session: dbSession });
+
+          // If customer name was changed for this mobile number, sync existing orders with this phone number permanently
+          if (nameChanged && trimmedName) {
+            await Order.updateMany(
+              {
+                tenantId,
+                $or: [
+                  { customerId: existingCustomer._id },
+                  { "customerSnapshot.phone": formattedPhone },
+                  ...(rawDigits.length === 10
+                    ? [
+                        { "customerSnapshot.phone": rawDigits },
+                        { "customerSnapshot.phone": `+91${rawDigits}` },
+                        { "customerSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}` },
+                        { "customerSnapshot.phone": `0${rawDigits}` },
+                      ]
+                    : []),
+                ],
+              },
+              {
+                $set: {
+                  "customerSnapshot.name": trimmedName,
+                  "customerSnapshot.phone": formattedPhone,
+                },
+              },
+              { session: dbSession }
+            );
+          }
         } else {
-          await Customer.create(
+          const [newCust] = await Customer.create(
             [
               {
                 tenantId,
@@ -567,6 +601,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             ],
             { session: dbSession }
           );
+          createdOrder.customerId = newCust._id;
+          await createdOrder.save({ session: dbSession });
         }
       } else {
         const netBalanceAdjustment = amountPending - (input.clearedDueAmount || 0);
@@ -589,6 +625,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
 
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_created");
+    broadcastUpdate(tenantId, "customer_updated");
 
     const newOrderDoc = newDoc.createdOrder;
 
@@ -797,6 +834,12 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
             }
           } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
             await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1);
+            const pkgTpl = await PackageTemplate.findOne({ _id: item.itemId, tenantId });
+            if (pkgTpl && pkgTpl.products) {
+              for (const pr of pkgTpl.products) {
+                affectedProductNames.add(pr.name);
+              }
+            }
           }
         }
         item.fulfilled = true;
@@ -1042,6 +1085,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         category: "refund",
         amount: refundAmount,
         paymentMode: refundMode,
+        linkedOrderId: order._id,
         notes: refundReason || `Refund processed for order ${order.orderNumber}`,
         expenseDate: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
@@ -1055,6 +1099,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         category: "Refund",
         time: "Today, Just now",
         isToday: true,
+        paymentMode: refundMode,
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        linkedOrderId: order._id.toString(),
         createdAt: expenseDoc.expenseDate ? new Date(expenseDoc.expenseDate).toISOString() : new Date().toISOString(),
       };
     } else if (refundAmount > prevAmountPaid) {
@@ -1071,6 +1118,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         category: "refund",
         amount: excessAmount,
         paymentMode: refundMode,
+        linkedOrderId: order._id,
         notes: refundReason || `Excess refund compensation for order ${order.orderNumber}`,
         expenseDate: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
@@ -1084,6 +1132,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         category: "Refund",
         time: "Today, Just now",
         isToday: true,
+        paymentMode: refundMode,
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        linkedOrderId: order._id.toString(),
         createdAt: expenseDoc.expenseDate ? new Date(expenseDoc.expenseDate).toISOString() : new Date().toISOString(),
       };
     }
@@ -1234,6 +1285,8 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
         category: input.category,
         time: "Today, Just now",
         isToday: true,
+        paymentMode: newDoc.paymentMode,
+        recordedBy: newDoc.recordedBy,
         notes: newDoc.notes || undefined,
         createdAt: newDoc.expenseDate ? new Date(newDoc.expenseDate).toISOString() : new Date().toISOString(),
       },
@@ -1296,40 +1349,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       }
 
       await product.save({ session: dbSession });
-
-      // Invariant: Moving stock from sellStock -> useStock records an automatic Expense strictly at purchase price, NOT retail sell price
-      const unitCost =
-        typeof product.purchaseCost === "number" && !isNaN(product.purchaseCost)
-          ? product.purchaseCost
-          : 0;
-      const transferCost = unitCost * quantity;
-
-      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
-        tenantId,
-        type: "expense",
-        session: dbSession,
-      });
-
-      const [expense] = await Expense.create(
-        [
-          {
-            tenantId,
-            expenseNumber,
-            title: `Internal transfer — ${quantity}x ${product.name}`,
-            category: "stock_transfer_internal",
-            amount: transferCost,
-            paymentMode: "internal_transfer",
-            linkedProductId: product._id,
-            linkedQuantity: quantity,
-            notes: `Moved ${quantity} pcs from retail to salon use. Expense calculated using purchase price (₹${unitCost}/pc) instead of sell price (₹${product.expectedSellPrice}/pc).`,
-            expenseDate: new Date(),
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
-          },
-        ],
-        { session: dbSession }
-      );
-
-      return { product, expense };
+      return { product };
     });
 
     revalidatePath("/dashboard");
@@ -1354,15 +1374,6 @@ export async function transferStockAction(rawInput: unknown): Promise<{
         description: result.product.description,
         barcode: result.product.barcode,
         isActive: result.product.isActive,
-      },
-      newExpense: {
-        id: result.expense._id.toString(),
-        expenseNumber: result.expense.expenseNumber,
-        desc: result.expense.title,
-        amount: result.expense.amount,
-        category: "Day-to-day",
-        time: "Today, Just now",
-        isToday: true,
       },
     };
   } catch (error) {
@@ -2092,6 +2103,8 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         ? formatPhoneNumber(input.supplierPhone)
         : "";
 
+      const rawSupplierDigits = normalizedSupplierPhone.replace(/\D/g, "").slice(-10);
+
       let supplier = null;
       if (input.supplierId && Types.ObjectId.isValid(input.supplierId)) {
         supplier = await Supplier.findOne({ _id: new Types.ObjectId(input.supplierId), tenantId: tenantObjectId }).session(dbSession);
@@ -2102,6 +2115,9 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
           $or: [
             { phone: normalizedSupplierPhone },
             { phone: input.supplierPhone?.trim() },
+            ...(rawSupplierDigits.length === 10
+              ? [{ phone: rawSupplierDigits }, { phone: `+91${rawSupplierDigits}` }, { phone: `0${rawSupplierDigits}` }]
+              : []),
           ],
         }).session(dbSession);
       }
@@ -2130,16 +2146,52 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         );
         supplier = createdSupplier;
       } else {
+        const oldSupplierName = supplier.name;
+        const newSupplierName = input.supplierName?.trim();
+        const supplierNameChanged = Boolean(newSupplierName && newSupplierName !== oldSupplierName);
+
+        if (supplierNameChanged && newSupplierName) {
+          supplier.name = newSupplierName;
+        }
+        if (normalizedSupplierPhone) {
+          supplier.phone = normalizedSupplierPhone;
+        }
+        if (input.supplierCompany?.trim()) {
+          supplier.companyName = input.supplierCompany.trim();
+        }
         supplier.totalPurchases = (supplier.totalPurchases || 0) + totalAmount;
         supplier.totalPaid = (supplier.totalPaid || 0) + finalAmountPaid;
         supplier.totalPending = (supplier.totalPending || 0) + amountPending;
-        if (input.supplierCompany && !supplier.companyName) {
-          supplier.companyName = input.supplierCompany.trim();
-        }
-        if (normalizedSupplierPhone && (!supplier.phone || supplier.phone === "")) {
-          supplier.phone = normalizedSupplierPhone;
-        }
         await supplier.save({ session: dbSession });
+
+        // If supplier name was changed permanently, sync all previous purchase orders for this supplier!
+        if (supplierNameChanged && newSupplierName) {
+          await PurchaseOrder.updateMany(
+            {
+              tenantId: tenantObjectId,
+              $or: [
+                { supplierId: supplier._id },
+                { "supplierSnapshot.phone": normalizedSupplierPhone },
+                ...(rawSupplierDigits.length === 10
+                  ? [
+                      { "supplierSnapshot.phone": rawSupplierDigits },
+                      { "supplierSnapshot.phone": `+91${rawSupplierDigits}` },
+                      { "supplierSnapshot.phone": `+91 ${rawSupplierDigits.slice(0, 5)} ${rawSupplierDigits.slice(5)}` },
+                      { "supplierSnapshot.phone": `0${rawSupplierDigits}` },
+                    ]
+                  : []),
+              ],
+            },
+            {
+              $set: {
+                "supplierSnapshot.name": newSupplierName,
+                "supplierSnapshot.phone": normalizedSupplierPhone || supplier.phone,
+                ...(supplier.companyName ? { "supplierSnapshot.companyName": supplier.companyName } : {}),
+              },
+            },
+            { session: dbSession }
+          );
+        }
       }
 
       const [createdPO] = await PurchaseOrder.create(
@@ -2235,6 +2287,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
 
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "purchase_order_created");
+    broadcastUpdate(tenantId, "supplier_updated");
     if (result.updatedProductsList && result.updatedProductsList.length > 0) {
       broadcastUpdate(tenantId, "stock_in_created");
     }
@@ -2309,6 +2362,9 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
           time: "Today, Just now",
           isToday: true,
           createdAt: new Date().toISOString(),
+          paymentMode: exp.paymentMode,
+          recordedBy: exp.recordedBy,
+          linkedPurchaseOrderId: po._id.toString(),
         }
       : undefined;
 
@@ -2366,11 +2422,16 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         throw new Error("Purchase order not found");
       }
 
-      if (po.paymentStatus === "paid" || po.amountPending <= 0) {
-        throw new Error("Purchase order is already fully paid");
+      // Check if already fully settled
+      if ((po.paymentStatus === "paid" || po.amountPending <= 0) && po.stockAllocated) {
+        throw new Error("Purchase order is already fully paid and settled");
       }
 
-      if (input.amount <= 0) {
+      if (input.amount < 0) {
+        throw new Error("Payment amount cannot be negative");
+      }
+
+      if (input.amount === 0 && (po.amountPending > 0 || po.stockAllocated)) {
         throw new Error("Payment amount must be greater than 0");
       }
 
@@ -2380,28 +2441,40 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
 
       // Update PurchaseOrder
       const priorPaid = po.amountPaid;
-      po.amountPaid += input.amount;
-      po.amountPending = Math.max(0, po.amountPending - input.amount);
+      if (input.amount > 0) {
+        po.amountPaid += input.amount;
+        po.amountPending = Math.max(0, po.amountPending - input.amount);
 
-      if (!po.payments) po.payments = [];
-      if (po.payments.length === 0 && priorPaid > 0) {
+        if (!po.payments) po.payments = [];
+        if (po.payments.length === 0 && priorPaid > 0) {
+          po.payments.push({
+            amount: priorPaid,
+            paymentMode: po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
+            notes: po.notes,
+            recordedBy: po.recordedBy || "owner",
+            type: "initial",
+          });
+        }
+
         po.payments.push({
-          amount: priorPaid,
-          paymentMode: po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
-          notes: po.notes,
-          recordedBy: po.recordedBy || "owner",
-          type: "initial",
+          amount: input.amount,
+          paymentMode: input.paymentMode,
+          notes: input.notes?.trim() || undefined,
+          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          type: "settlement",
+          recordedAt: new Date(),
+        });
+      } else if (input.notes?.trim()) {
+        if (!po.payments) po.payments = [];
+        po.payments.push({
+          amount: 0,
+          paymentMode: input.paymentMode,
+          notes: `Settled: ${input.notes.trim()}`,
+          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          type: "settlement",
+          recordedAt: new Date(),
         });
       }
-
-      po.payments.push({
-        amount: input.amount,
-        paymentMode: input.paymentMode,
-        notes: input.notes?.trim() || undefined,
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
-        type: "settlement",
-        recordedAt: new Date(),
-      });
 
       // Recalculate paymentStatus using the same rule:
       // if (amountPaid >= totalAmount) → "paid"
@@ -2415,9 +2488,9 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         po.paymentStatus = "partial";
       }
 
-      // If purchase order is now fully paid and stock hasn't been allocated yet, allocate stock
+      // If purchase order is now fully paid (or 0-due settlement) and stock hasn't been allocated yet, allocate stock
       const updatedProductsList: DashboardProduct[] = [];
-      if (po.paymentStatus === "paid" && !po.stockAllocated) {
+      if ((po.paymentStatus === "paid" || input.amount === 0) && !po.stockAllocated) {
         for (const item of (po.items || [])) {
           if (!item.productId) continue;
           let prod = null;
@@ -2451,13 +2524,14 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
           }
         }
         po.stockAllocated = true;
+        po.settlementMode = "completed";
       }
 
       await po.save({ session: dbSession });
 
-      // Update linked Supplier in the same transaction
+      // Update linked Supplier in the same transaction (only if payment > 0)
       let updatedSupplierDoc = null;
-      if (po.supplierId) {
+      if (po.supplierId && input.amount > 0) {
         const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId: tenantObjectId }).session(dbSession);
         if (supplier) {
           supplier.totalPaid = (supplier.totalPaid || 0) + input.amount;
@@ -2467,32 +2541,36 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         }
       }
 
-      // Record Expense for this payment
-      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
-        tenantId: tenantObjectId,
-        type: "expense",
-        session: dbSession,
-      });
+      // Record Expense for this payment (only if payment > 0)
+      let createdExpDoc: any = null;
+      if (input.amount > 0) {
+        const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+          tenantId: tenantObjectId,
+          type: "expense",
+          session: dbSession,
+        });
 
-      const [createdExp] = await Expense.create(
-        [
-          {
-            tenantId: tenantObjectId,
-            expenseNumber,
-            title: `PO Payment (${formatDisplayNumber(po.purchaseOrderNumber)}) — ${po.supplierSnapshot?.name || "Supplier"}`,
-            category: "inventory_purchase",
-            amount: input.amount,
-            paymentMode: input.paymentMode,
-            linkedPurchaseOrderId: po._id,
-            expenseDate: new Date(),
-            notes: input.notes?.trim() || undefined,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
-          },
-        ],
-        { session: dbSession }
-      );
+        const [createdExp] = await Expense.create(
+          [
+            {
+              tenantId: tenantObjectId,
+              expenseNumber,
+              title: `PO Payment (${formatDisplayNumber(po.purchaseOrderNumber)}) — ${po.supplierSnapshot?.name || "Supplier"}`,
+              category: "inventory_purchase",
+              amount: input.amount,
+              paymentMode: input.paymentMode,
+              linkedPurchaseOrderId: po._id,
+              expenseDate: new Date(),
+              notes: input.notes?.trim() || undefined,
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            },
+          ],
+          { session: dbSession }
+        );
+        createdExpDoc = createdExp;
+      }
 
-      return { po, supplier: updatedSupplierDoc, createdExp, updatedProductsList };
+      return { po, supplier: updatedSupplierDoc, createdExp: createdExpDoc, updatedProductsList };
     });
 
     revalidatePath("/dashboard");
@@ -2571,6 +2649,9 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
             time: "Today, Just now",
             isToday: true,
             createdAt: new Date().toISOString(),
+            paymentMode: result.createdExp.paymentMode,
+            recordedBy: result.createdExp.recordedBy,
+            linkedPurchaseOrderId: (result.createdExp.linkedPurchaseOrderId || result.po._id).toString(),
           }
         : undefined,
       updatedProducts: result.updatedProductsList,
@@ -2644,152 +2725,6 @@ export async function reschedulePurchaseOrderAction(rawInput: unknown): Promise<
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Failed to reschedule purchase order";
-    return { success: false, error: errorMsg };
-  }
-}
-
-export async function markPurchaseOrderDeliveredAction(rawInput: unknown): Promise<{
-  success: boolean;
-  purchaseOrder?: DashboardPurchaseOrder;
-  updatedProducts?: DashboardProduct[];
-  error?: string;
-}> {
-  try {
-    const session = await auth();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized session" };
-    }
-
-    const parseResult = markPurchaseOrderDeliveredSchema.safeParse(rawInput);
-    if (!parseResult.success) {
-      return { success: false, error: parseResult.error.issues[0].message };
-    }
-
-    const input = parseResult.data;
-    await connectToDatabase();
-
-    const tenantId = await resolveTenantId(session);
-    if (!tenantId) {
-      return { success: false, error: "Tenant not found for current session" };
-    }
-
-    const tenantObjectId = new Types.ObjectId(tenantId);
-    const result = await withTransaction(async (dbSession) => {
-      const query = Types.ObjectId.isValid(input.purchaseOrderId)
-        ? {
-            tenantId: tenantObjectId,
-            $or: [
-              { _id: new Types.ObjectId(input.purchaseOrderId) },
-              { purchaseOrderNumber: input.purchaseOrderId },
-            ],
-          }
-        : { tenantId: tenantObjectId, purchaseOrderNumber: input.purchaseOrderId };
-
-      const po = await PurchaseOrder.findOne(query).session(dbSession);
-      if (!po) {
-        throw new Error("Purchase order not found");
-      }
-
-      if (po.stockAllocated) {
-        throw new Error("Stock for this purchase order has already been received into inventory");
-      }
-
-      const updatedProductsList: DashboardProduct[] = [];
-      for (const item of (po.items || [])) {
-        if (!item.productId) continue;
-        let prod = null;
-        if (Types.ObjectId.isValid(item.productId)) {
-          prod = await Product.findOne({ _id: new Types.ObjectId(item.productId), tenantId: tenantObjectId }).session(dbSession);
-        }
-        if (!prod && item.productName) {
-          prod = await Product.findOne({
-            tenantId: tenantObjectId,
-            name: item.productName.trim(),
-          }).session(dbSession);
-        }
-        if (prod) {
-          prod.sellStock += (item.quantityForSell || 0);
-          prod.useStock += (item.quantityForUse || 0);
-          if (prod.isActive === false) prod.isActive = true;
-          await prod.save({ session: dbSession });
-          updatedProductsList.push({
-            id: prod._id.toString(),
-            name: prod.name,
-            category: prod.category,
-            sell: prod.sellStock,
-            use: prod.useStock,
-            price: prod.expectedSellPrice,
-            purchaseCost: prod.purchaseCost,
-            lowStockThreshold: prod.lowStockThreshold,
-            description: prod.description,
-            barcode: prod.barcode,
-            isActive: prod.isActive,
-          });
-        }
-      }
-
-      po.stockAllocated = true;
-      await po.save({ session: dbSession });
-
-      return { po, updatedProductsList };
-    });
-
-    revalidatePath("/dashboard");
-    broadcastUpdate(tenantId, "purchase_order_updated");
-    broadcastUpdate(tenantId, "inventory_updated");
-
-    const po = result.po;
-    const mappedPO: DashboardPurchaseOrder = {
-      id: po._id.toString(),
-      purchaseOrderNumber: po.purchaseOrderNumber,
-      supplierId: po.supplierId?.toString() || "",
-      supplierName: po.supplierSnapshot?.name || "Supplier",
-      supplierPhone: po.supplierSnapshot?.phone ? formatPhoneNumber(po.supplierSnapshot.phone) : undefined,
-      supplierCompany: po.supplierSnapshot?.companyName || undefined,
-      itemsCount: po.items?.length || 0,
-      items: (po.items || []).map((it: any) => ({
-        productId: it.productId?.toString() || "",
-        productName: it.productName || "Product",
-        quantityForSell: it.quantityForSell || 0,
-        quantityForUse: it.quantityForUse || 0,
-        purchaseCost: it.purchaseCost || 0,
-        expectedSellPrice: it.expectedSellPrice || 0,
-        itemTotalCost: it.itemTotalCost || 0,
-      })),
-      payments: (po.payments || []).map((p: any) => ({
-        amount: p.amount,
-        paymentMode: p.paymentMode,
-        notes: p.notes,
-        recordedBy: p.recordedBy,
-        type: p.type || "settlement",
-        recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : undefined,
-      })),
-      totalAmount: po.totalAmount,
-      amountPaid: po.amountPaid,
-      amountPending: po.amountPending,
-      paymentMode: po.paymentMode,
-      paymentStatus: po.paymentStatus,
-      settlementMode: po.settlementMode,
-      stockAllocated: po.stockAllocated,
-      dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
-      expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
-      deliveryTime: po.deliveryTime,
-      invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
-      dealerInvoiceNumber: po.dealerInvoiceNumber,
-      notes: po.notes,
-      recordedBy: po.recordedBy || undefined,
-      createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: po.updatedAt ? new Date(po.updatedAt).toISOString() : new Date().toISOString(),
-      lastUpdatedTime: "Today, Just now",
-    };
-
-    return {
-      success: true,
-      purchaseOrder: mappedPO,
-      updatedProducts: result.updatedProductsList,
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Failed to mark purchase order delivered";
     return { success: false, error: errorMsg };
   }
 }
@@ -2969,78 +2904,6 @@ export async function getPurchaseOrdersAction(options?: {
   }
 }
 
-export async function getPendingPurchaseOrdersAction(): Promise<{
-  success: boolean;
-  purchaseOrders: DashboardPurchaseOrder[];
-  totalPendingAmount: number;
-  count: number;
-  error?: string;
-}> {
-  try {
-    const res = await getPurchaseOrdersAction({ pendingOnly: true });
-    if (!res.success) {
-      return { success: false, purchaseOrders: [], totalPendingAmount: 0, count: 0, error: res.error };
-    }
-    const totalPendingAmount = res.purchaseOrders.reduce((sum, po) => sum + po.amountPending, 0);
-    return {
-      success: true,
-      purchaseOrders: res.purchaseOrders,
-      totalPendingAmount,
-      count: res.purchaseOrders.length,
-    };
-  } catch (error) {
-    return { success: false, purchaseOrders: [], totalPendingAmount: 0, count: 0, error: "Failed to fetch pending purchase orders" };
-  }
-}
-
-export async function getSupplierDetailAction(supplierId: string): Promise<{
-  success: boolean;
-  supplier?: DashboardSupplier;
-  error?: string;
-}> {
-  try {
-    const session = await auth();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized session" };
-    }
-
-    await connectToDatabase();
-    const tenantId = await resolveTenantId(session);
-    if (!tenantId) {
-      return { success: false, error: "Tenant not found" };
-    }
-
-    const tenantObjectId = new Types.ObjectId(tenantId);
-    const query = Types.ObjectId.isValid(supplierId)
-      ? { _id: new Types.ObjectId(supplierId), tenantId: tenantObjectId }
-      : { phone: supplierId, tenantId: tenantObjectId };
-
-    const doc = await Supplier.findOne(query).lean();
-    if (!doc) {
-      return { success: false, error: "Supplier not found" };
-    }
-
-    return {
-      success: true,
-      supplier: {
-        id: doc._id.toString(),
-        name: doc.name,
-        companyName: doc.companyName,
-        phone: doc.phone,
-        email: doc.email,
-        address: doc.address,
-        gstin: doc.gstin,
-        notes: doc.notes,
-        totalPurchases: doc.totalPurchases ?? 0,
-        totalPaid: doc.totalPaid ?? 0,
-        totalPending: doc.totalPending ?? 0,
-        isActive: doc.isActive,
-      },
-    };
-  } catch (error) {
-    return { success: false, error: "Failed to fetch supplier details" };
-  }
-}
 
 export async function getSuppliersAction(): Promise<{
   success: boolean;
@@ -3082,262 +2945,6 @@ export async function getSuppliersAction(): Promise<{
     return { success: true, suppliers };
   } catch (error) {
     return { success: false, suppliers: [], error: "Failed to fetch suppliers" };
-  }
-}
-
-export async function searchSuppliersAction(searchTerm: string): Promise<{
-  success: boolean;
-  suppliers: { id: string; name: string; phone: string; companyName?: string }[];
-  error?: string;
-}> {
-  try {
-    const session = await auth();
-    if (!session?.user) {
-      return { success: false, suppliers: [], error: "Unauthorized session" };
-    }
-
-    await connectToDatabase();
-    const tenantId = await resolveTenantId(session);
-    if (!tenantId) {
-      return { success: false, suppliers: [], error: "Tenant not found" };
-    }
-
-    const trimmed = searchTerm?.trim();
-    if (!trimmed) {
-      return { success: true, suppliers: [] };
-    }
-
-    const tenantObjectId = new Types.ObjectId(tenantId);
-    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-    const matches = await Supplier.find({
-      tenantId: tenantObjectId,
-      isActive: true,
-      $or: [
-        { name: { $regex: escaped, $options: "i" } },
-        { companyName: { $regex: escaped, $options: "i" } },
-      ],
-    })
-      .limit(8)
-      .sort({ updatedAt: -1 })
-      .lean();
-
-    const suppliers = matches.map((s) => ({
-      id: s._id.toString(),
-      name: s.name,
-      phone: s.phone || "",
-      companyName: s.companyName,
-    }));
-
-    return { success: true, suppliers };
-  } catch (error) {
-    console.error("Failed to search suppliers:", error);
-    return { success: false, suppliers: [], error: "Failed to search suppliers" };
-  }
-}
-
-export async function fulfillOrderLineItemAction(rawInput: unknown): Promise<{
-  success: boolean;
-  order?: DashboardOrder;
-  updatedProduct?: DashboardProduct;
-  error?: string;
-}> {
-  try {
-    const session = await auth();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized session" };
-    }
-
-    const parseResult = fulfillOrderLineItemSchema.safeParse(rawInput);
-    if (!parseResult.success) {
-      return { success: false, error: parseResult.error.issues[0].message };
-    }
-
-    const { orderId, lineItemIndex } = parseResult.data;
-    await connectToDatabase();
-
-    const tenantId = await resolveTenantId(session);
-    if (!tenantId) {
-      return { success: false, error: "Tenant not found for current session" };
-    }
-
-    const result = await withTransaction(async (dbSession) => {
-      const query = Types.ObjectId.isValid(orderId)
-        ? { tenantId, $or: [{ _id: new Types.ObjectId(orderId) }, { orderNumber: orderId }] }
-        : { tenantId, orderNumber: orderId };
-
-      const order = await Order.findOne(query).session(dbSession);
-      if (!order) {
-        throw new Error("Order not found");
-      }
-
-      if (!order.lineItems || !order.lineItems[lineItemIndex]) {
-        throw new Error("Order line item not found");
-      }
-
-      const item = order.lineItems[lineItemIndex];
-      if (item.fulfilled) {
-        throw new Error("Line item is already fulfilled");
-      }
-
-      let updatedProduct: DashboardProduct | undefined;
-
-      if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
-        const prod = await Product.findOne({ _id: item.itemId, tenantId }).session(dbSession);
-        if (!prod) {
-          throw new Error("Product for line item no longer exists in database");
-        }
-
-        const qtyNeeded = item.quantity || 1;
-        if (prod.sellStock < qtyNeeded) {
-          throw new Error(
-            `Insufficient stock to fulfill: retail stock has ${prod.sellStock} pcs, but order needs ${qtyNeeded} pcs. Please stock in first.`
-          );
-        }
-
-        prod.sellStock -= qtyNeeded;
-        await prod.save({ session: dbSession });
-
-        const cleaned = await cleanupProductBatchNames(tenantId, prod.name, dbSession);
-        if (cleaned && cleaned._id.equals(prod._id)) {
-          prod.name = cleaned.name;
-        }
-
-        updatedProduct = {
-          id: prod._id.toString(),
-          name: prod.name,
-          category: prod.category,
-          sell: prod.sellStock,
-          use: prod.useStock,
-          price: prod.expectedSellPrice,
-          purchaseCost: prod.purchaseCost,
-          lowStockThreshold: prod.lowStockThreshold,
-          description: prod.description,
-          barcode: prod.barcode,
-          isActive: prod.isActive,
-        };
-      } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
-        const stockCheck = await checkPackageProductsAvailability(
-          tenantId,
-          item.itemId,
-          item.quantity || 1,
-          dbSession
-        );
-        if (!stockCheck.available) {
-          const missingDesc = stockCheck.missing
-            .map((m) => `"${m.name}" (${m.available} available, ${m.needed} needed)`)
-            .join(", ");
-          throw new Error(
-            `Cannot fulfill package: Required products are out of stock: ${missingDesc}. Please stock in first.`
-          );
-        }
-        await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1, dbSession);
-      }
-
-      item.fulfilled = true;
-
-      // If all items are fulfilled and order is fully paid, transition order to completed
-      const allFulfilled = order.lineItems.every((li) => li.fulfilled);
-      if (allFulfilled && order.amountPaid >= order.totalAmount) {
-        order.status = "completed";
-        order.completedAt = new Date();
-      }
-
-      await order.save({ session: dbSession });
-      return { order, updatedProduct };
-    });
-
-    revalidatePath("/dashboard");
-    broadcastUpdate(tenantId, "order_updated");
-
-    const mappedType = mapOrderType(result.order.orderType);
-
-    return {
-      success: true,
-      order: {
-        id: result.order.orderNumber,
-        customer: result.order.customerSnapshot?.name || "Walk-in Customer",
-        customerPhone: result.order.customerSnapshot?.phone || undefined,
-        type: mappedType,
-        amount: result.order.totalAmount,
-        paid: result.order.amountPaid,
-        status: result.order.status,
-        time: "Today, Just now",
-        isToday: true,
-        isLast24Hours: true,
-        createdAt: result.order.createdAt ? new Date(result.order.createdAt).toISOString() : new Date().toISOString(),
-        paymentMode: result.order.paymentMode,
-        advanceAmount: result.order.status === "advance_paid" ? result.order.amountPaid : undefined,
-        scheduledFor: result.order.scheduledFor ? new Date(result.order.scheduledFor).toISOString() : undefined,
-      },
-      updatedProduct: result.updatedProduct,
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Failed to fulfill line item";
-    return { success: false, error: errorMsg };
-  }
-}
-
-export async function getLowStockAlertsAction(): Promise<{
-  success: boolean;
-  enabled: boolean;
-  count: number;
-  products: DashboardProduct[];
-  error?: string;
-}> {
-  try {
-    const session = await auth();
-    if (!session?.user) {
-      return { success: false, enabled: false, count: 0, products: [], error: "Unauthorized" };
-    }
-
-    await connectToDatabase();
-    const tenantId = await resolveTenantId(session);
-    if (!tenantId) {
-      return { success: false, enabled: false, count: 0, products: [], error: "Tenant not found" };
-    }
-
-    const tenant = await Tenant.findById(new Types.ObjectId(tenantId)).lean();
-    if (!tenant) {
-      return { success: false, enabled: false, count: 0, products: [], error: "Tenant not found" };
-    }
-
-    // Check setting
-    if (tenant.settings?.lowStockNotification === false) {
-      return { success: true, enabled: false, count: 0, products: [] };
-    }
-
-    const rawProducts = await Product.find({
-      tenantId: new Types.ObjectId(tenantId),
-      isActive: true,
-      $expr: { $lte: ["$sellStock", "$lowStockThreshold"] },
-    })
-      .sort({ sellStock: 1, name: 1 })
-      .lean();
-
-    const products: DashboardProduct[] = rawProducts.map((p) => ({
-      id: p._id.toString(),
-      name: p.name,
-      category: p.category,
-      sell: p.sellStock,
-      use: p.useStock,
-      price: p.expectedSellPrice,
-      purchaseCost: p.purchaseCost,
-      lowStockThreshold: p.lowStockThreshold,
-      description: p.description,
-      barcode: p.barcode,
-      isActive: p.isActive,
-    }));
-
-    return {
-      success: true,
-      enabled: true,
-      count: products.length,
-      products,
-    };
-  } catch (error) {
-    console.error("Failed to get low stock alerts:", error);
-    return { success: false, enabled: false, count: 0, products: [], error: "Failed to query low stock" };
   }
 }
 
@@ -4010,16 +3617,23 @@ export async function getCustomerOrdersAction(input: {
     const flexiblePhoneRegex = rawDigits ? rawDigits.split("").join("[\\s\\-\\(\\)]*") : "";
 
     const orConditions: any[] = [];
+    if (input.customerId && Types.ObjectId.isValid(input.customerId)) {
+      orConditions.push({ customerId: new Types.ObjectId(input.customerId) });
+    }
     if (flexiblePhoneRegex) {
       orConditions.push({ "customerSnapshot.phone": { $regex: flexiblePhoneRegex } });
     }
     if (input.phone && input.phone.trim()) {
       orConditions.push({ "customerSnapshot.phone": input.phone.trim() });
     }
-    if (input.customerId && Types.ObjectId.isValid(input.customerId)) {
-      orConditions.push({ customerId: new Types.ObjectId(input.customerId) });
-    }
-    if (input.name && input.name.trim() && input.name.trim().toLowerCase() !== "walk-in customer") {
+    // Only fallback to name matching if neither customerId nor valid phone was provided
+    if (
+      orConditions.length === 0 &&
+      input.name &&
+      input.name.trim() &&
+      input.name.trim().toLowerCase() !== "walk-in customer" &&
+      input.name.trim().toLowerCase() !== "walk-in guest"
+    ) {
       orConditions.push({
         "customerSnapshot.name": {
           $regex: `^${input.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
@@ -4149,6 +3763,81 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
 
     const tenantObjectId = new Types.ObjectId(tenantId);
     const normalizedPhone = formatPhoneNumber(input.phone);
+    const rawDigits = normalizedPhone.replace(/\D/g, "").slice(-10);
+
+    let existingSupplier = null;
+    if (normalizedPhone) {
+      existingSupplier = await Supplier.findOne({
+        tenantId: tenantObjectId,
+        $or: [
+          { phone: normalizedPhone },
+          ...(rawDigits.length === 10
+            ? [{ phone: rawDigits }, { phone: `+91${rawDigits}` }, { phone: `0${rawDigits}` }]
+            : []),
+        ],
+      });
+    }
+
+    if (existingSupplier) {
+      const oldName = existingSupplier.name;
+      const newName = input.name.trim();
+      existingSupplier.name = newName;
+      existingSupplier.phone = normalizedPhone;
+      if (input.companyName !== undefined) existingSupplier.companyName = input.companyName?.trim() || undefined;
+      if (input.email !== undefined) existingSupplier.email = input.email?.trim() || undefined;
+      if (input.address !== undefined) existingSupplier.address = input.address?.trim() || undefined;
+      if (input.gstin !== undefined) existingSupplier.gstin = input.gstin?.trim() || undefined;
+      if (input.notes !== undefined) existingSupplier.notes = input.notes?.trim() || undefined;
+      await existingSupplier.save();
+
+      if (newName !== oldName) {
+        await PurchaseOrder.updateMany(
+          {
+            tenantId: tenantObjectId,
+            $or: [
+              { supplierId: existingSupplier._id },
+              { "supplierSnapshot.phone": normalizedPhone },
+              ...(rawDigits.length === 10
+                ? [
+                    { "supplierSnapshot.phone": rawDigits },
+                    { "supplierSnapshot.phone": `+91${rawDigits}` },
+                    { "supplierSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}` },
+                    { "supplierSnapshot.phone": `0${rawDigits}` },
+                  ]
+                : []),
+            ],
+          },
+          {
+            $set: {
+              "supplierSnapshot.name": newName,
+              "supplierSnapshot.phone": normalizedPhone,
+              ...(existingSupplier.companyName ? { "supplierSnapshot.companyName": existingSupplier.companyName } : {}),
+            },
+          }
+        );
+      }
+
+      revalidatePath("/dashboard");
+      broadcastUpdate(tenantId, "supplier_updated");
+
+      return {
+        success: true,
+        supplier: {
+          id: existingSupplier._id.toString(),
+          name: existingSupplier.name,
+          companyName: existingSupplier.companyName,
+          phone: formatPhoneNumber(existingSupplier.phone),
+          email: existingSupplier.email,
+          address: existingSupplier.address,
+          gstin: existingSupplier.gstin,
+          notes: existingSupplier.notes,
+          totalPurchases: existingSupplier.totalPurchases || 0,
+          totalPaid: existingSupplier.totalPaid || 0,
+          totalPending: existingSupplier.totalPending || 0,
+          isActive: existingSupplier.isActive !== false,
+        },
+      };
+    }
 
     const newDoc = await Supplier.create({
       tenantId: tenantObjectId,
@@ -4295,42 +3984,6 @@ export async function updateSupplierAction(rawInput: unknown): Promise<{
   }
 }
 
-export async function deleteSupplierAction(rawInput: unknown): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  try {
-    const session = await auth();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized session" };
-    }
-
-    const parseResult = deleteSupplierSchema.safeParse(rawInput);
-    if (!parseResult.success) {
-      return { success: false, error: parseResult.error.issues[0].message };
-    }
-
-    const { id } = parseResult.data;
-    await connectToDatabase();
-    const tenantId = await resolveTenantId(session);
-    if (!tenantId) {
-      return { success: false, error: "Tenant not found" };
-    }
-
-    await Supplier.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
-      { $set: { isActive: false } }
-    );
-
-    revalidatePath("/dashboard");
-    broadcastUpdate(tenantId, "supplier_updated");
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to delete supplier:", error);
-    return { success: false, error: "Failed to delete supplier" };
-  }
-}
-
 export async function updateCustomerAction(rawInput: unknown): Promise<{
   success: boolean;
   customer?: DashboardCustomer;
@@ -4460,6 +4113,162 @@ export async function updateCustomerAction(rawInput: unknown): Promise<{
   } catch (error) {
     console.error("Failed to update customer:", error);
     return { success: false, error: "Failed to update customer" };
+  }
+}
+
+export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
+  success: boolean;
+  purchaseOrder?: DashboardPurchaseOrder;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { success: false, error: "Unauthorized session" };
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) return { success: false, error: "Tenant not found" };
+
+    await connectToDatabase();
+    const cleanQuery = idOrNumber.trim();
+    let po: any = null;
+
+    if (Types.ObjectId.isValid(cleanQuery)) {
+      po = await PurchaseOrder.findOne({ _id: cleanQuery, tenantId }).lean();
+    }
+    if (!po) {
+      po = await PurchaseOrder.findOne({ purchaseOrderNumber: cleanQuery, tenantId }).lean();
+    }
+    if (!po) {
+      const escaped = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      po = await PurchaseOrder.findOne({
+        tenantId,
+        purchaseOrderNumber: new RegExp(escaped, "i"),
+      }).lean();
+    }
+    if (!po) return { success: false, error: "Purchase order not found" };
+
+    return {
+      success: true,
+      purchaseOrder: {
+        id: po._id.toString(),
+        purchaseOrderNumber: po.purchaseOrderNumber,
+        supplierId: po.supplierId?.toString() || "",
+        supplierName: po.supplierSnapshot?.name || "Supplier",
+        supplierPhone: po.supplierSnapshot?.phone ? formatPhoneNumber(po.supplierSnapshot.phone) : undefined,
+        supplierCompany: po.supplierSnapshot?.companyName,
+        itemsCount: po.items?.length || 0,
+        items: (po.items || []).map((it: any) => ({
+          productId: it.productId?.toString() || "",
+          productName: it.productName || "Product",
+          quantityForSell: it.quantityForSell || 0,
+          quantityForUse: it.quantityForUse || 0,
+          purchaseCost: it.purchaseCost || 0,
+          expectedSellPrice: it.expectedSellPrice || 0,
+          itemTotalCost: it.itemTotalCost || 0,
+        })),
+        payments: (po.payments || []).map((p: any) => ({
+          amount: p.amount,
+          paymentMode: p.paymentMode,
+          notes: p.notes,
+          recordedBy: p.recordedBy,
+          type: p.type || "settlement",
+          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : undefined,
+        })),
+        totalAmount: po.totalAmount,
+        amountPaid: po.amountPaid,
+        amountPending: po.amountPending,
+        paymentMode: po.paymentMode,
+        paymentStatus: po.paymentStatus,
+        settlementMode: po.settlementMode,
+        stockAllocated: po.stockAllocated ?? (po.settlementMode === "completed" || po.settlementMode === "pending"),
+        dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
+        expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
+        deliveryTime: po.deliveryTime,
+        invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+        dealerInvoiceNumber: po.dealerInvoiceNumber,
+        notes: po.notes,
+        recordedBy: po.recordedBy || undefined,
+        createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
+        updatedAt: po.updatedAt ? new Date(po.updatedAt).toISOString() : undefined,
+        lastUpdatedTime: getBillLastUpdatedTime(po),
+      },
+    };
+  } catch (err) {
+    console.error("Failed to fetch purchase order:", err);
+    return { success: false, error: "Failed to fetch purchase order" };
+  }
+}
+
+export async function getOrderByIdAction(idOrNumber: string): Promise<{
+  success: boolean;
+  order?: DashboardOrder;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { success: false, error: "Unauthorized session" };
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) return { success: false, error: "Tenant not found" };
+
+    await connectToDatabase();
+    const cleanQuery = idOrNumber.trim();
+    let order: any = null;
+
+    if (Types.ObjectId.isValid(cleanQuery)) {
+      order = await Order.findOne({ _id: cleanQuery, tenantId }).lean();
+    }
+    if (!order) {
+      order = await Order.findOne({ orderNumber: cleanQuery.replace(/^#/, ""), tenantId }).lean();
+    }
+    if (!order) {
+      const escaped = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      order = await Order.findOne({
+        tenantId,
+        orderNumber: new RegExp(escaped, "i"),
+      }).lean();
+    }
+    if (!order) return { success: false, error: "Order not found" };
+
+    return {
+      success: true,
+      order: {
+        id: String(order.orderNumber),
+        customer: order.customerSnapshot?.name || "Walk-in Guest",
+        type: mapOrderType(order.orderType),
+        amount: order.totalAmount,
+        paid: order.amountPaid,
+        status: order.status,
+        time: formatOrderTime(order.createdAt),
+        itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", "),
+        lineItems: (order.lineItems || []).map((li: any) => ({
+          name: li.name,
+          itemType: li.itemType,
+          unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
+          quantity: typeof li.quantity === "number" ? li.quantity : 1,
+          discount: li.discount,
+          finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
+          fulfilled: li.fulfilled,
+        })),
+        payments: (order.payments || []).map((p: any) => ({
+          amount: p.amount,
+          mode: p.mode || p.paymentMode || "cash",
+          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedBy: p.recordedBy,
+          type: p.type || undefined,
+        })),
+        refundAmount: order.refundDetails?.refundAmount,
+        refundMode: order.refundDetails?.refundMode,
+        refundReason: order.refundDetails?.refundReason,
+        refundedAt: order.refundDetails?.refundedAt ? new Date(order.refundDetails.refundedAt).toISOString() : undefined,
+        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        scheduledTime: order.scheduledTime || order.appointmentTime || undefined,
+        notes: order.notes,
+        customerPhone: order.customerSnapshot?.phone ? formatPhoneNumber(order.customerSnapshot.phone) : undefined,
+        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : undefined,
+      },
+    };
+  } catch (err) {
+    console.error("Failed to fetch order:", err);
+    return { success: false, error: "Failed to fetch order" };
   }
 }
 

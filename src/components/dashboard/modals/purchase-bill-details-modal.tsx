@@ -29,6 +29,7 @@ import {
   getBookingUrgency,
   getSupplierWhatsAppReminderUrl,
   formatDisplayNumber,
+  getBillStatus,
 } from "@/lib/utils";
 
 function formatDateTime(dateStr?: string | Date | null): string | null {
@@ -53,7 +54,6 @@ interface PurchaseBillDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPayNow?: (bill: DashboardPurchaseOrder) => void;
-  onReceiveStock?: (bill: DashboardPurchaseOrder) => void;
   salonName?: string;
 }
 
@@ -62,7 +62,6 @@ export function PurchaseBillDetailsModal({
   isOpen,
   onClose,
   onOpenPayNow,
-  onReceiveStock,
   salonName,
 }: PurchaseBillDetailsModalProps) {
   React.useEffect(() => {
@@ -106,12 +105,24 @@ export function PurchaseBillDetailsModal({
 
   const waUrl = useMemo(() => {
     if (!bill?.supplierPhone) return null;
+    const billStatus = getBillStatus(bill);
+    const isCompleted =
+      billStatus.statusKey === "completed" ||
+      bill.settlementMode === "completed" ||
+      (bill.paymentStatus === "paid" && bill.stockAllocated !== false) ||
+      (bill.amountPending <= 0 && bill.stockAllocated !== false);
+
+    const hasPendingDelivery = !isCompleted && bill.stockAllocated === false;
     const isAdvance =
-      bill.settlementMode === "advance" ||
-      Boolean(bill.expectedDeliveryDate) ||
-      Boolean(bill.notes && /advance/i.test(bill.notes));
-    const deliveryDate =
-      bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined);
+      hasPendingDelivery &&
+      (bill.settlementMode === "advance" ||
+        bill.settlementMode === "paid_full" ||
+        Boolean(bill.expectedDeliveryDate) ||
+        Boolean(bill.notes && /advance/i.test(bill.notes)));
+
+    const deliveryDate = hasPendingDelivery
+      ? bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
+      : undefined;
 
     const itemsSummary =
       bill.items && bill.items.length > 0
@@ -136,8 +147,8 @@ export function PurchaseBillDetailsModal({
       poNumber: bill.purchaseOrderNumber,
       dealerInvoiceNumber: bill.dealerInvoiceNumber,
       deliveryDate,
-      deliveryTime: bill.deliveryTime,
-      dueDate: bill.dueDate,
+      deliveryTime: hasPendingDelivery ? bill.deliveryTime : undefined,
+      dueDate: bill.amountPending > 0 ? bill.dueDate : undefined,
       totalAmount: bill.totalAmount,
       amountPaid: bill.amountPaid,
       amountPending: bill.amountPending,
@@ -436,21 +447,35 @@ export function PurchaseBillDetailsModal({
           </div>
 
           {/* Settlement Mode & Dates Banner (If present) */}
-          {(bill.dueDate || bill.expectedDeliveryDate || (bill.notes && /advance/i.test(bill.notes)) || (bill.settlementMode && bill.settlementMode !== "completed")) && (() => {
-            const isAdvance =
-              bill.settlementMode === "advance" ||
-              Boolean(bill.expectedDeliveryDate) ||
-              Boolean(bill.notes && /advance/i.test(bill.notes));
-            const deliveryTarget =
-              bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined);
-            const deliveryUrgency = deliveryTarget ? getBookingUrgency(deliveryTarget) : null;
-            const isDeliveryToday = deliveryUrgency?.tone === "today";
-            const isDeliveryOverdue = deliveryUrgency?.tone === "overdue";
+          {(bill.dueDate || bill.expectedDeliveryDate || (bill.notes && /advance/i.test(bill.notes)) || bill.settlementMode) && (() => {
+            const billStatus = getBillStatus(bill);
+            const isCompleted =
+              billStatus.statusKey === "completed" ||
+              bill.settlementMode === "completed" ||
+              (bill.paymentStatus === "paid" && bill.stockAllocated !== false) ||
+              (dueAmount <= 0 && bill.stockAllocated !== false);
 
-            const dueTarget = bill.dueDate;
-            const dueUrgency = (dueTarget && dueAmount > 0) ? getBookingUrgency(dueTarget) : null;
-            const isDueToday = dueUrgency?.tone === "today";
-            const isDueOverdue = dueUrgency?.tone === "overdue";
+            const hasPendingDelivery = !isCompleted && bill.stockAllocated === false;
+            const isAdvance =
+              !isCompleted &&
+              (bill.settlementMode === "advance" ||
+                bill.settlementMode === "paid_full" ||
+                bill.stockAllocated === false ||
+                Boolean(bill.expectedDeliveryDate) ||
+                Boolean(bill.notes && /advance/i.test(bill.notes)));
+
+            const deliveryTarget = hasPendingDelivery
+              ? bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
+              : undefined;
+            const deliveryUrgency = deliveryTarget ? getBookingUrgency(deliveryTarget) : null;
+            const isDeliveryToday = hasPendingDelivery && deliveryUrgency?.tone === "today";
+            const isDeliveryOverdue = hasPendingDelivery && deliveryUrgency?.tone === "overdue";
+
+            const hasPendingDue = !isCompleted && dueAmount > 0;
+            const dueTarget = hasPendingDue ? bill.dueDate : undefined;
+            const dueUrgency = dueTarget ? getBookingUrgency(dueTarget) : null;
+            const isDueToday = hasPendingDue && dueUrgency?.tone === "today";
+            const isDueOverdue = hasPendingDue && dueUrgency?.tone === "overdue";
 
             return (
               <div className="p-3 bg-galla-paper/40 border border-galla-line rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px]">
@@ -459,7 +484,9 @@ export function PurchaseBillDetailsModal({
                     Settlement Mode:
                   </span>
                   <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-galla-surface border border-galla-line text-galla-ink">
-                    {bill.settlementMode === "pending"
+                    {isCompleted
+                      ? "Completed"
+                      : bill.settlementMode === "pending"
                       ? "Pending / Payment Due"
                       : isAdvance
                       ? "Advance Order"
@@ -467,12 +494,7 @@ export function PurchaseBillDetailsModal({
                       ? "Paid in Full"
                       : "Completed"}
                   </span>
-                  {bill.stockAllocated === false ? (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200 inline-flex items-center gap-1">
-                      <Package className="h-3 w-3 text-amber-700" />
-                      <span>Stock Pending Delivery</span>
-                    </span>
-                  ) : (
+                  {bill.stockAllocated && (
                     <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
                       <PackageCheck className="h-3 w-3 text-emerald-700" />
                       <span>Stock In Inventory</span>
@@ -501,12 +523,12 @@ export function PurchaseBillDetailsModal({
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
-                  {bill.dueDate && (
+                  {hasPendingDue && bill.dueDate && (
                     <div className="text-rose-700 font-medium font-sans">
                       Payment Due: <strong>{formatBookingDate(bill.dueDate)}</strong>
                     </div>
                   )}
-                  {deliveryTarget && (
+                  {hasPendingDelivery && deliveryTarget && (
                     <div className="text-galla-teal font-medium font-sans">
                       Expected Arrival: <strong>{formatBookingDate(deliveryTarget)}</strong>
                       {bill.deliveryTime ? ` at ${formatAppointmentTime(bill.deliveryTime)}` : ""}
@@ -734,28 +756,15 @@ export function PurchaseBillDetailsModal({
               <span className="text-amber-800 font-medium">
                 Supplier has {formatRupee(dueAmount)} remaining due
               </span>
+            ) : bill.stockAllocated === false ? (
+              <span className="text-amber-800 font-medium">Paid in full &bull; Delivery awaiting settlement</span>
             ) : (
               <span className="text-emerald-700 font-medium">Bill is fully settled &amp; paid</span>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            {!bill.stockAllocated && onReceiveStock && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onReceiveStock(bill);
-                }}
-                className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
-                title="Receive shipment and allocate stock to inventory"
-              >
-                <PackageCheck className="h-4 w-4" />
-                <span>Receive Stock</span>
-              </button>
-            )}
-
-            {isDue && onOpenPayNow && (
+            {(isDue || bill.stockAllocated === false) && onOpenPayNow && (
               <button
                 type="button"
                 onClick={() => {
@@ -764,7 +773,7 @@ export function PurchaseBillDetailsModal({
                 }}
                 className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs"
               >
-                Settle Due ({formatRupee(dueAmount)})
+                {isDue ? `Settle Bill (${formatRupee(dueAmount)})` : "Settle Bill"}
               </button>
             )}
 

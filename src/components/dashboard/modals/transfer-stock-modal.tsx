@@ -442,7 +442,7 @@ function TransferStockModalContent({
           {/* Informational notices */}
           {mode === "transfer" && direction === "sell_to_use" && isValidQty && (
             <div className="p-2.5 bg-galla-paper/70 border border-galla-line rounded-[4px] text-[11.5px] font-sans text-galla-ink-soft">
-              Moving {numQty} pcs from retail shelf to salon internal use. <span className="text-galla-ink font-medium">Expense will be recorded only when this stock is deducted/consumed.</span>
+              Moving {numQty} pcs from retail shelf to salon internal use.
             </div>
           )}
 

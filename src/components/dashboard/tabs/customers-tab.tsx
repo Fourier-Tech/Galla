@@ -34,31 +34,13 @@ export function CustomersTab({
   const pageSize = 20;
 
   const formattedCustomers = useMemo(() => {
-    const orderStatsByPhone = new Map<string, { due: number; spent: number }>();
-    if (orders && orders.length > 0) {
-      for (const o of orders) {
-        if (!o.customerPhone) continue;
-        const cleanP = formatPhoneNumber(o.customerPhone);
-        const curr = orderStatsByPhone.get(cleanP) || { due: 0, spent: 0 };
-        if (o.status !== "cancelled_refunded" && o.status !== "cancelled_converted") {
-          curr.spent += o.paid || 0;
-          curr.due += Math.max(0, o.amount - o.paid);
-        }
-        orderStatsByPhone.set(cleanP, curr);
-      }
-    }
-
-    return customers.map((c) => {
-      const cleanPhone = formatPhoneNumber(c.phone);
-      const computed = orderStatsByPhone.get(cleanPhone);
-      return {
-        ...c,
-        phone: cleanPhone,
-        outstandingDue: computed !== undefined ? computed.due : c.outstandingDue,
-        totalSpent: computed !== undefined ? computed.spent : c.totalSpent,
-      };
-    });
-  }, [customers, orders]);
+    return customers.map((c) => ({
+      ...c,
+      phone: formatPhoneNumber(c.phone),
+      outstandingDue: typeof c.outstandingDue === "number" ? c.outstandingDue : 0,
+      totalSpent: typeof c.totalSpent === "number" ? c.totalSpent : 0,
+    }));
+  }, [customers]);
 
   const filteredCustomers = useMemo(() => {
     const term = search.toLowerCase().trim();

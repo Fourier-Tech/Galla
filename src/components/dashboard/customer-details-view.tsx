@@ -277,7 +277,7 @@ export function CustomerDetailsView({
               </span>
             </div>
             <p className="font-sans text-[12.5px] text-galla-ink-soft mt-0.5">
-              Client profile &bull; Last visit: <span className="text-galla-ink font-medium">{customer.lastVisit}</span>
+              Client profile{salonName ? ` at ${salonName}` : ""} &bull; Last visit: <span className="text-galla-ink font-medium">{customer.lastVisit}</span>
               {customer.createdAt && (
                 <> &bull; Registered {new Date(customer.createdAt).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</>
               )}
@@ -513,7 +513,7 @@ export function CustomerDetailsView({
               <span>All Orders Till Date ({filteredOrders.length})</span>
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-              Click any order row to inspect full purchased items, bills, and payment receipts
+              Click any order row to inspect purchased items, bills, and payment receipts at {salonName || "this salon"}
             </p>
           </div>
 

@@ -863,17 +863,22 @@ export function OverviewTab({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleComplete(order.id);
+                                  const hasDeliverable = order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
+                                  if (hasDeliverable && onOpenSettle) {
+                                    onOpenSettle(order);
+                                  } else {
+                                    handleComplete(order.id);
+                                  }
                                 }}
                                 disabled={loadingId === order.id}
                                 className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                                title="Mark service as completed"
+                                title={order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled) ? "Deliver products and complete order" : "Mark service as completed"}
                               >
                                 {loadingId === order.id ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
                                 ) : (
                                   <>
-                                    <span>Mark Done</span>
+                                    <span>{order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled) ? "Deliver & Done" : "Mark Done"}</span>
                                     <Check className="h-3.5 w-3.5 text-green-700" />
                                   </>
                                 )}

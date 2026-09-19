@@ -36,7 +36,6 @@ function getMongoCategoryFilter(categoryParam: string) {
     case "Day-to-day":
       return {
         $in: [
-          "stock_transfer_internal",
           "refreshments",
           "utilities",
           "maintenance",
@@ -93,7 +92,10 @@ export async function GET(request: Request) {
     const endDate = searchParams.get("endDate") || "";
     const sortOrder = searchParams.get("sortOrder") === "oldest" ? "oldest" : "newest";
 
-    const query: Record<string, unknown> = { tenantId };
+    const query: Record<string, unknown> = {
+      tenantId,
+      category: { $ne: "stock_transfer_internal" },
+    };
 
     // Category filter
     if (category && category !== "all") {
@@ -188,6 +190,11 @@ export async function GET(request: Request) {
       createdAt: (e.expenseDate || e.createdAt)
         ? new Date(e.expenseDate || e.createdAt).toISOString()
         : undefined,
+      paymentMode: e.paymentMode || undefined,
+      recipient: e.recipient || undefined,
+      recordedBy: e.recordedBy || undefined,
+      linkedPurchaseOrderId: e.linkedPurchaseOrderId?.toString() || undefined,
+      linkedOrderId: e.linkedOrderId?.toString() || undefined,
     }));
 
     return NextResponse.json(

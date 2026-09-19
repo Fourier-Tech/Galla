@@ -18,8 +18,6 @@ import {
   MessageSquare,
   Calendar,
   ArrowUpDown,
-  Package,
-  PackageCheck,
 } from "lucide-react";
 import { DashboardPurchaseOrder, DashboardSupplier, DashboardExpense, DashboardProduct } from "@/types/dashboard";
 import {
@@ -40,7 +38,6 @@ import {
 import {
   getPurchaseOrdersAction,
   recordPurchaseOrderPaymentAction,
-  markPurchaseOrderDeliveredAction,
 } from "@/app/dashboard/actions";
 import { PurchaseBillDetailsModal } from "./modals/purchase-bill-details-modal";
 import { SettlePurchaseBillModal } from "./modals/settle-purchase-bill-modal";
@@ -317,47 +314,6 @@ export function PurchaseOrdersView({
       setSelectedBillForDetails(enrichedPO);
     }
     onPaymentRecorded?.(enrichedPO, supplier, expense, updatedProducts);
-  };
-
-  const [poToDeliver, setPoToDeliver] = useState<DashboardPurchaseOrder | null>(null);
-  const [isMarkingDelivered, setIsMarkingDelivered] = useState(false);
-  const [markDeliveredError, setMarkDeliveredError] = useState<string | null>(null);
-
-  const handleOpenMarkDelivered = (po: DashboardPurchaseOrder) => {
-    setMarkDeliveredError(null);
-    setPoToDeliver(po);
-  };
-
-  const handleConfirmMarkDelivered = async () => {
-    if (!poToDeliver) return;
-    setIsMarkingDelivered(true);
-    setMarkDeliveredError(null);
-    try {
-      const res = await markPurchaseOrderDeliveredAction({
-        purchaseOrderId: poToDeliver.id,
-      });
-      if (res.success && res.purchaseOrder) {
-        const enrichedPO = {
-          ...res.purchaseOrder,
-          lastUpdatedTime: "Today, Just now",
-          updatedAt: new Date().toISOString(),
-        };
-        setOrders((prev) =>
-          prev.map((o) => (o.id === enrichedPO.id ? enrichedPO : o))
-        );
-        if (selectedBillForDetails?.id === enrichedPO.id) {
-          setSelectedBillForDetails(enrichedPO);
-        }
-        onStockDelivered?.(enrichedPO, res.updatedProducts);
-        setPoToDeliver(null);
-      } else {
-        setMarkDeliveredError(res.error || "Failed to mark stock as received");
-      }
-    } catch {
-      setMarkDeliveredError("Network error marking stock as received");
-    } finally {
-      setIsMarkingDelivered(false);
-    }
   };
 
   const handleRescheduleSuccess = (updatedPO: DashboardPurchaseOrder) => {
@@ -673,21 +629,27 @@ export function PurchaseOrdersView({
                 </div>
               ) : (
                 paginatedOrders.map((po) => {
-                  const isPendingPayment = po.amountPending > 0;
+                  const billStatus = getBillStatus(po);
+                  const isCompleted = billStatus.statusKey === "completed";
+                  const isPendingPayment = !isCompleted && po.amountPending > 0;
+                  const hasPendingDelivery = !isCompleted && po.stockAllocated === false;
 
                   const isAdvancePurchase =
-                    po.settlementMode === "advance" ||
-                    Boolean(po.expectedDeliveryDate) ||
-                    Boolean(po.notes && /advance/i.test(po.notes));
+                    hasPendingDelivery &&
+                    (po.settlementMode === "advance" ||
+                      po.settlementMode === "paid_full" ||
+                      Boolean(po.expectedDeliveryDate) ||
+                      Boolean(po.notes && /advance/i.test(po.notes)));
 
-                  // Delivery Date & Urgency
-                  const targetDeliveryDate =
-                    po.expectedDeliveryDate ||
-                    (isAdvancePurchase ? po.dueDate || po.invoiceDate : undefined);
+                  // Delivery Date & Urgency (Only if delivery is pending)
+                  const targetDeliveryDate = hasPendingDelivery
+                    ? po.expectedDeliveryDate ||
+                      (isAdvancePurchase ? po.dueDate || po.invoiceDate : undefined)
+                    : undefined;
 
                   const deliveryUrgency = targetDeliveryDate ? getBookingUrgency(targetDeliveryDate) : null;
-                  const isDeliveryToday = deliveryUrgency?.tone === "today";
-                  const isDeliveryOverdue = deliveryUrgency?.tone === "overdue";
+                  const isDeliveryToday = hasPendingDelivery && deliveryUrgency?.tone === "today";
+                  const isDeliveryOverdue = hasPendingDelivery && deliveryUrgency?.tone === "overdue";
 
                   const deliveryDateStr = targetDeliveryDate ? formatBookingDate(targetDeliveryDate) : "";
                   const deliveryTimeStr = po.deliveryTime ? formatAppointmentTime(po.deliveryTime) : null;
@@ -707,10 +669,10 @@ export function PurchaseOrdersView({
                     : `Expected: ${fullDeliverySlot}`;
 
                   // Payment Due Date & Urgency
-                  const targetDueDate = po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined);
+                  const targetDueDate = isPendingPayment ? po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined) : undefined;
                   const dueUrgency = (isPendingPayment && targetDueDate) ? getBookingUrgency(targetDueDate) : null;
-                  const isPaymentDueToday = dueUrgency?.tone === "today";
-                  const isPaymentOverdue = dueUrgency?.tone === "overdue";
+                  const isPaymentDueToday = isPendingPayment && dueUrgency?.tone === "today";
+                  const isPaymentOverdue = isPendingPayment && dueUrgency?.tone === "overdue";
 
                   const dueDateStr = targetDueDate ? formatBookingDate(targetDueDate) : "";
                   const dueBadgeStyle = isPaymentDueToday
@@ -753,8 +715,6 @@ export function PurchaseOrdersView({
                     isAdvance: isAdvancePurchase,
                   });
 
-                  const billStatus = getBillStatus(po);
-                  const isCompleted = billStatus.statusKey === "completed" || po.amountPending <= 0;
                   const lastUpdatedTime = getBillLastUpdatedTime(po);
 
                   return (
@@ -821,18 +781,6 @@ export function PurchaseOrdersView({
                           </div>
                         )}
 
-                        {po.stockAllocated === false && (
-                          <div className="mt-1">
-                            <span
-                              className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs"
-                              title="Goods have not arrived yet; inventory has not been increased"
-                            >
-                              <Package className="h-3 w-3 text-amber-700 shrink-0" />
-                              <span>Stock Pending Delivery</span>
-                            </span>
-                          </div>
-                        )}
-
                         {po.notes && (
                           <div
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
@@ -883,8 +831,8 @@ export function PurchaseOrdersView({
                                 </button>
                               ) : null}
 
-                              {/* Payment Due Date badge if pending amount or target due date */}
-                              {isPendingPayment && targetDueDate && targetDueDate !== targetDeliveryDate ? (
+                              {/* Payment Due Date badge only if explicit due date is set and differs from delivery date */}
+                              {isPendingPayment && po.dueDate && targetDueDate !== targetDeliveryDate && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -900,23 +848,7 @@ export function PurchaseOrdersView({
                                     Reschedule
                                   </span>
                                 </button>
-                              ) : isPendingPayment && !targetDueDate ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenReschedule(po, "due_date");
-                                  }}
-                                  className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
-                                  title="Click to set payment due date"
-                                >
-                                  <Clock className="h-3 w-3 text-amber-700 shrink-0" />
-                                  <span>Set Due Date</span>
-                                  <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                                    + Add
-                                  </span>
-                                </button>
-                              ) : null}
+                              )}
                             </div>
 
                             {/* Call & WhatsApp & Reschedule Action Buttons */}
@@ -974,7 +906,7 @@ export function PurchaseOrdersView({
                           </div>
                         ) : (
                           <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
-                            <span>Settled</span>
+                            <span>{billStatus.pillStatus === "paid_full" ? "Paid in full" : "Settled"}</span>
                             {po.paymentMode && (
                               <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                 {po.paymentMode}
@@ -994,21 +926,7 @@ export function PurchaseOrdersView({
 
                       {/* Column 5: Action (Matching Orders Tab) */}
                       <div className="text-right flex items-center justify-end gap-2">
-                        {po.stockAllocated === false && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenMarkDelivered(po);
-                            }}
-                            className="px-2.5 py-1.5 rounded-[4px] bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-[12px] font-medium shadow-xs transition-all cursor-pointer text-center inline-flex items-center gap-1 shrink-0"
-                            title="Receive shipment and allocate stock to inventory"
-                          >
-                            <PackageCheck className="h-3.5 w-3.5" />
-                            <span>Receive Stock</span>
-                          </button>
-                        )}
-                        {po.amountPending > 0 ? (
+                        {billStatus.statusKey !== "completed" ? (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1016,15 +934,20 @@ export function PurchaseOrdersView({
                               handleOpenPayNow(po);
                             }}
                             className="px-3.5 py-1.5 rounded-[4px] bg-galla-teal hover:opacity-95 text-white font-sans text-[12px] font-medium shadow-xs transition-all cursor-pointer text-center shrink-0"
+                            title={
+                              po.amountPending > 0
+                                ? `Settle ${formatRupee(po.amountPending)} remaining balance`
+                                : "Settle purchase order and receive stock"
+                            }
                           >
-                            Pay Now
+                            Settle
                           </button>
-                        ) : po.stockAllocated !== false ? (
+                        ) : (
                           <span className="inline-flex items-center gap-1 font-sans text-[12px] text-emerald-700 font-medium px-2 py-1 shrink-0">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             <span>Settled</span>
                           </span>
-                        ) : null}
+                        )}
                       </div>
                     </div>
                   );
@@ -1124,9 +1047,6 @@ export function PurchaseOrdersView({
           setSelectedBillForDetails(null);
           handleOpenPayNow(bill);
         }}
-        onReceiveStock={(bill) => {
-          handleOpenMarkDelivered(bill);
-        }}
       />
 
       {/* Reschedule PO Delivery / Due Date Modal */}
@@ -1137,79 +1057,6 @@ export function PurchaseOrdersView({
         onClose={() => setReschedulingState(null)}
         onRescheduleSuccess={handleRescheduleSuccess}
       />
-
-      {/* Confirm Stock Delivery Modal */}
-      {poToDeliver && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] overscroll-contain"
-        >
-          <div className="w-full max-w-[440px] bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 space-y-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-[6px] bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <PackageCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-[16px] text-galla-ink">
-                  Confirm Stock Delivery
-                </h3>
-                <p className="font-sans text-[12px] text-galla-ink-soft">
-                  Purchase Order #{formatDisplayNumber(poToDeliver.purchaseOrderNumber)}
-                </p>
-              </div>
-            </div>
-
-            <p className="text-[13px] text-galla-ink font-sans leading-relaxed">
-              Are you sure you want to mark this shipment as received? This will allocate{" "}
-              <strong>
-                {(poToDeliver.items || []).reduce(
-                  (sum, it) => sum + (it.quantityForSell || 0) + (it.quantityForUse || 0),
-                  0
-                )}{" "}
-                units
-              </strong>{" "}
-              across <strong>{poToDeliver.items?.length || 0} products</strong> directly into your inventory stock.
-            </p>
-
-            {markDeliveredError && (
-              <div className="p-2.5 rounded-[5px] bg-red-50 border border-red-200 text-red-700 text-[12px] flex items-center gap-1.5 font-sans">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{markDeliveredError}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-galla-line">
-              <button
-                type="button"
-                onClick={() => setPoToDeliver(null)}
-                disabled={isMarkingDelivered}
-                className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-galla-paper border border-galla-line text-galla-ink hover:bg-galla-paper/80 transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmMarkDelivered}
-                disabled={isMarkingDelivered}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-xs disabled:opacity-50"
-              >
-                {isMarkingDelivered ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>Updating Inventory...</span>
-                  </>
-                ) : (
-                  <>
-                    <PackageCheck className="h-3.5 w-3.5" />
-                    <span>Receive &amp; Add Stock</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

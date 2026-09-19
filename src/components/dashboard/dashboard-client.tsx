@@ -25,7 +25,7 @@ import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
 import { SettleOrderModal } from "@/components/dashboard/modals/settle-order-modal";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
-import { calculatePendingAmount, formatPhoneNumber, BillStatusKey } from "@/lib/utils";
+import { calculatePendingAmount, formatPhoneNumber, getPhoneDigits, BillStatusKey } from "@/lib/utils";
 import {
   DashboardSalonProfile,
   DashboardService,
@@ -256,17 +256,32 @@ export function DashboardClient({
     updatedProducts?: DashboardProduct[]
   ) => {
     const enrichedOrder = customerPhone && !order.customerPhone ? { ...order, customerPhone } : order;
+    const phoneDigits = customerPhone ? getPhoneDigits(customerPhone) : "";
+
     setOrders((prev) => {
       const updated = prev.map((o) => {
+        let mod = o;
         if (clearedDueOrderIds && clearedDueOrderIds.includes(o.id)) {
-          return {
-            ...o,
-            paid: o.amount,
+          mod = {
+            ...mod,
+            paid: mod.amount,
             status: "completed" as const,
             latestActivityAt: new Date().toISOString(),
           };
         }
-        return o;
+        if (
+          phoneDigits &&
+          mod.customerPhone &&
+          getPhoneDigits(mod.customerPhone) === phoneDigits &&
+          order.customer &&
+          order.customer !== "Walk-in Guest"
+        ) {
+          mod = {
+            ...mod,
+            customer: order.customer,
+          };
+        }
+        return mod;
       });
       return [enrichedOrder, ...updated];
     });
@@ -291,17 +306,20 @@ export function DashboardClient({
     }
 
     if (order.customer && order.customer !== "Walk-in Guest") {
-      const phone = customerPhone ? formatPhoneNumber(customerPhone) : "";
+      const formatted = customerPhone ? formatPhoneNumber(customerPhone) : "";
       setCustomers((prev) => {
-        const idx = prev.findIndex((c) =>
-          phone ? c.phone === phone : c.name.toLowerCase() === order.customer.toLowerCase()
-        );
+        const idx = prev.findIndex((c) => {
+          if (phoneDigits && c.phone) {
+            return getPhoneDigits(c.phone) === phoneDigits;
+          }
+          return c.name.toLowerCase() === order.customer.toLowerCase();
+        });
         if (idx >= 0) {
           const updated = [...prev];
           updated[idx] = {
             ...updated[idx],
             name: order.customer,
-            phone: phone || updated[idx].phone,
+            phone: formatted || updated[idx].phone,
             visits: (updated[idx].visits || 0) + 1,
             lastVisit: "Today",
           };
@@ -310,7 +328,7 @@ export function DashboardClient({
           return [
             {
               name: order.customer,
-              phone: phone,
+              phone: formatted,
               visits: 1,
               lastVisit: "Today",
             },
@@ -394,11 +412,6 @@ export function DashboardClient({
         setProducts((prev) =>
           prev.map((p) => (p.id === id ? res.updatedProduct! : p))
         );
-        if (res.newExpense) {
-          setExpenses((prev) => [res.newExpense!, ...prev]);
-          setTotalExpensesCount((prev) => prev + 1);
-          setExpensesTotalAmount((prev) => prev + (res.newExpense!.amount || 0));
-        }
       }
     } catch (err) {
       console.error("Failed to move stock:", err);
@@ -448,6 +461,23 @@ export function DashboardClient({
     if (updatedSupplier) {
       setSuppliers((prev) =>
         prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+      );
+      const supplierPhoneDigits = updatedSupplier.phone ? getPhoneDigits(updatedSupplier.phone) : "";
+      setPurchaseOrders((prev) =>
+        prev.map((po) => {
+          const matchId = po.supplierId === updatedSupplier.id;
+          const matchPhone = Boolean(
+            supplierPhoneDigits && po.supplierPhone && getPhoneDigits(po.supplierPhone) === supplierPhoneDigits
+          );
+          if (matchId || matchPhone) {
+            return {
+              ...po,
+              supplierName: updatedSupplier.name,
+              supplierCompany: updatedSupplier.companyName || po.supplierCompany,
+            };
+          }
+          return po;
+        })
       );
     }
     router.refresh();
@@ -585,12 +615,60 @@ export function DashboardClient({
   };
 
   const handleAddSupplier = (newSupplier: DashboardSupplier) => {
-    setSuppliers((prev) => [newSupplier, ...prev]);
+    const newDigits = newSupplier.phone ? getPhoneDigits(newSupplier.phone) : "";
+    setSuppliers((prev) => {
+      const existingIdx = prev.findIndex((s) => {
+        if (s.id === newSupplier.id) return true;
+        if (newDigits && s.phone) {
+          return getPhoneDigits(s.phone) === newDigits;
+        }
+        return false;
+      });
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx] = newSupplier;
+        return updated;
+      }
+      return [newSupplier, ...prev];
+    });
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        const matchId = po.supplierId === newSupplier.id;
+        const matchPhone = Boolean(
+          newDigits && po.supplierPhone && getPhoneDigits(po.supplierPhone) === newDigits
+        );
+        if (matchId || matchPhone) {
+          return {
+            ...po,
+            supplierName: newSupplier.name,
+            supplierCompany: newSupplier.companyName || po.supplierCompany,
+          };
+        }
+        return po;
+      })
+    );
   };
 
   const handleUpdateSupplier = (updatedSupplier: DashboardSupplier) => {
     setSuppliers((prev) =>
       prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+    );
+    const supplierPhoneDigits = updatedSupplier.phone ? getPhoneDigits(updatedSupplier.phone) : "";
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        const matchId = po.supplierId === updatedSupplier.id;
+        const matchPhone = Boolean(
+          supplierPhoneDigits && po.supplierPhone && getPhoneDigits(po.supplierPhone) === supplierPhoneDigits
+        );
+        if (matchId || matchPhone) {
+          return {
+            ...po,
+            supplierName: updatedSupplier.name,
+            supplierCompany: updatedSupplier.companyName || po.supplierCompany,
+          };
+        }
+        return po;
+      })
     );
   };
 
@@ -726,6 +804,9 @@ export function DashboardClient({
               initialCategoryCounts={expenseCategoryCounts}
               initialTotalAmount={expensesTotalAmount}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
+              orders={orders}
+              purchaseOrders={purchaseOrders}
+              salonName={salonName}
             />
           )}
 

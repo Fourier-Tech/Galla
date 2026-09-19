@@ -11,7 +11,11 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import { DashboardExpense } from "@/types/dashboard";
+import {
+  DashboardExpense,
+  DashboardOrder,
+  DashboardPurchaseOrder,
+} from "@/types/dashboard";
 import {
   formatRupee,
   getLocalDateString,
@@ -19,6 +23,13 @@ import {
   formatDisplayDate,
   formatDisplayNumber,
 } from "@/lib/utils";
+import { ExpenseDetailsModal } from "@/components/dashboard/modals/expense-details-modal";
+import { PurchaseBillDetailsModal } from "@/components/dashboard/modals/purchase-bill-details-modal";
+import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
+import {
+  getPurchaseOrderByIdAction,
+  getOrderByIdAction,
+} from "@/app/dashboard/actions";
 
 interface ExpensesTabProps {
   expenses: DashboardExpense[];
@@ -26,6 +37,9 @@ interface ExpensesTabProps {
   initialCategoryCounts?: Record<string, number>;
   initialTotalAmount?: number;
   onOpenNewExpense: () => void;
+  orders?: DashboardOrder[];
+  purchaseOrders?: DashboardPurchaseOrder[];
+  salonName?: string;
 }
 
 const FILTER_OPTIONS: {
@@ -46,6 +60,9 @@ export function ExpensesTab({
   initialCategoryCounts,
   initialTotalAmount,
   onOpenNewExpense,
+  orders = [],
+  purchaseOrders = [],
+  salonName,
 }: ExpensesTabProps) {
   const [filter, setFilter] = useState<"all" | DashboardExpense["category"]>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,6 +70,12 @@ export function ExpensesTab({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+
+  // Detail Modals state
+  const [selectedExpense, setSelectedExpense] = useState<DashboardExpense | null>(null);
+  const [selectedPO, setSelectedPO] = useState<DashboardPurchaseOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<DashboardOrder | null>(null);
+  const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
 
   // Pagination state (20 per page standard)
   const pageSize = 20;
@@ -232,6 +255,102 @@ export function ExpensesTab({
         setFilteredTotal(inMemory.reduce((sum, e) => sum + e.amount, 0));
       }
     }
+  };
+
+  const handleExpenseClick = async (expense: DashboardExpense) => {
+    // 1. Check if it's a Purchase Order expense
+    const isPOCategory = expense.category === "Inventory purchase";
+    const hasPOLink = Boolean(expense.linkedPurchaseOrderId);
+    const poNumberInDesc = expense.desc.match(/PO-\d{4}-\d{4}/i)?.[0];
+    const poNumberInNotes = expense.notes?.match(/PO-\d{4}-\d{4}/i)?.[0];
+    const poNumber = poNumberInDesc || poNumberInNotes;
+
+    if (isPOCategory || hasPOLink || poNumber) {
+      // Check in-memory purchaseOrders
+      let foundPO: DashboardPurchaseOrder | undefined;
+      if (purchaseOrders && purchaseOrders.length > 0) {
+        if (expense.linkedPurchaseOrderId) {
+          foundPO = purchaseOrders.find((p) => p.id === expense.linkedPurchaseOrderId);
+        }
+        if (!foundPO && poNumber) {
+          const upperPo = poNumber.toUpperCase();
+          foundPO = purchaseOrders.find((p) => {
+            const num = (p.purchaseOrderNumber || "").toUpperCase();
+            return num === upperPo || num.includes(upperPo) || num.endsWith(upperPo);
+          });
+        }
+      }
+
+      if (foundPO) {
+        setSelectedPO(foundPO);
+        return;
+      }
+
+      // If not in-memory, fetch dynamically
+      const poIdentifier = expense.linkedPurchaseOrderId || poNumber;
+      if (poIdentifier) {
+        setLoadingDetailsId(expense.id || null);
+        try {
+          const res = await getPurchaseOrderByIdAction(poIdentifier);
+          if (res.success && res.purchaseOrder) {
+            setSelectedPO(res.purchaseOrder);
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to fetch PO details:", err);
+        } finally {
+          setLoadingDetailsId(null);
+        }
+      }
+    }
+
+    // 2. Check if it's a Refund expense
+    const isRefundCategory = expense.category === "Refund";
+    const hasOrderLink = Boolean(expense.linkedOrderId);
+    const orderNumInDesc = expense.desc.match(/Order\s*#?(\d+)/i)?.[1];
+    const orderNumInNotes = expense.notes?.match(/Order\s*#?(\d+)/i)?.[1];
+    const orderNumber = orderNumInDesc || orderNumInNotes;
+
+    if (isRefundCategory || hasOrderLink || orderNumber) {
+      // Check in-memory orders
+      let foundOrder: DashboardOrder | undefined;
+      if (orders && orders.length > 0) {
+        if (expense.linkedOrderId) {
+          foundOrder = orders.find((o) => o.id === expense.linkedOrderId);
+        }
+        if (!foundOrder && orderNumber) {
+          foundOrder = orders.find((o) => {
+            const rawId = String(o.id).replace(/^#/, "");
+            return rawId === orderNumber || rawId.endsWith(orderNumber) || rawId.includes(orderNumber);
+          });
+        }
+      }
+
+      if (foundOrder) {
+        setSelectedOrder(foundOrder);
+        return;
+      }
+
+      // If not in-memory, fetch dynamically
+      const orderIdentifier = expense.linkedOrderId || orderNumber;
+      if (orderIdentifier) {
+        setLoadingDetailsId(expense.id || null);
+        try {
+          const res = await getOrderByIdAction(orderIdentifier);
+          if (res.success && res.order) {
+            setSelectedOrder(res.order);
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to fetch order details for refund:", err);
+        } finally {
+          setLoadingDetailsId(null);
+        }
+      }
+    }
+
+    // 3. Fallback / Standard expense (Day-to-day, Salary, Rent, or manual entry)
+    setSelectedExpense(expense);
   };
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -446,50 +565,78 @@ export function ExpensesTab({
       {/* Expenses List */}
       <div className="bg-galla-surface border border-galla-line rounded-[5px] overflow-hidden">
         <div className={`divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
-          {displayedExpenses.map((expense) => (
-            <div
-              key={expense.id || expense.desc + expense.time + expense.amount}
-              className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/30 transition-colors"
-            >
-              <div>
-                <div className="font-sans font-semibold text-[15px] text-galla-ink">
-                  {expense.desc}
-                </div>
-                <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5 flex-wrap">
-                  {expense.expenseNumber && (
-                    <span className="font-mono text-[11.5px] font-semibold text-galla-brick mr-1">
-                      {formatDisplayNumber(expense.expenseNumber)}
-                    </span>
-                  )}
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded-[3px] border mr-2 text-[11.5px] font-medium ${
-                      expense.category === "Refund"
-                        ? "bg-red-50 text-red-800 border-red-200"
-                        : "bg-galla-paper text-galla-ink-soft border-galla-line"
-                    }`}
-                  >
-                    {expense.category}
-                  </span>
-                  <span>{expense.time}</span>
-                </div>
-                {expense.notes && (
-                  <div
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                    title={`Note: ${expense.notes}`}
-                  >
-                    <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
-                      Note
-                    </span>
-                    <span className="truncate font-medium">{expense.notes}</span>
-                  </div>
-                )}
-              </div>
+          {displayedExpenses.map((expense) => {
+            const isLoading = loadingDetailsId === expense.id;
 
-              <div className="font-heading font-semibold text-[16px] text-galla-brick tabular-nums">
-                &minus;{formatRupee(expense.amount)}
+            return (
+              <div
+                key={expense.id || expense.desc + expense.time + expense.amount}
+                onClick={() => handleExpenseClick(expense)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleExpenseClick(expense);
+                  }
+                }}
+                className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/60 transition-colors cursor-pointer group select-none"
+                title="Click to view details"
+              >
+                <div className="min-w-0 flex-1 pr-4">
+                  <div className="flex items-center gap-2">
+                    <span className="font-sans font-semibold text-[15px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                      {expense.desc}
+                    </span>
+                    {isLoading && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-galla-teal shrink-0" />
+                    )}
+                  </div>
+                  <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5 flex-wrap">
+                    {expense.expenseNumber && (
+                      <span className="font-mono text-[11.5px] font-semibold text-galla-brick mr-1">
+                        {formatDisplayNumber(expense.expenseNumber)}
+                      </span>
+                    )}
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-[3px] border mr-2 text-[11.5px] font-medium ${
+                        expense.category === "Refund"
+                          ? "bg-red-50 text-red-800 border-red-200"
+                          : expense.category === "Inventory purchase"
+                          ? "bg-blue-50 text-blue-800 border-blue-200"
+                          : expense.category === "Salary"
+                          ? "bg-purple-50 text-purple-800 border-purple-200"
+                          : expense.category === "Rent"
+                          ? "bg-indigo-50 text-indigo-800 border-indigo-200"
+                          : "bg-galla-paper text-galla-ink-soft border-galla-line"
+                      }`}
+                    >
+                      {expense.category}
+                    </span>
+                    <span>{expense.time}</span>
+                  </div>
+                  {expense.notes && (
+                    <div
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                      title={`Note: ${expense.notes}`}
+                    >
+                      <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                        Note
+                      </span>
+                      <span className="truncate font-medium">{expense.notes}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="font-heading font-semibold text-[16px] text-galla-brick tabular-nums">
+                    &minus;{formatRupee(expense.amount)}
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all shrink-0" />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {displayedExpenses.length === 0 && (
             <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft space-y-2">
@@ -575,6 +722,27 @@ export function ExpensesTab({
           </div>
         </div>
       </div>
+
+      {/* Expense Detail Modals */}
+      <ExpenseDetailsModal
+        expense={selectedExpense}
+        isOpen={Boolean(selectedExpense)}
+        onClose={() => setSelectedExpense(null)}
+      />
+
+      <PurchaseBillDetailsModal
+        bill={selectedPO}
+        isOpen={Boolean(selectedPO)}
+        onClose={() => setSelectedPO(null)}
+        salonName={salonName}
+      />
+
+      <OrderDetailsModal
+        order={selectedOrder}
+        isOpen={Boolean(selectedOrder)}
+        onClose={() => setSelectedOrder(null)}
+        salonName={salonName}
+      />
     </div>
   );
 }

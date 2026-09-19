@@ -410,7 +410,7 @@ export function PackageModal({
                 <option value="">-- Choose an inventory product to bundle (optional) --</option>
                 {availableProducts.map((p) => (
                   <option key={String(p.id)} value={String(p.id)}>
-                    {p.name} — {formatRupee(p.price)} (Stock: {p.sell})
+                    {p.name} — {formatRupee(p.price)} (In-Use: {p.use || 0} pcs, Retail: {p.sell || 0} pcs)
                   </option>
                 ))}
               </select>

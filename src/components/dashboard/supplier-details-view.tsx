@@ -601,15 +601,22 @@ export function SupplierDetailsView({
                     ? bill.items.map((it) => it.productName).join(", ")
                     : `Stock In (${bill.itemsCount || 1} item)`;
 
+                const billStatus = getBillStatus(bill);
+                const isBillCompleted = billStatus.statusKey === "completed";
+                const hasPendingDelivery = !isBillCompleted && bill.stockAllocated === false;
+                const isPendingPayment = !isBillCompleted && pendingBalance > 0;
+
                 const isAdvance =
-                  bill.settlementMode === "advance" ||
-                  Boolean(bill.expectedDeliveryDate) ||
-                  Boolean(bill.notes && /advance/i.test(bill.notes));
-                const targetDelivery =
-                  bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined);
+                  hasPendingDelivery &&
+                  (bill.settlementMode === "advance" ||
+                    Boolean(bill.expectedDeliveryDate) ||
+                    Boolean(bill.notes && /advance/i.test(bill.notes)));
+                const targetDelivery = hasPendingDelivery
+                  ? bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
+                  : undefined;
                 const dUrgency = targetDelivery ? getBookingUrgency(targetDelivery) : null;
-                const isDelivToday = dUrgency?.tone === "today";
-                const isDelivOverdue = dUrgency?.tone === "overdue";
+                const isDelivToday = hasPendingDelivery && dUrgency?.tone === "today";
+                const isDelivOverdue = hasPendingDelivery && dUrgency?.tone === "overdue";
 
                 const dDateStr = targetDelivery ? formatBookingDate(targetDelivery) : "";
                 const dTimeStr = bill.deliveryTime ? formatAppointmentTime(bill.deliveryTime) : "";
@@ -628,10 +635,12 @@ export function SupplierDetailsView({
                     : `Expected: ${dFullSlot}`;
 
                 // Payment Due Date & Urgency
-                const targetDueDate = bill.dueDate || (bill.paymentMode === "credit" ? bill.invoiceDate : undefined);
-                const dueUrgency = (pendingBalance > 0 && targetDueDate) ? getBookingUrgency(targetDueDate) : null;
-                const isDueToday = dueUrgency?.tone === "today";
-                const isDueOverdue = dueUrgency?.tone === "overdue";
+                const targetDueDate = isPendingPayment
+                  ? bill.dueDate || (bill.paymentMode === "credit" ? bill.invoiceDate : undefined)
+                  : undefined;
+                const dueUrgency = (isPendingPayment && targetDueDate) ? getBookingUrgency(targetDueDate) : null;
+                const isDueToday = isPendingPayment && dueUrgency?.tone === "today";
+                const isDueOverdue = isPendingPayment && dueUrgency?.tone === "overdue";
 
                 const dueDateStr = targetDueDate ? formatBookingDate(targetDueDate) : "";
                 const dueBadgeStyle = isDueToday
@@ -653,19 +662,16 @@ export function SupplierDetailsView({
                   poNumber: bill.purchaseOrderNumber,
                   dealerInvoiceNumber: bill.dealerInvoiceNumber,
                   deliveryDate: targetDelivery,
-                  deliveryTime: bill.deliveryTime,
-                  dueDate: bill.dueDate,
+                  deliveryTime: hasPendingDelivery ? bill.deliveryTime : undefined,
+                  dueDate: isPendingPayment ? bill.dueDate : undefined,
                   totalAmount: bill.totalAmount,
                   amountPaid: bill.amountPaid,
                   amountPending: pendingBalance,
                   itemsSummary,
                   items: bill.items,
-                  mode: isAdvance ? "advance" : pendingBalance > 0 ? "payment_due" : "delivery",
+                  mode: isAdvance ? "advance" : isPendingPayment ? "payment_due" : "delivery",
                   isAdvance,
                 });
-
-                const billStatus = getBillStatus(bill);
-                const isBillCompleted = billStatus.statusKey === "completed" || bill.amountPending <= 0;
 
                 return (
                   <div

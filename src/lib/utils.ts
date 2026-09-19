@@ -57,6 +57,11 @@ export function formatPhoneNumber(phone?: string | null): string {
   return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }
 
+export function getPhoneDigits(phone?: string | null): string {
+  if (!phone) return "";
+  return phone.replace(/\D/g, "").slice(-10);
+}
+
 export function checkIsToday(date: Date | string | undefined): boolean {
   if (!date) return false;
   const d = new Date(date);
@@ -211,61 +216,6 @@ export function formatAppointmentTime(timeStr?: string | null): string {
   return `${String(displayH).padStart(2, "0")}:${displayM} ${period}`;
 }
 
-export function getUrgencyBadgeConfig(
-  dateInput: Date | string | undefined,
-  timeInput?: string | null,
-  context: "booking" | "delivery" | "due_date" = "booking"
-): {
-  urgency: BookingUrgency | null;
-  isUrgent: boolean;
-  isOverdue: boolean;
-  isToday: boolean;
-  formattedDate: string;
-  formattedSlot: string;
-  badgeStyle: string;
-  badgeLabel: string;
-} {
-  const urgency = getBookingUrgency(dateInput);
-  const formattedDate = formatBookingDate(dateInput);
-  const formattedTime = timeInput ? formatAppointmentTime(timeInput) : null;
-  const formattedSlot = formattedTime ? `${formattedDate}, ${formattedTime}` : formattedDate;
-
-  const isToday = urgency?.tone === "today";
-  const isOverdue = urgency?.tone === "overdue";
-  const isTomorrow = urgency?.tone === "tomorrow";
-  const isUrgent = Boolean(isToday || isOverdue);
-
-  let badgeStyle = "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
-  if (isOverdue) {
-    badgeStyle = "text-red-900 bg-red-100 border-red-300 font-semibold";
-  } else if (isToday) {
-    badgeStyle = "text-rose-800 bg-rose-50 border-rose-300 font-semibold";
-  } else if (isTomorrow) {
-    badgeStyle = "text-amber-900 bg-amber-50 border-amber-300 font-medium";
-  }
-
-  let prefix = "";
-  if (context === "due_date") {
-    prefix = isOverdue ? "⚠️ Overdue Due Date" : isToday ? "🚨 Due Today" : "Due:";
-  } else if (context === "delivery") {
-    prefix = isOverdue ? "⚠️ Delivery Overdue" : isToday ? "🚨 Delivery Today" : "Delivery:";
-  } else {
-    prefix = isOverdue ? "⚠️ Overdue" : isToday ? "🚨 Today" : "Scheduled:";
-  }
-
-  const badgeLabel = `${prefix} (${formattedSlot})`;
-
-  return {
-    urgency,
-    isUrgent,
-    isOverdue,
-    isToday,
-    formattedDate,
-    formattedSlot,
-    badgeStyle,
-    badgeLabel,
-  };
-}
 
 export function getWhatsAppReminderUrl(options: {
   phone?: string;
@@ -426,7 +376,7 @@ export function getSupplierWhatsAppReminderUrl(options: {
   const formattedDueDate = options.dueDate ? formatBookingDate(options.dueDate) : "Immediate / On Delivery";
 
   // Case 1: Advance Order Message
-  if (options.mode === "advance" || options.isAdvance) {
+  if ((options.mode === "advance" || options.isAdvance) && options.amountPending > 0) {
     const message =
       `Hello ${options.supplierName}! 👋\n\n` +
       `This is an update from *${salonDisplayName}* regarding our advance order for ${billReference}.\n\n` +
@@ -488,17 +438,27 @@ export function getBillStatus(po: {
   paymentMode?: string;
 }): {
   statusKey: BillStatusKey;
-  pillStatus: "advance_paid" | "completed" | "created";
+  pillStatus: "advance_paid" | "completed" | "created" | "paid_full";
   label: string;
 } {
   const isCleared = po.paymentStatus === "paid" || po.amountPending <= 0;
 
-  // 1. If stock is not yet allocated, goods are awaiting delivery (advance / pre-order)
-  if (po.stockAllocated === false) {
-    return { statusKey: "advance", pillStatus: "advance_paid", label: "Advance" };
+  // 1. If explicitly marked completed, it is Completed
+  if (po.settlementMode === "completed" || (isCleared && po.stockAllocated === true)) {
+    return { statusKey: "completed", pillStatus: "completed", label: "Completed" };
   }
 
-  // 2. If fully cleared and stock is allocated -> Completed
+  // 2. If stock is not yet allocated, goods are awaiting delivery (advance / pre-order)
+  if (po.stockAllocated === false) {
+    const isPaidFull = po.settlementMode === "paid_full" || isCleared;
+    return {
+      statusKey: "advance",
+      pillStatus: isPaidFull ? "paid_full" : "advance_paid",
+      label: isPaidFull ? "Paid in full" : "Advance",
+    };
+  }
+
+  // 3. If fully cleared and stock is allocated -> Completed
   if (isCleared) {
     return { statusKey: "completed", pillStatus: "completed", label: "Completed" };
   }
@@ -507,6 +467,7 @@ export function getBillStatus(po: {
   if (po.stockAllocated === undefined) {
     const isLegacyAdvance =
       po.settlementMode === "advance" ||
+      po.settlementMode === "paid_full" ||
       Boolean(po.expectedDeliveryDate) ||
       Boolean(po.notes && /advance/i.test(po.notes));
     if (isLegacyAdvance && !isCleared) {

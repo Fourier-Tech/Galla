@@ -510,10 +510,8 @@ export function StockInModal({
     setErrorMsg(null);
 
     try {
-      // Auto-correct name if phone conflict exists
-      const trimmedSupplier = phoneConflictSupplier
-        ? phoneConflictSupplier.name
-        : supplierName.trim();
+      // Use user-entered supplier name; fallback to conflict supplier or empty
+      const trimmedSupplier = supplierName.trim() || phoneConflictSupplier?.name || "";
       const parsedItems = items.map((it) => ({
         productId: it.isNewProduct ? undefined : it.productId,
         isNewProduct: it.isNewProduct,
@@ -709,17 +707,20 @@ export function StockInModal({
                 <div className="flex items-start gap-1.5 mt-1 p-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[11.5px] rounded-[4px] font-sans">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
                   <div className="leading-tight">
-                    <span>This number is already registered to </span>
+                    <span>This number is registered to </span>
                     <strong>{phoneConflictSupplier.name}</strong>{phoneConflictSupplier.companyName ? ` (${phoneConflictSupplier.companyName})` : ""}.
+                    <span> Creating this bill will update the supplier name to </span>
+                    <strong>{supplierName.trim() || phoneConflictSupplier.name}</strong>
+                    <span> permanently.</span>
                     <button
                       type="button"
                       onClick={() => {
                         setSupplierName(phoneConflictSupplier.name);
                         setSelectedSupplierId(phoneConflictSupplier.id);
                       }}
-                      className="ml-1 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
+                      className="ml-1.5 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
                     >
-                      Use {phoneConflictSupplier.name}
+                      Keep {phoneConflictSupplier.name}
                     </button>
                   </div>
                 </div>

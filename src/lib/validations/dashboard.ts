@@ -125,7 +125,7 @@ export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>
 
 export const recordPurchaseOrderPaymentSchema = z.object({
   purchaseOrderId: z.string().min(1, "Purchase order ID is required"),
-  amount: z.number().positive("Payment amount must be greater than 0"),
+  amount: z.number().min(0, "Payment amount cannot be negative"),
   paymentMode: z.enum(["cash", "upi", "card", "bank_transfer"]).default("cash"),
   notes: z.string().optional(),
 });
@@ -141,18 +141,6 @@ export const reschedulePurchaseOrderSchema = z.object({
 
 export type ReschedulePurchaseOrderInput = z.infer<typeof reschedulePurchaseOrderSchema>;
 
-export const markPurchaseOrderDeliveredSchema = z.object({
-  purchaseOrderId: z.string().min(1, "Purchase order ID is required"),
-});
-
-export type MarkPurchaseOrderDeliveredInput = z.infer<typeof markPurchaseOrderDeliveredSchema>;
-
-export const fulfillOrderLineItemSchema = z.object({
-  orderId: z.string().min(1, "Order ID is required"),
-  lineItemIndex: z.number().int().min(0, "Line item index must be non-negative"),
-});
-
-export type FulfillOrderLineItemInput = z.infer<typeof fulfillOrderLineItemSchema>;
 
 export const createProductSchema = z.object({
   name: z.string().min(1, "Product name is required").trim(),
@@ -282,11 +270,6 @@ export const updateSupplierSchema = z.object({
 
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
 
-export const deleteSupplierSchema = z.object({
-  id: z.string().min(1, "Supplier ID is required"),
-});
-
-export type DeleteSupplierInput = z.infer<typeof deleteSupplierSchema>;
 
 export const updateCustomerSchema = z.object({
   id: z.string().optional(),
