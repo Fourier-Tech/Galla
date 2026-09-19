@@ -18,7 +18,12 @@ import {
   Landmark,
   Sparkles,
 } from "lucide-react";
-import { DashboardProduct, DashboardSupplier } from "@/types/dashboard";
+import {
+  DashboardProduct,
+  DashboardSupplier,
+  DashboardPurchaseOrder,
+  DashboardExpense,
+} from "@/types/dashboard";
 import { createPurchaseOrderAction, getSuppliersAction } from "@/app/dashboard/actions";
 import {
   formatRupee,
@@ -26,6 +31,7 @@ import {
   formatBookingDate,
   formatAppointmentTime,
   getLocalDateString,
+  formatDisplayNumber,
 } from "@/lib/utils";
 import { COMMON_PRODUCT_CATEGORIES } from "./product-modal";
 import { ConfirmModal } from "./confirm-modal";
@@ -35,7 +41,12 @@ interface StockInModalProps {
   onClose: () => void;
   products: DashboardProduct[];
   suppliers?: DashboardSupplier[];
-  onStockInSuccess: (updatedProducts: DashboardProduct[]) => void;
+  onStockInSuccess: (
+    updatedProducts: DashboardProduct[],
+    createdPO?: DashboardPurchaseOrder,
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
+  ) => void;
 }
 
 interface StockInItemDraft {
@@ -539,7 +550,12 @@ export function StockInModal({
       });
 
       if (res.success && res.updatedProducts) {
-        onStockInSuccess(res.updatedProducts);
+        onStockInSuccess(
+          res.updatedProducts,
+          res.purchaseOrder,
+          res.newExpense,
+          res.updatedSupplier
+        );
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to record purchase entry");

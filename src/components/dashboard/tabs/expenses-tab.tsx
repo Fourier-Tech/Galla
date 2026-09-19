@@ -90,31 +90,55 @@ export function ExpensesTab({
     page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest";
 
   if (expenses !== prevExpenses) {
+    const prevIds = new Set(prevExpenses.map((e) => e.id));
+    const newExpenses = expenses.filter((e) => !prevIds.has(e.id));
     setPrevExpenses(expenses);
-    if (isDefaultView) {
-      setDisplayedExpenses(expenses);
+
+    if (newExpenses.length > 0) {
+      const matchingNew = newExpenses.filter((ne) => {
+        if (filter === "all") return true;
+        return ne.category === filter;
+      });
+
+      if (matchingNew.length > 0) {
+        setTotalCount((prev) => prev + matchingNew.length);
+      }
+
+      if (isDefaultView) {
+        setDisplayedExpenses(expenses);
+      } else {
+        setDisplayedExpenses((prev) => {
+          const updatedExisting = prev.map((disp) => expenses.find((e) => e.id === disp.id) || disp);
+          if (page === 1 && !searchQuery && !startDate && !endDate && matchingNew.length > 0) {
+            return [...matchingNew, ...updatedExisting];
+          }
+          return updatedExisting;
+        });
+      }
+    } else {
+      if (isDefaultView) {
+        setDisplayedExpenses(expenses);
+      } else {
+        setDisplayedExpenses((prev) =>
+          prev.map((disp) => expenses.find((e) => e.id === disp.id) || disp)
+        );
+      }
     }
   }
 
   if (initialTotalCount !== undefined && initialTotalCount !== prevInitialTotalCount) {
     setPrevInitialTotalCount(initialTotalCount);
-    if (isDefaultView) {
-      setTotalCount(initialTotalCount);
-    }
+    setTotalCount(initialTotalCount);
   }
 
   if (initialCategoryCounts !== undefined && initialCategoryCounts !== prevInitialCategoryCounts) {
     setPrevInitialCategoryCounts(initialCategoryCounts);
-    if (isDefaultView) {
-      setCategoryCounts(initialCategoryCounts);
-    }
+    setCategoryCounts(initialCategoryCounts);
   }
 
   if (initialTotalAmount !== undefined && initialTotalAmount !== prevInitialTotalAmount) {
     setPrevInitialTotalAmount(initialTotalAmount);
-    if (isDefaultView) {
-      setFilteredTotal(initialTotalAmount);
-    }
+    setFilteredTotal(initialTotalAmount);
   }
 
   // Fast GET fetch for expenses pagination & filters (auto-abort stale queries)

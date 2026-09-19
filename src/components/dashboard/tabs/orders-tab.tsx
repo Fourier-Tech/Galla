@@ -122,35 +122,67 @@ export function OrdersTab({
     page === 1 && !searchQuery && !startDate && !endDate && filter === "all" && sortOrder === "newest";
 
   if (orders !== prevOrders) {
+    const prevMap = new Map(prevOrders.map((o) => [o.id, o]));
+    const newOrders = orders.filter((o) => !prevMap.has(o.id));
     setPrevOrders(orders);
-    setStatusCounts({
-      all: orders.length,
-      created: orders.filter((o) => o.status === "created").length,
-      advance_paid: orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full").length,
-      completed: orders.filter((o) => o.status === "completed").length,
-      cancelled_refunded: orders.filter((o) => o.status === "cancelled_refunded").length,
-    });
-    if (isDefaultView) {
-      setDisplayedOrders(orders);
+
+    if (newOrders.length > 0) {
+      // Find new orders that match current view filter
+      const matchingNew = newOrders.filter((no) => {
+        if (filter === "all") return true;
+        if (filter === "advance_paid") return no.status === "advance_paid" || no.status === "paid_full";
+        return no.status === filter;
+      });
+
+      if (matchingNew.length > 0) {
+        setTotalCount((prev) => prev + matchingNew.length);
+      }
+
+      // Increment status counts instead of wiping them out with orders.length
+      setStatusCounts((prevCounts) => {
+        const next = { ...prevCounts };
+        for (const no of newOrders) {
+          next.all = (next.all || 0) + 1;
+          if (no.status === "advance_paid" || no.status === "paid_full") {
+            next.advance_paid = (next.advance_paid || 0) + 1;
+          } else if (no.status in next) {
+            next[no.status] = (next[no.status] || 0) + 1;
+          }
+        }
+        return next;
+      });
+
+      if (isDefaultView) {
+        setDisplayedOrders(orders);
+      } else {
+        setDisplayedOrders((prev) => {
+          const updatedExisting = prev.map((disp) => orders.find((o) => o.id === disp.id) || disp);
+          if (page === 1 && !searchQuery && !startDate && !endDate && matchingNew.length > 0) {
+            return [...matchingNew, ...updatedExisting];
+          }
+          return updatedExisting;
+        });
+      }
     } else {
-      setDisplayedOrders((prev) =>
-        prev.map((disp) => orders.find((o) => o.id === disp.id) || disp)
-      );
+      // Existing orders were updated (e.g. status change, settlement, refund)
+      if (isDefaultView) {
+        setDisplayedOrders(orders);
+      } else {
+        setDisplayedOrders((prev) =>
+          prev.map((disp) => orders.find((o) => o.id === disp.id) || disp)
+        );
+      }
     }
   }
 
   if (initialTotalCount !== undefined && initialTotalCount !== prevInitialTotalCount) {
     setPrevInitialTotalCount(initialTotalCount);
-    if (isDefaultView) {
-      setTotalCount(initialTotalCount);
-    }
+    setTotalCount(initialTotalCount);
   }
 
   if (initialStatusCounts !== undefined && initialStatusCounts !== prevInitialStatusCounts) {
     setPrevInitialStatusCounts(initialStatusCounts);
-    if (isDefaultView) {
-      setStatusCounts(initialStatusCounts);
-    }
+    setStatusCounts(initialStatusCounts);
   }
 
   const handleComplete = async (id: string) => {

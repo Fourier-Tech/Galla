@@ -22,6 +22,7 @@ import {
   DashboardSupplier,
   DashboardProduct,
   DashboardPurchaseOrder,
+  DashboardExpense,
 } from "@/types/dashboard";
 import { formatRupee, formatPhoneNumber, BillStatusKey } from "@/lib/utils";
 import { PurchaseOrdersView } from "@/components/dashboard/purchase-orders-view";
@@ -32,9 +33,26 @@ import { SupplierDetailsView } from "@/components/dashboard/supplier-details-vie
 interface SuppliersTabProps {
   suppliers: DashboardSupplier[];
   products: DashboardProduct[];
+  purchaseOrders?: DashboardPurchaseOrder[];
   onAddSupplier: (supplier: DashboardSupplier) => void;
   onUpdateSupplier: (supplier: DashboardSupplier) => void;
-  onStockInSuccess?: (updatedProducts: DashboardProduct[]) => void;
+  onStockInSuccess?: (
+    updatedProducts: DashboardProduct[],
+    createdPO?: DashboardPurchaseOrder,
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
+  ) => void;
+  onPaymentRecorded?: (
+    po: DashboardPurchaseOrder,
+    supplier?: DashboardSupplier,
+    expense?: DashboardExpense,
+    updatedProducts?: DashboardProduct[]
+  ) => void;
+  onStockDelivered?: (
+    po: DashboardPurchaseOrder,
+    updatedProducts?: DashboardProduct[]
+  ) => void;
+  onReschedulePurchaseOrder?: (po: DashboardPurchaseOrder) => void;
   salonName?: string;
   initialFilter?: "all" | BillStatusKey;
 }
@@ -42,9 +60,13 @@ interface SuppliersTabProps {
 export function SuppliersTab({
   suppliers,
   products,
+  purchaseOrders,
   onAddSupplier,
   onUpdateSupplier,
   onStockInSuccess,
+  onPaymentRecorded,
+  onStockDelivered,
+  onReschedulePurchaseOrder,
   salonName,
   initialFilter,
 }: SuppliersTabProps) {
@@ -280,6 +302,10 @@ export function SuppliersTab({
             searchQuery={searchQuery}
             onOpenStockIn={() => setIsStockInModalOpen(true)}
             suppliers={suppliers}
+            purchaseOrders={purchaseOrders}
+            onPaymentRecorded={onPaymentRecorded}
+            onStockDelivered={onStockDelivered}
+            onReschedulePurchaseOrder={onReschedulePurchaseOrder}
             salonName={salonName}
             initialFilter={initialFilter}
           />
@@ -492,8 +518,8 @@ export function SuppliersTab({
         onClose={() => setIsStockInModalOpen(false)}
         products={products}
         suppliers={activeSuppliers}
-        onStockInSuccess={(updatedBatch) => {
-          onStockInSuccess?.(updatedBatch);
+        onStockInSuccess={(updatedBatch, newPO, newExpense, updatedSupplier) => {
+          onStockInSuccess?.(updatedBatch, newPO, newExpense, updatedSupplier);
         }}
       />
 

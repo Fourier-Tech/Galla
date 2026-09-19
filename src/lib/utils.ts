@@ -482,6 +482,7 @@ export function getBillStatus(po: {
   totalAmount: number;
   paymentStatus?: "paid" | "partial" | "unpaid";
   settlementMode?: "advance" | "pending" | "paid_full" | "completed";
+  stockAllocated?: boolean;
   expectedDeliveryDate?: Date | string;
   notes?: string;
   paymentMode?: string;
@@ -490,20 +491,65 @@ export function getBillStatus(po: {
   pillStatus: "advance_paid" | "completed" | "created";
   label: string;
 } {
-  const isAdvance =
-    po.settlementMode === "advance" ||
-    Boolean(po.expectedDeliveryDate) ||
-    Boolean(po.notes && /advance/i.test(po.notes));
-
   const isCleared = po.paymentStatus === "paid" || po.amountPending <= 0;
 
-  if (isAdvance && !isCleared) {
+  // 1. If stock is not yet allocated, goods are awaiting delivery (advance / pre-order)
+  if (po.stockAllocated === false) {
     return { statusKey: "advance", pillStatus: "advance_paid", label: "Advance" };
   }
 
+  // 2. If fully cleared and stock is allocated -> Completed
   if (isCleared) {
     return { statusKey: "completed", pillStatus: "completed", label: "Completed" };
   }
 
+  // 3. For legacy POs where stockAllocated is undefined:
+  if (po.stockAllocated === undefined) {
+    const isLegacyAdvance =
+      po.settlementMode === "advance" ||
+      Boolean(po.expectedDeliveryDate) ||
+      Boolean(po.notes && /advance/i.test(po.notes));
+    if (isLegacyAdvance && !isCleared) {
+      return { statusKey: "advance", pillStatus: "advance_paid", label: "Advance" };
+    }
+  }
+
+  // 4. Otherwise (stock is received, but payment is still pending) -> Pending / Pay Later
   return { statusKey: "pending", pillStatus: "created", label: "Pending" };
+}
+
+export function getBillLastUpdatedTime(po: {
+  updatedAt?: Date | string;
+  createdAt?: Date | string;
+  invoiceDate?: Date | string;
+  lastUpdatedTime?: string;
+  payments?: Array<{ recordedAt?: Date | string; type?: string }>;
+}): string | undefined {
+  if (po.lastUpdatedTime) return po.lastUpdatedTime;
+
+  const candidateTimestamps = [
+    po.updatedAt ? new Date(po.updatedAt).getTime() : 0,
+    ...(po.payments || []).map((p) => (p.recordedAt ? new Date(p.recordedAt).getTime() : 0)),
+  ].filter((t): t is number => Boolean(t) && !isNaN(t));
+
+  if (candidateTimestamps.length === 0) return undefined;
+
+  const latestTime = Math.max(...candidateTimestamps);
+  const createdTime = po.createdAt
+    ? new Date(po.createdAt).getTime()
+    : po.invoiceDate
+    ? new Date(po.invoiceDate).getTime()
+    : 0;
+
+  const isMeaningfullyUpdated = Boolean(
+    (createdTime > 0 && latestTime - createdTime > 5000) ||
+    (po.payments && po.payments.length > 1) ||
+    po.payments?.some((p) => p.type === "settlement")
+  );
+
+  if (isMeaningfullyUpdated && latestTime) {
+    return formatOrderTime(new Date(latestTime));
+  }
+
+  return undefined;
 }

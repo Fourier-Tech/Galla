@@ -36,12 +36,14 @@ import {
   getBookingUrgency,
   getSupplierWhatsAppReminderUrl,
   getBillStatus,
+  getBillLastUpdatedTime,
   formatDisplayNumber,
 } from "@/lib/utils";
 import { PurchaseBillDetailsModal } from "@/components/dashboard/modals/purchase-bill-details-modal";
 import { ReschedulePurchaseOrderModal } from "@/components/dashboard/modals/reschedule-purchase-order-modal";
 import { SettlePurchaseBillModal } from "@/components/dashboard/modals/settle-purchase-bill-modal";
 import { StatusPill } from "@/components/dashboard/status-pill";
+
 
 interface SupplierDetailsViewProps {
   supplier: DashboardSupplier;
@@ -689,6 +691,12 @@ export function SupplierDetailsView({
                             Stock Order &bull; {formatOrderTime(bill.createdAt || bill.invoiceDate)}
                           </span>
                         </div>
+                        {getBillLastUpdatedTime(bill) && (
+                          <div className="font-sans text-[11px] text-galla-ink-soft/75 mt-0.5 flex items-center gap-1 truncate">
+                            <span className="text-galla-ink-soft/60">Last update:</span>
+                            <span className="font-medium text-galla-ink-soft">{getBillLastUpdatedTime(bill)}</span>
+                          </div>
+                        )}
                         {bill.notes && (
                           <div
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"

@@ -211,6 +211,7 @@ export interface DashboardPurchaseOrder {
   expectedDeliveryDate?: string;
   deliveryTime?: string;
   settlementMode?: "completed" | "pending" | "advance" | "paid_full";
+  stockAllocated?: boolean;
   dealerInvoiceNumber?: string;
   notes?: string;
   recordedBy?: "owner" | "staff" | string;

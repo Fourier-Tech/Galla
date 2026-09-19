@@ -15,7 +15,7 @@ import {
   ChevronRight,
   ArrowRightLeft,
 } from "lucide-react";
-import { DashboardProduct, DashboardExpense, DashboardSupplier } from "@/types/dashboard";
+import { DashboardProduct, DashboardExpense, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
 import { TransferStockModal } from "@/components/dashboard/modals/transfer-stock-modal";
 import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
@@ -27,7 +27,12 @@ interface InventoryTabProps {
   products: DashboardProduct[];
   suppliers?: DashboardSupplier[];
   onMoveStock?: (id: number | string) => void;
-  onStockInSuccess?: (updatedProducts: DashboardProduct[]) => void;
+  onStockInSuccess?: (
+    updatedProducts: DashboardProduct[],
+    createdPO?: DashboardPurchaseOrder,
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
+  ) => void;
   onTransferSuccess?: (updatedProduct: DashboardProduct, newExpense?: DashboardExpense) => void;
   onAddProduct?: (newProduct: DashboardProduct) => void;
   onUpdateProduct?: (updatedProduct: DashboardProduct) => void;
@@ -649,8 +654,8 @@ export function InventoryTab({
         onClose={() => setIsStockInModalOpen(false)}
         products={products}
         suppliers={suppliers}
-        onStockInSuccess={(updatedBatch) => {
-          onStockInSuccess?.(updatedBatch);
+        onStockInSuccess={(updatedBatch, newPO, newExpense, updatedSupplier) => {
+          onStockInSuccess?.(updatedBatch, newPO, newExpense, updatedSupplier);
         }}
       />
 

@@ -36,6 +36,7 @@ export interface IPurchaseOrder extends Document {
   paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "credit";
   paymentStatus: "paid" | "partial" | "unpaid";
   settlementMode?: "completed" | "pending" | "advance" | "paid_full";
+  stockAllocated?: boolean;
   dueDate?: Date;
   expectedDeliveryDate?: Date;
   deliveryTime?: string;
@@ -182,6 +183,10 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
       type: String,
       enum: ["completed", "pending", "advance", "paid_full"],
       default: "completed",
+    },
+    stockAllocated: {
+      type: Boolean,
+      default: false,
     },
     dueDate: {
       type: Date,

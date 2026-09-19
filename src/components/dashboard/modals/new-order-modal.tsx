@@ -73,7 +73,12 @@ export interface SelectedOrderItem {
 interface NewOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddOrder: (order: DashboardOrder, customerPhone?: string, clearedDueOrderIds?: string[]) => void;
+  onAddOrder: (
+    order: DashboardOrder,
+    customerPhone?: string,
+    clearedDueOrderIds?: string[],
+    updatedProducts?: DashboardProduct[]
+  ) => void;
   customers?: DashboardCustomer[];
   services?: DashboardService[];
   packages?: DashboardPackage[];
@@ -574,7 +579,7 @@ export function NewOrderModal({
       });
 
       if (res.success && res.order) {
-        onAddOrder(res.order, formattedPhone, res.clearedDueOrderIds);
+        onAddOrder(res.order, formattedPhone, res.clearedDueOrderIds, res.updatedProducts);
         handleReset();
         onClose();
       } else {

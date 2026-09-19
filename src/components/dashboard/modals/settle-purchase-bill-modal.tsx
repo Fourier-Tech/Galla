@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { X, AlertCircle, Check, Loader2, CreditCard } from "lucide-react";
-import { DashboardPurchaseOrder } from "@/types/dashboard";
+import { DashboardPurchaseOrder, DashboardSupplier, DashboardExpense, DashboardProduct } from "@/types/dashboard";
 import { recordPurchaseOrderPaymentAction } from "@/app/dashboard/actions";
 import { formatRupee, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
@@ -11,7 +11,12 @@ interface SettlePurchaseBillModalProps {
   bill: DashboardPurchaseOrder | null;
   isOpen: boolean;
   onClose: () => void;
-  onPaymentSuccess: (updatedPO: DashboardPurchaseOrder) => void;
+  onPaymentSuccess: (
+    updatedPO: DashboardPurchaseOrder,
+    supplier?: DashboardSupplier,
+    expense?: DashboardExpense,
+    updatedProducts?: DashboardProduct[]
+  ) => void;
 }
 
 export function SettlePurchaseBillModal({
@@ -39,7 +44,12 @@ function SettlePurchaseBillModalContent({
 }: {
   bill: DashboardPurchaseOrder;
   onClose: () => void;
-  onPaymentSuccess: (updatedPO: DashboardPurchaseOrder) => void;
+  onPaymentSuccess: (
+    updatedPO: DashboardPurchaseOrder,
+    supplier?: DashboardSupplier,
+    expense?: DashboardExpense,
+    updatedProducts?: DashboardProduct[]
+  ) => void;
 }) {
   const defaultDue = Math.max(0, bill.amountPending);
 
@@ -105,7 +115,7 @@ function SettlePurchaseBillModalContent({
       });
 
       if (res.success && res.purchaseOrder) {
-        onPaymentSuccess(res.purchaseOrder);
+        onPaymentSuccess(res.purchaseOrder, res.supplier, res.newExpense, res.updatedProducts);
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to record settlement payment");

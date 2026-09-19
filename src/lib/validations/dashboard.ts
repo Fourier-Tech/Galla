@@ -141,6 +141,12 @@ export const reschedulePurchaseOrderSchema = z.object({
 
 export type ReschedulePurchaseOrderInput = z.infer<typeof reschedulePurchaseOrderSchema>;
 
+export const markPurchaseOrderDeliveredSchema = z.object({
+  purchaseOrderId: z.string().min(1, "Purchase order ID is required"),
+});
+
+export type MarkPurchaseOrderDeliveredInput = z.infer<typeof markPurchaseOrderDeliveredSchema>;
+
 export const fulfillOrderLineItemSchema = z.object({
   orderId: z.string().min(1, "Order ID is required"),
   lineItemIndex: z.number().int().min(0, "Line item index must be non-negative"),

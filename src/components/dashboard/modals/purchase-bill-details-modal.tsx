@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Calendar,
   Clock,
+  PackageCheck,
 } from "lucide-react";
 import {
   DashboardPurchaseOrder,
@@ -52,6 +53,7 @@ interface PurchaseBillDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPayNow?: (bill: DashboardPurchaseOrder) => void;
+  onReceiveStock?: (bill: DashboardPurchaseOrder) => void;
   salonName?: string;
 }
 
@@ -60,6 +62,7 @@ export function PurchaseBillDetailsModal({
   isOpen,
   onClose,
   onOpenPayNow,
+  onReceiveStock,
   salonName,
 }: PurchaseBillDetailsModalProps) {
   React.useEffect(() => {
@@ -464,6 +467,17 @@ export function PurchaseBillDetailsModal({
                       ? "Paid in Full"
                       : "Completed"}
                   </span>
+                  {bill.stockAllocated === false ? (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200 inline-flex items-center gap-1">
+                      <Package className="h-3 w-3 text-amber-700" />
+                      <span>Stock Pending Delivery</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
+                      <PackageCheck className="h-3 w-3 text-emerald-700" />
+                      <span>Stock In Inventory</span>
+                    </span>
+                  )}
                   {isDeliveryToday && (
                     <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
                       🚨 Delivery Expected Today
@@ -726,6 +740,21 @@ export function PurchaseBillDetailsModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {!bill.stockAllocated && onReceiveStock && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onReceiveStock(bill);
+                }}
+                className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+                title="Receive shipment and allocate stock to inventory"
+              >
+                <PackageCheck className="h-4 w-4" />
+                <span>Receive Stock</span>
+              </button>
+            )}
+
             {isDue && onOpenPayNow && (
               <button
                 type="button"

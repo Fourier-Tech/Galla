@@ -136,12 +136,9 @@ export function OverviewTab({
   // Supplier Deliveries & Dues: Urgency triggers strictly on the selected date (Today) or if Overdue
   const urgentSupplierDeliveries = useMemo(() => {
     return (purchaseOrders || []).filter((po) => {
-      if (po.paymentStatus === "paid" && po.settlementMode === "completed") return false;
-      const isAdvanceOrScheduled =
-        po.settlementMode === "advance" ||
-        Boolean(po.expectedDeliveryDate) ||
-        Boolean(po.notes && /advance/i.test(po.notes));
-      const targetDate = po.expectedDeliveryDate || (isAdvanceOrScheduled ? po.dueDate || po.invoiceDate : undefined);
+      // Must be an active advance bill awaiting delivery
+      if (getBillStatus(po).statusKey !== "advance") return false;
+      const targetDate = po.expectedDeliveryDate || po.dueDate || po.invoiceDate;
       if (!targetDate) return false;
       const urgency = getBookingUrgency(targetDate);
       return urgency && (urgency.tone === "today" || urgency.tone === "overdue");
@@ -150,6 +147,8 @@ export function OverviewTab({
 
   const urgentSupplierDues = useMemo(() => {
     return (purchaseOrders || []).filter((po) => {
+      // Must be a pending bill (NOT an advance order and NOT completed)
+      if (getBillStatus(po).statusKey !== "pending") return false;
       if (po.amountPending <= 0) return false;
       const dueTarget = po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined);
       if (!dueTarget) return false;
@@ -167,11 +166,13 @@ export function OverviewTab({
 
   const supplierItemsToday = useMemo(() => {
     return urgentSupplierItems.filter((po) => {
-      const dTarget = po.expectedDeliveryDate || (po.notes && /advance/i.test(po.notes) ? po.invoiceDate : undefined);
-      const pTarget = po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined);
-      const uD = dTarget ? getBookingUrgency(dTarget) : null;
-      const uP = pTarget ? getBookingUrgency(pTarget) : null;
-      return uD?.tone === "today" || uP?.tone === "today";
+      const statusKey = getBillStatus(po).statusKey;
+      const target = statusKey === "advance"
+        ? (po.expectedDeliveryDate || po.dueDate || po.invoiceDate)
+        : (po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined));
+      if (!target) return false;
+      const u = getBookingUrgency(target);
+      return u?.tone === "today";
     });
   }, [urgentSupplierItems]);
 
@@ -258,22 +259,32 @@ export function OverviewTab({
           {onNavigateToStockDeliveries && (
             <button
               onClick={() => {
-                const hasAdvanceData =
-                  urgentSupplierDeliveries.length > 0 ||
-                  (purchaseOrders || []).some((po) => getBillStatus(po).statusKey === "advance");
-
-                const hasPendingData =
-                  urgentSupplierDues.length > 0 ||
-                  (purchaseOrders || []).some((po) => getBillStatus(po).statusKey === "pending");
+                const hasUrgentPending = urgentSupplierDues.length > 0;
+                const hasUrgentAdvance = urgentSupplierDeliveries.length > 0;
 
                 let targetFilter: "pending" | "advance" = "pending";
-                if (!hasPendingData && hasAdvanceData) {
-                  // Pending is not available -> redirect to Advance
-                  targetFilter = "advance";
-                } else {
-                  // Both available or only Pending available -> redirect to Pending
+
+                if (hasUrgentPending && hasUrgentAdvance) {
+                  // Both pending and advance are urgent for today/overdue -> redirect to pending, Advance tab shows red dot
                   targetFilter = "pending";
+                } else if (hasUrgentAdvance && !hasUrgentPending) {
+                  // Only advance order date matches today -> redirect directly to advance tab
+                  targetFilter = "advance";
+                } else if (hasUrgentPending && !hasUrgentAdvance) {
+                  // Only pending order date matches today -> redirect to pending tab
+                  targetFilter = "pending";
+                } else {
+                  // Neither is urgent today: fallback based on available bills
+                  const hasAdvanceBills = (purchaseOrders || []).some((po) => getBillStatus(po).statusKey === "advance");
+                  const hasPendingBills = (purchaseOrders || []).some((po) => getBillStatus(po).statusKey === "pending");
+
+                  if (!hasPendingBills && hasAdvanceBills) {
+                    targetFilter = "advance";
+                  } else {
+                    targetFilter = "pending";
+                  }
                 }
+
                 onNavigateToStockDeliveries(targetFilter);
               }}
               className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${supplierItemsToday.length > 0

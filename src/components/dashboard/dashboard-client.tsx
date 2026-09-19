@@ -115,11 +115,18 @@ export function DashboardClient({
   };
 
   const [orders, setOrders] = useState<DashboardOrder[]>(initialOrders);
+  const [totalOrdersCount, setTotalOrdersCount] = useState<number>(initialTotalOrdersCount);
+  const [orderStatusCounts, setOrderStatusCounts] = useState<Record<string, number> | undefined>(initialOrderStatusCounts);
+
   const [products, setProducts] = useState<DashboardProduct[]>(initialProducts);
   const [suppliers, setSuppliers] = useState<DashboardSupplier[]>(initialSuppliers);
   const [purchaseOrders, setPurchaseOrders] = useState<DashboardPurchaseOrder[]>(initialPurchaseOrders);
   const [customers, setCustomers] = useState<DashboardCustomer[]>(initialCustomers);
   const [expenses, setExpenses] = useState<DashboardExpense[]>(initialExpenses);
+  const [totalExpensesCount, setTotalExpensesCount] = useState<number>(initialTotalExpensesCount || 0);
+  const [expenseCategoryCounts, setExpenseCategoryCounts] = useState<Record<string, number> | undefined>(initialExpenseCategoryCounts);
+  const [expensesTotalAmount, setExpensesTotalAmount] = useState<number>(initialExpensesTotalAmount || 0);
+
   const [services, setServices] = useState<DashboardService[]>(initialServices);
   const [packages, setPackages] = useState<DashboardPackage[]>(initialPackages);
   const [salonProfile, setSalonProfile] = useState<DashboardSalonProfile>(
@@ -144,6 +151,18 @@ export function DashboardClient({
     setOrders(initialOrders);
   }
 
+  const [prevInitialTotalOrdersCount, setPrevInitialTotalOrdersCount] = useState(initialTotalOrdersCount);
+  if (initialTotalOrdersCount !== prevInitialTotalOrdersCount) {
+    setPrevInitialTotalOrdersCount(initialTotalOrdersCount);
+    setTotalOrdersCount(initialTotalOrdersCount);
+  }
+
+  const [prevInitialOrderStatusCounts, setPrevInitialOrderStatusCounts] = useState(initialOrderStatusCounts);
+  if (initialOrderStatusCounts !== prevInitialOrderStatusCounts) {
+    setPrevInitialOrderStatusCounts(initialOrderStatusCounts);
+    setOrderStatusCounts(initialOrderStatusCounts);
+  }
+
   const [prevInitialProducts, setPrevInitialProducts] = useState(initialProducts);
   if (initialProducts !== prevInitialProducts) {
     setPrevInitialProducts(initialProducts);
@@ -156,6 +175,24 @@ export function DashboardClient({
     setExpenses(initialExpenses);
   }
 
+  const [prevInitialTotalExpensesCount, setPrevInitialTotalExpensesCount] = useState(initialTotalExpensesCount);
+  if (initialTotalExpensesCount !== prevInitialTotalExpensesCount) {
+    setPrevInitialTotalExpensesCount(initialTotalExpensesCount);
+    setTotalExpensesCount(initialTotalExpensesCount || 0);
+  }
+
+  const [prevInitialExpenseCategoryCounts, setPrevInitialExpenseCategoryCounts] = useState(initialExpenseCategoryCounts);
+  if (initialExpenseCategoryCounts !== prevInitialExpenseCategoryCounts) {
+    setPrevInitialExpenseCategoryCounts(initialExpenseCategoryCounts);
+    setExpenseCategoryCounts(initialExpenseCategoryCounts);
+  }
+
+  const [prevInitialExpensesTotalAmount, setPrevInitialExpensesTotalAmount] = useState(initialExpensesTotalAmount);
+  if (initialExpensesTotalAmount !== prevInitialExpensesTotalAmount) {
+    setPrevInitialExpensesTotalAmount(initialExpensesTotalAmount);
+    setExpensesTotalAmount(initialExpensesTotalAmount || 0);
+  }
+
   const [prevInitialCustomers, setPrevInitialCustomers] = useState(initialCustomers);
   if (initialCustomers !== prevInitialCustomers) {
     setPrevInitialCustomers(initialCustomers);
@@ -166,6 +203,24 @@ export function DashboardClient({
   if (initialSuppliers !== prevInitialSuppliers) {
     setPrevInitialSuppliers(initialSuppliers);
     setSuppliers(initialSuppliers);
+  }
+
+  const [prevInitialPurchaseOrders, setPrevInitialPurchaseOrders] = useState(initialPurchaseOrders);
+  if (initialPurchaseOrders !== prevInitialPurchaseOrders) {
+    setPrevInitialPurchaseOrders(initialPurchaseOrders);
+    setPurchaseOrders(initialPurchaseOrders);
+  }
+
+  const [prevInitialServices, setPrevInitialServices] = useState(initialServices);
+  if (initialServices !== prevInitialServices) {
+    setPrevInitialServices(initialServices);
+    setServices(initialServices);
+  }
+
+  const [prevInitialPackages, setPrevInitialPackages] = useState(initialPackages);
+  if (initialPackages !== prevInitialPackages) {
+    setPrevInitialPackages(initialPackages);
+    setPackages(initialPackages);
   }
 
   const [prevInitialProfile, setPrevInitialProfile] = useState(initialSalonProfile);
@@ -194,7 +249,12 @@ export function DashboardClient({
   const expensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
   const pendingAmount = calculatePendingAmount(orders);
 
-  const handleAddOrder = (order: DashboardOrder, customerPhone?: string, clearedDueOrderIds?: string[]) => {
+  const handleAddOrder = (
+    order: DashboardOrder,
+    customerPhone?: string,
+    clearedDueOrderIds?: string[],
+    updatedProducts?: DashboardProduct[]
+  ) => {
     const enrichedOrder = customerPhone && !order.customerPhone ? { ...order, customerPhone } : order;
     setOrders((prev) => {
       const updated = prev.map((o) => {
@@ -210,6 +270,26 @@ export function DashboardClient({
       });
       return [enrichedOrder, ...updated];
     });
+
+    setTotalOrdersCount((prev) => prev + 1);
+    setOrderStatusCounts((prev) => {
+      const counts = { ...(prev || {}) };
+      counts.all = (counts.all || 0) + 1;
+      counts[order.status] = (counts[order.status] || 0) + 1;
+      if (clearedDueOrderIds && clearedDueOrderIds.length > 0) {
+        counts.created = Math.max(0, (counts.created || 0) - clearedDueOrderIds.length);
+        counts.completed = (counts.completed || 0) + clearedDueOrderIds.length;
+      }
+      return counts;
+    });
+
+    if (updatedProducts && updatedProducts.length > 0) {
+      setProducts((prev) => {
+        const map = new Map(updatedProducts.map((p) => [p.id, p]));
+        return prev.map((p) => (map.has(p.id) ? map.get(p.id)! : p));
+      });
+    }
+
     if (order.customer && order.customer !== "Walk-in Guest") {
       const phone = customerPhone ? formatPhoneNumber(customerPhone) : "";
       setCustomers((prev) => {
@@ -244,6 +324,16 @@ export function DashboardClient({
 
   const handleAddExpense = (expense: DashboardExpense) => {
     setExpenses((prev) => [expense, ...prev]);
+    setTotalExpensesCount((prev) => prev + 1);
+    setExpensesTotalAmount((prev) => prev + (expense.amount || 0));
+    setExpenseCategoryCounts((prev) => {
+      const counts = { ...(prev || {}) };
+      counts.all = (counts.all || 0) + 1;
+      const cat = expense.category || "Day-to-day";
+      counts[cat] = (counts[cat] || 0) + 1;
+      return counts;
+    });
+    router.refresh();
   };
 
   const handleRefundSuccess = (
@@ -253,21 +343,48 @@ export function DashboardClient({
     setOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
     );
+    setOrderStatusCounts((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        cancelled_refunded: (prev.cancelled_refunded || 0) + 1,
+      };
+    });
     if (newExpense) {
       setExpenses((prev) => [newExpense, ...prev]);
+      setTotalExpensesCount((prev) => prev + 1);
+      setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+      setExpenseCategoryCounts((prev) => {
+        const counts = { ...(prev || {}) };
+        counts.all = (counts.all || 0) + 1;
+        const cat = newExpense.category || "Refund";
+        counts[cat] = (counts[cat] || 0) + 1;
+        return counts;
+      });
     }
+    router.refresh();
   };
 
   const handleRescheduleOrder = (updatedOrder: DashboardOrder) => {
     setOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
     );
+    router.refresh();
   };
 
   const handleSettleSuccess = (updatedOrder: DashboardOrder) => {
     setOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
     );
+    setOrderStatusCounts((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        created: Math.max(0, (prev.created || 0) - 1),
+        completed: (prev.completed || 0) + 1,
+      };
+    });
+    router.refresh();
   };
 
   const handleMoveStock = async (id: number | string) => {
@@ -279,6 +396,8 @@ export function DashboardClient({
         );
         if (res.newExpense) {
           setExpenses((prev) => [res.newExpense!, ...prev]);
+          setTotalExpensesCount((prev) => prev + 1);
+          setExpensesTotalAmount((prev) => prev + (res.newExpense!.amount || 0));
         }
       }
     } catch (err) {
@@ -295,28 +414,124 @@ export function DashboardClient({
     );
     if (newExpense) {
       setExpenses((prev) => [newExpense, ...prev]);
+      setTotalExpensesCount((prev) => prev + 1);
+      setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
     }
+    router.refresh();
   };
 
-  const handleStockInSuccess = (updatedBatch: DashboardProduct[]) => {
+  const handleStockInSuccess = (
+    updatedBatch: DashboardProduct[],
+    newPO?: DashboardPurchaseOrder,
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
+  ) => {
     setProducts((prev) => {
       const map = new Map(updatedBatch.map((p) => [p.id, p]));
       return prev.map((p) => (map.has(p.id) ? map.get(p.id)! : p));
     });
+    if (newPO) {
+      setPurchaseOrders((prev) => [newPO, ...prev]);
+    }
+    if (newExpense) {
+      setExpenses((prev) => [newExpense, ...prev]);
+      setTotalExpensesCount((prev) => prev + 1);
+      setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+      setExpenseCategoryCounts((prev) => {
+        const counts = { ...(prev || {}) };
+        counts.all = (counts.all || 0) + 1;
+        const cat = newExpense.category || "Inventory purchase";
+        counts[cat] = (counts[cat] || 0) + 1;
+        return counts;
+      });
+    }
+    if (updatedSupplier) {
+      setSuppliers((prev) =>
+        prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+      );
+    }
+    router.refresh();
+  };
+
+  const handlePurchaseOrderPaymentRecorded = (
+    updatedPO: DashboardPurchaseOrder,
+    updatedSupplier?: DashboardSupplier,
+    newExpense?: DashboardExpense,
+    updatedProducts?: DashboardProduct[]
+  ) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => (po.id === updatedPO.id ? updatedPO : po))
+    );
+    if (updatedProducts && updatedProducts.length > 0) {
+      setProducts((prev) => {
+        const prodMap = new Map(prev.map((p) => [String(p.id), p]));
+        for (const up of updatedProducts) {
+          prodMap.set(String(up.id), up);
+        }
+        return Array.from(prodMap.values());
+      });
+    }
+    if (updatedSupplier) {
+      setSuppliers((prev) =>
+        prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+      );
+    }
+    if (newExpense) {
+      setExpenses((prev) => [newExpense, ...prev]);
+      setTotalExpensesCount((prev) => prev + 1);
+      setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+      setExpenseCategoryCounts((prev) => {
+        const counts = { ...(prev || {}) };
+        counts.all = (counts.all || 0) + 1;
+        const cat = newExpense.category || "Inventory purchase";
+        counts[cat] = (counts[cat] || 0) + 1;
+        return counts;
+      });
+    }
+    router.refresh();
+  };
+
+  const handlePurchaseOrderDelivered = (
+    updatedPO: DashboardPurchaseOrder,
+    updatedProducts?: DashboardProduct[]
+  ) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => (po.id === updatedPO.id ? updatedPO : po))
+    );
+    if (updatedProducts && updatedProducts.length > 0) {
+      setProducts((prev) => {
+        const prodMap = new Map(prev.map((p) => [String(p.id), p]));
+        for (const up of updatedProducts) {
+          prodMap.set(String(up.id), up);
+        }
+        return Array.from(prodMap.values());
+      });
+    }
+    router.refresh();
+  };
+
+  const handleReschedulePurchaseOrder = (updatedPO: DashboardPurchaseOrder) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => (po.id === updatedPO.id ? updatedPO : po))
+    );
+    router.refresh();
   };
 
   const handleAddProduct = (newProduct: DashboardProduct) => {
     setProducts((prev) => [newProduct, ...prev]);
+    router.refresh();
   };
 
   const handleUpdateProduct = (updatedProduct: DashboardProduct) => {
     setProducts((prev) =>
       prev.map((p) => (String(p.id) === String(updatedProduct.id) ? updatedProduct : p))
     );
+    router.refresh();
   };
 
   const handleDeleteProduct = (productId: string | number) => {
     setProducts((prev) => prev.filter((p) => String(p.id) !== String(productId)));
+    router.refresh();
   };
 
   const handleCompleteOrder = async (orderId: string) => {
@@ -326,6 +541,15 @@ export function DashboardClient({
         setOrders((prev) =>
           prev.map((o) => (o.id === orderId ? { ...o, ...res.order } : o))
         );
+        setOrderStatusCounts((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            created: Math.max(0, (prev.created || 0) - 1),
+            completed: (prev.completed || 0) + 1,
+          };
+        });
+        router.refresh();
       }
     } catch (err) {
       console.error("Failed to complete order:", err);
@@ -427,8 +651,8 @@ export function DashboardClient({
             <OrdersTab
               key={ordersNavKey}
               orders={orders}
-              initialTotalCount={initialTotalOrdersCount}
-              initialStatusCounts={initialOrderStatusCounts}
+              initialTotalCount={totalOrdersCount}
+              initialStatusCounts={orderStatusCounts}
               initialFilter={ordersFilter}
               salonName={salonProfile.name}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
@@ -471,11 +695,15 @@ export function DashboardClient({
               key={`suppliers-${billsNavKey}`}
               suppliers={suppliers}
               products={products}
+              purchaseOrders={purchaseOrders}
               salonName={salonProfile?.name || salonName}
               initialFilter={billsFilter}
               onAddSupplier={handleAddSupplier}
               onUpdateSupplier={handleUpdateSupplier}
               onStockInSuccess={handleStockInSuccess}
+              onPaymentRecorded={handlePurchaseOrderPaymentRecorded}
+              onStockDelivered={handlePurchaseOrderDelivered}
+              onReschedulePurchaseOrder={handleReschedulePurchaseOrder}
             />
           )}
 
@@ -494,9 +722,9 @@ export function DashboardClient({
           {activeTab === "expenses" && (
             <ExpensesTab
               expenses={expenses}
-              initialTotalCount={initialTotalExpensesCount}
-              initialCategoryCounts={initialExpenseCategoryCounts}
-              initialTotalAmount={initialExpensesTotalAmount}
+              initialTotalCount={totalExpensesCount}
+              initialCategoryCounts={expenseCategoryCounts}
+              initialTotalAmount={expensesTotalAmount}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
             />
           )}

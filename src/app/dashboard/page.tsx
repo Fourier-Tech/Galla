@@ -19,6 +19,7 @@ import {
   checkIsToday,
   checkIsLast24Hours,
   formatOrderTime,
+  getBillLastUpdatedTime,
 } from "@/lib/utils";
 import {
   DashboardCustomer,
@@ -435,19 +436,31 @@ export default async function DashboardPage() {
           expectedSellPrice: it.expectedSellPrice || 0,
           itemTotalCost: it.itemTotalCost || 0,
         })),
+        payments: (po.payments || []).map((p: any) => ({
+          amount: p.amount,
+          paymentMode: p.paymentMode,
+          notes: p.notes,
+          recordedBy: p.recordedBy,
+          type: p.type || "settlement",
+          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : undefined,
+        })),
         totalAmount: po.totalAmount,
         amountPaid: po.amountPaid,
         amountPending: po.amountPending,
         paymentMode: po.paymentMode,
         paymentStatus: po.paymentStatus,
         settlementMode: po.settlementMode,
+        stockAllocated: po.stockAllocated ?? (po.settlementMode === "completed" || po.settlementMode === "pending"),
         dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
         expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
         deliveryTime: po.deliveryTime,
         invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
         dealerInvoiceNumber: po.dealerInvoiceNumber,
         notes: po.notes,
+        recordedBy: po.recordedBy || undefined,
         createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
+        updatedAt: po.updatedAt ? new Date(po.updatedAt).toISOString() : undefined,
+        lastUpdatedTime: getBillLastUpdatedTime(po),
       }));
 
       // Background migration for any legacy unformatted customer phones in DB
