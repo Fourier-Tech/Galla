@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+// Force IST timezone on Vercel (TZ env var is reserved by Vercel)
+process.env.TZ = "Asia/Kolkata";
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [

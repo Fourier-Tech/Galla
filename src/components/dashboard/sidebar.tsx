@@ -62,15 +62,17 @@ export function Sidebar({
         {/* Brand Header */}
         <div className="px-5 mb-6">
           {/* Galla Platform Logo */}
-          <div className="relative h-8 w-24 mb-3.5">
-            <Image
-              src="/logo.png"
-              alt="Galla"
-              fill
-              className="object-contain object-left"
-              priority
-              sizes="96px"
-            />
+          <div className="relative h-8 w-full mb-3.5 flex justify-center">
+            <div className="relative h-8 w-24">
+              <Image
+                src="/logo.png"
+                alt="Galla"
+                fill
+                className="object-contain"
+                priority
+                sizes="96px"
+              />
+            </div>
           </div>
 
           {/* Shop Identity: Salon Image + Shop Name (No outlines, enlarged image) */}
