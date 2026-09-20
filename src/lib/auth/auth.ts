@@ -12,6 +12,19 @@ export class RateLimitedError extends CredentialsSignin {
   code = "rate_limited";
 }
 
+// In production / Vercel, ensure NEXTAUTH_URL and AUTH_URL do not point to localhost
+if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+  const isLocal = (u?: string) => Boolean(u && (u.includes("localhost") || u.includes("127.0.0.1")));
+  if (isLocal(process.env.NEXTAUTH_URL) || isLocal(process.env.AUTH_URL)) {
+    const liveHost =
+      process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+      process.env.VERCEL_URL ||
+      "galla-five.vercel.app";
+    process.env.NEXTAUTH_URL = `https://${liveHost}`;
+    process.env.AUTH_URL = `https://${liveHost}`;
+  }
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   trustHost: true,
@@ -209,13 +222,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return session;
     },
     async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      let resolvedBase = baseUrl;
+      if (
+        (process.env.NODE_ENV === "production" || process.env.VERCEL) &&
+        (resolvedBase.includes("localhost") || resolvedBase.includes("127.0.0.1"))
+      ) {
+        const liveHost =
+          process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+          process.env.VERCEL_URL ||
+          "galla-five.vercel.app";
+        resolvedBase = `https://${liveHost}`;
+      }
+
+      if (url.startsWith("/")) return `${resolvedBase}${url}`;
       try {
-        if (new URL(url).origin === baseUrl) return url;
+        const urlObj = new URL(url);
+        const baseObj = new URL(resolvedBase);
+        if (urlObj.host === baseObj.host) return url;
       } catch {
         // fallback
       }
-      return baseUrl;
+      return resolvedBase;
     },
   },
 });

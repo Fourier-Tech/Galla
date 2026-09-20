@@ -14,19 +14,21 @@ export function middleware(request: NextRequest) {
 
   // Galla has no public landing page. Direct to /dashboard if logged in, else /login
   if (pathname === "/") {
-    if (token) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
-    return NextResponse.redirect(new URL("/login", request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = token ? "/dashboard" : "/login";
+    return NextResponse.redirect(url);
   }
 
   // Redirect any legacy /register requests straight to /login
   if (pathname.startsWith("/register")) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
   if (isDashboardPage && !token) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -40,7 +42,9 @@ export function middleware(request: NextRequest) {
       response.cookies.delete("__Secure-next-auth.session-token");
       return response;
     }
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = "/dashboard";
+    return NextResponse.redirect(dashboardUrl);
   }
 
   return NextResponse.next();
