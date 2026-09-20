@@ -21,7 +21,7 @@
     "mongoose": "^9.10.0",
     "next": "16.3.4",
     "next-auth": "^5.0.0-beta.32",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^10.0.10",
     "pusher": "^5.3.4",
     "pusher-js": "^8.6.0",
     "react": "19.2.8",

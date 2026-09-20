@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Package, IndianRupee, Tag, AlertCircle, Loader2, Layers } from "lucide-react";
+import { X, Package, IndianRupee, AlertCircle, Loader2, Layers } from "lucide-react";
 import { DashboardProduct } from "@/types/dashboard";
 import { createProductAction, updateProductAction } from "@/app/dashboard/actions";
 import { formatRupee } from "@/lib/utils";
@@ -15,21 +15,6 @@ interface ProductModalProps {
   existingProducts?: DashboardProduct[];
 }
 
-export const COMMON_PRODUCT_CATEGORIES = [
-  "Shampoos & Conditioners",
-  "Hair Color & Developers",
-  "Hair Serums & Oils",
-  "Hair Spa & Treatment Masks",
-  "Facial Kits & Scrubs",
-  "Skin Creams & Lotions",
-  "Nail Polish & Care",
-  "Wax & Hair Removal Supplies",
-  "Styling Waxes & Sprays",
-  "Salon Disposables & Essentials",
-  "Retail Cosmetics & Perfumes",
-  "General Supplies",
-];
-
 export function ProductModal({
   isOpen,
   onClose,
@@ -39,8 +24,17 @@ export function ProductModal({
 }: ProductModalProps) {
   const isEditMode = Boolean(productToEdit);
 
+  // Extract existing categories from active database products
+  const dbCategories = useMemo(() => {
+    const set = new Set<string>();
+    existingProducts.forEach((p) => {
+      if (p.category && p.category.trim()) set.add(p.category.trim());
+    });
+    return Array.from(set).sort();
+  }, [existingProducts]);
+
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("Shampoos & Conditioners");
+  const [category, setCategory] = useState("custom");
   const [customCategory, setCustomCategory] = useState("");
   const [sellPrice, setSellPrice] = useState("");
   const [purchaseCost, setPurchaseCost] = useState("");
@@ -57,8 +51,8 @@ export function ProductModal({
   useEffect(() => {
     if (productToEdit) {
       setName(productToEdit.name || "");
-      if (COMMON_PRODUCT_CATEGORIES.includes(productToEdit.category || "")) {
-        setCategory(productToEdit.category || "Shampoos & Conditioners");
+      if (productToEdit.category && dbCategories.includes(productToEdit.category)) {
+        setCategory(productToEdit.category);
         setCustomCategory("");
       } else {
         setCategory("custom");
@@ -80,8 +74,13 @@ export function ProductModal({
       setDescription(productToEdit.description || "");
     } else {
       setName("");
-      setCategory("Shampoos & Conditioners");
-      setCustomCategory("");
+      if (dbCategories.length > 0) {
+        setCategory(dbCategories[0]);
+        setCustomCategory("");
+      } else {
+        setCategory("custom");
+        setCustomCategory("");
+      }
       setSellPrice("");
       setPurchaseCost("");
       setSellStock("0");
@@ -90,7 +89,7 @@ export function ProductModal({
       setDescription("");
     }
     setErrorMsg(null);
-  }, [isOpen, productToEdit]);
+  }, [isOpen, productToEdit, dbCategories]);
 
   // Real-time duplicate name detection while typing
   const duplicateWarning = useMemo(() => {
@@ -107,7 +106,7 @@ export function ProductModal({
 
   if (!isOpen) return null;
 
-  const isCustomCategory = category === "custom";
+  const isCustomCategory = category === "custom" || dbCategories.length === 0;
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,28 +304,30 @@ export function ProductModal({
             <label className="block font-heading text-[12px] font-semibold text-galla-ink uppercase tracking-wider">
               Category <span className="text-red-600">*</span>
             </label>
-            <div className="relative">
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 rounded-[5px] bg-galla-paper/30 border border-galla-line font-sans text-[14px] text-galla-ink focus:bg-galla-surface focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all cursor-pointer"
-              >
-                {COMMON_PRODUCT_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-                <option value="custom">+ New Category...</option>
-              </select>
-            </div>
+            {dbCategories.length > 0 && (
+              <div className="relative">
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-3 py-2 rounded-[5px] bg-galla-paper/30 border border-galla-line font-sans text-[14px] text-galla-ink focus:bg-galla-surface focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all cursor-pointer"
+                >
+                  {dbCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                  <option value="custom">+ New Category...</option>
+                </select>
+              </div>
+            )}
 
             {isCustomCategory && (
               <input
                 type="text"
-                autoFocus
+                autoFocus={dbCategories.length === 0}
                 value={customCategory}
                 onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="Type custom category name..."
+                placeholder="Type category name (e.g. Skin Care, Hair Care)..."
                 className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
               />
             )}

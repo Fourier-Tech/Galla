@@ -99,13 +99,9 @@ export async function sendAccessCodesEmail(options: SendAccessCodesOptions): Pro
 </html>
   `;
 
-  // Always log to terminal so testing works even without SMTP configured
-  console.log("\n=======================================================");
-  console.log(`📧 [GALLA EMAIL DISPATCH] To: ${to}`);
-  console.log(`🔑 Owner 8-Digit Code: ${ownerCode} (${formattedOwnerCode})`);
-  console.log(`🔑 Staff 8-Digit Code: ${staffCode} (${formattedStaffCode})`);
-  console.log(`⏰ Grace Period Ends:  ${graceTimeStr}`);
-  console.log("=======================================================\n");
+  // ponytail: Never log plaintext codes to stdout — production logs go to
+  // observability platforms (Vercel, Datadog) and would leak credentials.
+  console.log(`[Email] Dispatching access codes to: ${to}, grace ends: ${graceTimeStr}`);
 
   const smtpHost = process.env.SMTP_HOST;
   const smtpUser = process.env.SMTP_USER;
@@ -147,7 +143,7 @@ export async function sendAccessCodesEmail(options: SendAccessCodesOptions): Pro
       html: htmlContent,
     });
 
-    console.log(`[Email] Successfully delivered access codes email to: ${to}`);
+    console.log(`[Email] Delivered to: ${to}`);
     return true;
   } catch (error) {
     console.error("[Email] Failed to send email via SMTP:", error);

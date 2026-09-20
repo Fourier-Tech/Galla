@@ -3,11 +3,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
-  User,
   Phone,
   Calendar,
   Wallet,
-  Clock,
   AlertCircle,
   CheckCircle2,
   MessageSquare,
@@ -23,7 +21,7 @@ import {
 } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { getCustomerOrdersAction } from "@/app/dashboard/actions";
-import { formatRupee, formatPhoneNumber, formatDisplayNumber, calculatePendingAmount } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber, calculatePendingAmount } from "@/lib/utils";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
@@ -92,7 +90,7 @@ export function CustomerDetailsView({
     return () => {
       ignore = true;
     };
-  }, [customer.phone, customer.id]);
+  }, [customer.phone, customer.id, customer.name]);
 
   // Financial & Visit Metrics
   const metrics = useMemo(() => {
@@ -219,7 +217,7 @@ export function CustomerDetailsView({
       topItems,
       preferredPaymentMode,
     };
-  }, [orders, metrics.totalSpend]);
+  }, [orders]);
 
   // Filtered orders list
   const filteredOrders = useMemo(() => {

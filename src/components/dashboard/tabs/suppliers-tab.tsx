@@ -13,8 +13,6 @@ import {
   Pencil,
   MapPin,
   Mail,
-  Receipt,
-  PackagePlus,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";

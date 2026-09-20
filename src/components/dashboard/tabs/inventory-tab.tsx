@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
-  MoveRight,
   PackagePlus,
   Search,
   X,
@@ -53,7 +52,6 @@ export function InventoryTab({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterLowStockOnly, setFilterLowStockOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [isProcessingId, setIsProcessingId] = useState<string | number | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isInitialMount = useRef(true);

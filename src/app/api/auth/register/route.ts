@@ -115,13 +115,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Salon workspace provisioned successfully with 8-digit access codes",
+        message: "Salon workspace provisioned successfully. Access codes sent to owner email.",
         tenantId: tenant._id.toString(),
         tenantCode: tenant.tenantCode,
         salonName: tenant.name,
         ownerEmail: cleanEmail,
-        ownerCode: ownerGen.code,
-        staffCode: staffGen.code,
         codeExpiresAt: rotationDate.toISOString(),
       },
       { status: 201 }

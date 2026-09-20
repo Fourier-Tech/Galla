@@ -83,7 +83,12 @@ function LoginFormContent() {
         return;
       }
 
-      window.location.href = res?.url || (callbackUrl.startsWith("/") ? callbackUrl : "/dashboard");
+      // Always navigate using relative path so the browser stays on the current origin (production Vercel or localhost)
+      const targetUrl =
+        callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+          ? callbackUrl
+          : "/dashboard";
+      window.location.href = targetUrl;
     } catch (err) {
       console.error("[Login] Sign in exception:", err);
       setError("An unexpected connection error occurred. Please try again.");

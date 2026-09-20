@@ -905,7 +905,11 @@ export function OverviewTab({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onOpenSettle ? onOpenSettle(order) : handleComplete(order.id);
+                                  if (onOpenSettle) {
+                                    onOpenSettle(order);
+                                  } else {
+                                    handleComplete(order.id);
+                                  }
                                 }}
                                 disabled={loadingId === order.id}
                                 className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"

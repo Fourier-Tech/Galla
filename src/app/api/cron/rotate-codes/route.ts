@@ -30,19 +30,16 @@ export async function POST(request: Request) {
     const results = [];
     for (const user of dueUsers) {
       try {
-        const rotated = await rotateTenantCodes(user.tenantId);
+        await rotateTenantCodes(user.tenantId);
         results.push({
           tenantId: user.tenantId.toString(),
-          ownerEmail: user.ownerEmail,
           rotated: true,
-          newRotationDate: rotated.codeExpiresAt,
         });
       } catch (err) {
         console.error(`Failed to rotate codes for tenant ${user.tenantId}:`, err);
         results.push({
           tenantId: user.tenantId.toString(),
           rotated: false,
-          error: String(err),
         });
       }
     }
@@ -51,7 +48,6 @@ export async function POST(request: Request) {
       message: `Rotation cycle processed at ${now.toISOString()}`,
       rotatedCount: results.filter((r) => r.rotated).length,
       totalDue: dueUsers.length,
-      results,
     });
   } catch (error) {
     console.error("Cron rotation error:", error);

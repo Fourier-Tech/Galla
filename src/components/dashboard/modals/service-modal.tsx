@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { X, Sparkles, IndianRupee, Tag, AlignLeft, AlertCircle } from "lucide-react";
 import { DashboardService } from "@/types/dashboard";
 import { createServiceAction, updateServiceAction } from "@/app/dashboard/actions";
@@ -15,17 +15,6 @@ interface ServiceModalProps {
   onSaveService: (service: DashboardService) => void;
 }
 
-const COMMON_CATEGORIES = [
-  "Hair Care",
-  "Skin Care",
-  "Nails",
-  "Facial",
-  "Waxing & Threading",
-  "Spa & Massage",
-  "Bridal & Groom",
-  "General",
-];
-
 export function ServiceModal({
   isOpen,
   onClose,
@@ -33,24 +22,30 @@ export function ServiceModal({
   existingCategories,
   onSaveService,
 }: ServiceModalProps) {
-  // Combine and deduplicate categories
-  const allCategories = Array.from(
-    new Set([...COMMON_CATEGORIES, ...existingCategories.filter(Boolean)])
-  );
+  // Categories derived strictly from existing database services
+  const allCategories = useMemo<string[]>(() => {
+    return Array.from(new Set((existingCategories || []).filter(Boolean))).sort();
+  }, [existingCategories]);
 
   const initialCategoryIsCustom =
-    Boolean(serviceToEdit) && !allCategories.includes(serviceToEdit?.category || "");
+    Boolean(serviceToEdit)
+      ? !allCategories.includes(serviceToEdit?.category || "")
+      : allCategories.length === 0;
 
   const [name, setName] = useState(serviceToEdit?.name || "");
   const [category, setCategory] = useState(
     initialCategoryIsCustom
       ? "custom"
-      : serviceToEdit?.category || "Hair Care"
+      : serviceToEdit?.category || (allCategories[0] ?? "custom")
   );
   const [customCategory, setCustomCategory] = useState(
-    initialCategoryIsCustom ? serviceToEdit?.category || "" : ""
+    initialCategoryIsCustom
+      ? serviceToEdit?.category || ""
+      : allCategories.length === 0
+      ? serviceToEdit?.category || ""
+      : ""
   );
-  const isCustomCategory = category === "custom";
+  const isCustomCategory = category === "custom" || allCategories.length === 0;
   const [price, setPrice] = useState(serviceToEdit ? String(serviceToEdit.price) : "");
   const [description, setDescription] = useState(serviceToEdit?.description || "");
   const [isActive, setIsActive] = useState(serviceToEdit?.isActive ?? true);
@@ -192,28 +187,31 @@ export function ServiceModal({
             <label className="block font-sans text-[12px] font-medium text-galla-ink-soft">
               Category <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
-              <Tag className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer"
-              >
-                {allCategories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-                <option value="custom">+ Add Custom Category...</option>
-              </select>
-            </div>
+            {allCategories.length > 0 && (
+              <div className="relative">
+                <Tag className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer"
+                >
+                  {allCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                  <option value="custom">+ Add Custom Category...</option>
+                </select>
+              </div>
+            )}
 
             {isCustomCategory && (
               <input
                 type="text"
+                autoFocus={allCategories.length === 0}
                 value={customCategory}
                 onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="Enter custom category name"
+                placeholder="Enter category name (e.g. Hair Care, Facial)..."
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[7px] text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all mt-1.5"
               />
             )}

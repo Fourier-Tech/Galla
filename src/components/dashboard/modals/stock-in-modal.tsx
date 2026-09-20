@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   X,
   Plus,
@@ -11,7 +11,6 @@ import {
   Building2,
   Check,
   Calendar,
-  Clock,
   Banknote,
   QrCode,
   CreditCard,
@@ -31,9 +30,7 @@ import {
   formatBookingDate,
   formatAppointmentTime,
   getLocalDateString,
-  formatDisplayNumber,
 } from "@/lib/utils";
-import { COMMON_PRODUCT_CATEGORIES } from "./product-modal";
 import { ConfirmModal } from "./confirm-modal";
 
 interface StockInModalProps {
@@ -131,13 +128,13 @@ export function StockInModal({
     }) || null;
   }, [supplierPhone, supplierName, allSuppliers]);
 
-  // Unique list of categories (merges common categories with any custom categories in existing products)
+  // Unique list of categories from active database products
   const availableCategories = useMemo(() => {
-    const cats = new Set<string>(COMMON_PRODUCT_CATEGORIES);
+    const cats = new Set<string>();
     products.forEach((p) => {
       if (p.category && p.category.trim()) cats.add(p.category.trim());
     });
-    return Array.from(cats);
+    return Array.from(cats).sort();
   }, [products]);
 
   // Click outside listener for suggestions dropdown
@@ -156,34 +153,37 @@ export function StockInModal({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const createInitialDraftItem = (prodList: DashboardProduct[]): StockInItemDraft => {
-    if (prodList.length > 0) {
-      const p = prodList[0];
+  const createInitialDraftItem = useCallback(
+    (prodList: DashboardProduct[]): StockInItemDraft => {
+      if (prodList.length > 0) {
+        const p = prodList[0];
+        return {
+          productId: String(p.id),
+          productName: p.name || "",
+          isNewProduct: false,
+          category: p.category || (availableCategories[0] ?? "General"),
+          customCategory: "",
+          quantityForSell: "0",
+          quantityForUse: "0",
+          purchaseCost:
+            p.purchaseCost !== undefined && p.purchaseCost !== null ? String(p.purchaseCost) : "0",
+          expectedSellPrice: p.price ? String(p.price) : "0",
+        };
+      }
       return {
-        productId: String(p.id),
-        productName: p.name || "",
-        isNewProduct: false,
-        category: p.category || COMMON_PRODUCT_CATEGORIES[0] || "General Supplies",
+        productId: "__new__",
+        productName: "",
+        isNewProduct: true,
+        category: availableCategories[0] ?? "General",
         customCategory: "",
         quantityForSell: "0",
         quantityForUse: "0",
-        purchaseCost:
-          p.purchaseCost !== undefined && p.purchaseCost !== null ? String(p.purchaseCost) : "0",
-        expectedSellPrice: p.price ? String(p.price) : "0",
+        purchaseCost: "0",
+        expectedSellPrice: "0",
       };
-    }
-    return {
-      productId: "__new__",
-      productName: "",
-      isNewProduct: true,
-      category: COMMON_PRODUCT_CATEGORIES[0] || "General Supplies",
-      customCategory: "",
-      quantityForSell: "0",
-      quantityForUse: "0",
-      purchaseCost: "0",
-      expectedSellPrice: "0",
-    };
-  };
+    },
+    [availableCategories]
+  );
 
   const [items, setItems] = useState<StockInItemDraft[]>([createInitialDraftItem(products)]);
 
@@ -210,7 +210,7 @@ export function StockInModal({
       setShowConfirm(false);
       setItems([createInitialDraftItem(products)]);
     }
-  }, [isOpen, products]);
+  }, [isOpen, products, createInitialDraftItem]);
 
   const handleProductSelect = (index: number, selectedId: string) => {
     if (selectedId === "__new__") {
@@ -222,7 +222,7 @@ export function StockInModal({
                 productId: "__new__",
                 productName: "",
                 isNewProduct: true,
-                category: COMMON_PRODUCT_CATEGORIES[0] || "General Supplies",
+                category: availableCategories[0] ?? "General",
                 customCategory: "",
                 expectedSellPrice: "0",
                 purchaseCost: "0",
@@ -253,7 +253,7 @@ export function StockInModal({
               productId: String(matched.id),
               productName: matched.name,
               isNewProduct: false,
-              category: matched.category || COMMON_PRODUCT_CATEGORIES[0] || "General Supplies",
+              category: matched.category || (availableCategories[0] ?? "General"),
               customCategory: "",
               expectedSellPrice: matched.price ? String(matched.price) : "0",
               purchaseCost:
@@ -292,7 +292,7 @@ export function StockInModal({
           productId: String(unselectedProd.id),
           productName: unselectedProd.name || "",
           isNewProduct: false,
-          category: unselectedProd.category || COMMON_PRODUCT_CATEGORIES[0] || "General Supplies",
+          category: unselectedProd.category || (availableCategories[0] ?? "General"),
           customCategory: "",
           quantityForSell: "0",
           quantityForUse: "0",
@@ -310,7 +310,7 @@ export function StockInModal({
           productId: "__new__",
           productName: "",
           isNewProduct: true,
-          category: COMMON_PRODUCT_CATEGORIES[0] || "General Supplies",
+          category: availableCategories[0] ?? "General",
           customCategory: "",
           quantityForSell: "0",
           quantityForUse: "0",
@@ -367,7 +367,7 @@ export function StockInModal({
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       let key = "";
-      let displayName = it.productName.trim() || `Item #${i + 1}`;
+      const displayName = it.productName.trim() || `Item #${i + 1}`;
 
       if (!it.isNewProduct && it.productId && it.productId !== "__new__") {
         key = `id:${it.productId}`;
@@ -518,7 +518,7 @@ export function StockInModal({
         productName: it.productName.trim(),
         category: it.isNewProduct
           ? (it.category === "custom" ? it.customCategory.trim() : it.category.trim()) ||
-            "General Supplies"
+            "General"
           : it.category,
         quantityForSell: Number(it.quantityForSell),
         quantityForUse: Number(it.quantityForUse),

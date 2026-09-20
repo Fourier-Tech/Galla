@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
-  Truck,
   Phone,
   Building2,
   Wallet,
@@ -16,16 +15,13 @@ import {
   TrendingUp,
   CreditCard,
   Pencil,
-  FileText,
   Loader2,
-  X,
   Calendar,
   Clock,
 } from "lucide-react";
 import { DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import {
   getPurchaseOrdersAction,
-  recordPurchaseOrderPaymentAction,
 } from "@/app/dashboard/actions";
 import {
   formatRupee,
@@ -129,7 +125,7 @@ export function SupplierDetailsView({
         supplierCompany: supplier.companyName !== undefined ? supplier.companyName : b.supplierCompany,
       }))
     );
-  }, [supplier.phone, supplier.name, supplier.companyName]);
+  }, [supplier]);
 
   // Financial & Bill Metrics
   const metrics = useMemo(() => {
@@ -220,7 +216,7 @@ export function SupplierDetailsView({
       topItems,
       preferredPaymentMode,
     };
-  }, [bills, metrics.totalPurchases]);
+  }, [bills]);
 
   // Filtered Bills
   const filteredBills = useMemo(() => {

@@ -2943,7 +2943,7 @@ export async function getSuppliersAction(): Promise<{
     }));
 
     return { success: true, suppliers };
-  } catch (error) {
+  } catch {
     return { success: false, suppliers: [], error: "Failed to fetch suppliers" };
   }
 }

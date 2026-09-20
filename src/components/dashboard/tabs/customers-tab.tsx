@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Search, ChevronLeft, ChevronRight, User, Wallet, Calendar, AlertCircle } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { formatPhoneNumber, formatRupee } from "@/lib/utils";
 import { CustomerDetailsView } from "@/components/dashboard/customer-details-view";

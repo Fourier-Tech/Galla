@@ -118,7 +118,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           );
 
           console.log(
-            `[Auth] Access granted for salon ${rawUser.tenantId}: Role=${role}, CodeType=${codeType}, Session=${activeSessionId}`
+            `[Auth] Access granted: Role=${role}, CodeType=${codeType}`
           );
 
           return {
@@ -207,6 +207,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.graceExpiresAt = token.graceExpiresAt as string | null | undefined;
       }
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        if (new URL(url).origin === baseUrl) return url;
+      } catch {
+        // fallback
+      }
+      return baseUrl;
     },
   },
 });

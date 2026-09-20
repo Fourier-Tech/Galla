@@ -6,7 +6,6 @@ import {
   FileText,
   Clock,
   CheckCircle2,
-  AlertCircle,
   Building2,
   Phone,
   Search,
@@ -37,28 +36,12 @@ import {
 } from "@/lib/utils";
 import {
   getPurchaseOrdersAction,
-  recordPurchaseOrderPaymentAction,
 } from "@/app/dashboard/actions";
 import { PurchaseBillDetailsModal } from "./modals/purchase-bill-details-modal";
 import { SettlePurchaseBillModal } from "./modals/settle-purchase-bill-modal";
 import { ReschedulePurchaseOrderModal } from "./modals/reschedule-purchase-order-modal";
 import { StatusPill } from "@/components/dashboard/status-pill";
 
-function formatInvoiceDate(dateStr?: string | Date): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function formatDateTime(dateStr?: string | Date): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "";
-  const dateFormatted = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-  const timeFormatted = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
-  return `${dateFormatted}, ${timeFormatted}`;
-}
 
 
 const BILL_FILTER_OPTIONS: { id: "all" | BillStatusKey; label: string }[] = [
@@ -94,7 +77,7 @@ export function PurchaseOrdersView({
   onBack,
   onOpenStockIn,
   onPaymentRecorded,
-  onStockDelivered,
+  onStockDelivered: _onStockDelivered,
   onReschedulePurchaseOrder,
   showHeader = true,
   searchQuery: externalSearchQuery,
