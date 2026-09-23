@@ -135,10 +135,7 @@ function SettlePurchaseBillModalContent({
     }
   };
 
-  const totalItemUnits = (bill.items || []).reduce(
-    (sum, it) => sum + (it.quantityForSell || 0) + (it.quantityForUse || 0),
-    0
-  );
+
 
   return (
     <div
@@ -202,29 +199,7 @@ function SettlePurchaseBillModalContent({
           </div>
         </div>
 
-        {/* Zero-due: Stock Allocation Card */}
-        {isZeroDue && !bill.stockAllocated && (
-          <div className="mb-4 p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-[6px] text-emerald-950 font-sans text-[12.5px] space-y-2">
-            <div className="flex items-center gap-2 font-medium text-emerald-900">
-              <PackageCheck className="h-4 w-4 text-emerald-700 shrink-0" />
-              <span>Stock Receipt &amp; Inventory Allocation</span>
-            </div>
-            <p className="text-[12px] text-emerald-800 leading-relaxed">
-              This order was paid in full upfront. Settling this order now will record delivery and allocate incoming stock into your live inventory:
-            </p>
-            <div className="bg-white/80 border border-emerald-200/60 rounded-[4px] p-2 max-h-36 overflow-y-auto divide-y divide-emerald-100 text-[11.5px]">
-              {(bill.items || []).map((it, idx) => {
-                const qty = (it.quantityForSell || 0) + (it.quantityForUse || 0);
-                return (
-                  <div key={idx} className="py-1 flex items-center justify-between first:pt-0 last:pb-0">
-                    <span className="font-medium text-galla-ink truncate pr-2">{it.productName}</span>
-                    <span className="shrink-0 tabular-nums text-emerald-800 font-semibold">+{qty} units</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+
 
         {errorMsg && (
           <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-red-700 text-[12px] rounded-[4px] flex items-center gap-1.5">
@@ -234,13 +209,11 @@ function SettlePurchaseBillModalContent({
         )}
 
         <form onSubmit={handleFormSubmit} className="space-y-4">
-          {!isZeroDue ? (
-            <>
-              {/* Editable Payment Amount Input */}
+          {/* Editable Payment Amount Input */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block font-sans text-[12px] font-medium text-galla-ink-soft">
-                    Payment to Record Now (₹) <span className="text-red-500">*</span>
+                    Payment to Record Now (₹)
                   </label>
                   <div className="flex items-center gap-2">
                     <button
@@ -284,20 +257,7 @@ function SettlePurchaseBillModalContent({
                   </div>
                 </div>
 
-                {/* Stock allocation notice for advance order */}
-                {!bill.stockAllocated && (
-                  <div className="mt-2 p-2 rounded-[4px] bg-amber-50/80 border border-amber-200/70 text-amber-900 text-[11.5px] font-sans">
-                    {remainingAfterPayment === 0 ? (
-                      <span className="text-emerald-800 font-medium">
-                        ✓ Clearing full balance will settle the order and allocate {totalItemUnits} units into inventory stock.
-                      </span>
-                    ) : (
-                      <span>
-                        Note: Stock delivery will remain pending until the full balance is cleared.
-                      </span>
-                    )}
-                  </div>
-                )}
+
               </div>
 
               {/* Payment Mode Selection */}
@@ -329,8 +289,6 @@ function SettlePurchaseBillModalContent({
                   ))}
                 </div>
               </div>
-            </>
-          ) : null}
 
           {/* Notes / Reference */}
           <div>
@@ -365,11 +323,6 @@ function SettlePurchaseBillModalContent({
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Settling Order...</span>
-                </>
-              ) : isZeroDue ? (
-                <>
-                  <span>Settle Order &amp; Add Stock</span>
-                  <Check className="h-4 w-4" />
                 </>
               ) : (
                 <>

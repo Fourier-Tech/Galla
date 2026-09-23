@@ -9,7 +9,7 @@ import { rotateTenantCodes } from "@/lib/auth/code-service";
  * generates new 8-digit codes, shifts old to 12h grace,
  * and emails the shop owners.
  */
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET || process.env.AUTH_SECRET;
 
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     await connectToDatabase();
     const now = new Date();
 
+    // ponytail: Sequential synchronous rotation of all due tenants assumes total due tenants < 50 (to stay within Vercel's 10s-60s Serverless limit). Upgrade path: Vercel Inngest/Upstash message queue to fan-out per tenant if scale exceeds limit.
     // Find all users whose codes have reached expiration
     const dueUsers = await User.find({
       codeExpiresAt: { $lte: now },

@@ -182,9 +182,33 @@ async function deductPackageProductsFromStock(
     for (const batch of batches) {
       if (remaining <= 0) break;
       const takeUse = Math.min(batch.useStock, remaining);
-      batch.useStock -= takeUse;
-      remaining -= takeUse;
-      await batch.save(session ? { session } : undefined);
+      if (takeUse > 0) {
+        batch.useStock -= takeUse;
+        remaining -= takeUse;
+        await batch.save(session ? { session } : undefined);
+
+        const unitCost = typeof batch.purchaseCost === "number" && !isNaN(batch.purchaseCost) ? batch.purchaseCost : 0;
+        const consumptionCost = unitCost * takeUse;
+
+        if (consumptionCost > 0) {
+          await Expense.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                expenseDate: new Date(),
+                title: `Service usage: ${takeUse}x ${batch.name}`,
+                category: "other",
+                amount: consumptionCost,
+                paymentMode: "internal_transfer",
+                linkedProductId: batch._id,
+                linkedQuantity: takeUse,
+                notes: `Automatically deducted ${takeUse} units from salon use during service/package fulfillment.`,
+              },
+            ],
+            session ? { session } : undefined
+          );
+        }
+      }
     }
     if (batches.length > 0) {
       await cleanupProductBatchNames(tenantId, batches[0].name, session);
@@ -1444,7 +1468,7 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
             {
               tenantId,
               title: `Internal consumption — ${quantity}x ${product.name} (${reasonLabel})`,
-              category: "stock_transfer_internal",
+              category: "other",
               amount: consumptionCost,
               paymentMode: "internal_transfer",
               linkedProductId: product._id,
