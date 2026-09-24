@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/rotate-codes",
-      "schedule": "0 7 * * *"
+      "schedule": "30 1 * * *"
     }
   ]
 }

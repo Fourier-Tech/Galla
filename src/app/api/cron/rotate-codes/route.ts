@@ -4,7 +4,7 @@ import { User } from "@/lib/db/models/user.model";
 import { rotateTenantCodes } from "@/lib/auth/code-service";
 
 /**
- * Scheduled rotation job (runs daily at 7:00 AM).
+ * Scheduled rotation job (runs daily at 7:00 AM IST / 1:30 AM UTC).
  * Checks all salons whose codes are due for rotation,
  * generates new 8-digit codes, shifts old to 12h grace,
  * and emails the shop owners.
