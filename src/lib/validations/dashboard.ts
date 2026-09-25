@@ -102,6 +102,8 @@ export const purchaseOrderItemInputSchema = z.object({
   quantityForUse: z.number().int().min(0, "Quantity for use cannot be negative").default(0),
   purchaseCost: z.number().min(0, "Purchase cost cannot be negative"),
   expectedSellPrice: z.number().min(0, "Sell price cannot be negative"),
+  isReplacement: z.boolean().optional(),
+  originalPoId: z.string().optional(),
 });
 
 export const createPurchaseOrderSchema = z.object({

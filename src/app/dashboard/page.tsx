@@ -13,6 +13,7 @@ import { Supplier } from "@/lib/db/models/supplier.model";
 import { PurchaseOrder } from "@/lib/db/models/purchase-order.model";
 import { Service } from "@/lib/db/models/service.model";
 import { PackageTemplate } from "@/lib/db/models/package-template.model";
+import { CustomerReplacement } from "@/lib/db/models/customer-replacement.model";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import {
   formatPhoneNumber,
@@ -31,6 +32,7 @@ import {
   DashboardSalonProfile,
   DashboardService,
   DashboardPackage,
+  DashboardCustomerReplacement,
   OrderStatus,
   OrderType,
   DashboardPaymentMode,
@@ -114,6 +116,7 @@ export default async function DashboardPage() {
   };
   let initialServices: DashboardService[] = [];
   let initialPackages: DashboardPackage[] = [];
+  let initialCustomerReplacements: DashboardCustomerReplacement[] = [];
   let initialOrderStatusCounts: Record<string, number> = {
     all: 0,
     advance_paid: 0,
@@ -178,6 +181,7 @@ export default async function DashboardPage() {
         expenseSumAgg,
         rawSuppliers,
         rawPurchaseOrders,
+        rawCustomerReplacements,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
         Product.find({ tenantId: tenantObjectId }).sort({ createdAt: 1 }).lean(),
@@ -209,6 +213,10 @@ export default async function DashboardPage() {
           $or: [{ isActive: true }, { totalPending: { $ne: 0 } }],
         }).sort({ name: 1 }).lean(),
         PurchaseOrder.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(100).lean(),
+        CustomerReplacement.find({
+          tenantId: tenantObjectId,
+          status: { $in: ["pending_dealer", "arrived_call_client"] },
+        }).sort({ expectedDate: 1 }).lean(),
       ]);
 
       initialTotalOrdersCount = count;
@@ -369,6 +377,32 @@ export default async function DashboardPage() {
               })) : [],
             } : undefined,
           })) : undefined,
+          returns: o.returns && Array.isArray(o.returns) ? o.returns.map((r: any) => ({
+            returnNumber: r.returnNumber,
+            lineItemId: r.lineItemId ? r.lineItemId.toString() : undefined,
+            lineItemIndex: typeof r.lineItemIndex === "number" ? r.lineItemIndex : 0,
+            productId: r.productId ? r.productId.toString() : undefined,
+            productName: r.productName,
+            quantity: r.quantity,
+            unitPrice: r.unitPrice,
+            refundAmount: r.refundAmount,
+            returnCondition: r.returnCondition,
+            customerResolution: r.customerResolution,
+            refundMode: r.refundMode,
+            supplierClaim: r.supplierClaim ? {
+              poId: r.supplierClaim.poId,
+              purchaseOrderNumber: r.supplierClaim.purchaseOrderNumber,
+              supplierName: r.supplierClaim.supplierName,
+              refundMode: r.supplierClaim.refundMode,
+            } : undefined,
+            customerReplacementId: r.customerReplacementId ? r.customerReplacementId.toString() : undefined,
+            expectedPickupDate: r.expectedPickupDate ? new Date(r.expectedPickupDate).toISOString() : undefined,
+            restockLocation: r.restockLocation,
+            isSameDayReturn: r.isSameDayReturn,
+            notes: r.notes,
+            recordedBy: r.recordedBy,
+            returnedAt: r.returnedAt ? new Date(r.returnedAt).toISOString() : new Date().toISOString(),
+          })) : [],
         };
       });
 
@@ -455,6 +489,21 @@ export default async function DashboardPage() {
           type: p.type || "settlement",
           recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : undefined,
         })),
+        returns: (po.returns || []).map((r: any) => ({
+          returnNumber: r.returnNumber,
+          productId: r.productId?.toString() || "",
+          productName: r.productName,
+          quantity: r.quantity,
+          stockType: r.stockType,
+          unitCost: r.unitCost,
+          totalRefundAmount: r.totalRefundAmount,
+          refundMode: r.refundMode,
+          amountDeductedFromDue: r.amountDeductedFromDue || 0,
+          replacementStatus: r.replacementStatus || "pending",
+          notes: r.notes,
+          recordedBy: r.recordedBy,
+          returnedAt: r.returnedAt ? new Date(r.returnedAt).toISOString() : undefined,
+        })),
         totalAmount: po.totalAmount,
         amountPaid: po.amountPaid,
         amountPending: po.amountPending,
@@ -472,6 +521,27 @@ export default async function DashboardPage() {
         createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
         updatedAt: po.updatedAt ? new Date(po.updatedAt).toISOString() : undefined,
         lastUpdatedTime: getBillLastUpdatedTime(po),
+      }));
+
+      initialCustomerReplacements = (rawCustomerReplacements || []).map((cr: any) => ({
+        id: cr._id.toString(),
+        orderId: cr.orderId.toString(),
+        orderNumber: cr.orderNumber,
+        customerId: cr.customerId ? cr.customerId.toString() : undefined,
+        customerName: cr.customerName,
+        customerPhone: cr.customerPhone,
+        productId: cr.productId.toString(),
+        productName: cr.productName,
+        totalQuantity: cr.totalQuantity,
+        handedQuantity: cr.handedQuantity,
+        pendingQuantity: cr.pendingQuantity,
+        expectedDate: new Date(cr.expectedDate).toISOString(),
+        status: cr.status,
+        notes: cr.notes,
+        recordedBy: cr.recordedBy,
+        completedAt: cr.completedAt ? new Date(cr.completedAt).toISOString() : undefined,
+        createdAt: new Date(cr.createdAt).toISOString(),
+        updatedAt: new Date(cr.updatedAt).toISOString(),
       }));
 
       // Background migration for any legacy unformatted customer phones in DB
@@ -598,6 +668,7 @@ export default async function DashboardPage() {
       initialSalonProfile={initialSalonProfile}
       initialServices={initialServices}
       initialPackages={initialPackages}
+      initialCustomerReplacements={initialCustomerReplacements}
       initialOrderStatusCounts={initialOrderStatusCounts}
     />
   );

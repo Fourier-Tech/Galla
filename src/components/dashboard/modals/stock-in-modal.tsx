@@ -32,6 +32,7 @@ import {
 import {
   createPurchaseOrderAction,
   getSuppliersAction,
+  getSupplierPendingReplacementsAction,
 } from "@/app/dashboard/actions";
 import {
   formatRupee,
@@ -65,6 +66,8 @@ interface StockInItemDraft {
   quantityForUse: string;
   purchaseCost: string;
   expectedSellPrice: string;
+  isReplacement?: boolean;
+  originalPoId?: string;
 }
 
 export function StockInModal({
@@ -218,12 +221,124 @@ export function StockInModal({
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [pendingDealerReplacements, setPendingDealerReplacements] = useState<
+    Array<{
+      poId: string;
+      purchaseOrderNumber: string;
+      productId: string;
+      productName: string;
+      quantity: number;
+      purchaseCost: number;
+      returnedAt: string;
+    }>
+  >([]);
+  const [isLoadingReplacements, setIsLoadingReplacements] = useState(false);
+
+  // Fetch pending dealer replacements when supplier is identified
+  useEffect(() => {
+    const trimmed = supplierName.trim();
+    if (!isOpen || (!trimmed && !selectedSupplierId)) {
+      setPendingDealerReplacements([]);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingReplacements(true);
+    getSupplierPendingReplacementsAction(
+      selectedSupplierId || undefined,
+      trimmed || undefined,
+    )
+      .then((res) => {
+        if (!ignore && res.success && res.pendingReplacements) {
+          setPendingDealerReplacements(res.pendingReplacements);
+        } else if (!ignore) {
+          setPendingDealerReplacements([]);
+        }
+      })
+      .catch(() => {
+        if (!ignore) setPendingDealerReplacements([]);
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingReplacements(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [isOpen, selectedSupplierId, supplierName]);
+
+  const handleFillReplacement = (rep: {
+    poId: string;
+    purchaseOrderNumber: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    purchaseCost: number;
+  }) => {
+    setErrorMsg(null);
+    const matched = products.find(
+      (p) =>
+        (rep.productId && String(p.id) === rep.productId) ||
+        (p.name && p.name.trim().toLowerCase() === rep.productName.trim().toLowerCase()),
+    );
+
+    const existingIndex = items.findIndex(
+      (it) =>
+        (matched && it.productId === String(matched.id)) ||
+        (it.productName.trim().toLowerCase() === rep.productName.trim().toLowerCase()),
+    );
+
+    if (existingIndex >= 0) {
+      setItems((prev) =>
+        prev.map((it, i) =>
+          i === existingIndex
+            ? {
+                ...it,
+                quantityForSell: String(rep.quantity),
+                quantityForUse: "0",
+                purchaseCost: "0",
+                isReplacement: true,
+                originalPoId: rep.poId,
+              }
+            : it,
+        ),
+      );
+    } else {
+      const isFirstItemBlank =
+        items.length === 1 &&
+        Number(items[0].quantityForSell) === 0 &&
+        Number(items[0].quantityForUse) === 0 &&
+        !items[0].isReplacement;
+
+      const newDraftItem: StockInItemDraft = {
+        productId: matched ? String(matched.id) : (rep.productId || "__new__"),
+        productName: matched ? matched.name : rep.productName,
+        isNewProduct: !matched,
+        category: matched?.category || (availableCategories[0] ?? "General"),
+        customCategory: "",
+        quantityForSell: String(rep.quantity),
+        quantityForUse: "0",
+        purchaseCost: "0",
+        expectedSellPrice: matched?.price ? String(matched.price) : "0",
+        isReplacement: true,
+        originalPoId: rep.poId,
+      };
+
+      if (isFirstItemBlank) {
+        setItems([newDraftItem]);
+      } else {
+        setItems((prev) => [...prev, newDraftItem]);
+      }
+    }
+  };
+
   // Reset form with clean defaults when modal opens
   useEffect(() => {
     if (isOpen) {
       setSupplierName("");
       setSupplierPhone("");
       setSelectedSupplierId(null);
+      setPendingDealerReplacements([]);
       setDealerInvoiceNumber("");
       setSettlementMode("completed");
       setPayLaterPaid("");
@@ -606,6 +721,8 @@ export function StockInModal({
         quantityForUse: Number(it.quantityForUse),
         purchaseCost: Number(it.purchaseCost),
         expectedSellPrice: Number(it.expectedSellPrice),
+        isReplacement: it.isReplacement,
+        originalPoId: it.originalPoId,
       }));
 
       const res = await createPurchaseOrderAction({
@@ -843,6 +960,74 @@ export function StockInModal({
             </div>
           </div>
 
+          {/* Pending Dealer Replacements Card */}
+          {pendingDealerReplacements.length > 0 && (
+            <div className="p-3 bg-amber-50/80 border border-amber-300 rounded-[5px] space-y-2 animate-in fade-in duration-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-700" />
+                  <span className="font-heading font-semibold text-[12px] text-amber-900 uppercase tracking-wider">
+                    Pending Dealer Replacements ({pendingDealerReplacements.length})
+                  </span>
+                </div>
+                <span className="text-[11px] font-sans text-amber-800">
+                  Claim defective pieces back at ₹0 cost
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                {pendingDealerReplacements.map((rep, rIdx) => {
+                  const isAlreadyAdded = items.some(
+                    (it) =>
+                      it.isReplacement &&
+                      ((it.productId && it.productId === rep.productId) ||
+                        it.productName.trim().toLowerCase() === rep.productName.trim().toLowerCase()),
+                  );
+
+                  return (
+                    <div
+                      key={rIdx}
+                      className="flex items-center justify-between p-2 rounded-[4px] bg-white border border-amber-200/80 gap-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-sans font-semibold text-[12.5px] text-galla-ink">
+                            {rep.productName}
+                          </span>
+                          <span className="text-[10.5px] font-mono px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                            {rep.quantity} pcs defective
+                          </span>
+                          <span className="text-[11px] font-mono text-galla-ink-soft">
+                            From PO #{rep.purchaseOrderNumber}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleFillReplacement(rep)}
+                        disabled={isAlreadyAdded}
+                        className={`shrink-0 px-2.5 py-1 rounded-[4px] font-sans text-[11.5px] font-medium transition-all cursor-pointer ${
+                          isAlreadyAdded
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                            : "bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
+                        }`}
+                      >
+                        {isAlreadyAdded ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Check className="h-3 w-3" /> Added (@ ₹0)
+                          </span>
+                        ) : (
+                          <span>+ Fill Replacement (@ ₹0)</span>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 2. Products In Batch List */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between">
@@ -968,6 +1153,18 @@ export function StockInModal({
                         <span>
                           Duplicate product: already added in another row.
                           Adjust quantities instead.
+                        </span>
+                      </div>
+                    )}
+
+                    {item.isReplacement && (
+                      <div className="flex items-center justify-between p-2 bg-amber-50 border border-amber-300 rounded-[4px] text-[11.5px] font-sans text-amber-900">
+                        <span className="font-semibold flex items-center gap-1">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                          Dealer Replacement Item (@ ₹0 cost)
+                        </span>
+                        <span className="text-[11px] text-amber-800">
+                          Clears defective stock &amp; restores shelf stock
                         </span>
                       </div>
                     )}

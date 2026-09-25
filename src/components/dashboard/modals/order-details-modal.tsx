@@ -657,6 +657,73 @@ export function OrderDetailsModal({
             })()}
           </div>
 
+          {/* Returns & Replacements History Log */}
+          {order.returns && order.returns.length > 0 && (
+            <div className="p-3 bg-rose-50/50 border border-rose-200/80 rounded-[6px] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11.5px] font-heading uppercase tracking-wider text-rose-900 font-semibold flex items-center gap-1.5">
+                  <RotateCcw className="h-3.5 w-3.5 text-rose-700" />
+                  <span>Item Returns &amp; Replacements ({order.returns.length})</span>
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {order.returns.map((ret, rIdx) => (
+                  <div
+                    key={rIdx}
+                    className="p-2.5 bg-galla-surface rounded-[4px] border border-rose-200/70 text-[11.5px] space-y-1"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-galla-ink">
+                          {ret.quantity}x {ret.productName}
+                        </span>
+                        <span
+                          className={`text-[9.5px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded border ${
+                            ret.returnCondition === "defective_dealer_claim"
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          }`}
+                        >
+                          {ret.returnCondition === "defective_dealer_claim" ? "Defective" : "Good (Restocked)"}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                        {ret.returnedAt ? formatDateTime(ret.returnedAt) : ""}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-galla-ink-soft">
+                      <span>
+                        Resolution:{" "}
+                        <strong className="text-galla-ink font-medium">
+                          {ret.customerResolution === "replacement"
+                            ? ret.expectedPickupDate
+                              ? `Replacement Scheduled (Expected: ${formatBookingDate(ret.expectedPickupDate)})`
+                              : "Replacement Handed Over"
+                            : `Refunded ${formatRupee(ret.refundAmount)} via ${(ret.refundMode || "cash").toUpperCase()}`}
+                        </strong>
+                      </span>
+                      {ret.restockLocation && (
+                        <span>
+                          &bull; Destination:{" "}
+                          <span className="text-galla-ink font-medium">
+                            {ret.restockLocation === "sellStock" ? "Retail Shelf" : "Salon Use"}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+
+                    {ret.notes && (
+                      <div className="text-[11px] text-galla-ink-soft/80 italic pt-0.5 border-t border-galla-line/40">
+                        &ldquo;{ret.notes}&rdquo;
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Refund Details if refunded */}
           {isRefunded && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-[6px] space-y-1 text-[12.5px] text-rose-900">

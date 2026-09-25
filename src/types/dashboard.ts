@@ -38,6 +38,33 @@ export interface DashboardOrderPayment {
   notes?: string;
 }
 
+export interface DashboardOrderReturn {
+  returnNumber: string;
+  lineItemId?: string;
+  lineItemIndex: number;
+  productId?: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  refundAmount: number;
+  returnCondition: "restocked" | "defective_dealer_claim";
+  customerResolution: "refund" | "replacement";
+  refundMode?: "cash" | "upi" | "card" | "reduce_due";
+  supplierClaim?: {
+    poId: string;
+    purchaseOrderNumber?: string;
+    supplierName?: string;
+    refundMode: "reduce_due" | "replacement_pending";
+  };
+  customerReplacementId?: string;
+  expectedPickupDate?: string;
+  restockLocation?: "sellStock" | "useStock";
+  isSameDayReturn?: boolean;
+  notes?: string;
+  recordedBy?: "owner" | "staff" | string;
+  returnedAt: string;
+}
+
 export interface DashboardOrder {
   id: string;
   customer: string;
@@ -71,6 +98,7 @@ export interface DashboardOrder {
   notes?: string;
   lineItems?: DashboardOrderLineItem[];
   payments?: DashboardOrderPayment[];
+  returns?: DashboardOrderReturn[];
   recordedBy?: "owner" | "staff";
 }
 
@@ -212,9 +240,31 @@ export interface DashboardPurchaseOrderReturn {
   totalRefundAmount: number;
   refundMode: "reduce_due" | "replacement_pending";
   amountDeductedFromDue: number;
+  replacementStatus?: "pending" | "fulfilled";
   notes?: string;
   recordedBy?: "owner" | "staff";
   returnedAt?: string;
+}
+
+export interface DashboardCustomerReplacement {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerId?: string;
+  customerName: string;
+  customerPhone?: string;
+  productId: string;
+  productName: string;
+  totalQuantity: number;
+  handedQuantity: number;
+  pendingQuantity: number;
+  expectedDate: string;
+  status: "pending_dealer" | "arrived_call_client" | "completed" | "cancelled";
+  notes?: string;
+  recordedBy?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DashboardPurchaseOrder {

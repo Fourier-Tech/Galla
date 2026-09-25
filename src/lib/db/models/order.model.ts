@@ -19,6 +19,7 @@ export interface IOrderPackageComponent {
 }
 
 export interface IOrderLineItem {
+  _id?: Types.ObjectId;
   itemType: "product" | "service" | "package";
   itemId: Types.ObjectId;
   name: string;
@@ -63,6 +64,33 @@ export interface IOrderConversion {
   convertedAt: Date;
 }
 
+export interface IOrderItemReturn {
+  returnNumber: string;
+  lineItemId?: Types.ObjectId;
+  lineItemIndex: number;
+  productId?: Types.ObjectId;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  refundAmount: number;
+  returnCondition: "restocked" | "defective_dealer_claim";
+  customerResolution: "refund" | "replacement";
+  refundMode?: "cash" | "upi" | "card" | "reduce_due";
+  supplierClaim?: {
+    poId: string;
+    purchaseOrderNumber?: string;
+    supplierName?: string;
+    refundMode: "reduce_due" | "replacement_pending";
+  };
+  customerReplacementId?: Types.ObjectId;
+  expectedPickupDate?: Date;
+  restockLocation?: "sellStock" | "useStock";
+  isSameDayReturn?: boolean;
+  notes?: string;
+  recordedBy: "owner" | "staff";
+  returnedAt: Date;
+}
+
 export interface IOrder extends Document {
   tenantId: Types.ObjectId;
   orderNumber: string;
@@ -83,6 +111,7 @@ export interface IOrder extends Document {
   amountPending: number;
   paymentMode: PaymentMode;
   payments: IOrderPayment[];
+  returns?: IOrderItemReturn[];
   refundDetails?: IOrderRefund;
   conversionDetails?: IOrderConversion;
   notes?: string;
@@ -224,6 +253,50 @@ const OrderPaymentSchema = new Schema<IOrderPayment>(
   { _id: true }
 );
 
+const OrderItemReturnSchema = new Schema<IOrderItemReturn>(
+  {
+    returnNumber: { type: String, required: true },
+    lineItemId: { type: Schema.Types.ObjectId },
+    lineItemIndex: { type: Number, required: true },
+    productId: { type: Schema.Types.ObjectId, ref: "Product" },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    unitPrice: { type: Number, required: true, min: 0 },
+    refundAmount: { type: Number, required: true, min: 0 },
+    returnCondition: {
+      type: String,
+      enum: ["restocked", "defective_dealer_claim"],
+      required: true,
+    },
+    customerResolution: {
+      type: String,
+      enum: ["refund", "replacement"],
+      required: true,
+    },
+    refundMode: {
+      type: String,
+      enum: ["cash", "upi", "card", "reduce_due"],
+    },
+    supplierClaim: {
+      poId: { type: String },
+      purchaseOrderNumber: { type: String },
+      supplierName: { type: String },
+      refundMode: {
+        type: String,
+        enum: ["reduce_due", "replacement_pending"],
+      },
+    },
+    customerReplacementId: { type: Schema.Types.ObjectId, ref: "CustomerReplacement" },
+    expectedPickupDate: { type: Date },
+    restockLocation: { type: String, enum: ["sellStock", "useStock"] },
+    isSameDayReturn: { type: Boolean },
+    notes: { type: String, trim: true },
+    recordedBy: { type: String, enum: ["owner", "staff"], default: "staff" },
+    returnedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const OrderSchema = new Schema<IOrder>(
   {
     tenantId: {
@@ -320,6 +393,10 @@ const OrderSchema = new Schema<IOrder>(
     },
     payments: {
       type: [OrderPaymentSchema],
+      default: [],
+    },
+    returns: {
+      type: [OrderItemReturnSchema],
       default: [],
     },
     refundDetails: {

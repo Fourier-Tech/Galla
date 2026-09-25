@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck } from "lucide-react";
-import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
+import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
+import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
+import { ChangeReplacementDateModal } from "@/components/dashboard/modals/change-replacement-date-modal";
+import { markCustomerReplacementCollectedAction } from "@/app/dashboard/actions";
 
 interface OverviewTabProps {
   orders: DashboardOrder[];
@@ -16,6 +18,7 @@ interface OverviewTabProps {
   purchaseOrders?: DashboardPurchaseOrder[];
   expensesTotal: number;
   salonName?: string;
+  customerReplacements?: DashboardCustomerReplacement[];
   onOpenNewOrder: () => void;
   onOpenNewExpense: () => void;
   onNavigateToAdvanceOrders?: () => void;
@@ -26,6 +29,8 @@ interface OverviewTabProps {
   onNavigateToInventory?: () => void;
   onOpenSettle?: (order: DashboardOrder) => void;
   onRescheduleOrder?: (updatedOrder: DashboardOrder) => void;
+  onUpdateReplacement?: (updated: DashboardCustomerReplacement) => void;
+  onRemoveReplacement?: (id: string) => void;
 }
 
 export function OverviewTab({
@@ -45,11 +50,48 @@ export function OverviewTab({
   onNavigateToInventory,
   onOpenSettle,
   onRescheduleOrder,
+  customerReplacements = [],
+  onUpdateReplacement,
+  onRemoveReplacement,
 }: OverviewTabProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [reschedulingOrder, setReschedulingOrder] = useState<DashboardOrder | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<DashboardOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [replacementsList, setReplacementsList] = useState<DashboardCustomerReplacement[]>(customerReplacements || []);
+  const [prevReplacements, setPrevReplacements] = useState(customerReplacements);
+  if (customerReplacements !== prevReplacements) {
+    setPrevReplacements(customerReplacements);
+    setReplacementsList(customerReplacements || []);
+  }
+
+  const [selectedReplacementToChangeDate, setSelectedReplacementToChangeDate] = useState<DashboardCustomerReplacement | null>(null);
+  const [collectingReplacementId, setCollectingReplacementId] = useState<string | null>(null);
+
+  const arrivedReplacements = useMemo(
+    () => (replacementsList || []).filter((r) => r.status === "arrived_call_client"),
+    [replacementsList]
+  );
+  const pendingDealerReplacements = useMemo(
+    () => (replacementsList || []).filter((r) => r.status === "pending_dealer"),
+    [replacementsList]
+  );
+
+  const handleMarkCollected = async (r: DashboardCustomerReplacement) => {
+    setCollectingReplacementId(r.id);
+    try {
+      const res = await markCustomerReplacementCollectedAction(r.id);
+      if (res.success) {
+        setReplacementsList((prev) => prev.filter((item) => item.id !== r.id));
+        onRemoveReplacement?.(r.id);
+      }
+    } catch (err) {
+      console.error("Failed to mark replacement collected:", err);
+    } finally {
+      setCollectingReplacementId(null);
+    }
+  };
 
   const handleComplete = async (id: string) => {
     if (!onCompleteOrder) return;
@@ -434,6 +476,154 @@ export function OverviewTab({
               <ArrowRight className="h-3.5 w-3.5 text-red-800 group-hover:translate-x-0.5 transition-transform" />
             </button>
           )}
+        </div>
+      )}
+
+      {/* Customer Replacements Arrived Banner (Green) */}
+      {arrivedReplacements.length > 0 && (
+        <div
+          role="alert"
+          className="shrink-0 p-3 rounded-[5px] bg-emerald-50/90 border border-emerald-300 text-emerald-950 text-[12px] font-sans shadow-xs space-y-2"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span className="font-heading font-semibold text-[13px] text-emerald-900">
+                {arrivedReplacements.length} Replacement{arrivedReplacements.length > 1 ? "s" : ""} Arrived from Dealer &mdash; Ready for Client Handover
+              </span>
+            </div>
+            <span className="text-[11px] font-sans text-emerald-800 hidden sm:inline">
+              Stock received. Call client to collect from salon.
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {arrivedReplacements.map((r) => (
+              <div
+                key={r.id}
+                className="p-2.5 rounded-[4px] bg-white border border-emerald-200 flex items-center justify-between gap-3 shadow-2xs"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <strong className="font-heading font-semibold text-[12.5px] text-galla-ink truncate">
+                      {r.customerName}
+                    </strong>
+                    <span className="font-mono text-[10.5px] text-galla-ink-soft bg-galla-paper px-1.5 py-0.2 rounded border border-galla-line/60">
+                      #{r.orderNumber}
+                    </span>
+                  </div>
+                  <div className="font-sans text-[11px] text-emerald-900 font-medium truncate mt-0.5">
+                    {r.pendingQuantity}x {r.productName}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {r.customerPhone && (
+                    <a
+                      href={`tel:${r.customerPhone}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-emerald-100/70 hover:bg-emerald-200 text-emerald-900 text-[11px] font-medium border border-emerald-300 transition-colors"
+                      title={`Call ${r.customerName} at ${r.customerPhone}`}
+                    >
+                      <Phone className="h-3 w-3 text-emerald-700" />
+                      <span>Call</span>
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    disabled={collectingReplacementId === r.id}
+                    onClick={() => handleMarkCollected(r)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    {collectingReplacementId === r.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Check className="h-3 w-3" />
+                    )}
+                    <span>Mark Handed Over</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Customer Replacements Awaiting Dealer Banner (Amber) */}
+      {pendingDealerReplacements.length > 0 && (
+        <div
+          role="alert"
+          className="shrink-0 p-3 rounded-[5px] bg-amber-50/90 border border-amber-300 text-amber-950 text-[12px] font-sans shadow-xs space-y-2"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span className="font-heading font-semibold text-[13px] text-amber-900">
+                {pendingDealerReplacements.length} Client Replacement{pendingDealerReplacements.length > 1 ? "s" : ""} Pending from Dealer
+              </span>
+            </div>
+            <span className="text-[11px] font-sans text-amber-800 hidden sm:inline">
+              Stock awaiting dealer replacement delivery.
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {pendingDealerReplacements.map((r) => {
+              const urgency = getBookingUrgency(r.expectedDate);
+              const isUrgent = urgency && (urgency.tone === "today" || urgency.tone === "overdue");
+
+              return (
+                <div
+                  key={r.id}
+                  className={`p-2.5 rounded-[4px] bg-white border flex items-center justify-between gap-3 shadow-2xs ${
+                    isUrgent ? "border-amber-400 ring-1 ring-amber-400/40" : "border-amber-200"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <strong className="font-heading font-semibold text-[12.5px] text-galla-ink truncate">
+                        {r.customerName}
+                      </strong>
+                      <span className="font-mono text-[10.5px] text-galla-ink-soft bg-galla-paper px-1.5 py-0.2 rounded border border-galla-line/60">
+                        #{r.orderNumber}
+                      </span>
+                      {isUrgent && (
+                        <span className="text-[9.5px] font-heading font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                          {urgency?.label || "Due"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-sans text-[11px] text-galla-ink truncate mt-0.5">
+                      {r.pendingQuantity}x {r.productName} &bull; Expected:{" "}
+                      <strong className="font-mono text-amber-950 font-medium">
+                        {formatBookingDate(r.expectedDate)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {r.customerPhone && (
+                      <a
+                        href={`tel:${r.customerPhone}`}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-amber-100/70 hover:bg-amber-200 text-amber-900 text-[11px] font-medium border border-amber-300 transition-colors"
+                        title={`Call ${r.customerName} at ${r.customerPhone}`}
+                      >
+                        <Phone className="h-3 w-3 text-amber-700" />
+                        <span>Call</span>
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReplacementToChangeDate(r)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-galla-surface hover:bg-galla-paper text-galla-ink text-[11px] font-medium border border-galla-line transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <Calendar className="h-3 w-3 text-galla-ink-soft" />
+                      <span>Change Date</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1010,6 +1200,20 @@ export function OverviewTab({
           setReschedulingOrder(ord);
         }}
         onOpenRefund={onOpenRefund}
+      />
+
+      {/* Change Replacement Date Modal */}
+      <ChangeReplacementDateModal
+        replacement={selectedReplacementToChangeDate}
+        isOpen={Boolean(selectedReplacementToChangeDate)}
+        onClose={() => setSelectedReplacementToChangeDate(null)}
+        onSuccess={(updated) => {
+          setReplacementsList((prev) =>
+            prev.map((item) => (item.id === updated.id ? updated : item))
+          );
+          onUpdateReplacement?.(updated);
+          setSelectedReplacementToChangeDate(null);
+        }}
       />
     </div>
   );

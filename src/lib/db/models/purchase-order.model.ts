@@ -142,6 +142,7 @@ export interface IPurchaseOrderReturn {
   totalRefundAmount: number;
   refundMode: "reduce_due" | "replacement_pending";
   amountDeductedFromDue: number;
+  replacementStatus?: "pending" | "fulfilled";
   notes?: string;
   recordedBy: "owner" | "staff";
   returnedAt: Date;
@@ -162,6 +163,11 @@ const PurchaseOrderReturnSchema = new Schema<IPurchaseOrderReturn>(
       required: true,
     },
     amountDeductedFromDue: { type: Number, default: 0 },
+    replacementStatus: {
+      type: String,
+      enum: ["pending", "fulfilled"],
+      default: "pending",
+    },
     notes: { type: String, trim: true },
     recordedBy: { type: String, enum: ["owner", "staff"], default: "owner" },
     returnedAt: { type: Date, default: Date.now },

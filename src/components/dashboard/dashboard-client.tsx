@@ -32,6 +32,7 @@ import {
   DashboardPackage,
   DashboardSupplier,
   DashboardPurchaseOrder,
+  DashboardCustomerReplacement,
   OrderStatus,
 } from "@/types/dashboard";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
@@ -50,6 +51,7 @@ interface DashboardClientProps {
   initialSalonProfile?: DashboardSalonProfile;
   initialServices?: DashboardService[];
   initialPackages?: DashboardPackage[];
+  initialCustomerReplacements?: DashboardCustomerReplacement[];
   initialOrderStatusCounts?: Record<string, number>;
   initialTotalExpensesCount?: number;
   initialExpenseCategoryCounts?: Record<string, number>;
@@ -70,6 +72,7 @@ export function DashboardClient({
   initialSalonProfile,
   initialServices = [],
   initialPackages = [],
+  initialCustomerReplacements = [],
   initialOrderStatusCounts,
   initialTotalExpensesCount,
   initialExpenseCategoryCounts,
@@ -129,6 +132,7 @@ export function DashboardClient({
 
   const [services, setServices] = useState<DashboardService[]>(initialServices);
   const [packages, setPackages] = useState<DashboardPackage[]>(initialPackages);
+  const [customerReplacements, setCustomerReplacements] = useState<DashboardCustomerReplacement[]>(initialCustomerReplacements);
   const [salonProfile, setSalonProfile] = useState<DashboardSalonProfile>(
     initialSalonProfile || {
       id: "",
@@ -221,6 +225,12 @@ export function DashboardClient({
   if (initialPackages !== prevInitialPackages) {
     setPrevInitialPackages(initialPackages);
     setPackages(initialPackages);
+  }
+
+  const [prevInitialCustomerReplacements, setPrevInitialCustomerReplacements] = useState(initialCustomerReplacements);
+  if (initialCustomerReplacements !== prevInitialCustomerReplacements) {
+    setPrevInitialCustomerReplacements(initialCustomerReplacements);
+    setCustomerReplacements(initialCustomerReplacements);
   }
 
   const [prevInitialProfile, setPrevInitialProfile] = useState(initialSalonProfile);
@@ -712,6 +722,7 @@ export function DashboardClient({
               purchaseOrders={purchaseOrders}
               expensesTotal={expensesTotal}
               salonName={salonProfile.name || salonName}
+              customerReplacements={customerReplacements}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}
               onOpenNewExpense={() => setIsNewExpenseOpen(true)}
               onNavigateToAdvanceOrders={handleNavigateToAdvanceOrders}
@@ -722,6 +733,14 @@ export function DashboardClient({
               onOpenSettle={(order) => setSettleOrder(order)}
               onRescheduleOrder={handleRescheduleOrder}
               onNavigateToInventory={() => setActiveTab("inventory")}
+              onUpdateReplacement={(updated) => {
+                setCustomerReplacements((prev) =>
+                  prev.map((c) => (c.id === updated.id ? updated : c))
+                );
+              }}
+              onRemoveReplacement={(id) => {
+                setCustomerReplacements((prev) => prev.filter((c) => c.id !== id));
+              }}
             />
           )}
 

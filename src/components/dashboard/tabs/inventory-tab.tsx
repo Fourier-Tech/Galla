@@ -20,6 +20,7 @@ import { TransferStockModal } from "@/components/dashboard/modals/transfer-stock
 import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
 import { ProductModal } from "@/components/dashboard/modals/product-modal";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
+import { SettleReplacementModal } from "@/components/dashboard/modals/settle-replacement-modal";
 import { deleteProductAction } from "@/app/dashboard/actions";
 
 interface InventoryTabProps {
@@ -66,6 +67,7 @@ export function InventoryTab({
 
   // Modals & View state
   const [transferTargetProduct, setTransferTargetProduct] = useState<DashboardProduct | null>(null);
+  const [settleTargetProduct, setSettleTargetProduct] = useState<DashboardProduct | null>(null);
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<DashboardProduct | null>(null);
@@ -74,7 +76,7 @@ export function InventoryTab({
 
   // Lock background scrolling when any inventory modal is open
   const isAnyModalOpen = Boolean(
-    transferTargetProduct || isStockInModalOpen || isProductModalOpen || productToDelete
+    transferTargetProduct || settleTargetProduct || isStockInModalOpen || isProductModalOpen || productToDelete
   );
 
   useEffect(() => {
@@ -539,12 +541,15 @@ export function InventoryTab({
                             )}
                           </div>
                           {product.defectiveStock > 0 && (
-                            <span 
-                              className="text-[10px] font-sans text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded font-medium whitespace-nowrap cursor-help"
-                              title="Defective items pending return to supplier"
+                            <button
+                              type="button"
+                              onClick={() => setSettleTargetProduct(product)}
+                              className="inline-flex items-center gap-1 text-[10px] font-sans text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 px-1.5 py-0.5 rounded font-medium whitespace-nowrap cursor-pointer transition-colors shadow-2xs group"
+                              title="Click to settle / receive replacement from dealer"
                             >
-                              + {product.defectiveStock} defective
-                            </span>
+                              <span>+ {product.defectiveStock} defective</span>
+                              <span className="text-[9px] text-rose-500 font-bold group-hover:underline">&bull; Settle</span>
+                            </button>
                           )}
                         </div>
                       </td>
@@ -654,6 +659,17 @@ export function InventoryTab({
         isOpen={Boolean(transferTargetProduct)}
         onClose={() => setTransferTargetProduct(null)}
         onTransferSuccess={handleTransferComplete}
+      />
+
+      {/* Settle Dealer Replacement Modal */}
+      <SettleReplacementModal
+        product={settleTargetProduct}
+        isOpen={Boolean(settleTargetProduct)}
+        onClose={() => setSettleTargetProduct(null)}
+        onSuccess={(updatedProduct) => {
+          onUpdateProduct?.(updatedProduct);
+          setSettleTargetProduct(null);
+        }}
       />
 
       {/* Stock In Modal (Pillar 1: Purchase Order Entry) */}
