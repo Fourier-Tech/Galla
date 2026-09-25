@@ -276,7 +276,7 @@ export function PackageModal({
           {/* Package Name & Description */}
           <div className="space-y-3">
             <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Package Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -291,7 +291,7 @@ export function PackageModal({
             </div>
 
             <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Description / Highlights (Optional)
               </label>
               <textarea
@@ -511,7 +511,7 @@ export function PackageModal({
             {/* Price Input & Value Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
               <div>
-                <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                   Final Package Selling Price (₹)
                 </label>
                 <div className="relative">

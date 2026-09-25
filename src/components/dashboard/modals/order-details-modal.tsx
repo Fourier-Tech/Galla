@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Receipt,
   Wallet,
+  Undo2,
 } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { StatusPill } from "@/components/dashboard/status-pill";
@@ -28,6 +29,8 @@ import {
   getWhatsAppReminderUrl,
   formatDisplayNumber,
 } from "@/lib/utils";
+import { ReturnCustomerOrderItemModal } from "@/components/dashboard/modals/return-customer-order-item-modal";
+import { useState } from "react";
 
 interface OrderDetailsModalProps {
   order: DashboardOrder | null;
@@ -48,6 +51,8 @@ export function OrderDetailsModal({
   onOpenReschedule,
   onOpenRefund,
 }: OrderDetailsModalProps) {
+  const [returningItemIndex, setReturningItemIndex] = useState<number | null>(null);
+
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -356,7 +361,7 @@ export function OrderDetailsModal({
                           ) : (
                             <Scissors className="h-3.5 w-3.5 text-purple-600 shrink-0" />
                           )}
-                          <span className="font-sans font-semibold text-[14px] text-galla-ink">
+                          <span className={`font-sans font-semibold text-[14px] ${item.returnedQuantity && item.returnedQuantity === item.quantity ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}>
                             {item.name}
                           </span>
                           <span
@@ -370,6 +375,20 @@ export function OrderDetailsModal({
                           >
                             {item.itemType}
                           </span>
+                          {item.returnedQuantity ? (
+                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
+                              {item.returnedQuantity} Returned
+                            </span>
+                          ) : null}
+                          {item.itemType === "product" && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted" && (!item.returnedQuantity || item.returnedQuantity < item.quantity) && (
+                            <button
+                              onClick={() => setReturningItemIndex(idx)}
+                              className="ml-2 text-[11px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-100 transition-colors flex items-center gap-1"
+                            >
+                              <Undo2 className="h-3 w-3" />
+                              Return
+                            </button>
+                          )}
                         </div>
 
                         {/* Package Components Breakdown */}
@@ -505,6 +524,16 @@ export function OrderDetailsModal({
                   <span className="tabular-nums font-mono">{formatRupee(order.paid)}</span>
                 </div>
 
+                {order.payments && order.payments.some(p => p.type === "refund" || p.amount < 0) && (
+                  <div className="flex justify-between text-[13px] text-rose-700 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Undo2 className="h-3.5 w-3.5" />
+                      <span>Total Refunded:</span>
+                    </span>
+                    <span className="tabular-nums font-mono">- {formatRupee(order.payments.filter(p => p.type === "refund" || p.amount < 0).reduce((sum, p) => sum + Math.abs(p.amount), 0))}</span>
+                  </div>
+                )}
+
                 {overpaid > 0 && (
                   <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
                     <span className="inline-flex items-center gap-1.5">
@@ -550,6 +579,9 @@ export function OrderDetailsModal({
                 if (p.type === "advance") {
                   return { label: "Advance", style: "bg-amber-50 text-amber-800 border-amber-200/90" };
                 }
+                if (p.type === "refund") {
+                  return { label: "Refund", style: "bg-rose-50 text-rose-800 border-rose-200/90" };
+                }
                 if (p.type === "settlement") {
                   return { label: "Settle", style: "bg-emerald-50 text-emerald-800 border-emerald-200/90" };
                 }
@@ -592,23 +624,30 @@ export function OrderDetailsModal({
                       return (
                         <div
                           key={pIdx}
-                          className="flex items-center justify-between text-[11.5px] bg-galla-surface px-2.5 py-1.5 rounded border border-galla-line/60 text-galla-ink-soft"
+                          className="bg-galla-surface rounded border border-galla-line/60 flex flex-col"
                         >
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border shrink-0 ${badge.style}`}
-                            >
-                              {badge.label}
-                            </span>
-                            <span>
-                              <strong className="text-galla-ink font-semibold">{formatRupee(p.amount)}</strong> via{" "}
-                              <span className="uppercase font-medium text-galla-ink">{p.mode}</span>
-                              {p.recordedBy ? ` (${p.recordedBy})` : ""}
+                          <div className="flex items-center justify-between text-[11.5px] px-2.5 py-1.5 text-galla-ink-soft">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border shrink-0 ${badge.style}`}
+                              >
+                                {badge.label}
+                              </span>
+                              <span>
+                                <strong className="text-galla-ink font-semibold">{formatRupee(p.amount)}</strong> via{" "}
+                                <span className="uppercase font-medium text-galla-ink">{p.mode}</span>
+                                {p.recordedBy ? ` (${p.recordedBy})` : ""}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[11px] text-galla-ink-soft/75">
+                              {formatDateTime(p.recordedAt)}
                             </span>
                           </div>
-                          <span className="font-mono text-[11px] text-galla-ink-soft/75">
-                            {formatDateTime(p.recordedAt)}
-                          </span>
+                          {p.notes && (
+                            <div className="px-2.5 pb-1.5 pt-1 text-[11px] text-galla-ink-soft/80 bg-galla-paper/30">
+                              {p.notes}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -729,6 +768,20 @@ export function OrderDetailsModal({
           </div>
         </div>
       </div>
+
+      {returningItemIndex !== null && order.lineItems && (
+        <ReturnCustomerOrderItemModal
+          isOpen={returningItemIndex !== null}
+          onClose={() => setReturningItemIndex(null)}
+          order={order}
+          lineItem={order.lineItems[returningItemIndex]}
+          lineItemIndex={returningItemIndex}
+          onSuccess={() => {
+            setReturningItemIndex(null);
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ export type DashboardRefundMode = "cash" | "upi" | "card";
 export interface DashboardOrderLineItem {
   name: string;
   itemType: "product" | "service" | "package";
+  itemId?: string;
   unitPrice: number;
   quantity: number;
   discount?: number;
@@ -24,6 +25,8 @@ export interface DashboardOrderLineItem {
     isCustomized?: boolean;
     components?: { name: string; componentPrice: number }[];
   };
+  returnedQuantity?: number;
+  returnCondition?: "restocked" | "defective_dealer_claim";
 }
 
 export interface DashboardOrderPayment {
@@ -31,7 +34,8 @@ export interface DashboardOrderPayment {
   mode: DashboardPaymentMode;
   recordedAt: string;
   recordedBy?: string;
-  type?: "advance" | "settlement" | "full_payment" | string;
+  type?: "advance" | "settlement" | "full_payment" | "refund" | string;
+  notes?: string;
 }
 
 export interface DashboardOrder {
@@ -76,6 +80,7 @@ export interface DashboardProduct {
   category?: string;
   sell: number;
   use: number;
+  defectiveStock: number;
   price: number;
   purchaseCost?: number;
   lowStockThreshold?: number;
@@ -185,6 +190,7 @@ export interface DashboardPurchaseOrderItem {
   purchaseCost: number;
   expectedSellPrice: number;
   itemTotalCost: number;
+  returnedQuantity?: number;
 }
 
 export interface DashboardPurchaseOrderPayment {
@@ -194,6 +200,21 @@ export interface DashboardPurchaseOrderPayment {
   recordedBy?: "owner" | "staff";
   type?: "initial" | "settlement" | "full_payment" | string;
   recordedAt?: string;
+}
+
+export interface DashboardPurchaseOrderReturn {
+  returnNumber: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  stockType: "sell" | "use";
+  unitCost: number;
+  totalRefundAmount: number;
+  refundMode: "reduce_due" | "replacement_pending";
+  amountDeductedFromDue: number;
+  notes?: string;
+  recordedBy?: "owner" | "staff";
+  returnedAt?: string;
 }
 
 export interface DashboardPurchaseOrder {
@@ -206,8 +227,10 @@ export interface DashboardPurchaseOrder {
   itemsCount: number;
   items?: DashboardPurchaseOrderItem[];
   payments?: DashboardPurchaseOrderPayment[];
+  returns?: DashboardPurchaseOrderReturn[];
   totalAmount: number;
   amountPaid: number;
+  ledgerAdjustment?: number;
   amountPending: number;
   paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "credit";
   paymentStatus: "paid" | "partial" | "unpaid";

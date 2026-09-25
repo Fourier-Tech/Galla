@@ -77,7 +77,6 @@ const ExpenseSchema = new Schema<IExpense>(
     amount: {
       type: Number,
       required: [true, "Expense amount is required"],
-      min: [0, "Amount cannot be negative"],
     },
     paymentMode: {
       type: String,

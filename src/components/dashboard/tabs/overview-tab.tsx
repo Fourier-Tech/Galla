@@ -95,7 +95,10 @@ export function OverviewTab({
   // Recent 24h Orders
   const recent24hOrders = useMemo(() => {
     return orders.filter((o) => {
-      if (!searchQuery.trim()) return o.isToday || o.isLast24Hours;
+      if (!(o.isToday || o.isLast24Hours)) return false;
+      
+      if (!searchQuery.trim()) return true;
+      
       const q = searchQuery.toLowerCase();
       const idMatch = o.id.toLowerCase().includes(q);
       const customerMatch = o.customer.toLowerCase().includes(q);
@@ -532,6 +535,17 @@ export function OverviewTab({
                           <div className="font-sans text-[11px] text-galla-ink-soft/75 mt-0.5 flex items-center gap-1 truncate">
                             <span className="text-galla-ink-soft/60">Last update:</span>
                             <span className="font-medium text-galla-ink-soft">{order.lastUpdatedTime}</span>
+                          </div>
+                        )}
+                        {order.notes && (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                            title={`Note: ${order.notes}`}
+                          >
+                            <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                              Note
+                            </span>
+                            <span className="truncate font-medium">{order.notes}</span>
                           </div>
                         )}
                         {isDueOrder && !order.scheduledFor && (

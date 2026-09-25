@@ -651,7 +651,7 @@ export function NewOrderModal({
           <form onSubmit={handleNextFromStep1} className="space-y-4 pt-4 overflow-y-auto flex-1">
             {/* Customer Name with Autocomplete */}
             <div className="relative">
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Customer Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -706,7 +706,7 @@ export function NewOrderModal({
 
             {/* Customer Phone */}
             <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Customer Mobile (Optional)
               </label>
               <input
@@ -743,7 +743,7 @@ export function NewOrderModal({
 
             {/* Order Type Selection (Only Product sale & Service booking) */}
             <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Order Type <span className="text-red-500">*</span>
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -1134,7 +1134,7 @@ export function NewOrderModal({
             {/* Selected Items List (Editable / Deletable) */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="font-sans text-[12px] font-medium text-galla-ink-soft">
+                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                   Selected Items ({selectedItems.length})
                 </label>
                 <button
@@ -1252,7 +1252,7 @@ export function NewOrderModal({
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2.5 pt-1 cursor-pointer select-none text-[12.5px] font-medium text-amber-950">
+                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                   <input
                     type="checkbox"
                     checked={includePreviousDue}
@@ -1269,7 +1269,7 @@ export function NewOrderModal({
               <div className="grid grid-cols-2 gap-3">
                 {/* Editable Base Price */}
                 <div>
-                  <label className="block font-sans text-[11.5px] font-medium text-galla-ink-soft mb-1">
+                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                     Entered Price (₹) <span className="text-[10px] text-galla-ink-soft/70">(Editable)</span>
                   </label>
                   <input
@@ -1283,7 +1283,7 @@ export function NewOrderModal({
 
                 {/* Percentage Discount */}
                 <div>
-                  <label className="block font-sans text-[11.5px] font-medium text-galla-ink-soft mb-1">
+                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                     Discount (%)
                   </label>
                   <div className="relative">
@@ -1363,7 +1363,7 @@ export function NewOrderModal({
 
             {/* Settlement Mode Dropdown */}
             <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Settlement Mode <span className="text-red-500">*</span>
               </label>
               <select
@@ -1395,7 +1395,7 @@ export function NewOrderModal({
               <div className="p-3 rounded-[6px] space-y-2.5 border bg-amber-50/40 border-amber-300/50">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[11.5px] font-medium text-galla-ink">
+                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                       Amount Paid Now (₹) <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
                     <span className="text-[11.5px] font-sans text-galla-ink-soft">
@@ -1414,7 +1414,7 @@ export function NewOrderModal({
                 {/* Optional Expected Due Date */}
                 <div className="space-y-1 pt-0.5">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[11.5px] font-medium text-galla-ink">
+                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                       Expected Payment Due Date <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
                     {dueDate && (
@@ -1456,7 +1456,7 @@ export function NewOrderModal({
                   {settlementMode === "advance" && (
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="block text-[11.5px] font-medium text-galla-ink">
+                        <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                           Advance Paid (₹)
                         </label>
                         {advance.trim() !== "" && Number(advance) > 0 && (
@@ -1479,7 +1479,7 @@ export function NewOrderModal({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {/* Booking Date */}
                     <div className="space-y-1">
-                      <label className="block text-[11.5px] font-medium text-galla-ink whitespace-nowrap">
+                      <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                         {orderType === "Product sale" ? "Expected Pickup / Arrival Date" : "Appointment Date"}{" "}
                         <span className="text-red-500">*</span>
                       </label>
@@ -1497,7 +1497,7 @@ export function NewOrderModal({
                     {/* Booking Time (Optional) */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="block text-[11.5px] font-medium text-galla-ink whitespace-nowrap">
+                        <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                           Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                         </label>
                         {bookingTime && (
@@ -1559,7 +1559,7 @@ export function NewOrderModal({
             {/* Mode of Payment (Shown when not pay_later or when paying partial upfront in pay_later) */}
             {(settlementMode !== "pay_later" || enteredPayLaterPaid > 0) && (
               <div>
-                <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                   {settlementMode === "pay_later"
                     ? `Mode of Upfront Payment (${formatRupee(enteredPayLaterPaid)})`
                     : settlementMode === "advance"
@@ -1611,7 +1611,7 @@ export function NewOrderModal({
 
             {/* Order Notes / Special Instructions (Optional) */}
             <div className="space-y-1">
-              <label className="block text-[11.5px] font-medium text-galla-ink">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Order Notes / Instructions <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
               </label>
               <textarea

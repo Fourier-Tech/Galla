@@ -326,6 +326,7 @@ export function SuppliersTab({
                 : "S";
 
               const hasPending = Boolean(supplier.totalPending && supplier.totalPending > 0);
+              const hasCreditBalance = Boolean(supplier.totalPending && supplier.totalPending < 0);
 
               return (
                 <div
@@ -353,6 +354,12 @@ export function SuppliersTab({
                           <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 font-medium">
                             <AlertCircle className="h-3 w-3" />
                             <span>Due: {formatRupee(supplier.totalPending)}</span>
+                          </span>
+                        )}
+                        {hasCreditBalance && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Credit Balance: {formatRupee(Math.abs(supplier.totalPending))}</span>
                           </span>
                         )}
                       </div>

@@ -154,7 +154,7 @@ export function CustomerModal({
 
           {/* Customer Name */}
           <div>
-            <label className="block font-sans text-[12.5px] font-medium text-galla-ink mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Full Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -169,7 +169,7 @@ export function CustomerModal({
 
           {/* Phone Number */}
           <div>
-            <label className="block font-sans text-[12.5px] font-medium text-galla-ink mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Mobile Number <span className="text-red-500">*</span>
             </label>
             <input
@@ -185,7 +185,7 @@ export function CustomerModal({
           {/* Email Address & Gender Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-sans text-[12.5px] font-medium text-galla-ink mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Email Address <span className="text-galla-ink-soft text-[11px] font-normal">(Optional)</span>
               </label>
               <input
@@ -198,7 +198,7 @@ export function CustomerModal({
             </div>
 
             <div>
-              <label className="block font-sans text-[12.5px] font-medium text-galla-ink mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Gender <span className="text-galla-ink-soft text-[11px] font-normal">(Optional)</span>
               </label>
               <select
@@ -216,7 +216,7 @@ export function CustomerModal({
 
           {/* Internal Notes */}
           <div>
-            <label className="block font-sans text-[12.5px] font-medium text-galla-ink mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Client Preferences &amp; Notes <span className="text-galla-ink-soft text-[11px] font-normal">(Optional)</span>
             </label>
             <textarea

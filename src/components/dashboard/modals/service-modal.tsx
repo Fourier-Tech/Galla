@@ -168,7 +168,7 @@ export function ServiceModal({
 
           {/* Service Name */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Service Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -184,7 +184,7 @@ export function ServiceModal({
 
           {/* Category */}
           <div className="space-y-1.5">
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Category <span className="text-red-500">*</span>
             </label>
             {allCategories.length > 0 && (
@@ -219,7 +219,7 @@ export function ServiceModal({
 
           {/* Price */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Price (₹) <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -239,7 +239,7 @@ export function ServiceModal({
 
           {/* Description */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Description / Notes (Optional)
             </label>
             <div className="relative">

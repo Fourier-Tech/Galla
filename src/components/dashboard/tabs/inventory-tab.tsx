@@ -523,17 +523,27 @@ export function InventoryTab({
 
                       {/* Sell Stock */}
                       <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
-                        <div className="inline-flex items-center justify-center gap-2">
-                          <span
-                            className={`font-sans text-[13.5px] tabular-nums ${
-                              isLowStock ? "text-red-700 font-bold" : "text-galla-ink font-medium"
-                            }`}
-                          >
-                            {product.sell} pcs
-                          </span>
-                          {isLowStock && (
-                            <span className="bg-red-50 text-red-800 border border-red-200 text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-[3px]">
-                              Low
+                        <div className="flex flex-col items-center justify-center gap-1.5">
+                          <div className="inline-flex items-center justify-center gap-2">
+                            <span
+                              className={`font-sans text-[13.5px] tabular-nums ${
+                                isLowStock ? "text-red-700 font-bold" : "text-galla-ink font-medium"
+                              }`}
+                            >
+                              {product.sell} pcs
+                            </span>
+                            {isLowStock && (
+                              <span className="bg-red-50 text-red-800 border border-red-200 text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-[3px]">
+                                Low
+                              </span>
+                            )}
+                          </div>
+                          {product.defectiveStock > 0 && (
+                            <span 
+                              className="text-[10px] font-sans text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded font-medium whitespace-nowrap cursor-help"
+                              title="Defective items pending return to supplier"
+                            >
+                              + {product.defectiveStock} defective
                             </span>
                           )}
                         </div>

@@ -162,7 +162,7 @@ function BaseRescheduleModalContent({
             <div className={`grid gap-3 ${showTimePicker ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
               {/* Date Input */}
               <div className="space-y-1.5">
-                <label className="block text-[12px] font-medium text-galla-ink">
+                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                   {dateLabel} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -179,7 +179,7 @@ function BaseRescheduleModalContent({
               {showTimePicker && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[12px] font-medium text-galla-ink">
+                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                       Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
                     {newTime && (

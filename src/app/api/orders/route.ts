@@ -79,6 +79,7 @@ export async function GET(request: Request) {
       conditions.push({
         $or: [
           { createdAt: dateFilter },
+          { updatedAt: dateFilter },
           { completedAt: dateFilter },
           { "payments.recordedAt": dateFilter },
           { "refundDetails.refundedAt": dateFilter },
@@ -156,7 +157,7 @@ export async function GET(request: Request) {
         let rawTodayPaid = 0;
         if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
           rawTodayPaid = o.payments
-            .filter((p: any) => p.recordedAt && checkIsToday(p.recordedAt))
+            .filter((p: any) => p.recordedAt && checkIsToday(p.recordedAt) && p.type !== "refund" && p.amount > 0)
             .reduce((sum: number, p: any) => sum + (typeof p.amount === "number" && !isNaN(p.amount) ? p.amount : 0), 0);
         } else {
           rawTodayPaid = checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
@@ -178,18 +179,23 @@ export async function GET(request: Request) {
         o.completedAt ? new Date(o.completedAt).getTime() : 0,
         latestPaymentDate ? new Date(latestPaymentDate).getTime() : 0,
         refundedDate ? new Date(refundedDate).getTime() : 0,
+        o.updatedAt ? new Date(o.updatedAt).getTime() : 0,
       ].filter(Boolean);
 
       const latestActivityDate = candidateTimestamps.length > 0
         ? new Date(Math.max(...candidateTimestamps))
         : (o.createdAt ? new Date(o.createdAt) : new Date());
 
-      const isMeaningfullyUpdated = Boolean(
-        latestActivityDate &&
-        o.createdAt &&
-        new Date(latestActivityDate).getTime() - new Date(o.createdAt).getTime() > 60 * 1000
-      );
-      const lastUpdatedTime = isMeaningfullyUpdated ? formatOrderTime(latestActivityDate) : undefined;
+      const createdTime = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+      const latestTime = latestActivityDate.getTime();
+      const hasMultiplePayments = o.payments && o.payments.length > 1;
+      const isMeaningfullyUpdated = 
+        (createdTime > 0 && latestTime - createdTime > 5000) ||
+        hasMultiplePayments ||
+        Boolean(o.refundDetails?.refundedAt) ||
+        (o.lineItems && o.lineItems.some((li: any) => li.returnedQuantity && li.returnedQuantity > 0));
+        
+      const lastUpdatedTime = isMeaningfullyUpdated ? formatOrderTime(new Date(latestTime)) : undefined;
 
       return {
         id: o.orderNumber,
@@ -260,15 +266,19 @@ export async function GET(request: Request) {
           recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
           recordedBy: p.recordedBy,
           type: p.type || undefined,
+          notes: p.notes || undefined,
         })) : undefined,
         lineItems: o.lineItems && Array.isArray(o.lineItems) ? o.lineItems.map((li: any) => ({
           name: li.name,
           itemType: li.itemType,
+          itemId: li.itemId ? li.itemId.toString() : undefined,
           unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
           quantity: typeof li.quantity === "number" ? li.quantity : 1,
           discount: li.discount,
           finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
           fulfilled: li.fulfilled,
+          returnedQuantity: li.returnedQuantity || 0,
+          returnCondition: li.returnCondition,
           packageDetails: li.packageDetails ? {
             isCustomized: li.packageDetails.isCustomized,
             components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({

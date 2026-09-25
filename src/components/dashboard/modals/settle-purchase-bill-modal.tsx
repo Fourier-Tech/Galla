@@ -212,7 +212,7 @@ function SettlePurchaseBillModalContent({
           {/* Editable Payment Amount Input */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block font-sans text-[12px] font-medium text-galla-ink-soft">
+                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                     Payment to Record Now (₹)
                   </label>
                   <div className="flex items-center gap-2">
@@ -262,7 +262,7 @@ function SettlePurchaseBillModalContent({
 
               {/* Payment Mode Selection */}
               <div>
-                <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1.5">
+                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                   Payment Mode for Settlement
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
@@ -292,7 +292,7 @@ function SettlePurchaseBillModalContent({
 
           {/* Notes / Reference */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Settlement Notes / Remarks (Optional)
             </label>
             <input

@@ -33,6 +33,8 @@ export interface IOrderLineItem {
     isCustomized: boolean;
     components: IOrderPackageComponent[];
   };
+  returnedQuantity?: number;
+  returnCondition?: "restocked" | "defective_dealer_claim";
 }
 
 export interface IOrderPayment {
@@ -41,7 +43,8 @@ export interface IOrderPayment {
   transactionRef?: string;
   recordedAt: Date;
   recordedBy: "owner" | "staff";
-  type?: "advance" | "settlement" | "full_payment" | string;
+  type?: "advance" | "settlement" | "full_payment" | "refund" | string;
+  notes?: string;
 }
 
 export interface IOrderRefund {
@@ -172,6 +175,15 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>(
       },
       components: [OrderPackageComponentSchema],
     },
+    returnedQuantity: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    returnCondition: {
+      type: String,
+      enum: ["restocked", "defective_dealer_claim"],
+    },
   },
   { _id: true }
 );
@@ -181,7 +193,6 @@ const OrderPaymentSchema = new Schema<IOrderPayment>(
     amount: {
       type: Number,
       required: true,
-      min: 0,
     },
     mode: {
       type: String,
@@ -203,7 +214,11 @@ const OrderPaymentSchema = new Schema<IOrderPayment>(
     },
     type: {
       type: String,
-      enum: ["advance", "settlement", "full_payment", "other"],
+      enum: ["advance", "settlement", "full_payment", "refund", "other"],
+    },
+    notes: {
+      type: String,
+      trim: true,
     },
   },
   { _id: true }
@@ -353,6 +368,11 @@ OrderSchema.index({ tenantId: 1, createdAt: -1 });
 OrderSchema.index({ tenantId: 1, status: 1 });
 OrderSchema.index({ tenantId: 1, customerId: 1 });
 OrderSchema.index({ tenantId: 1, "payments.recordedAt": -1 });
+
+// Bypass Next.js HMR cache for this model to apply schema updates immediately
+if (process.env.NODE_ENV !== "production") {
+  delete mongoose.models.Order;
+}
 
 export const Order: Model<IOrder> =
   mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema);

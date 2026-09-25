@@ -9,6 +9,7 @@ export interface IProduct extends Document {
   expectedSellPrice: number;
   sellStock: number;
   useStock: number;
+  defectiveStock: number;
   lowStockThreshold: number;
   barcode?: string;
   description?: string;
@@ -73,6 +74,16 @@ const ProductSchema = new Schema<IProduct>(
       validate: {
         validator: Number.isInteger,
         message: "Use stock must be an integer piece quantity",
+      },
+    },
+    defectiveStock: {
+      type: Number,
+      required: true,
+      min: [0, "Defective stock cannot be negative"],
+      default: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: "Defective stock must be an integer piece quantity",
       },
     },
     lowStockThreshold: {

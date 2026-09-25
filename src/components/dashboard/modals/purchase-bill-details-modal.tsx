@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   X,
   Receipt,
@@ -16,6 +16,7 @@ import {
   Calendar,
   Clock,
   PackageCheck,
+  Undo2,
 } from "lucide-react";
 import {
   DashboardPurchaseOrder,
@@ -64,7 +65,7 @@ export function PurchaseBillDetailsModal({
   onOpenPayNow,
   salonName,
 }: PurchaseBillDetailsModalProps) {
-  React.useEffect(() => {
+    React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -93,7 +94,8 @@ export function PurchaseBillDetailsModal({
       return [
         {
           amount: bill.amountPaid,
-          paymentMode: bill.paymentMode !== "credit" ? (bill.paymentMode as any) : "cash",
+          paymentMode:
+            bill.paymentMode !== "credit" ? (bill.paymentMode as any) : "cash",
           notes: bill.notes,
           recordedBy: "owner",
           type: bill.amountPending <= 0 ? "full_payment" : "initial",
@@ -121,7 +123,8 @@ export function PurchaseBillDetailsModal({
         Boolean(bill.notes && /advance/i.test(bill.notes)));
 
     const deliveryDate = hasPendingDelivery
-      ? bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
+      ? bill.expectedDeliveryDate ||
+        (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
       : undefined;
 
     const itemsSummary =
@@ -129,7 +132,7 @@ export function PurchaseBillDetailsModal({
         ? bill.items
             .map(
               (it) =>
-                `${it.productName} (${(it.quantityForSell || 0) + (it.quantityForUse || 0)} pcs)`
+                `${it.productName} (${(it.quantityForSell || 0) + (it.quantityForUse || 0)} pcs)`,
             )
             .join(", ")
         : undefined;
@@ -137,8 +140,8 @@ export function PurchaseBillDetailsModal({
     const reminderMode: "advance" | "payment_due" | "delivery" = isAdvance
       ? "advance"
       : bill.amountPending > 0
-      ? "payment_due"
-      : "delivery";
+        ? "payment_due"
+        : "delivery";
 
     return getSupplierWhatsAppReminderUrl({
       phone: bill.supplierPhone,
@@ -166,6 +169,21 @@ export function PurchaseBillDetailsModal({
   const isPaid = bill.paymentStatus === "paid" || dueAmount <= 0;
   const isPartial = !isPaid && bill.amountPaid > 0;
 
+  const totalRefunded = bill.payments
+    ? bill.payments
+        .filter(
+          (p) => p.type === "refund" || (p.amount != null && p.amount < 0),
+        )
+        .reduce((sum, p) => sum + Math.abs(p.amount), 0)
+    : 0;
+
+  const originalAmountPaid =
+    bill.payments && bill.payments.length > 0
+      ? bill.payments
+          .filter((p) => p.type !== "refund" && p.amount > 0)
+          .reduce((sum, p) => sum + p.amount, 0)
+      : bill.amountPaid + totalRefunded;
+
   const initials = bill.supplierName
     ? bill.supplierName
         .split(" ")
@@ -178,8 +196,14 @@ export function PurchaseBillDetailsModal({
   const getPaymentBadge = (
     p: DashboardPurchaseOrderPayment,
     idx: number,
-    total: number
+    total: number,
   ) => {
+    if (p.type === "refund" || (p.amount != null && p.amount < 0)) {
+      return {
+        label: "Refund",
+        style: "bg-rose-50 text-rose-800 border-rose-200/90",
+      };
+    }
     if (p.type === "initial") {
       return {
         label: "Initial / Stock In",
@@ -225,23 +249,28 @@ export function PurchaseBillDetailsModal({
     };
   };
 
-  const latestPayment = resolvedPayments.length > 0 ? resolvedPayments[resolvedPayments.length - 1] : null;
-  const latestPaymentDate = formatDateTime(latestPayment?.recordedAt || bill.createdAt);
+  const latestPayment =
+    resolvedPayments.length > 0
+      ? resolvedPayments[resolvedPayments.length - 1]
+      : null;
+  const latestPaymentDate = formatDateTime(
+    latestPayment?.recordedAt || bill.createdAt,
+  );
 
   const hasMultipleProducts = (bill.items?.length || 0) > 1;
   const totalUnits = (bill.items || []).reduce(
-    (sum, item) => sum + (item.quantityForSell || 0) + (item.quantityForUse || 0),
-    0
+    (sum, item) =>
+      sum + (item.quantityForSell || 0) + (item.quantityForUse || 0),
+    0,
   );
 
   const itemsTotalCost =
     bill.items && bill.items.length > 0
       ? bill.items.reduce((sum, item) => {
           const qty = (item.quantityForSell || 0) + (item.quantityForUse || 0);
-          const total = item.itemTotalCost || item.purchaseCost * (qty > 0 ? qty : 1);
-          return sum + total;
+          return sum + item.purchaseCost * (qty > 0 ? qty : 1);
         }, 0)
-      : bill.totalAmount;
+      : bill.totalAmount + (totalRefunded || 0);
 
   return (
     <div
@@ -266,8 +295,8 @@ export function PurchaseBillDetailsModal({
                     isPaid
                       ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                       : isPartial
-                      ? "bg-amber-50 text-amber-800 border-amber-200"
-                      : "bg-rose-50 text-rose-800 border-rose-200"
+                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                        : "bg-rose-50 text-rose-800 border-rose-200"
                   }`}
                 >
                   {isPaid ? (
@@ -275,11 +304,23 @@ export function PurchaseBillDetailsModal({
                   ) : (
                     <AlertCircle className="h-3 w-3" />
                   )}
-                  <span>{isPaid ? "Fully Settled" : isPartial ? "Partially Paid" : "Unpaid"}</span>
+                  <span>
+                    {isPaid
+                      ? "Fully Settled"
+                      : isPartial
+                        ? "Partially Paid"
+                        : "Unpaid"}
+                  </span>
                 </span>
               </div>
               <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-                Purchase Bill &bull; {formatDateTime(bill.createdAt || bill.invoiceDate) || "Recorded"} &bull; {bill.dealerInvoiceNumber ? `Dealer Inv: #${bill.dealerInvoiceNumber}` : "Direct Stock In"}
+                Purchase Bill &bull;{" "}
+                {formatDateTime(bill.createdAt || bill.invoiceDate) ||
+                  "Recorded"}{" "}
+                &bull;{" "}
+                {bill.dealerInvoiceNumber
+                  ? `Dealer Inv: #${bill.dealerInvoiceNumber}`
+                  : "Direct Stock In"}
               </p>
             </div>
           </div>
@@ -363,7 +404,8 @@ export function PurchaseBillDetailsModal({
                   Stock In Date &amp; Time
                 </span>
                 <span className="text-[12.5px] font-medium text-galla-ink mt-0.5 block">
-                  {formatDateTime(bill.createdAt || bill.invoiceDate) || "Recorded"}
+                  {formatDateTime(bill.createdAt || bill.invoiceDate) ||
+                    "Recorded"}
                 </span>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-galla-ink-soft/80 flex-wrap">
                   {bill.dealerInvoiceNumber ? (
@@ -372,7 +414,9 @@ export function PurchaseBillDetailsModal({
                     <span>Direct Stock In</span>
                   )}
                   {bill.recordedBy && (
-                    <span className="capitalize">&bull; Recorded by {bill.recordedBy}</span>
+                    <span className="capitalize">
+                      &bull; Recorded by {bill.recordedBy}
+                    </span>
                   )}
                 </div>
               </div>
@@ -447,103 +491,122 @@ export function PurchaseBillDetailsModal({
           </div>
 
           {/* Settlement Mode & Dates Banner (If present) */}
-          {(bill.dueDate || bill.expectedDeliveryDate || (bill.notes && /advance/i.test(bill.notes)) || bill.settlementMode) && (() => {
-            const billStatus = getBillStatus(bill);
-            const isCompleted =
-              billStatus.statusKey === "completed" ||
-              bill.settlementMode === "completed" ||
-              (bill.paymentStatus === "paid" && bill.stockAllocated !== false) ||
-              (dueAmount <= 0 && bill.stockAllocated !== false);
+          {(bill.dueDate ||
+            bill.expectedDeliveryDate ||
+            (bill.notes && /advance/i.test(bill.notes)) ||
+            bill.settlementMode) &&
+            (() => {
+              const billStatus = getBillStatus(bill);
+              const isCompleted =
+                billStatus.statusKey === "completed" ||
+                bill.settlementMode === "completed" ||
+                (bill.paymentStatus === "paid" &&
+                  bill.stockAllocated !== false) ||
+                (dueAmount <= 0 && bill.stockAllocated !== false);
 
-            const hasPendingDelivery = !isCompleted && bill.stockAllocated === false;
-            const isAdvance =
-              !isCompleted &&
-              (bill.settlementMode === "advance" ||
-                bill.settlementMode === "paid_full" ||
-                bill.stockAllocated === false ||
-                Boolean(bill.expectedDeliveryDate) ||
-                Boolean(bill.notes && /advance/i.test(bill.notes)));
+              const hasPendingDelivery =
+                !isCompleted && bill.stockAllocated === false;
+              const isAdvance =
+                !isCompleted &&
+                (bill.settlementMode === "advance" ||
+                  bill.settlementMode === "paid_full" ||
+                  bill.stockAllocated === false ||
+                  Boolean(bill.expectedDeliveryDate) ||
+                  Boolean(bill.notes && /advance/i.test(bill.notes)));
 
-            const deliveryTarget = hasPendingDelivery
-              ? bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
-              : undefined;
-            const deliveryUrgency = deliveryTarget ? getBookingUrgency(deliveryTarget) : null;
-            const isDeliveryToday = hasPendingDelivery && deliveryUrgency?.tone === "today";
-            const isDeliveryOverdue = hasPendingDelivery && deliveryUrgency?.tone === "overdue";
+              const deliveryTarget = hasPendingDelivery
+                ? bill.expectedDeliveryDate ||
+                  (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
+                : undefined;
+              const deliveryUrgency = deliveryTarget
+                ? getBookingUrgency(deliveryTarget)
+                : null;
+              const isDeliveryToday =
+                hasPendingDelivery && deliveryUrgency?.tone === "today";
+              const isDeliveryOverdue =
+                hasPendingDelivery && deliveryUrgency?.tone === "overdue";
 
-            const hasPendingDue = !isCompleted && dueAmount > 0;
-            const dueTarget = hasPendingDue ? bill.dueDate : undefined;
-            const dueUrgency = dueTarget ? getBookingUrgency(dueTarget) : null;
-            const isDueToday = hasPendingDue && dueUrgency?.tone === "today";
-            const isDueOverdue = hasPendingDue && dueUrgency?.tone === "overdue";
+              const hasPendingDue = !isCompleted && dueAmount > 0;
+              const dueTarget = hasPendingDue ? bill.dueDate : undefined;
+              const dueUrgency = dueTarget
+                ? getBookingUrgency(dueTarget)
+                : null;
+              const isDueToday = hasPendingDue && dueUrgency?.tone === "today";
+              const isDueOverdue =
+                hasPendingDue && dueUrgency?.tone === "overdue";
 
-            return (
-              <div className="p-3 bg-galla-paper/40 border border-galla-line rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px]">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-heading uppercase tracking-wider text-[11px] font-semibold text-galla-ink-soft">
-                    Settlement Mode:
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-galla-surface border border-galla-line text-galla-ink">
-                    {isCompleted
-                      ? "Completed"
-                      : bill.settlementMode === "pending"
-                      ? "Pending / Payment Due"
-                      : isAdvance
-                      ? "Advance Order"
-                      : bill.settlementMode === "paid_full"
-                      ? "Paid in Full"
-                      : "Completed"}
-                  </span>
-                  {bill.stockAllocated && (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
-                      <PackageCheck className="h-3 w-3 text-emerald-700" />
-                      <span>Stock In Inventory</span>
+              return (
+                <div className="p-3 bg-galla-paper/40 border border-galla-line rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px]">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-heading uppercase tracking-wider text-[11px] font-semibold text-galla-ink-soft">
+                      Settlement Mode:
                     </span>
-                  )}
-                  {isDeliveryToday && (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
-                      🚨 Delivery Expected Today
+                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-galla-surface border border-galla-line text-galla-ink">
+                      {isCompleted
+                        ? "Completed"
+                        : bill.settlementMode === "pending"
+                          ? "Pending / Payment Due"
+                          : isAdvance
+                            ? "Advance Order"
+                            : bill.settlementMode === "paid_full"
+                              ? "Paid in Full"
+                              : "Completed"}
                     </span>
-                  )}
-                  {isDeliveryOverdue && (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
-                      ⚠️ Delivery Overdue
-                    </span>
-                  )}
-                  {isDueToday && (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
-                      🚨 Payment Due Today
-                    </span>
-                  )}
-                  {isDueOverdue && (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
-                      ⚠️ Payment Overdue
-                    </span>
-                  )}
+                    {bill.stockAllocated && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
+                        <PackageCheck className="h-3 w-3 text-emerald-700" />
+                        <span>Stock In Inventory</span>
+                      </span>
+                    )}
+                    {isDeliveryToday && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                        🚨 Delivery Expected Today
+                      </span>
+                    )}
+                    {isDeliveryOverdue && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
+                        ⚠️ Delivery Overdue
+                      </span>
+                    )}
+                    {isDueToday && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                        🚨 Payment Due Today
+                      </span>
+                    )}
+                    {isDueOverdue && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
+                        ⚠️ Payment Overdue
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {hasPendingDue && bill.dueDate && (
+                      <div className="text-rose-700 font-medium font-sans">
+                        Payment Due:{" "}
+                        <strong>{formatBookingDate(bill.dueDate)}</strong>
+                      </div>
+                    )}
+                    {hasPendingDelivery && deliveryTarget && (
+                      <div className="text-galla-teal font-medium font-sans">
+                        Expected Arrival:{" "}
+                        <strong>{formatBookingDate(deliveryTarget)}</strong>
+                        {bill.deliveryTime
+                          ? ` at ${formatAppointmentTime(bill.deliveryTime)}`
+                          : ""}
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-3 flex-wrap">
-                  {hasPendingDue && bill.dueDate && (
-                    <div className="text-rose-700 font-medium font-sans">
-                      Payment Due: <strong>{formatBookingDate(bill.dueDate)}</strong>
-                    </div>
-                  )}
-                  {hasPendingDelivery && deliveryTarget && (
-                    <div className="text-galla-teal font-medium font-sans">
-                      Expected Arrival: <strong>{formatBookingDate(deliveryTarget)}</strong>
-                      {bill.deliveryTime ? ` at ${formatAppointmentTime(bill.deliveryTime)}` : ""}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
           {/* Stock In Items Breakdown ("What we buy from supplier with Price, Qty, Total and Final Total") */}
           <div className="border border-galla-line rounded-[8px] overflow-hidden bg-galla-surface shadow-2xs">
             <div className="px-4 py-2.5 bg-galla-paper/60 border-b border-galla-line flex items-center justify-between">
               <span className="font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft">
-                Products Purchased ({bill.items?.length || bill.itemsCount || 1})
+                Products Purchased ({bill.items?.length || bill.itemsCount || 1}
+                )
               </span>
               <span className="text-[11.5px] text-galla-ink-soft font-sans">
                 Unit Price &bull; Qty &bull; Total
@@ -553,47 +616,62 @@ export function PurchaseBillDetailsModal({
             {bill.items && bill.items.length > 0 ? (
               <div className="divide-y divide-galla-line/70">
                 {bill.items.map((item, idx) => {
-                  const totalQty = (item.quantityForSell || 0) + (item.quantityForUse || 0);
-                  const lineTotal =
-                    item.itemTotalCost || item.purchaseCost * (totalQty > 0 ? totalQty : 1);
+                  const purchasedQty =
+                    (item.quantityForSell || 0) + (item.quantityForUse || 0);
+                  const returnedQty = item.returnedQuantity || 0;
+                  const totalQty = purchasedQty - returnedQty;
+
+                  // If all items returned, show struck-through or zero cost
 
                   return (
-                    <div key={idx} className="p-3.5 hover:bg-galla-paper/20 transition-colors">
+                    <div
+                      key={idx}
+                      className="p-3.5 hover:bg-galla-paper/20 transition-colors"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1.5 min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <Package className="h-4 w-4 text-blue-600 shrink-0" />
-                            <span className="font-sans font-semibold text-[14px] text-galla-ink">
+                            <span
+                              className={`font-sans font-semibold text-[14px] ${totalQty === 0 ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}
+                            >
                               {item.productName}
                             </span>
+                            {returnedQty > 0 && (
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
+                                {returnedQty} Returned
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2 text-[12px] text-galla-ink-soft flex-wrap">
                             <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
-                              <span className="text-galla-ink-soft text-[11px]">Price:</span>
-                              <strong className="font-mono text-galla-ink">{formatRupee(item.purchaseCost)}</strong>
+                              <span className="text-galla-ink-soft text-[11px]">
+                                Price:
+                              </span>
+                              <strong className="font-mono text-galla-ink">
+                                {formatRupee(item.purchaseCost)}
+                              </strong>
                             </span>
 
                             <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
-                              <span className="text-galla-ink-soft text-[11px]">Qty:</span>
-                              <strong className="font-mono text-galla-ink">{totalQty} pcs</strong>
+                              <span className="text-galla-ink-soft text-[11px]">
+                                Qty:
+                              </span>
+                              <strong className="font-mono text-galla-ink">
+                                {purchasedQty} pcs
+                              </strong>
                             </span>
 
-                            {item.quantityForSell > 0 && item.quantityForUse > 0 && (
-                              <span className="text-[11px] text-galla-ink-soft">
-                                ({item.quantityForSell} retail + {item.quantityForUse} salon)
-                              </span>
-                            )}
-                            {item.quantityForSell > 0 && item.quantityForUse === 0 && (
-                              <span className="text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
-                                Retail Stock
-                              </span>
-                            )}
-                            {item.quantityForUse > 0 && item.quantityForSell === 0 && (
-                              <span className="text-[11px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
-                                Salon Use
-                              </span>
-                            )}
+                            {item.quantityForSell > 0 &&
+                              item.quantityForUse > 0 && (
+                                <span className="text-[11px] text-galla-ink-soft">
+                                  ({item.quantityForSell} retail +{" "}
+                                  {item.quantityForUse} salon)
+                                </span>
+                              )}
+
+                            
                           </div>
                         </div>
 
@@ -602,10 +680,11 @@ export function PurchaseBillDetailsModal({
                             Total
                           </div>
                           <div className="font-heading font-bold text-[14.5px] text-galla-ink tabular-nums">
-                            {formatRupee(lineTotal)}
+                            {formatRupee(purchasedQty * item.purchaseCost)}
                           </div>
                           <div className="text-[11.5px] text-galla-ink-soft font-mono">
-                            {totalQty} &times; {formatRupee(item.purchaseCost)}
+                            {purchasedQty} &times;{" "}
+                            {formatRupee(item.purchaseCost)}
                           </div>
                         </div>
                       </div>
@@ -618,7 +697,8 @@ export function PurchaseBillDetailsModal({
                   <div className="px-4 py-3 bg-galla-paper/80 border-t border-galla-line flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-heading font-bold text-[12.5px] uppercase tracking-wider text-galla-ink">
-                        Final Total ({bill.items.length} Products &bull; {totalUnits} Units)
+                        Final Total ({bill.items.length} Products &bull;{" "}
+                        {totalUnits} Units)
                       </span>
                     </div>
                     <div className="text-right">
@@ -633,7 +713,7 @@ export function PurchaseBillDetailsModal({
               <div className="p-4 text-[13px] text-galla-ink-soft flex items-center justify-between">
                 <span>Stock In Products</span>
                 <span className="font-heading font-semibold text-galla-ink tabular-nums">
-                  {formatRupee(bill.totalAmount)}
+                  {formatRupee(itemsTotalCost)}
                 </span>
               </div>
             )}
@@ -648,13 +728,21 @@ export function PurchaseBillDetailsModal({
             {hasMultipleProducts && (
               <div className="flex justify-between text-[13px] text-galla-ink-soft">
                 <span>Products Subtotal ({bill.items!.length} items):</span>
-                <span className="tabular-nums font-mono">{formatRupee(itemsTotalCost)}</span>
+                <span className="tabular-nums font-mono">
+                  {formatRupee(itemsTotalCost)}
+                </span>
               </div>
             )}
 
             <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1">
-              <span>{hasMultipleProducts ? "Final Total Bill Amount:" : "Total Bill Amount:"}</span>
-              <span className="tabular-nums text-[16px]">{formatRupee(bill.totalAmount)}</span>
+              <span>
+                {hasMultipleProducts
+                  ? "Final Total Bill Amount:"
+                  : "Total Bill Amount:"}
+              </span>
+              <span className="tabular-nums text-[16px]">
+                {formatRupee(itemsTotalCost)}
+              </span>
             </div>
 
             <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium">
@@ -667,8 +755,40 @@ export function PurchaseBillDetailsModal({
                   </span>
                 )}
               </span>
-              <span className="tabular-nums font-mono">{formatRupee(bill.amountPaid)}</span>
+              <span className="tabular-nums font-mono">
+                {formatRupee(originalAmountPaid)}
+              </span>
             </div>
+
+            {Boolean(bill.ledgerAdjustment) && bill.ledgerAdjustment !== 0 && (
+              <div className="flex justify-between text-[13.5px] text-blue-700 font-medium pt-0.5">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                    Ledger Adjustment
+                  </span>
+                  <span>
+                    {bill.ledgerAdjustment! > 0
+                      ? "Credit Applied:"
+                      : "Old Dues Paid:"}
+                  </span>
+                </span>
+                <span className="tabular-nums font-mono">
+                  {formatRupee(Math.abs(bill.ledgerAdjustment!))}
+                </span>
+              </div>
+            )}
+
+            {totalRefunded > 0 && (
+              <div className="flex justify-between text-[13.5px] text-rose-700 font-medium pt-0.5">
+                <span className="inline-flex items-center gap-1.5">
+                  <Undo2 className="h-3.5 w-3.5" />
+                  <span>Total Refunded:</span>
+                </span>
+                <span className="tabular-nums font-mono">
+                  -{formatRupee(totalRefunded)}
+                </span>
+              </div>
+            )}
 
             {isDue ? (
               <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
@@ -676,7 +796,9 @@ export function PurchaseBillDetailsModal({
                   <AlertCircle className="h-3.5 w-3.5" />
                   <span>Pending Due Balance:</span>
                 </span>
-                <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
+                <span className="tabular-nums font-mono text-[15px]">
+                  {formatRupee(dueAmount)}
+                </span>
               </div>
             ) : (
               <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
@@ -696,39 +818,44 @@ export function PurchaseBillDetailsModal({
                 </span>
                 <div className="space-y-1">
                   {resolvedPayments.map((p, pIdx) => {
-                    const badge = getPaymentBadge(p, pIdx, resolvedPayments.length);
+                    const badge = getPaymentBadge(
+                      p,
+                      pIdx,
+                      resolvedPayments.length,
+                    );
                     return (
                       <div
                         key={pIdx}
-                        className="flex items-center justify-between text-[11.5px] bg-galla-surface px-2.5 py-1.5 rounded border border-galla-line/60 text-galla-ink-soft"
+                        className="bg-galla-surface rounded border border-galla-line/60 flex flex-col"
                       >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border shrink-0 ${badge.style}`}
-                          >
-                            {badge.label}
-                          </span>
-                          <span>
-                            <strong className="text-galla-ink font-semibold">
-                              {formatRupee(p.amount)}
-                            </strong>{" "}
-                            via{" "}
-                            <span className="uppercase font-medium text-galla-ink">
-                              {p.paymentMode}
+                        <div className="flex items-center justify-between text-[11.5px] px-2.5 py-1.5 text-galla-ink-soft">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border shrink-0 ${badge.style}`}
+                            >
+                              {badge.label}
                             </span>
-                            {p.recordedBy ? ` (${p.recordedBy})` : ""}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {p.notes && (
-                            <span className="text-[11px] text-galla-ink-soft italic truncate max-w-[150px]">
-                              {p.notes}
+                            <span>
+                              <strong className="text-galla-ink font-semibold">
+                                {formatRupee(p.amount)}
+                              </strong>{" "}
+                              via{" "}
+                              <span className="uppercase font-medium text-galla-ink">
+                                {p.paymentMode}
+                              </span>
+                              {p.recordedBy ? ` (${p.recordedBy})` : ""}
                             </span>
-                          )}
+                          </div>
                           <span className="font-mono text-[11px] text-galla-ink-soft/75">
-                            {formatDateTime(p.recordedAt) || formatDateTime(bill.createdAt)}
+                            {formatDateTime(p.recordedAt) ||
+                              formatDateTime(bill.createdAt)}
                           </span>
                         </div>
+                        {p.notes && (
+                          <div className="px-2.5 pb-1.5 pt-1 text-[11px] text-galla-ink-soft/80 bg-galla-paper/30">
+                            {p.notes}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -757,9 +884,13 @@ export function PurchaseBillDetailsModal({
                 Supplier has {formatRupee(dueAmount)} remaining due
               </span>
             ) : bill.stockAllocated === false ? (
-              <span className="text-amber-800 font-medium">Paid in full &bull; Delivery awaiting settlement</span>
+              <span className="text-amber-800 font-medium">
+                Paid in full &bull; Delivery awaiting settlement
+              </span>
             ) : (
-              <span className="text-emerald-700 font-medium">Bill is fully settled &amp; paid</span>
+              <span className="text-emerald-700 font-medium">
+                Bill is fully settled &amp; paid
+              </span>
             )}
           </div>
 
@@ -773,7 +904,9 @@ export function PurchaseBillDetailsModal({
                 }}
                 className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs"
               >
-                {isDue ? `Settle Bill (${formatRupee(dueAmount)})` : "Settle Bill"}
+                {isDue
+                  ? `Settle Bill (${formatRupee(dueAmount)})`
+                  : "Settle Bill"}
               </button>
             )}
 
@@ -787,6 +920,7 @@ export function PurchaseBillDetailsModal({
           </div>
         </div>
       </div>
+
     </div>
   );
 }

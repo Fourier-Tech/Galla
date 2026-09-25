@@ -70,7 +70,6 @@ const SupplierSchema = new Schema<ISupplier>(
     totalPending: {
       type: Number,
       default: 0,
-      min: 0,
     },
     isActive: {
       type: Boolean,

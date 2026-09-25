@@ -14,7 +14,10 @@ import { Counter } from "@/lib/db/models/counter.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Service, type IService } from "@/lib/db/models/service.model";
-import { PackageTemplate, type IPackageTemplate } from "@/lib/db/models/package-template.model";
+import {
+  PackageTemplate,
+  type IPackageTemplate,
+} from "@/lib/db/models/package-template.model";
 import { withTransaction } from "@/lib/db/transaction";
 import {
   createOrderSchema,
@@ -54,7 +57,14 @@ import {
   DashboardPaymentMode,
 } from "@/types/dashboard";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
-import { formatPhoneNumber, checkIsToday, checkIsLast24Hours, formatOrderTime, formatDisplayNumber, getBillLastUpdatedTime } from "@/lib/utils";
+import {
+  formatPhoneNumber,
+  checkIsToday,
+  checkIsLast24Hours,
+  formatOrderTime,
+  formatDisplayNumber,
+  getBillLastUpdatedTime,
+} from "@/lib/utils";
 
 interface SessionLike {
   user?: {
@@ -65,7 +75,10 @@ interface SessionLike {
   };
 }
 
-async function broadcastUpdate(tenantId: Types.ObjectId | string, actionType: string) {
+async function broadcastUpdate(
+  tenantId: Types.ObjectId | string,
+  actionType: string,
+) {
   try {
     await triggerTenantEvent({
       tenantId: tenantId.toString(),
@@ -77,10 +90,14 @@ async function broadcastUpdate(tenantId: Types.ObjectId | string, actionType: st
   }
 }
 
-async function resolveTenantId(session: SessionLike): Promise<Types.ObjectId | null> {
+async function resolveTenantId(
+  session: SessionLike,
+): Promise<Types.ObjectId | null> {
   const tenantIdStr = session?.user?.tenantId;
   if (tenantIdStr && Types.ObjectId.isValid(tenantIdStr)) {
-    const exists = await Tenant.exists({ _id: new Types.ObjectId(tenantIdStr) });
+    const exists = await Tenant.exists({
+      _id: new Types.ObjectId(tenantIdStr),
+    });
     if (exists) return new Types.ObjectId(tenantIdStr);
   }
 
@@ -101,11 +118,15 @@ async function resolveTenantId(session: SessionLike): Promise<Types.ObjectId | n
 async function getProductBatchesForInternalUse(
   tenantId: Types.ObjectId | string,
   productId: Types.ObjectId | string,
-  session?: ClientSession
+  session?: ClientSession,
 ): Promise<IProduct[]> {
-  const primary = await Product.findOne({ _id: productId, tenantId }).session(session || null);
+  const primary = await Product.findOne({ _id: productId, tenantId }).session(
+    session || null,
+  );
   if (!primary) return [];
-  const baseName = primary.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+  const baseName = primary.name
+    .replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "")
+    .trim();
   const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const candidates = await Product.find({
     tenantId,
@@ -129,12 +150,15 @@ async function checkPackageProductsAvailability(
   tenantId: Types.ObjectId | string,
   templateId: Types.ObjectId | string,
   packageQuantity: number,
-  session?: ClientSession
+  session?: ClientSession,
 ): Promise<{
   available: boolean;
   missing: { name: string; needed: number; available: number }[];
 }> {
-  const template = await PackageTemplate.findOne({ _id: templateId, tenantId }).session(session || null);
+  const template = await PackageTemplate.findOne({
+    _id: templateId,
+    tenantId,
+  }).session(session || null);
   if (!template || !template.products || template.products.length === 0) {
     return { available: true, missing: [] };
   }
@@ -143,10 +167,14 @@ async function checkPackageProductsAvailability(
 
   for (const pItem of template.products) {
     const needed = packageQuantity * pItem.quantity;
-    const batches = await getProductBatchesForInternalUse(tenantId, pItem.productId, session);
+    const batches = await getProductBatchesForInternalUse(
+      tenantId,
+      pItem.productId,
+      session,
+    );
     const totalAvailable = batches.reduce(
       (sum, b) => sum + Math.max(0, b.useStock),
-      0
+      0,
     );
     if (totalAvailable < needed) {
       missing.push({
@@ -171,14 +199,21 @@ async function deductPackageProductsFromStock(
   tenantId: Types.ObjectId | string,
   templateId: Types.ObjectId | string,
   packageQuantity: number,
-  session?: ClientSession
+  session?: ClientSession,
 ): Promise<void> {
-  const template = await PackageTemplate.findOne({ _id: templateId, tenantId }).session(session || null);
+  const template = await PackageTemplate.findOne({
+    _id: templateId,
+    tenantId,
+  }).session(session || null);
   if (!template || !template.products || template.products.length === 0) return;
 
   for (const pItem of template.products) {
     let remaining = packageQuantity * pItem.quantity;
-    const batches = await getProductBatchesForInternalUse(tenantId, pItem.productId, session);
+    const batches = await getProductBatchesForInternalUse(
+      tenantId,
+      pItem.productId,
+      session,
+    );
     for (const batch of batches) {
       if (remaining <= 0) break;
       const takeUse = Math.min(batch.useStock, remaining);
@@ -187,7 +222,10 @@ async function deductPackageProductsFromStock(
         remaining -= takeUse;
         await batch.save(session ? { session } : undefined);
 
-        const unitCost = typeof batch.purchaseCost === "number" && !isNaN(batch.purchaseCost) ? batch.purchaseCost : 0;
+        const unitCost =
+          typeof batch.purchaseCost === "number" && !isNaN(batch.purchaseCost)
+            ? batch.purchaseCost
+            : 0;
         const consumptionCost = unitCost * takeUse;
 
         if (consumptionCost > 0) {
@@ -205,7 +243,7 @@ async function deductPackageProductsFromStock(
                 notes: `Automatically deducted ${takeUse} units from salon use during service/package fulfillment.`,
               },
             ],
-            session ? { session } : undefined
+            session ? { session } : undefined,
           );
         }
       }
@@ -225,9 +263,11 @@ async function deductPackageProductsFromStock(
 async function cleanupProductBatchNames(
   tenantId: Types.ObjectId | string,
   baseName: string,
-  session?: ClientSession
+  session?: ClientSession,
 ): Promise<IProduct | null> {
-  const cleanBase = baseName.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+  const cleanBase = baseName
+    .replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "")
+    .trim();
   const escapedBase = cleanBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   const candidates = await Product.find({
@@ -255,7 +295,11 @@ async function cleanupProductBatchNames(
 
     // Deactivate zero-stock siblings so they no longer clutter inventory or collide on unique index
     for (const other of candidates) {
-      if (!other._id.equals(soleStocked._id) && other.sellStock === 0 && other.useStock === 0) {
+      if (
+        !other._id.equals(soleStocked._id) &&
+        other.sellStock === 0 &&
+        other.useStock === 0
+      ) {
         other.isActive = false;
         await other.save(session ? { session } : undefined);
       }
@@ -270,8 +314,6 @@ async function cleanupProductBatchNames(
 
   return null;
 }
-
-
 
 function mapOrderType(type?: string): OrderType {
   if (type === "service_booking") return "Service booking";
@@ -307,7 +349,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
 
     const isFullPayment = input.paidAmount >= input.totalAmount;
     const amountPending = Math.max(0, input.totalAmount - input.paidAmount);
-    const formattedPhone = input.customerPhone ? formatPhoneNumber(input.customerPhone) : "";
+    const formattedPhone = input.customerPhone
+      ? formatPhoneNumber(input.customerPhone)
+      : "";
 
     const mappedLineItems: IOrderLineItem[] =
       input.lineItems && input.lineItems.length > 0
@@ -342,8 +386,11 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           ];
 
     // Determine order type based on item types: P (product), S (service), K (package), or M (mixed)
-    const distinctItemTypes = new Set(mappedLineItems.map((item) => item.itemType));
-    let dbOrderType: "product_sale" | "service_booking" | "package_sale" | "mixed";
+    const distinctItemTypes = new Set(
+      mappedLineItems.map((item) => item.itemType),
+    );
+    let dbOrderType:
+      "product_sale" | "service_booking" | "package_sale" | "mixed";
     if (distinctItemTypes.size > 1) {
       dbOrderType = "mixed";
     } else if (distinctItemTypes.has("product")) {
@@ -369,16 +416,25 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       // Stock will be deducted upon customer pickup when the order is completed.
       const isAdvancePreOrder =
         input.status !== "completed" &&
-        (Boolean(input.bookingDate) || input.status === "advance_paid" || input.status === "paid_full");
+        (Boolean(input.bookingDate) ||
+          input.status === "advance_paid" ||
+          input.status === "paid_full");
       let hasUnfulfilledProduct = false;
       const affectedProductNames = new Set<string>();
 
       for (const item of mappedLineItems) {
-        if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
-          const prod = await Product.findOne({ _id: item.itemId, tenantId }).session(dbSession);
+        if (
+          item.itemType === "product" &&
+          Types.ObjectId.isValid(item.itemId)
+        ) {
+          const prod = await Product.findOne({
+            _id: item.itemId,
+            tenantId,
+          }).session(dbSession);
           if (prod) {
             // Snapshot current purchaseCost for profit calculation
-            item.purchaseCost = typeof prod.purchaseCost === "number" ? prod.purchaseCost : 0;
+            item.purchaseCost =
+              typeof prod.purchaseCost === "number" ? prod.purchaseCost : 0;
             const available = Math.max(0, prod.sellStock);
             const requested = item.quantity || 1;
 
@@ -394,13 +450,16 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               affectedProductNames.add(prod.name);
             }
           }
-        } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
+        } else if (
+          item.itemType === "package" &&
+          Types.ObjectId.isValid(item.itemId)
+        ) {
           // Check package products stock availability
           const stockCheck = await checkPackageProductsAvailability(
             tenantId,
             item.itemId,
             item.quantity || 1,
-            dbSession
+            dbSession,
           );
 
           if (!stockCheck.available || isAdvancePreOrder) {
@@ -410,8 +469,16 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           } else {
             item.fulfilled = isFullPayment;
             if (!item.fulfilled) hasUnfulfilledProduct = true;
-            await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1, dbSession);
-            const pkgTpl = await PackageTemplate.findOne({ _id: item.itemId, tenantId }).session(dbSession);
+            await deductPackageProductsFromStock(
+              tenantId,
+              item.itemId,
+              item.quantity || 1,
+              dbSession,
+            );
+            const pkgTpl = await PackageTemplate.findOne({
+              _id: item.itemId,
+              tenantId,
+            }).session(dbSession);
             if (pkgTpl && pkgTpl.products) {
               for (const pr of pkgTpl.products) {
                 affectedProductNames.add(pr.name);
@@ -424,7 +491,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       const affectedProductsList: DashboardProduct[] = [];
       for (const pName of affectedProductNames) {
         await cleanupProductBatchNames(tenantId, pName, dbSession);
-        const cleanBase = pName.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+        const cleanBase = pName
+          .replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "")
+          .trim();
         const escapedBase = cleanBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const prods = await Product.find({
           tenantId,
@@ -437,6 +506,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             category: p.category,
             sell: p.sellStock,
             use: p.useStock,
+        defectiveStock: p.defectiveStock || 0,
             price: p.expectedSellPrice,
             purchaseCost: p.purchaseCost,
             lowStockThreshold: p.lowStockThreshold,
@@ -471,15 +541,21 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             status: orderInitialStatus,
             lineItems: mappedLineItems,
             subtotal: input.subtotal ?? input.totalAmount,
-            discountType: input.discountType || (input.discountValue !== undefined ? "percentage" : "flat"),
-            discountValue: input.discountValue ?? (input.discountAmount ?? 0),
+            discountType:
+              input.discountType ||
+              (input.discountValue !== undefined ? "percentage" : "flat"),
+            discountValue: input.discountValue ?? input.discountAmount ?? 0,
             discountAmount: input.discountAmount ?? 0,
             totalAmount: input.totalAmount,
             amountPaid: input.paidAmount,
             amountPending: amountPending,
             paymentMode: input.paymentMode || "cash",
-            scheduledFor: input.bookingDate ? new Date(input.bookingDate) : undefined,
-            scheduledTime: input.bookingTime ? input.bookingTime.trim() : undefined,
+            scheduledFor: input.bookingDate
+              ? new Date(input.bookingDate)
+              : undefined,
+            scheduledTime: input.bookingTime
+              ? input.bookingTime.trim()
+              : undefined,
             notes: input.notes?.trim() || undefined,
             payments:
               input.paidAmount > 0
@@ -488,17 +564,21 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                       amount: input.paidAmount,
                       mode: input.paymentMode || "cash",
                       recordedAt: new Date(),
-                      recordedBy: session.user.role === "staff" ? "staff" : "owner",
-                      type: orderInitialStatus === "advance_paid" || isAdvancePreOrder || (amountPending > 0)
-                        ? "advance"
-                        : "full_payment",
+                      recordedBy:
+                        session.user.role === "staff" ? "staff" : "owner",
+                      type:
+                        orderInitialStatus === "advance_paid" ||
+                        isAdvancePreOrder ||
+                        amountPending > 0
+                          ? "advance"
+                          : "full_payment",
                     },
                   ]
                 : [],
             recordedBy: session.user.role === "staff" ? "staff" : "owner",
           },
         ],
-        { session: dbSession }
+        { session: dbSession },
       );
 
       // If customer is settling previous due orders with this bill
@@ -508,7 +588,11 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           id.startsWith("#") ? id.slice(1) : `#${id}`,
         ]);
         const idRegexes = input.clearedDueOrderIds.map(
-          (id) => new RegExp(`(^|\\b|-)${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+          (id) =>
+            new RegExp(
+              `(^|\\b|-)${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+              "i",
+            ),
         );
         const objectIds = input.clearedDueOrderIds
           .filter((id) => Types.ObjectId.isValid(id))
@@ -524,7 +608,10 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         }).session(dbSession);
 
         for (const prevOrder of previousOrders) {
-          const remainingToSettle = Math.max(0, prevOrder.totalAmount - prevOrder.amountPaid);
+          const remainingToSettle = Math.max(
+            0,
+            prevOrder.totalAmount - prevOrder.amountPaid,
+          );
           if (remainingToSettle > 0) {
             prevOrder.amountPaid += remainingToSettle;
             prevOrder.amountPending = 0;
@@ -553,7 +640,11 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           $or: [
             { phone: formattedPhone },
             ...(rawDigits.length === 10
-              ? [{ phone: rawDigits }, { phone: `+91${rawDigits}` }, { phone: `0${rawDigits}` }]
+              ? [
+                  { phone: rawDigits },
+                  { phone: `+91${rawDigits}` },
+                  { phone: `0${rawDigits}` },
+                ]
               : []),
           ],
         }).session(dbSession);
@@ -561,19 +652,35 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         if (existingCustomer) {
           const oldName = existingCustomer.name;
           const trimmedName = input.customerName?.trim();
-          const nameChanged = Boolean(trimmedName && trimmedName !== "Walk-in Guest" && trimmedName !== oldName);
+          const nameChanged = Boolean(
+            trimmedName &&
+            trimmedName !== "Walk-in Guest" &&
+            trimmedName !== oldName,
+          );
 
           existingCustomer.phone = formattedPhone;
           if (trimmedName && trimmedName !== "Walk-in Guest") {
             existingCustomer.name = trimmedName;
           }
           if (!existingCustomer.stats) {
-            existingCustomer.stats = { totalVisits: 0, totalSpend: 0, outstandingBalance: 0, lastVisitAt: new Date() };
+            existingCustomer.stats = {
+              totalVisits: 0,
+              totalSpend: 0,
+              outstandingBalance: 0,
+              lastVisitAt: new Date(),
+            };
           }
-          existingCustomer.stats.totalVisits = (existingCustomer.stats.totalVisits || 0) + 1;
-          existingCustomer.stats.totalSpend = (existingCustomer.stats.totalSpend || 0) + input.paidAmount;
-          const netBalanceAdjustment = amountPending - (input.clearedDueAmount || 0);
-          existingCustomer.stats.outstandingBalance = Math.max(0, (existingCustomer.stats.outstandingBalance || 0) + netBalanceAdjustment);
+          existingCustomer.stats.totalVisits =
+            (existingCustomer.stats.totalVisits || 0) + 1;
+          existingCustomer.stats.totalSpend =
+            (existingCustomer.stats.totalSpend || 0) + input.paidAmount;
+          const netBalanceAdjustment =
+            amountPending - (input.clearedDueAmount || 0);
+          existingCustomer.stats.outstandingBalance = Math.max(
+            0,
+            (existingCustomer.stats.outstandingBalance || 0) +
+              netBalanceAdjustment,
+          );
           existingCustomer.stats.lastVisitAt = new Date();
           await existingCustomer.save({ session: dbSession });
 
@@ -592,7 +699,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                     ? [
                         { "customerSnapshot.phone": rawDigits },
                         { "customerSnapshot.phone": `+91${rawDigits}` },
-                        { "customerSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}` },
+                        {
+                          "customerSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}`,
+                        },
                         { "customerSnapshot.phone": `0${rawDigits}` },
                       ]
                     : []),
@@ -604,7 +713,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                   "customerSnapshot.phone": formattedPhone,
                 },
               },
-              { session: dbSession }
+              { session: dbSession },
             );
           }
         } else {
@@ -623,13 +732,14 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                 },
               },
             ],
-            { session: dbSession }
+            { session: dbSession },
           );
           createdOrder.customerId = newCust._id;
           await createdOrder.save({ session: dbSession });
         }
       } else {
-        const netBalanceAdjustment = amountPending - (input.clearedDueAmount || 0);
+        const netBalanceAdjustment =
+          amountPending - (input.clearedDueAmount || 0);
         await Customer.findOneAndUpdate(
           { tenantId, name: input.customerName },
           {
@@ -640,7 +750,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             },
             $set: { "stats.lastVisitAt": new Date() },
           },
-          { session: dbSession }
+          { session: dbSession },
         );
       }
 
@@ -668,14 +778,26 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         isToday: true,
         isLast24Hours: true,
         todayPaid: newOrderDoc.amountPaid,
-        createdAt: newOrderDoc.createdAt ? new Date(newOrderDoc.createdAt).toISOString() : new Date().toISOString(),
+        createdAt: newOrderDoc.createdAt
+          ? new Date(newOrderDoc.createdAt).toISOString()
+          : new Date().toISOString(),
         paymentMode: newOrderDoc.paymentMode,
-        advanceAmount: newOrderDoc.status === "advance_paid" ? newOrderDoc.amountPaid : undefined,
-        advancePaymentMode: newOrderDoc.status === "advance_paid" ? (newOrderDoc.paymentMode as DashboardPaymentMode) : undefined,
-        scheduledFor: newOrderDoc.scheduledFor ? new Date(newOrderDoc.scheduledFor).toISOString() : undefined,
+        advanceAmount:
+          newOrderDoc.status === "advance_paid"
+            ? newOrderDoc.amountPaid
+            : undefined,
+        advancePaymentMode:
+          newOrderDoc.status === "advance_paid"
+            ? (newOrderDoc.paymentMode as DashboardPaymentMode)
+            : undefined,
+        scheduledFor: newOrderDoc.scheduledFor
+          ? new Date(newOrderDoc.scheduledFor).toISOString()
+          : undefined,
         scheduledTime: newOrderDoc.scheduledTime || undefined,
         customerPhone: formattedPhone || undefined,
-        itemsSummary: (newOrderDoc.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
+        itemsSummary:
+          (newOrderDoc.lineItems || []).map((li: any) => li.name).join(", ") ||
+          undefined,
         latestActivityAt: new Date().toISOString(),
         subtotal: newOrderDoc.subtotal ?? newOrderDoc.totalAmount,
         discountType: newOrderDoc.discountType,
@@ -686,25 +808,37 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         payments: (newOrderDoc.payments || []).map((p: any) => ({
           amount: p.amount,
           mode: p.mode,
-          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : new Date().toISOString(),
           recordedBy: p.recordedBy,
           type: p.type || undefined,
         })),
         lineItems: (newOrderDoc.lineItems || []).map((li: any) => ({
           name: li.name,
           itemType: li.itemType,
+          itemId: li.itemId ? li.itemId.toString() : undefined,
           unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
           quantity: typeof li.quantity === "number" ? li.quantity : 1,
           discount: li.discount,
-          finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
+          finalPrice:
+            typeof li.finalPrice === "number"
+              ? li.finalPrice
+              : (li.unitPrice || 0) * (li.quantity || 1),
           fulfilled: li.fulfilled,
-          packageDetails: li.packageDetails ? {
-            isCustomized: li.packageDetails.isCustomized,
-            components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({
-              name: c.name,
-              componentPrice: c.componentPrice,
-            })) : [],
-          } : undefined,
+          returnedQuantity: li.returnedQuantity || 0,
+          returnCondition: li.returnCondition,
+          packageDetails: li.packageDetails
+            ? {
+                isCustomized: li.packageDetails.isCustomized,
+                components: Array.isArray(li.packageDetails.components)
+                  ? li.packageDetails.components.map((c: any) => ({
+                      name: c.name,
+                      componentPrice: c.componentPrice,
+                    }))
+                  : [],
+              }
+            : undefined,
         })),
       },
     };
@@ -714,11 +848,18 @@ export async function createOrderAction(rawInput: unknown): Promise<{
   }
 }
 
-function buildOrderLookupQuery(tenantId: Types.ObjectId | string, orderId: string) {
+function buildOrderLookupQuery(
+  tenantId: Types.ObjectId | string,
+  orderId: string,
+) {
   const trimmed = orderId.trim();
   const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const or: any[] = [{ orderNumber: trimmed }, { orderNumber: new RegExp(`(^|\\b|-)${escaped}$`, "i") }];
-  if (Types.ObjectId.isValid(trimmed)) or.unshift({ _id: new Types.ObjectId(trimmed) });
+  const or: any[] = [
+    { orderNumber: trimmed },
+    { orderNumber: new RegExp(`(^|\\b|-)${escaped}$`, "i") },
+  ];
+  if (Types.ObjectId.isValid(trimmed))
+    or.unshift({ _id: new Types.ObjectId(trimmed) });
   return { tenantId, $or: or };
 }
 
@@ -757,7 +898,10 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     if (order.lineItems && order.lineItems.length > 0) {
       for (const item of order.lineItems) {
         if (!item.fulfilled) {
-          if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
+          if (
+            item.itemType === "product" &&
+            Types.ObjectId.isValid(item.itemId)
+          ) {
             const prod = await Product.findOne({ _id: item.itemId, tenantId });
             const qty = item.quantity || 1;
             if (!prod || prod.sellStock < qty) {
@@ -767,15 +911,21 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
                 error: `Cannot complete delivery: Product "${item.name}" is out of stock (${available} available, ${qty} needed). Please stock in first before completing delivery.`,
               };
             }
-          } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
+          } else if (
+            item.itemType === "package" &&
+            Types.ObjectId.isValid(item.itemId)
+          ) {
             const stockCheck = await checkPackageProductsAvailability(
               tenantId,
               item.itemId,
-              item.quantity || 1
+              item.quantity || 1,
             );
             if (!stockCheck.available) {
               const missingDesc = stockCheck.missing
-                .map((m) => `"${m.name}" (${m.available} available, ${m.needed} needed)`)
+                .map(
+                  (m) =>
+                    `"${m.name}" (${m.available} available, ${m.needed} needed)`,
+                )
                 .join(", ");
               return {
                 success: false,
@@ -789,7 +939,8 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
 
     // Default remaining balance from current total and paid
     const defaultRemaining = Math.max(0, order.totalAmount - order.amountPaid);
-    const amountToCollect = remainingAmount !== undefined ? remainingAmount : defaultRemaining;
+    const amountToCollect =
+      remainingAmount !== undefined ? remainingAmount : defaultRemaining;
 
     // If counter adjusted the remaining price (e.g. concession discount or add-on)
     if (remainingAmount !== undefined && remainingAmount !== defaultRemaining) {
@@ -817,7 +968,9 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     order.completedAt = new Date();
 
     if (notes?.trim()) {
-      order.notes = order.notes ? `${order.notes} | ${notes.trim()}` : notes.trim();
+      order.notes = order.notes
+        ? `${order.notes} | ${notes.trim()}`
+        : notes.trim();
     }
 
     // Update customer stats
@@ -839,7 +992,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
             "stats.totalSpend": amountToCollect,
             "stats.outstandingBalance": -defaultRemaining,
           },
-        }
+        },
       );
     }
 
@@ -848,7 +1001,10 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     if (order.lineItems && order.lineItems.length > 0) {
       for (const item of order.lineItems) {
         if (!item.fulfilled) {
-          if (item.itemType === "product" && Types.ObjectId.isValid(item.itemId)) {
+          if (
+            item.itemType === "product" &&
+            Types.ObjectId.isValid(item.itemId)
+          ) {
             const prod = await Product.findOne({ _id: item.itemId, tenantId });
             if (prod) {
               const qty = item.quantity || 1;
@@ -856,9 +1012,19 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
               await prod.save();
               affectedProductNames.add(prod.name);
             }
-          } else if (item.itemType === "package" && Types.ObjectId.isValid(item.itemId)) {
-            await deductPackageProductsFromStock(tenantId, item.itemId, item.quantity || 1);
-            const pkgTpl = await PackageTemplate.findOne({ _id: item.itemId, tenantId });
+          } else if (
+            item.itemType === "package" &&
+            Types.ObjectId.isValid(item.itemId)
+          ) {
+            await deductPackageProductsFromStock(
+              tenantId,
+              item.itemId,
+              item.quantity || 1,
+            );
+            const pkgTpl = await PackageTemplate.findOne({
+              _id: item.itemId,
+              tenantId,
+            });
             if (pkgTpl && pkgTpl.products) {
               for (const pr of pkgTpl.products) {
                 affectedProductNames.add(pr.name);
@@ -881,13 +1047,19 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     const mappedType = mapOrderType(order.orderType);
 
     const hasAdvance = Boolean(
-      order.payments && order.payments.length > 1 && order.payments[0].amount < order.totalAmount
+      order.payments &&
+      order.payments.length > 1 &&
+      order.payments[0].amount < order.totalAmount,
     );
-    const calculatedTodayPaid = order.payments && Array.isArray(order.payments)
-      ? order.payments
-          .filter((p) => p.recordedAt && checkIsToday(p.recordedAt))
-          .reduce((sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0), 0)
-      : amountToCollect;
+    const calculatedTodayPaid =
+      order.payments && Array.isArray(order.payments)
+        ? order.payments
+            .filter((p) => p.recordedAt && checkIsToday(p.recordedAt))
+            .reduce(
+              (sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0),
+              0,
+            )
+        : amountToCollect;
 
     return {
       success: true,
@@ -903,16 +1075,28 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         isToday: true,
         isLast24Hours: true,
         todayPaid: calculatedTodayPaid,
-        completedAt: order.completedAt ? new Date(order.completedAt).toISOString() : new Date().toISOString(),
-        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+        completedAt: order.completedAt
+          ? new Date(order.completedAt).toISOString()
+          : new Date().toISOString(),
+        createdAt: order.createdAt
+          ? new Date(order.createdAt).toISOString()
+          : new Date().toISOString(),
         paymentMode: order.paymentMode,
         advanceAmount: hasAdvance ? order.payments[0].amount : undefined,
-        advancePaymentMode: hasAdvance ? (order.payments[0].mode as DashboardPaymentMode) : undefined,
-        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        advancePaymentMode: hasAdvance
+          ? (order.payments[0].mode as DashboardPaymentMode)
+          : undefined,
+        scheduledFor: order.scheduledFor
+          ? new Date(order.scheduledFor).toISOString()
+          : undefined,
         scheduledTime: order.scheduledTime || undefined,
         customerPhone: order.customerSnapshot?.phone || undefined,
-        itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
-        latestActivityAt: order.completedAt ? new Date(order.completedAt).toISOString() : new Date().toISOString(),
+        itemsSummary:
+          (order.lineItems || []).map((li: any) => li.name).join(", ") ||
+          undefined,
+        latestActivityAt: order.completedAt
+          ? new Date(order.completedAt).toISOString()
+          : new Date().toISOString(),
         subtotal: order.subtotal ?? order.totalAmount,
         discountType: order.discountType,
         discountValue: order.discountValue,
@@ -922,25 +1106,37 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         payments: (order.payments || []).map((p: any) => ({
           amount: p.amount,
           mode: p.mode,
-          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : new Date().toISOString(),
           recordedBy: p.recordedBy,
           type: p.type || undefined,
         })),
         lineItems: (order.lineItems || []).map((li: any) => ({
           name: li.name,
           itemType: li.itemType,
+          itemId: li.itemId ? li.itemId.toString() : undefined,
           unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
           quantity: typeof li.quantity === "number" ? li.quantity : 1,
           discount: li.discount,
-          finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
+          finalPrice:
+            typeof li.finalPrice === "number"
+              ? li.finalPrice
+              : (li.unitPrice || 0) * (li.quantity || 1),
           fulfilled: li.fulfilled,
-          packageDetails: li.packageDetails ? {
-            isCustomized: li.packageDetails.isCustomized,
-            components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({
-              name: c.name,
-              componentPrice: c.componentPrice,
-            })) : [],
-          } : undefined,
+          returnedQuantity: li.returnedQuantity || 0,
+          returnCondition: li.returnCondition,
+          packageDetails: li.packageDetails
+            ? {
+                isCustomized: li.packageDetails.isCustomized,
+                components: Array.isArray(li.packageDetails.components)
+                  ? li.packageDetails.components.map((c: any) => ({
+                      name: c.name,
+                      componentPrice: c.componentPrice,
+                    }))
+                  : [],
+              }
+            : undefined,
         })),
       },
     };
@@ -1011,18 +1207,28 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
         lastUpdatedTime: "Today, Just now",
         isToday: true,
         isLast24Hours: true,
-        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+        createdAt: order.createdAt
+          ? new Date(order.createdAt).toISOString()
+          : new Date().toISOString(),
         paymentMode: order.paymentMode,
-        advanceAmount: order.status === "advance_paid" ? order.amountPaid : undefined,
-        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        advanceAmount:
+          order.status === "advance_paid" ? order.amountPaid : undefined,
+        scheduledFor: order.scheduledFor
+          ? new Date(order.scheduledFor).toISOString()
+          : undefined,
         scheduledTime: order.scheduledTime || undefined,
-        itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", ") || undefined,
+        itemsSummary:
+          (order.lineItems || []).map((li: any) => li.name).join(", ") ||
+          undefined,
         latestActivityAt: new Date().toISOString(),
       },
     };
   } catch (error) {
     console.error("Failed to reschedule order:", error);
-    return { success: false, error: "Failed to update booking date in database" };
+    return {
+      success: false,
+      error: "Failed to update booking date in database",
+    };
   }
 }
 
@@ -1043,7 +1249,8 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { orderId, refundAmount, refundMode, refundReason } = parseResult.data;
+    const { orderId, refundAmount, refundMode, refundReason } =
+      parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -1059,7 +1266,10 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     }
 
     if (order.status === "cancelled_refunded") {
-      return { success: false, error: "This order is already marked as refunded" };
+      return {
+        success: false,
+        error: "This order is already marked as refunded",
+      };
     }
 
     const prevPending = order.amountPending || 0;
@@ -1067,14 +1277,14 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     // Determine if refund happened on the same calendar day the order was created
     const isSameDay = order.createdAt
       ? (() => {
-        const d = new Date(order.createdAt);
-        const now = new Date();
-        return (
-          d.getDate() === now.getDate() &&
-          d.getMonth() === now.getMonth() &&
-          d.getFullYear() === now.getFullYear()
-        );
-      })()
+          const d = new Date(order.createdAt);
+          const now = new Date();
+          return (
+            d.getDate() === now.getDate() &&
+            d.getMonth() === now.getMonth() &&
+            d.getFullYear() === now.getFullYear()
+          );
+        })()
       : true;
 
     // Record formal refund details in order
@@ -1110,7 +1320,8 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         amount: refundAmount,
         paymentMode: refundMode,
         linkedOrderId: order._id,
-        notes: refundReason || `Refund processed for order ${order.orderNumber}`,
+        notes:
+          refundReason || `Refund processed for order ${order.orderNumber}`,
         expenseDate: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
       });
@@ -1126,7 +1337,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         paymentMode: refundMode,
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
         linkedOrderId: order._id.toString(),
-        createdAt: expenseDoc.expenseDate ? new Date(expenseDoc.expenseDate).toISOString() : new Date().toISOString(),
+        createdAt: expenseDoc.expenseDate
+          ? new Date(expenseDoc.expenseDate).toISOString()
+          : new Date().toISOString(),
       };
     } else if (refundAmount > prevAmountPaid) {
       // Same-day refund where refund exceeds collected amount: record the excess compensation as an expense
@@ -1143,7 +1356,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         amount: excessAmount,
         paymentMode: refundMode,
         linkedOrderId: order._id,
-        notes: refundReason || `Excess refund compensation for order ${order.orderNumber}`,
+        notes:
+          refundReason ||
+          `Excess refund compensation for order ${order.orderNumber}`,
         expenseDate: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
       });
@@ -1159,7 +1374,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         paymentMode: refundMode,
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
         linkedOrderId: order._id.toString(),
-        createdAt: expenseDoc.expenseDate ? new Date(expenseDoc.expenseDate).toISOString() : new Date().toISOString(),
+        createdAt: expenseDoc.expenseDate
+          ? new Date(expenseDoc.expenseDate).toISOString()
+          : new Date().toISOString(),
       };
     }
 
@@ -1187,7 +1404,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
             "stats.totalSpend": -Math.min(prevAmountPaid, refundAmount),
             "stats.outstandingBalance": -prevPending,
           },
-        }
+        },
       );
     }
 
@@ -1218,15 +1435,24 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         lastUpdatedTime: "Today, Just now",
         isToday: isSameDay,
         isLast24Hours: true,
-        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
-        refundedAt: order.refundDetails?.refundedAt ? new Date(order.refundDetails.refundedAt).toISOString() : new Date().toISOString(),
+        createdAt: order.createdAt
+          ? new Date(order.createdAt).toISOString()
+          : new Date().toISOString(),
+        refundedAt: order.refundDetails?.refundedAt
+          ? new Date(order.refundDetails.refundedAt).toISOString()
+          : new Date().toISOString(),
         latestActivityAt: new Date().toISOString(),
         refundAmount: refundAmount,
-        refundReason: order.refundDetails?.refundReason || refundReason?.trim() || undefined,
+        refundReason:
+          order.refundDetails?.refundReason ||
+          refundReason?.trim() ||
+          undefined,
         paymentMode: order.paymentMode,
         refundMode: refundMode,
         advanceAmount: advancePaidAmount,
-        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
+        scheduledFor: order.scheduledFor
+          ? new Date(order.scheduledFor).toISOString()
+          : undefined,
         customerPhone: order.customerSnapshot?.phone || undefined,
       },
     };
@@ -1267,12 +1493,10 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
     }
 
     let dbCategory:
-      | "inventory_purchase"
-      | "refreshments"
-      | "salary"
-      | "rent"
-      | "refund" = "refreshments";
-    if (input.category === "Inventory purchase") dbCategory = "inventory_purchase";
+      "inventory_purchase" | "refreshments" | "salary" | "rent" | "refund" =
+      "refreshments";
+    if (input.category === "Inventory purchase")
+      dbCategory = "inventory_purchase";
     else if (input.category === "Salary") dbCategory = "salary";
     else if (input.category === "Rent") dbCategory = "rent";
     else if (input.category === "Refund") dbCategory = "refund";
@@ -1312,7 +1536,9 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
         paymentMode: newDoc.paymentMode,
         recordedBy: newDoc.recordedBy,
         notes: newDoc.notes || undefined,
-        createdAt: newDoc.expenseDate ? new Date(newDoc.expenseDate).toISOString() : new Date().toISOString(),
+        createdAt: newDoc.expenseDate
+          ? new Date(newDoc.expenseDate).toISOString()
+          : new Date().toISOString(),
       },
     };
   } catch (error) {
@@ -1348,7 +1574,10 @@ export async function transferStockAction(rawInput: unknown): Promise<{
 
     // Atomic stock move inside Mongoose transaction
     const result = await withTransaction(async (dbSession) => {
-      const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
+      const product = await Product.findOne({
+        _id: productId,
+        tenantId,
+      }).session(dbSession);
       if (!product) {
         throw new Error("Product not found");
       }
@@ -1356,7 +1585,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       if (direction === "use_to_sell") {
         if (product.useStock < quantity) {
           throw new Error(
-            `Insufficient internal stock: requested ${quantity} pcs, but only ${product.useStock} pcs available in salon use`
+            `Insufficient internal stock: requested ${quantity} pcs, but only ${product.useStock} pcs available in salon use`,
           );
         }
         product.useStock -= quantity;
@@ -1365,7 +1594,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
         // default "sell_to_use"
         if (product.sellStock < quantity) {
           throw new Error(
-            `Insufficient stock: requested ${quantity} pcs, but only ${product.sellStock} pcs available in retail`
+            `Insufficient stock: requested ${quantity} pcs, but only ${product.sellStock} pcs available in retail`,
           );
         }
         product.sellStock -= quantity;
@@ -1392,6 +1621,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
         category: result.product.category,
         sell: result.product.sellStock,
         use: result.product.useStock,
+        defectiveStock: result.product.defectiveStock || 0,
         price: result.product.expectedSellPrice,
         purchaseCost: result.product.purchaseCost,
         lowStockThreshold: result.product.lowStockThreshold,
@@ -1401,7 +1631,8 @@ export async function transferStockAction(rawInput: unknown): Promise<{
       },
     };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Failed to transfer inventory";
+    const errorMsg =
+      error instanceof Error ? error.message : "Failed to transfer inventory";
     return { success: false, error: errorMsg };
   }
 }
@@ -1432,14 +1663,17 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
     }
 
     const result = await withTransaction(async (dbSession) => {
-      const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
+      const product = await Product.findOne({
+        _id: productId,
+        tenantId,
+      }).session(dbSession);
       if (!product) {
         throw new Error("Product not found");
       }
 
       if (product.useStock < quantity) {
         throw new Error(
-          `Insufficient internal stock: requested ${quantity} pcs, but only ${product.useStock} pcs available in salon use`
+          `Insufficient internal stock: requested ${quantity} pcs, but only ${product.useStock} pcs available in salon use`,
         );
       }
 
@@ -1480,7 +1714,7 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
               recordedBy: session.user.role === "staff" ? "staff" : "owner",
             },
           ],
-          { session: dbSession }
+          { session: dbSession },
         );
         expense = createdExpense;
       }
@@ -1499,6 +1733,7 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
         category: result.product.category,
         sell: result.product.sellStock,
         use: result.product.useStock,
+        defectiveStock: result.product.defectiveStock || 0,
         price: result.product.expectedSellPrice,
         purchaseCost: result.product.purchaseCost,
         lowStockThreshold: result.product.lowStockThreshold,
@@ -1518,7 +1753,10 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
         : undefined,
     };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Failed to consume internal stock";
+    const errorMsg =
+      error instanceof Error
+        ? error.message
+        : "Failed to consume internal stock";
     return { success: false, error: errorMsg };
   }
 }
@@ -1555,7 +1793,10 @@ export async function createProductAction(rawInput: unknown): Promise<{
       name: { $regex: new RegExp(`^${escapedName}$`, "i") },
     });
     if (activeExisting) {
-      return { success: false, error: "A product with this name already exists." };
+      return {
+        success: false,
+        error: "A product with this name already exists.",
+      };
     }
 
     // Check if an inactive (soft-deleted) product with this name exists — revive and update it!
@@ -1608,6 +1849,7 @@ export async function createProductAction(rawInput: unknown): Promise<{
         category: newDoc.category,
         sell: newDoc.sellStock,
         use: newDoc.useStock,
+        defectiveStock: newDoc.defectiveStock || 0,
         price: newDoc.expectedSellPrice,
         purchaseCost: newDoc.purchaseCost,
         lowStockThreshold: newDoc.lowStockThreshold,
@@ -1618,7 +1860,10 @@ export async function createProductAction(rawInput: unknown): Promise<{
     };
   } catch (error) {
     if ((error as { code?: number })?.code === 11000) {
-      return { success: false, error: "A product with this name already exists." };
+      return {
+        success: false,
+        error: "A product with this name already exists.",
+      };
     }
     console.error("Failed to create product:", error);
     return { success: false, error: "Failed to create product in database" };
@@ -1668,7 +1913,10 @@ export async function updateProductAction(rawInput: unknown): Promise<{
         name: { $regex: new RegExp(`^${escapedName}$`, "i") },
       });
       if (existing) {
-        return { success: false, error: "A product with this name already exists." };
+        return {
+          success: false,
+          error: "A product with this name already exists.",
+        };
       }
     }
 
@@ -1707,6 +1955,7 @@ export async function updateProductAction(rawInput: unknown): Promise<{
         category: product.category,
         sell: product.sellStock,
         use: product.useStock,
+        defectiveStock: product.defectiveStock || 0,
         price: product.expectedSellPrice,
         purchaseCost: product.purchaseCost,
         lowStockThreshold: product.lowStockThreshold,
@@ -1717,12 +1966,68 @@ export async function updateProductAction(rawInput: unknown): Promise<{
     };
   } catch (error) {
     if ((error as { code?: number })?.code === 11000) {
-      return { success: false, error: "A product with this name already exists." };
+      return {
+        success: false,
+        error: "A product with this name already exists.",
+      };
     }
     console.error("Failed to update product:", error);
     return { success: false, error: "Failed to update product" };
   }
 }
+
+
+export async function returnInventoryToSupplierAction(
+  productId: string,
+  poId: string,
+  quantityToReturn: number,
+  stockSource: "sellStock" | "useStock",
+  refundMode: "reduce_due" | "replacement_pending",
+  notes?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { success: false, error: "Unauthorized session" };
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) return { success: false, error: "Tenant not found" };
+
+    return await withTransaction(async (dbSession) => {
+      const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
+      if (!product) throw new Error("Product not found in inventory");
+
+      if (stockSource === "sellStock") {
+        if (product.sellStock < quantityToReturn) throw new Error("Insufficient retail stock");
+        product.sellStock -= quantityToReturn;
+      } else {
+        if (product.useStock < quantityToReturn) throw new Error("Insufficient salon use stock");
+        product.useStock -= quantityToReturn;
+      }
+
+      await processSupplierReturn(
+        tenantId,
+        poId,
+        product._id.toString(),
+        quantityToReturn,
+        refundMode,
+        notes,
+        session.user.role || "owner",
+        dbSession
+      );
+
+      await product.save({ session: dbSession });
+      await cleanupProductBatchNames(tenantId, product.name, dbSession);
+
+      revalidatePath("/dashboard");
+      broadcastUpdate(tenantId, "inventory_returned_to_supplier");
+
+      return { success: true };
+    });
+  } catch (error: any) {
+    console.error("Failed to return inventory to supplier:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 
 export async function deleteProductAction(rawInput: unknown): Promise<{
   success: boolean;
@@ -1757,10 +2062,14 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
       return { success: false, error: "Product not found or access denied" };
     }
 
-    const baseName = product.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+    const baseName = product.name
+      .replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "")
+      .trim();
 
     if (reactivate) {
-      const escapedName = product.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escapedName = product.name
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const existingActive = await Product.findOne({
         tenantId: new Types.ObjectId(tenantId),
         _id: { $ne: product._id },
@@ -1768,7 +2077,10 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
         name: { $regex: new RegExp(`^${escapedName}$`, "i") },
       });
       if (existingActive) {
-        return { success: false, error: "An active product with this name already exists." };
+        return {
+          success: false,
+          error: "An active product with this name already exists.",
+        };
       }
       product.isActive = true;
       await product.save();
@@ -1782,7 +2094,10 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
     }
 
     revalidatePath("/dashboard");
-    broadcastUpdate(tenantId, reactivate ? "product_updated" : "product_deleted");
+    broadcastUpdate(
+      tenantId,
+      reactivate ? "product_updated" : "product_deleted",
+    );
 
     return {
       success: true,
@@ -1792,6 +2107,7 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
         category: product.category,
         sell: product.sellStock,
         use: product.useStock,
+        defectiveStock: product.defectiveStock || 0,
         price: product.expectedSellPrice,
         purchaseCost: product.purchaseCost,
         lowStockThreshold: product.lowStockThreshold,
@@ -1841,19 +2157,22 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         session: dbSession,
       });
 
-      const shouldDeferStock = input.settlementMode === "advance" || input.settlementMode === "paid_full";
+      const shouldDeferStock =
+        input.settlementMode === "advance" ||
+        input.settlementMode === "paid_full";
       const updatedProductsList: DashboardProduct[] = [];
       const poItems = [];
 
       // Guard: Ensure no duplicate products are passed in a single PO
       const seenItemKeys = new Set<string>();
       for (const item of input.items) {
-        const itemKey = item.productId && item.productId !== "__new__"
-          ? `id:${item.productId}`
-          : `name:${item.productName.trim().toLowerCase()}`;
+        const itemKey =
+          item.productId && item.productId !== "__new__"
+            ? `id:${item.productId}`
+            : `name:${item.productName.trim().toLowerCase()}`;
         if (seenItemKeys.has(itemKey)) {
           throw new Error(
-            `Duplicate product "${item.productName}": A purchase order cannot contain the same product multiple times. Please combine the quantities into one entry.`
+            `Duplicate product "${item.productName}": A purchase order cannot contain the same product multiple times. Please combine the quantities into one entry.`,
           );
         }
         seenItemKeys.add(itemKey);
@@ -1861,13 +2180,22 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
 
       for (const item of input.items) {
         let product = null;
-        if (item.productId && item.productId !== "__new__" && Types.ObjectId.isValid(item.productId)) {
-          product = await Product.findOne({ _id: new Types.ObjectId(item.productId), tenantId }).session(dbSession);
+        if (
+          item.productId &&
+          item.productId !== "__new__" &&
+          Types.ObjectId.isValid(item.productId)
+        ) {
+          product = await Product.findOne({
+            _id: new Types.ObjectId(item.productId),
+            tenantId,
+          }).session(dbSession);
         }
 
         // If not found by ID or if adding a new product, check if a product with the same name exists
         if (!product) {
-          const escapedName = item.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const escapedName = item.productName
+            .trim()
+            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           product = await Product.findOne({
             tenantId: new Types.ObjectId(tenantId),
             name: { $regex: new RegExp(`^${escapedName}$`, "i") },
@@ -1892,10 +2220,10 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                 purchaseCost: item.purchaseCost,
                 expectedSellPrice: item.expectedSellPrice,
                 lowStockThreshold: 5,
-                isActive: true,
+                isActive: !shouldDeferStock,
               },
             ],
-            { session: dbSession }
+            { session: dbSession },
           );
           targetProduct = createdProduct;
           updatedProductsList.push({
@@ -1904,6 +2232,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             category: createdProduct.category,
             sell: createdProduct.sellStock,
             use: createdProduct.useStock,
+        defectiveStock: createdProduct.defectiveStock || 0,
             price: createdProduct.expectedSellPrice,
             purchaseCost: createdProduct.purchaseCost,
             lowStockThreshold: createdProduct.lowStockThreshold,
@@ -1922,10 +2251,15 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               product.sellStock += item.quantityForSell;
               product.useStock += item.quantityForUse;
             }
-            if (item.category?.trim() && (!product.category || product.category === "General Supplies" || product.category === "General")) {
+            if (
+              item.category?.trim() &&
+              (!product.category ||
+                product.category === "General Supplies" ||
+                product.category === "General")
+            ) {
               product.category = item.category.trim();
             }
-            if (product.isActive === false) {
+            if (product.isActive === false && !shouldDeferStock) {
               product.isActive = true;
             }
             await product.save({ session: dbSession });
@@ -1937,6 +2271,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                 category: product.category,
                 sell: product.sellStock,
                 use: product.useStock,
+        defectiveStock: product.defectiveStock || 0,
                 price: product.expectedSellPrice,
                 purchaseCost: product.purchaseCost,
                 lowStockThreshold: product.lowStockThreshold,
@@ -1946,138 +2281,153 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               });
             }
           } else {
-          // New price detected: automatic batch separation (supporting 2 or more price points)
-          const baseName = product.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
-          const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            // New price detected: automatic batch separation (supporting 2 or more price points)
+            const baseName = product.name
+              .replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "")
+              .trim();
+            const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-          // Find all active products in this product family
-          const activeSiblings = await Product.find({
-            tenantId,
-            isActive: true,
-            name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
-          }).session(dbSession);
+            // Find all active products in this product family
+            const activeSiblings = await Product.find({
+              tenantId,
+              isActive: true,
+              name: new RegExp(
+                `^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`,
+                "i",
+              ),
+            }).session(dbSession);
 
-          // 1. If an active sibling already has this exact price, add stock to it
-          const matchingSibling = activeSiblings.find(
-            (p) => p.expectedSellPrice === item.expectedSellPrice && p.purchaseCost === item.purchaseCost
-          );
+            // 1. If an active sibling already has this exact price, add stock to it
+            const matchingSibling = activeSiblings.find(
+              (p) =>
+                p.expectedSellPrice === item.expectedSellPrice &&
+                p.purchaseCost === item.purchaseCost,
+            );
 
-          if (matchingSibling) {
-            if (!shouldDeferStock) {
-              matchingSibling.sellStock += item.quantityForSell;
-              matchingSibling.useStock += item.quantityForUse;
-            }
-            await matchingSibling.save({ session: dbSession });
-            targetProduct = matchingSibling;
-          } else {
-            const totalBatches = activeSiblings.length + 1;
-
-            if (totalBatches === 2) {
-              // 2 prices: label older as (Old) and incoming as (New)
-              const existing = activeSiblings[0];
-              if (!existing.name.endsWith("(Old)")) {
-                existing.name = `${baseName} (Old)`;
-                await existing.save({ session: dbSession });
+            if (matchingSibling) {
+              if (!shouldDeferStock) {
+                matchingSibling.sellStock += item.quantityForSell;
+                matchingSibling.useStock += item.quantityForUse;
               }
-
-              const [createdNew] = await Product.create(
-                [
-                  {
-                    tenantId,
-                    name: `${baseName} (New)`,
-                    category: product.category,
-                    unit: "pieces",
-                    purchaseCost: item.purchaseCost,
-                    expectedSellPrice: item.expectedSellPrice,
-                    sellStock: shouldDeferStock ? 0 : item.quantityForSell,
-                    useStock: shouldDeferStock ? 0 : item.quantityForUse,
-                    lowStockThreshold: product.lowStockThreshold,
-                    description: product.description,
-                    isActive: true,
-                  },
-                ],
-                { session: dbSession }
-              );
-              targetProduct = createdNew;
+              await matchingSibling.save({ session: dbSession });
+              targetProduct = matchingSibling;
             } else {
-              // More than 2 prices: label each batch with its price tag (Batch ₹...) so owner can distinguish any number of prices
-              for (const sib of activeSiblings) {
-                const tag = `${baseName} (Batch ₹${sib.expectedSellPrice})`;
-                if (sib.name !== tag) {
-                  const conflict = activeSiblings.some((o) => !o._id.equals(sib._id) && o.name === tag);
-                  if (!conflict) {
-                    sib.name = tag;
-                    await sib.save({ session: dbSession });
+              const totalBatches = activeSiblings.length + 1;
+
+              if (totalBatches === 2) {
+                // 2 prices: label older as (Old) and incoming as (New)
+                const existing = activeSiblings[0];
+                if (!existing.name.endsWith("(Old)")) {
+                  existing.name = `${baseName} (Old)`;
+                  await existing.save({ session: dbSession });
+                }
+
+                const [createdNew] = await Product.create(
+                  [
+                    {
+                      tenantId,
+                      name: `${baseName} (New)`,
+                      category: product.category,
+                      unit: "pieces",
+                      purchaseCost: item.purchaseCost,
+                      expectedSellPrice: item.expectedSellPrice,
+                      sellStock: shouldDeferStock ? 0 : item.quantityForSell,
+                      useStock: shouldDeferStock ? 0 : item.quantityForUse,
+                      lowStockThreshold: product.lowStockThreshold,
+                      description: product.description,
+                      isActive: !shouldDeferStock,
+                    },
+                  ],
+                  { session: dbSession },
+                );
+                targetProduct = createdNew;
+              } else {
+                // More than 2 prices: label each batch with its price tag (Batch ₹...) so owner can distinguish any number of prices
+                for (const sib of activeSiblings) {
+                  const tag = `${baseName} (Batch ₹${sib.expectedSellPrice})`;
+                  if (sib.name !== tag) {
+                    const conflict = activeSiblings.some(
+                      (o) => !o._id.equals(sib._id) && o.name === tag,
+                    );
+                    if (!conflict) {
+                      sib.name = tag;
+                      await sib.save({ session: dbSession });
+                    }
                   }
                 }
+
+                let newTag = `${baseName} (Batch ₹${item.expectedSellPrice})`;
+                const exists = activeSiblings.some((s) => s.name === newTag);
+                if (exists) {
+                  newTag = `${baseName} (Batch ₹${item.expectedSellPrice} - New)`;
+                }
+
+                const [createdNew] = await Product.create(
+                  [
+                    {
+                      tenantId,
+                      name: newTag,
+                      category: product.category,
+                      unit: "pieces",
+                      purchaseCost: item.purchaseCost,
+                      expectedSellPrice: item.expectedSellPrice,
+                      sellStock: shouldDeferStock ? 0 : item.quantityForSell,
+                      useStock: shouldDeferStock ? 0 : item.quantityForUse,
+                      lowStockThreshold: product.lowStockThreshold,
+                      description: product.description,
+                      isActive: !shouldDeferStock,
+                    },
+                  ],
+                  { session: dbSession },
+                );
+                targetProduct = createdNew;
               }
+            }
 
-              let newTag = `${baseName} (Batch ₹${item.expectedSellPrice})`;
-              const exists = activeSiblings.some((s) => s.name === newTag);
-              if (exists) {
-                newTag = `${baseName} (Batch ₹${item.expectedSellPrice} - New)`;
+            if (!shouldDeferStock) {
+              // Push all active siblings and targetProduct to updatedProductsList
+              for (const s of activeSiblings) {
+                updatedProductsList.push({
+                  id: s._id.toString(),
+                  name: s.name,
+                  category: s.category,
+                  sell: s.sellStock,
+                  use: s.useStock,
+        defectiveStock: s.defectiveStock || 0,
+                  price: s.expectedSellPrice,
+                  purchaseCost: s.purchaseCost,
+                  lowStockThreshold: s.lowStockThreshold,
+                  description: s.description,
+                  barcode: s.barcode,
+                  isActive: s.isActive,
+                });
               }
-
-              const [createdNew] = await Product.create(
-                [
-                  {
-                    tenantId,
-                    name: newTag,
-                    category: product.category,
-                    unit: "pieces",
-                    purchaseCost: item.purchaseCost,
-                    expectedSellPrice: item.expectedSellPrice,
-                    sellStock: shouldDeferStock ? 0 : item.quantityForSell,
-                    useStock: shouldDeferStock ? 0 : item.quantityForUse,
-                    lowStockThreshold: product.lowStockThreshold,
-                    description: product.description,
-                    isActive: true,
-                  },
-                ],
-                { session: dbSession }
-              );
-              targetProduct = createdNew;
-            }
-          }
-
-          if (!shouldDeferStock) {
-            // Push all active siblings and targetProduct to updatedProductsList
-            for (const s of activeSiblings) {
-              updatedProductsList.push({
-                id: s._id.toString(),
-                name: s.name,
-                category: s.category,
-                sell: s.sellStock,
-                use: s.useStock,
-                price: s.expectedSellPrice,
-                purchaseCost: s.purchaseCost,
-                lowStockThreshold: s.lowStockThreshold,
-                description: s.description,
-                barcode: s.barcode,
-                isActive: s.isActive,
-              });
-            }
-            if (targetProduct && !activeSiblings.some((s) => s._id.equals(targetProduct!._id))) {
-              updatedProductsList.push({
-                id: targetProduct._id.toString(),
-                name: targetProduct.name,
-                category: targetProduct.category,
-                sell: targetProduct.sellStock,
-                use: targetProduct.useStock,
-                price: targetProduct.expectedSellPrice,
-                purchaseCost: targetProduct.purchaseCost,
-                lowStockThreshold: targetProduct.lowStockThreshold,
-                description: targetProduct.description,
-                barcode: targetProduct.barcode,
-                isActive: targetProduct.isActive,
-              });
+              if (
+                targetProduct &&
+                !activeSiblings.some((s) => s._id.equals(targetProduct!._id))
+              ) {
+                updatedProductsList.push({
+                  id: targetProduct._id.toString(),
+                  name: targetProduct.name,
+                  category: targetProduct.category,
+                  sell: targetProduct.sellStock,
+                  use: targetProduct.useStock,
+        defectiveStock: targetProduct.defectiveStock || 0,
+                  price: targetProduct.expectedSellPrice,
+                  purchaseCost: targetProduct.purchaseCost,
+                  lowStockThreshold: targetProduct.lowStockThreshold,
+                  description: targetProduct.description,
+                  barcode: targetProduct.barcode,
+                  isActive: targetProduct.isActive,
+                });
+              }
             }
           }
         }
-      }
 
         if (targetProduct) {
-          const itemTotal = (item.quantityForSell + item.quantityForUse) * item.purchaseCost;
+          const itemTotal =
+            (item.quantityForSell + item.quantityForUse) * item.purchaseCost;
           poItems.push({
             productId: targetProduct._id,
             productName: targetProduct.name,
@@ -2090,36 +2440,62 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         }
       }
 
-      const totalAmount = poItems.reduce((sum, it) => sum + it.itemTotalCost, 0);
+      const totalAmount = poItems.reduce(
+        (sum, it) => sum + it.itemTotalCost,
+        0,
+      );
 
       // Rule 1: settlementMode, paymentMode and amountPaid calculation
       let finalAmountPaid: number;
-      if (input.settlementMode === "completed" || input.settlementMode === "paid_full") {
-        finalAmountPaid = totalAmount;
-      } else if (input.settlementMode === "pending" || input.settlementMode === "advance") {
-        finalAmountPaid = input.amountPaid !== undefined && input.amountPaid !== null ? input.amountPaid : 0;
+      if (
+        input.settlementMode === "completed" ||
+        input.settlementMode === "paid_full"
+      ) {
+        finalAmountPaid =
+          input.amountPaid !== undefined && input.amountPaid !== null
+            ? input.amountPaid
+            : totalAmount;
+      } else if (
+        input.settlementMode === "pending" ||
+        input.settlementMode === "advance"
+      ) {
+        finalAmountPaid =
+          input.amountPaid !== undefined && input.amountPaid !== null
+            ? input.amountPaid
+            : 0;
       } else if (input.paymentMode === "credit") {
-        finalAmountPaid = input.amountPaid !== undefined && input.amountPaid !== null ? input.amountPaid : 0;
+        finalAmountPaid =
+          input.amountPaid !== undefined && input.amountPaid !== null
+            ? input.amountPaid
+            : 0;
       } else {
-        finalAmountPaid = input.amountPaid !== undefined && input.amountPaid !== null ? input.amountPaid : totalAmount;
+        finalAmountPaid =
+          input.amountPaid !== undefined && input.amountPaid !== null
+            ? input.amountPaid
+            : totalAmount;
       }
 
+      const ledgerAdj = input.ledgerAdjustment || 0;
+      const totalEffectivePayment = finalAmountPaid + ledgerAdj;
+
       // Auto-calculate paymentStatus — do NOT let it be set manually:
-      // if (amountPaid >= totalAmount) → "paid"
-      // else if (amountPaid <= 0) → "unpaid"
-      // else → "partial"
       let paymentStatus: "paid" | "partial" | "unpaid";
-      if (finalAmountPaid >= totalAmount) {
+      if (totalEffectivePayment >= totalAmount) {
         paymentStatus = "paid";
-      } else if (finalAmountPaid <= 0) {
+      } else if (totalEffectivePayment <= 0) {
         paymentStatus = "unpaid";
       } else {
         paymentStatus = "partial";
       }
 
-      // Auto-calculate amountPending = totalAmount - amountPaid
-      const amountPending = Math.max(0, totalAmount - finalAmountPaid);
-      const effectivePaymentMode = finalAmountPaid <= 0 ? "credit" : input.paymentMode === "credit" ? "cash" : input.paymentMode;
+      // Auto-calculate amountPending = totalAmount - amountPaid - ledgerAdj
+      const amountPending = totalAmount - totalEffectivePayment;
+      const effectivePaymentMode =
+        finalAmountPaid <= 0
+          ? "credit"
+          : input.paymentMode === "credit"
+            ? "cash"
+            : input.paymentMode;
 
       // Find or create Supplier in the same transaction
       const tenantObjectId = new Types.ObjectId(tenantId);
@@ -2127,11 +2503,16 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         ? formatPhoneNumber(input.supplierPhone)
         : "";
 
-      const rawSupplierDigits = normalizedSupplierPhone.replace(/\D/g, "").slice(-10);
+      const rawSupplierDigits = normalizedSupplierPhone
+        .replace(/\D/g, "")
+        .slice(-10);
 
       let supplier = null;
       if (input.supplierId && Types.ObjectId.isValid(input.supplierId)) {
-        supplier = await Supplier.findOne({ _id: new Types.ObjectId(input.supplierId), tenantId: tenantObjectId }).session(dbSession);
+        supplier = await Supplier.findOne({
+          _id: new Types.ObjectId(input.supplierId),
+          tenantId: tenantObjectId,
+        }).session(dbSession);
       }
       if (!supplier && normalizedSupplierPhone) {
         supplier = await Supplier.findOne({
@@ -2140,7 +2521,11 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             { phone: normalizedSupplierPhone },
             { phone: input.supplierPhone?.trim() },
             ...(rawSupplierDigits.length === 10
-              ? [{ phone: rawSupplierDigits }, { phone: `+91${rawSupplierDigits}` }, { phone: `0${rawSupplierDigits}` }]
+              ? [
+                  { phone: rawSupplierDigits },
+                  { phone: `+91${rawSupplierDigits}` },
+                  { phone: `0${rawSupplierDigits}` },
+                ]
               : []),
           ],
         }).session(dbSession);
@@ -2148,7 +2533,12 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
       if (!supplier) {
         supplier = await Supplier.findOne({
           tenantId: tenantObjectId,
-          name: { $regex: new RegExp(`^${input.supplierName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+          name: {
+            $regex: new RegExp(
+              `^${input.supplierName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+              "i",
+            ),
+          },
         }).session(dbSession);
       }
 
@@ -2162,17 +2552,19 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               companyName: input.supplierCompany?.trim() || undefined,
               totalPurchases: totalAmount,
               totalPaid: finalAmountPaid,
-              totalPending: amountPending,
+              totalPending: amountPending + ledgerAdj,
               isActive: true,
             },
           ],
-          { session: dbSession }
+          { session: dbSession },
         );
         supplier = createdSupplier;
       } else {
         const oldSupplierName = supplier.name;
         const newSupplierName = input.supplierName?.trim();
-        const supplierNameChanged = Boolean(newSupplierName && newSupplierName !== oldSupplierName);
+        const supplierNameChanged = Boolean(
+          newSupplierName && newSupplierName !== oldSupplierName,
+        );
 
         if (supplierNameChanged && newSupplierName) {
           supplier.name = newSupplierName;
@@ -2185,7 +2577,8 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         }
         supplier.totalPurchases = (supplier.totalPurchases || 0) + totalAmount;
         supplier.totalPaid = (supplier.totalPaid || 0) + finalAmountPaid;
-        supplier.totalPending = (supplier.totalPending || 0) + amountPending;
+        supplier.totalPending =
+          (supplier.totalPending || 0) + amountPending + ledgerAdj;
         await supplier.save({ session: dbSession });
 
         // If supplier name was changed permanently, sync all previous purchase orders for this supplier!
@@ -2200,7 +2593,9 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                   ? [
                       { "supplierSnapshot.phone": rawSupplierDigits },
                       { "supplierSnapshot.phone": `+91${rawSupplierDigits}` },
-                      { "supplierSnapshot.phone": `+91 ${rawSupplierDigits.slice(0, 5)} ${rawSupplierDigits.slice(5)}` },
+                      {
+                        "supplierSnapshot.phone": `+91 ${rawSupplierDigits.slice(0, 5)} ${rawSupplierDigits.slice(5)}`,
+                      },
                       { "supplierSnapshot.phone": `0${rawSupplierDigits}` },
                     ]
                   : []),
@@ -2209,11 +2604,14 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             {
               $set: {
                 "supplierSnapshot.name": newSupplierName,
-                "supplierSnapshot.phone": normalizedSupplierPhone || supplier.phone,
-                ...(supplier.companyName ? { "supplierSnapshot.companyName": supplier.companyName } : {}),
+                "supplierSnapshot.phone":
+                  normalizedSupplierPhone || supplier.phone,
+                ...(supplier.companyName
+                  ? { "supplierSnapshot.companyName": supplier.companyName }
+                  : {}),
               },
             },
-            { session: dbSession }
+            { session: dbSession },
           );
         }
       }
@@ -2227,7 +2625,8 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             supplierSnapshot: {
               name: supplier.name,
               phone: supplier.phone || normalizedSupplierPhone || "",
-              companyName: supplier.companyName || input.supplierCompany || undefined,
+              companyName:
+                supplier.companyName || input.supplierCompany || undefined,
             },
             items: poItems,
             payments:
@@ -2236,30 +2635,41 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                     {
                       amount: finalAmountPaid,
                       paymentMode:
-                        effectivePaymentMode === "credit" ? "cash" : effectivePaymentMode,
+                        effectivePaymentMode === "credit"
+                          ? "cash"
+                          : effectivePaymentMode,
                       notes: input.notes || undefined,
-                      recordedBy: session.user.role === "staff" ? "staff" : "owner",
-                      type: finalAmountPaid >= totalAmount ? "full_payment" : "initial",
+                      recordedBy:
+                        session.user.role === "staff" ? "staff" : "owner",
+                      type:
+                        finalAmountPaid >= totalAmount
+                          ? "full_payment"
+                          : "initial",
                     },
                   ]
                 : [],
             totalAmount,
             amountPaid: finalAmountPaid,
+            ledgerAdjustment: ledgerAdj !== 0 ? ledgerAdj : undefined,
             amountPending,
             paymentMode: effectivePaymentMode,
             paymentStatus,
             settlementMode: input.settlementMode || "completed",
             stockAllocated: !shouldDeferStock,
             dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-            expectedDeliveryDate: input.expectedDeliveryDate ? new Date(input.expectedDeliveryDate) : undefined,
+            expectedDeliveryDate: input.expectedDeliveryDate
+              ? new Date(input.expectedDeliveryDate)
+              : undefined,
             deliveryTime: input.deliveryTime?.trim() || undefined,
-            invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
+            invoiceDate: input.invoiceDate
+              ? new Date(input.invoiceDate)
+              : new Date(),
             dealerInvoiceNumber: input.dealerInvoiceNumber || undefined,
             notes: input.notes || undefined,
             recordedBy: session.user.role === "staff" ? "staff" : "owner",
           },
         ],
-        { session: dbSession }
+        { session: dbSession },
       );
 
       // Record corresponding Expense if amount paid > 0
@@ -2286,11 +2696,13 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                   ? effectivePaymentMode
                   : "cash",
               linkedPurchaseOrderId: createdPO._id,
-              expenseDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
+              expenseDate: input.invoiceDate
+                ? new Date(input.invoiceDate)
+                : new Date(),
               recordedBy: session.user.role === "staff" ? "staff" : "owner",
             },
           ],
-          { session: dbSession }
+          { session: dbSession },
         );
         createdExpenseDoc = createdExp;
       }
@@ -2340,7 +2752,9 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
       payments: (po.payments || []).map((p: any) => ({
         amount: p.amount,
         paymentMode: p.paymentMode,
-        recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+        recordedAt: p.recordedAt
+          ? new Date(p.recordedAt).toISOString()
+          : new Date().toISOString(),
         notes: p.notes,
         type: p.type,
         recordedBy: p.recordedBy,
@@ -2353,12 +2767,18 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
       settlementMode: po.settlementMode,
       stockAllocated: po.stockAllocated,
       dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
-      expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
+      expectedDeliveryDate: po.expectedDeliveryDate
+        ? new Date(po.expectedDeliveryDate).toISOString()
+        : undefined,
       deliveryTime: po.deliveryTime,
-      invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+      invoiceDate: po.invoiceDate
+        ? new Date(po.invoiceDate).toISOString()
+        : new Date().toISOString(),
       dealerInvoiceNumber: po.dealerInvoiceNumber,
       notes: po.notes,
-      createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
+      createdAt: po.createdAt
+        ? new Date(po.createdAt).toISOString()
+        : new Date().toISOString(),
     };
 
     const mappedSupplier: DashboardSupplier = {
@@ -2401,12 +2821,17 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
       updatedSupplier: mappedSupplier,
     };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Failed to create purchase order";
+    const errorMsg =
+      error instanceof Error
+        ? error.message
+        : "Failed to create purchase order";
     return { success: false, error: errorMsg };
   }
 }
 
-export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promise<{
+export async function recordPurchaseOrderPaymentAction(
+  rawInput: unknown,
+): Promise<{
   success: boolean;
   purchaseOrder?: DashboardPurchaseOrder;
   supplier?: DashboardSupplier;
@@ -2438,8 +2863,17 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
     const result = await withTransaction(async (dbSession) => {
       // Find purchase order
       const query = Types.ObjectId.isValid(input.purchaseOrderId)
-        ? { tenantId: tenantObjectId, $or: [{ _id: new Types.ObjectId(input.purchaseOrderId) }, { purchaseOrderNumber: input.purchaseOrderId }] }
-        : { tenantId: tenantObjectId, purchaseOrderNumber: input.purchaseOrderId };
+        ? {
+            tenantId: tenantObjectId,
+            $or: [
+              { _id: new Types.ObjectId(input.purchaseOrderId) },
+              { purchaseOrderNumber: input.purchaseOrderId },
+            ],
+          }
+        : {
+            tenantId: tenantObjectId,
+            purchaseOrderNumber: input.purchaseOrderId,
+          };
 
       const po = await PurchaseOrder.findOne(query).session(dbSession);
       if (!po) {
@@ -2447,7 +2881,10 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
       }
 
       // Check if already fully settled
-      if ((po.paymentStatus === "paid" || po.amountPending <= 0) && po.stockAllocated) {
+      if (
+        (po.paymentStatus === "paid" || po.amountPending <= 0) &&
+        po.stockAllocated
+      ) {
         throw new Error("Purchase order is already fully paid and settled");
       }
 
@@ -2460,7 +2897,9 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
       }
 
       if (input.amount > po.amountPending) {
-        throw new Error(`Payment amount (₹${input.amount}) exceeds current pending balance (₹${po.amountPending})`);
+        throw new Error(
+          `Payment amount (₹${input.amount}) exceeds current pending balance (₹${po.amountPending})`,
+        );
       }
 
       // Update PurchaseOrder
@@ -2473,7 +2912,8 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         if (po.payments.length === 0 && priorPaid > 0) {
           po.payments.push({
             amount: priorPaid,
-            paymentMode: po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
+            paymentMode:
+              po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
             notes: po.notes,
             recordedBy: po.recordedBy || "owner",
             type: "initial",
@@ -2514,12 +2954,18 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
 
       // If purchase order is now fully paid (or 0-due settlement) and stock hasn't been allocated yet, allocate stock
       const updatedProductsList: DashboardProduct[] = [];
-      if ((po.paymentStatus === "paid" || input.amount === 0) && !po.stockAllocated) {
-        for (const item of (po.items || [])) {
+      if (
+        (po.paymentStatus === "paid" || input.amount === 0) &&
+        !po.stockAllocated
+      ) {
+        for (const item of po.items || []) {
           if (!item.productId) continue;
           let prod = null;
           if (Types.ObjectId.isValid(item.productId)) {
-            prod = await Product.findOne({ _id: new Types.ObjectId(item.productId), tenantId: tenantObjectId }).session(dbSession);
+            prod = await Product.findOne({
+              _id: new Types.ObjectId(item.productId),
+              tenantId: tenantObjectId,
+            }).session(dbSession);
           }
           if (!prod && item.productName) {
             prod = await Product.findOne({
@@ -2528,8 +2974,8 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
             }).session(dbSession);
           }
           if (prod) {
-            prod.sellStock += (item.quantityForSell || 0);
-            prod.useStock += (item.quantityForUse || 0);
+            prod.sellStock += item.quantityForSell || 0;
+            prod.useStock += item.quantityForUse || 0;
             if (prod.isActive === false) prod.isActive = true;
             await prod.save({ session: dbSession });
             updatedProductsList.push({
@@ -2538,6 +2984,7 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
               category: prod.category,
               sell: prod.sellStock,
               use: prod.useStock,
+        defectiveStock: prod.defectiveStock || 0,
               price: prod.expectedSellPrice,
               purchaseCost: prod.purchaseCost,
               lowStockThreshold: prod.lowStockThreshold,
@@ -2556,10 +3003,16 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
       // Update linked Supplier in the same transaction (only if payment > 0)
       let updatedSupplierDoc = null;
       if (po.supplierId && input.amount > 0) {
-        const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId: tenantObjectId }).session(dbSession);
+        const supplier = await Supplier.findOne({
+          _id: po.supplierId,
+          tenantId: tenantObjectId,
+        }).session(dbSession);
         if (supplier) {
           supplier.totalPaid = (supplier.totalPaid || 0) + input.amount;
-          supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - input.amount);
+          supplier.totalPending = Math.max(
+            0,
+            (supplier.totalPending || 0) - input.amount,
+          );
           await supplier.save({ session: dbSession });
           updatedSupplierDoc = supplier;
         }
@@ -2589,12 +3042,17 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
               recordedBy: session.user.role === "staff" ? "staff" : "owner",
             },
           ],
-          { session: dbSession }
+          { session: dbSession },
         );
         createdExpDoc = createdExp;
       }
 
-      return { po, supplier: updatedSupplierDoc, createdExp: createdExpDoc, updatedProductsList };
+      return {
+        po,
+        supplier: updatedSupplierDoc,
+        createdExp: createdExpDoc,
+        updatedProductsList,
+      };
     });
 
     revalidatePath("/dashboard");
@@ -2610,7 +3068,9 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         purchaseOrderNumber: result.po.purchaseOrderNumber,
         supplierId: result.po.supplierId?.toString() || "",
         supplierName: result.po.supplierSnapshot?.name || "Supplier",
-        supplierPhone: result.po.supplierSnapshot?.phone ? formatPhoneNumber(result.po.supplierSnapshot.phone) : undefined,
+        supplierPhone: result.po.supplierSnapshot?.phone
+          ? formatPhoneNumber(result.po.supplierSnapshot.phone)
+          : undefined,
         supplierCompany: result.po.supplierSnapshot?.companyName || undefined,
         itemsCount: result.po.items?.length || 0,
         items: (result.po.items || []).map((it: any) => ({
@@ -2621,6 +3081,7 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
           purchaseCost: it.purchaseCost || 0,
           expectedSellPrice: it.expectedSellPrice || 0,
           itemTotalCost: it.itemTotalCost || 0,
+          returnedQuantity: it.returnedQuantity || 0,
         })),
         payments: (result.po.payments || []).map((p: any) => ({
           amount: p.amount,
@@ -2628,7 +3089,9 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
           notes: p.notes,
           recordedBy: p.recordedBy,
           type: p.type || "settlement",
-          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : new Date().toISOString(),
         })),
         totalAmount: result.po.totalAmount,
         amountPaid: result.po.amountPaid,
@@ -2637,14 +3100,24 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
         paymentStatus: result.po.paymentStatus,
         settlementMode: result.po.settlementMode,
         stockAllocated: result.po.stockAllocated,
-        dueDate: result.po.dueDate ? new Date(result.po.dueDate).toISOString() : undefined,
-        expectedDeliveryDate: result.po.expectedDeliveryDate ? new Date(result.po.expectedDeliveryDate).toISOString() : undefined,
+        dueDate: result.po.dueDate
+          ? new Date(result.po.dueDate).toISOString()
+          : undefined,
+        expectedDeliveryDate: result.po.expectedDeliveryDate
+          ? new Date(result.po.expectedDeliveryDate).toISOString()
+          : undefined,
         deliveryTime: result.po.deliveryTime,
-        invoiceDate: result.po.invoiceDate ? new Date(result.po.invoiceDate).toISOString() : new Date().toISOString(),
+        invoiceDate: result.po.invoiceDate
+          ? new Date(result.po.invoiceDate).toISOString()
+          : new Date().toISOString(),
         dealerInvoiceNumber: result.po.dealerInvoiceNumber,
         notes: result.po.notes,
-        createdAt: result.po.createdAt ? new Date(result.po.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: result.po.updatedAt ? new Date(result.po.updatedAt).toISOString() : new Date().toISOString(),
+        createdAt: result.po.createdAt
+          ? new Date(result.po.createdAt).toISOString()
+          : new Date().toISOString(),
+        updatedAt: result.po.updatedAt
+          ? new Date(result.po.updatedAt).toISOString()
+          : new Date().toISOString(),
         lastUpdatedTime: "Today, Just now",
       },
       supplier: result.supplier
@@ -2675,18 +3148,25 @@ export async function recordPurchaseOrderPaymentAction(rawInput: unknown): Promi
             createdAt: new Date().toISOString(),
             paymentMode: result.createdExp.paymentMode,
             recordedBy: result.createdExp.recordedBy,
-            linkedPurchaseOrderId: (result.createdExp.linkedPurchaseOrderId || result.po._id).toString(),
+            linkedPurchaseOrderId: (
+              result.createdExp.linkedPurchaseOrderId || result.po._id
+            ).toString(),
           }
         : undefined,
       updatedProducts: result.updatedProductsList,
     };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Failed to record purchase order payment";
+    const errorMsg =
+      error instanceof Error
+        ? error.message
+        : "Failed to record purchase order payment";
     return { success: false, error: errorMsg };
   }
 }
 
-export async function reschedulePurchaseOrderAction(rawInput: unknown): Promise<{
+export async function reschedulePurchaseOrderAction(
+  rawInput: unknown,
+): Promise<{
   success: boolean;
   purchaseOrder?: DashboardPurchaseOrder;
   error?: string;
@@ -2712,8 +3192,17 @@ export async function reschedulePurchaseOrderAction(rawInput: unknown): Promise<
 
     const tenantObjectId = new Types.ObjectId(tenantId);
     const query = Types.ObjectId.isValid(input.purchaseOrderId)
-      ? { tenantId: tenantObjectId, $or: [{ _id: new Types.ObjectId(input.purchaseOrderId) }, { purchaseOrderNumber: input.purchaseOrderId }] }
-      : { tenantId: tenantObjectId, purchaseOrderNumber: input.purchaseOrderId };
+      ? {
+          tenantId: tenantObjectId,
+          $or: [
+            { _id: new Types.ObjectId(input.purchaseOrderId) },
+            { purchaseOrderNumber: input.purchaseOrderId },
+          ],
+        }
+      : {
+          tenantId: tenantObjectId,
+          purchaseOrderNumber: input.purchaseOrderId,
+        };
 
     const po = await PurchaseOrder.findOne(query);
     if (!po) {
@@ -2721,7 +3210,9 @@ export async function reschedulePurchaseOrderAction(rawInput: unknown): Promise<
     }
 
     if (input.expectedDeliveryDate !== undefined) {
-      po.expectedDeliveryDate = input.expectedDeliveryDate ? new Date(input.expectedDeliveryDate) : undefined;
+      po.expectedDeliveryDate = input.expectedDeliveryDate
+        ? new Date(input.expectedDeliveryDate)
+        : undefined;
     }
     if (input.deliveryTime !== undefined) {
       po.deliveryTime = input.deliveryTime?.trim() || undefined;
@@ -2729,8 +3220,14 @@ export async function reschedulePurchaseOrderAction(rawInput: unknown): Promise<
     if (input.dueDate !== undefined) {
       po.dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
     }
-    if (po.expectedDeliveryDate && (!po.settlementMode || po.settlementMode === "completed")) {
-      if (po.paymentStatus === "partial" || po.notes?.toLowerCase().includes("advance")) {
+    if (
+      po.expectedDeliveryDate &&
+      (!po.settlementMode || po.settlementMode === "completed")
+    ) {
+      if (
+        po.paymentStatus === "partial" ||
+        po.notes?.toLowerCase().includes("advance")
+      ) {
         po.settlementMode = "advance";
       }
     }
@@ -2741,14 +3238,19 @@ export async function reschedulePurchaseOrderAction(rawInput: unknown): Promise<
     broadcastUpdate(tenantId, "purchase_order_updated");
 
     const refreshed = await getPurchaseOrdersAction();
-    const updatedPO = refreshed.purchaseOrders?.find((p) => p.id === po._id.toString());
+    const updatedPO = refreshed.purchaseOrders?.find(
+      (p) => p.id === po._id.toString(),
+    );
 
     return {
       success: true,
       purchaseOrder: updatedPO,
     };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Failed to reschedule purchase order";
+    const errorMsg =
+      error instanceof Error
+        ? error.message
+        : "Failed to reschedule purchase order";
     return { success: false, error: errorMsg };
   }
 }
@@ -2764,7 +3266,11 @@ export async function getPurchaseOrdersAction(options?: {
   try {
     const session = await auth();
     if (!session?.user) {
-      return { success: false, purchaseOrders: [], error: "Unauthorized session" };
+      return {
+        success: false,
+        purchaseOrders: [],
+        error: "Unauthorized session",
+      };
     }
 
     await connectToDatabase();
@@ -2813,8 +3319,10 @@ export async function getPurchaseOrdersAction(options?: {
       new Set(
         rawOrders
           .map((po) => po.supplierId?.toString())
-          .filter((id): id is string => Boolean(id) && Types.ObjectId.isValid(id))
-      )
+          .filter(
+            (id): id is string => Boolean(id) && Types.ObjectId.isValid(id),
+          ),
+      ),
     ).map((id) => new Types.ObjectId(id));
 
     const suppliersList =
@@ -2826,7 +3334,7 @@ export async function getPurchaseOrdersAction(options?: {
         : [];
 
     const suppliersById = new Map(
-      suppliersList.map((s) => [s._id.toString(), s])
+      suppliersList.map((s) => [s._id.toString(), s]),
     );
 
     const purchaseOrders: DashboardPurchaseOrder[] = rawOrders.map((po) => {
@@ -2841,8 +3349,8 @@ export async function getPurchaseOrdersAction(options?: {
           recordedAt: p.recordedAt
             ? new Date(p.recordedAt).toISOString()
             : po.createdAt
-            ? new Date(po.createdAt).toISOString()
-            : undefined,
+              ? new Date(po.createdAt).toISOString()
+              : undefined,
         }));
       } else {
         const poExps = expensesByPoId.get(po._id.toString()) || [];
@@ -2856,39 +3364,49 @@ export async function getPurchaseOrdersAction(options?: {
               idx === 0 && poExps.length > 1
                 ? "initial"
                 : e.title?.toLowerCase().includes("stock in")
-                ? "initial"
-                : "settlement",
+                  ? "initial"
+                  : "settlement",
             recordedAt: e.expenseDate
               ? new Date(e.expenseDate).toISOString()
               : e.createdAt
-              ? new Date(e.createdAt).toISOString()
-              : undefined,
+                ? new Date(e.createdAt).toISOString()
+                : undefined,
           }));
         } else if (po.amountPaid > 0) {
           payments = [
             {
               amount: po.amountPaid,
-              paymentMode: po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
+              paymentMode:
+                po.paymentMode !== "credit" ? (po.paymentMode as any) : "cash",
               notes: po.notes,
               recordedBy: po.recordedBy || "owner",
-              type: po.amountPaid >= po.totalAmount ? "full_payment" : "initial",
-              recordedAt: po.createdAt ? new Date(po.createdAt).toISOString() : undefined,
+              type:
+                po.amountPaid >= po.totalAmount ? "full_payment" : "initial",
+              recordedAt: po.createdAt
+                ? new Date(po.createdAt).toISOString()
+                : undefined,
             },
           ];
         }
       }
 
-      const liveSupplier = po.supplierId ? suppliersById.get(po.supplierId.toString()) : null;
-      const supplierName = liveSupplier?.name || po.supplierSnapshot?.name || "Unknown Supplier";
+      const liveSupplier = po.supplierId
+        ? suppliersById.get(po.supplierId.toString())
+        : null;
+      const supplierName =
+        liveSupplier?.name || po.supplierSnapshot?.name || "Unknown Supplier";
       const supplierPhone = liveSupplier?.phone || po.supplierSnapshot?.phone;
-      const supplierCompany = liveSupplier?.companyName || po.supplierSnapshot?.companyName;
+      const supplierCompany =
+        liveSupplier?.companyName || po.supplierSnapshot?.companyName;
 
       return {
         id: po._id.toString(),
         purchaseOrderNumber: po.purchaseOrderNumber,
         supplierId: po.supplierId?.toString() || "",
         supplierName,
-        supplierPhone: supplierPhone ? formatPhoneNumber(supplierPhone) : undefined,
+        supplierPhone: supplierPhone
+          ? formatPhoneNumber(supplierPhone)
+          : undefined,
         supplierCompany,
         itemsCount: po.items?.length || 0,
         items: (po.items || []).map((it: any) => ({
@@ -2899,24 +3417,37 @@ export async function getPurchaseOrdersAction(options?: {
           purchaseCost: it.purchaseCost || 0,
           expectedSellPrice: it.expectedSellPrice || 0,
           itemTotalCost: it.itemTotalCost || 0,
+          returnedQuantity: it.returnedQuantity || 0,
         })),
         payments,
         totalAmount: po.totalAmount,
         amountPaid: po.amountPaid,
+        ledgerAdjustment: po.ledgerAdjustment,
         amountPending: po.amountPending,
         paymentMode: po.paymentMode,
         paymentStatus: po.paymentStatus,
         settlementMode: po.settlementMode,
-        stockAllocated: po.stockAllocated ?? (po.settlementMode === "completed" || po.settlementMode === "pending"),
+        stockAllocated:
+          po.stockAllocated ??
+          (po.settlementMode === "completed" ||
+            po.settlementMode === "pending"),
         dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
-        expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
+        expectedDeliveryDate: po.expectedDeliveryDate
+          ? new Date(po.expectedDeliveryDate).toISOString()
+          : undefined,
         deliveryTime: po.deliveryTime,
-        invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+        invoiceDate: po.invoiceDate
+          ? new Date(po.invoiceDate).toISOString()
+          : new Date().toISOString(),
         dealerInvoiceNumber: po.dealerInvoiceNumber,
         notes: po.notes,
         recordedBy: po.recordedBy || undefined,
-        createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: po.updatedAt ? new Date(po.updatedAt).toISOString() : undefined,
+        createdAt: po.createdAt
+          ? new Date(po.createdAt).toISOString()
+          : new Date().toISOString(),
+        updatedAt: po.updatedAt
+          ? new Date(po.updatedAt).toISOString()
+          : undefined,
         lastUpdatedTime: getBillLastUpdatedTime({ ...po, payments }),
       };
     });
@@ -2924,10 +3455,13 @@ export async function getPurchaseOrdersAction(options?: {
     return { success: true, purchaseOrders };
   } catch (error) {
     console.error("Failed to get purchase orders:", error);
-    return { success: false, purchaseOrders: [], error: "Failed to get purchase orders" };
+    return {
+      success: false,
+      purchaseOrders: [],
+      error: "Failed to get purchase orders",
+    };
   }
 }
-
 
 export async function getSuppliersAction(): Promise<{
   success: boolean;
@@ -2947,7 +3481,10 @@ export async function getSuppliersAction(): Promise<{
     }
 
     const tenantObjectId = new Types.ObjectId(tenantId);
-    const docs = await Supplier.find({ tenantId: tenantObjectId, isActive: true })
+    const docs = await Supplier.find({
+      tenantId: tenantObjectId,
+      isActive: true,
+    })
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -2968,7 +3505,11 @@ export async function getSuppliersAction(): Promise<{
 
     return { success: true, suppliers };
   } catch {
-    return { success: false, suppliers: [], error: "Failed to fetch suppliers" };
+    return {
+      success: false,
+      suppliers: [],
+      error: "Failed to fetch suppliers",
+    };
   }
 }
 
@@ -2984,7 +3525,10 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
     }
 
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only the shop owner can edit the salon profile" };
+      return {
+        success: false,
+        error: "Only the shop owner can edit the salon profile",
+      };
     }
 
     const parseResult = updateSalonProfileSchema.safeParse(rawInput);
@@ -3010,7 +3554,7 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
           profileImageUrl: input.profileImageUrl || null,
         },
       },
-      { new: true }
+      { new: true },
     ).lean();
 
     if (!updatedTenant) {
@@ -3020,7 +3564,7 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
     if (input.email) {
       await User.findOneAndUpdate(
         { tenantId },
-        { $set: { ownerEmail: input.email.trim().toLowerCase() } }
+        { $set: { ownerEmail: input.email.trim().toLowerCase() } },
       );
     }
 
@@ -3049,7 +3593,9 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
   }
 }
 
-export async function uploadSalonProfileImageAction(formData: FormData): Promise<{
+export async function uploadSalonProfileImageAction(
+  formData: FormData,
+): Promise<{
   success: boolean;
   profileImageUrl?: string;
   profileImagePublicId?: string;
@@ -3068,7 +3614,10 @@ export async function uploadSalonProfileImageAction(formData: FormData): Promise
 
     // Validate image format
     if (!file.type.startsWith("image/")) {
-      return { success: false, error: "Please upload an image file (PNG, JPG, or WEBP)" };
+      return {
+        success: false,
+        error: "Please upload an image file (PNG, JPG, or WEBP)",
+      };
     }
 
     // Max 5MB file size limit
@@ -3094,7 +3643,10 @@ export async function uploadSalonProfileImageAction(formData: FormData): Promise
 
     // Upload to Cloudinary & auto-delete previous image if present
     const { uploadSalonImage } = await import("@/lib/cloudinary");
-    const result = await uploadSalonImage(base64Uri, tenant.profileImagePublicId);
+    const result = await uploadSalonImage(
+      base64Uri,
+      tenant.profileImagePublicId,
+    );
 
     // Persist new Cloudinary details to tenant in MongoDB
     tenant.profileImageUrl = result.url;
@@ -3110,7 +3662,8 @@ export async function uploadSalonProfileImageAction(formData: FormData): Promise
     };
   } catch (error) {
     console.error("Failed to upload salon image to Cloudinary:", error);
-    const message = error instanceof Error ? error.message : "Failed to upload image";
+    const message =
+      error instanceof Error ? error.message : "Failed to upload image";
     return { success: false, error: message };
   }
 }
@@ -3126,7 +3679,10 @@ export async function createServiceAction(rawInput: unknown): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     const parseResult = createServiceSchema.safeParse(rawInput);
@@ -3182,7 +3738,10 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     const parseResult = updateServiceSchema.safeParse(rawInput);
@@ -3198,7 +3757,8 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
       return { success: false, error: "Tenant not found for current session" };
     }
 
-    const descriptionToSet = input.description !== undefined ? input.description.trim() : undefined;
+    const descriptionToSet =
+      input.description !== undefined ? input.description.trim() : undefined;
 
     const updateDoc: any = {
       $set: {
@@ -3218,13 +3778,19 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
     }
 
     const updated = (await Service.findOneAndUpdate(
-      { _id: new Types.ObjectId(input.id), tenantId: new Types.ObjectId(tenantId) },
+      {
+        _id: new Types.ObjectId(input.id),
+        tenantId: new Types.ObjectId(tenantId),
+      },
       updateDoc,
-      { new: true }
+      { new: true },
     ).lean()) as IService | null;
 
     if (!updated) {
-      return { success: false, error: "Service not found or permission denied" };
+      return {
+        success: false,
+        error: "Service not found or permission denied",
+      };
     }
 
     revalidatePath("/dashboard");
@@ -3258,7 +3824,10 @@ export async function toggleServiceStatusAction(serviceId: string): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     await connectToDatabase();
@@ -3298,7 +3867,10 @@ export async function deleteServiceAction(serviceId: string): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     await connectToDatabase();
@@ -3312,7 +3884,10 @@ export async function deleteServiceAction(serviceId: string): Promise<{
       tenantId: new Types.ObjectId(tenantId),
     });
     if (!deleted) {
-      return { success: false, error: "Service not found or permission denied" };
+      return {
+        success: false,
+        error: "Service not found or permission denied",
+      };
     }
 
     revalidatePath("/dashboard");
@@ -3336,7 +3911,10 @@ export async function createPackageAction(rawInput: unknown): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     const parseResult = createPackageSchema.safeParse(rawInput);
@@ -3409,7 +3987,10 @@ export async function updatePackageAction(rawInput: unknown): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     const parseResult = updatePackageSchema.safeParse(rawInput);
@@ -3438,7 +4019,8 @@ export async function updatePackageAction(rawInput: unknown): Promise<{
       componentPrice: p.componentPrice,
     }));
 
-    const descriptionToSet = input.description !== undefined ? input.description.trim() : undefined;
+    const descriptionToSet =
+      input.description !== undefined ? input.description.trim() : undefined;
 
     const updateDoc: any = {
       $set: {
@@ -3460,13 +4042,19 @@ export async function updatePackageAction(rawInput: unknown): Promise<{
     }
 
     const updated = (await PackageTemplate.findOneAndUpdate(
-      { _id: new Types.ObjectId(input.id), tenantId: new Types.ObjectId(tenantId) },
+      {
+        _id: new Types.ObjectId(input.id),
+        tenantId: new Types.ObjectId(tenantId),
+      },
       updateDoc,
-      { new: true }
+      { new: true },
     ).lean()) as IPackageTemplate | null;
 
     if (!updated) {
-      return { success: false, error: "Package not found or permission denied" };
+      return {
+        success: false,
+        error: "Package not found or permission denied",
+      };
     }
 
     revalidatePath("/dashboard");
@@ -3502,7 +4090,10 @@ export async function togglePackageStatusAction(packageId: string): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     await connectToDatabase();
@@ -3542,7 +4133,10 @@ export async function deletePackageAction(packageId: string): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
     if (session.user.role !== "owner") {
-      return { success: false, error: "Only salon owners can manage services and packages" };
+      return {
+        success: false,
+        error: "Only salon owners can manage services and packages",
+      };
     }
 
     await connectToDatabase();
@@ -3556,7 +4150,10 @@ export async function deletePackageAction(packageId: string): Promise<{
       tenantId: new Types.ObjectId(tenantId),
     });
     if (!deleted) {
-      return { success: false, error: "Package not found or permission denied" };
+      return {
+        success: false,
+        error: "Package not found or permission denied",
+      };
     }
 
     revalidatePath("/dashboard");
@@ -3599,6 +4196,7 @@ export async function getLiveProductsAction(): Promise<{
       category: p.category,
       sell: p.sellStock,
       use: p.useStock,
+        defectiveStock: p.defectiveStock || 0,
       price: p.expectedSellPrice,
       purchaseCost: p.purchaseCost,
       lowStockThreshold: p.lowStockThreshold,
@@ -3638,14 +4236,18 @@ export async function getCustomerOrdersAction(input: {
     const tenantObjectId = new Types.ObjectId(tenantId);
     // ponytail: Extracts last 10 digits for Indian mobile numbers with flexible delimiter matching. Upgrade path: Pass tenant country code if expanding internationally.
     const rawDigits = (input.phone || "").replace(/\D/g, "").slice(-10);
-    const flexiblePhoneRegex = rawDigits ? rawDigits.split("").join("[\\s\\-\\(\\)]*") : "";
+    const flexiblePhoneRegex = rawDigits
+      ? rawDigits.split("").join("[\\s\\-\\(\\)]*")
+      : "";
 
     const orConditions: any[] = [];
     if (input.customerId && Types.ObjectId.isValid(input.customerId)) {
       orConditions.push({ customerId: new Types.ObjectId(input.customerId) });
     }
     if (flexiblePhoneRegex) {
-      orConditions.push({ "customerSnapshot.phone": { $regex: flexiblePhoneRegex } });
+      orConditions.push({
+        "customerSnapshot.phone": { $regex: flexiblePhoneRegex },
+      });
     }
     if (input.phone && input.phone.trim()) {
       orConditions.push({ "customerSnapshot.phone": input.phone.trim() });
@@ -3698,8 +4300,24 @@ export async function getCustomerOrdersAction(input: {
         candidateTimestamps.length > 0
           ? new Date(Math.max(...candidateTimestamps))
           : o.createdAt
-          ? new Date(o.createdAt)
-          : new Date();
+            ? new Date(o.createdAt)
+            : new Date();
+
+      const createdTime = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+      const latestTime = latestActivityDate.getTime();
+      const hasMultiplePayments = o.payments && o.payments.length > 1;
+      const isMeaningfullyUpdated =
+        (createdTime > 0 && latestTime - createdTime > 5000) ||
+        hasMultiplePayments ||
+        Boolean(o.refundDetails?.refundedAt) ||
+        (o.lineItems &&
+          o.lineItems.some(
+            (li: any) => li.returnedQuantity && li.returnedQuantity > 0,
+          ));
+
+      const lastUpdatedTime = isMeaningfullyUpdated
+        ? formatOrderTime(new Date(latestTime))
+        : undefined;
 
       return {
         id: o.orderNumber,
@@ -3708,25 +4326,48 @@ export async function getCustomerOrdersAction(input: {
         type: mapOrderType(o.orderType),
         itemsSummary:
           o.lineItems && Array.isArray(o.lineItems)
-            ? o.lineItems.map((li: any) => li.name).filter(Boolean).join(", ")
+            ? o.lineItems
+                .map((li: any) => li.name)
+                .filter(Boolean)
+                .join(", ")
             : undefined,
-        amount: typeof o.totalAmount === "number" && !isNaN(o.totalAmount) ? o.totalAmount : 0,
-        paid: typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0,
+        amount:
+          typeof o.totalAmount === "number" && !isNaN(o.totalAmount)
+            ? o.totalAmount
+            : 0,
+        paid:
+          typeof o.amountPaid === "number" && !isNaN(o.amountPaid)
+            ? o.amountPaid
+            : 0,
         todayPaid: Math.max(0, o.amountPaid || 0),
         status: o.status,
         time: formatOrderTime(o.createdAt),
+        lastUpdatedTime,
         isToday,
         isLast24Hours,
-        createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
-        completedAt: o.completedAt ? new Date(o.completedAt).toISOString() : undefined,
-        refundedAt: o.refundDetails?.refundedAt ? new Date(o.refundDetails.refundedAt).toISOString() : undefined,
-        latestActivityAt: latestActivityDate ? new Date(latestActivityDate).toISOString() : undefined,
-        scheduledFor: o.scheduledFor ? new Date(o.scheduledFor).toISOString() : undefined,
+        createdAt: o.createdAt
+          ? new Date(o.createdAt).toISOString()
+          : undefined,
+        completedAt: o.completedAt
+          ? new Date(o.completedAt).toISOString()
+          : undefined,
+        refundedAt: o.refundDetails?.refundedAt
+          ? new Date(o.refundDetails.refundedAt).toISOString()
+          : undefined,
+        latestActivityAt: latestActivityDate
+          ? new Date(latestActivityDate).toISOString()
+          : undefined,
+        scheduledFor: o.scheduledFor
+          ? new Date(o.scheduledFor).toISOString()
+          : undefined,
         scheduledTime: o.scheduledTime || undefined,
         refundAmount: o.refundDetails?.refundAmount,
         refundReason: o.refundDetails?.refundReason,
         refundMode: o.refundDetails?.refundMode,
-        paymentMode: (o.paymentMode || o.payments?.[o.payments.length - 1]?.mode || o.payments?.[0]?.mode),
+        paymentMode:
+          o.paymentMode ||
+          o.payments?.[o.payments.length - 1]?.mode ||
+          o.payments?.[0]?.mode,
         advanceAmount: o.status === "advance_paid" ? o.amountPaid : undefined,
         subtotal: o.subtotal,
         discountType: o.discountType,
@@ -3737,19 +4378,25 @@ export async function getCustomerOrdersAction(input: {
         lineItems: o.lineItems?.map((li: any) => ({
           name: li.name,
           itemType: li.itemType,
+          itemId: li.itemId ? li.itemId.toString() : undefined,
           unitPrice: li.unitPrice,
           quantity: li.quantity,
           discount: li.discount,
           finalPrice: li.finalPrice,
           fulfilled: li.fulfilled,
           packageDetails: li.packageDetails,
+          returnedQuantity: li.returnedQuantity,
+          returnCondition: li.returnCondition,
         })),
         payments: o.payments?.map((p: any) => ({
           amount: p.amount,
           mode: p.mode,
-          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : new Date().toISOString(),
           recordedBy: p.recordedBy,
           type: p.type,
+          notes: p.notes,
         })),
       };
     });
@@ -3796,7 +4443,11 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
         $or: [
           { phone: normalizedPhone },
           ...(rawDigits.length === 10
-            ? [{ phone: rawDigits }, { phone: `+91${rawDigits}` }, { phone: `0${rawDigits}` }]
+            ? [
+                { phone: rawDigits },
+                { phone: `+91${rawDigits}` },
+                { phone: `0${rawDigits}` },
+              ]
             : []),
         ],
       });
@@ -3807,11 +4458,16 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
       const newName = input.name.trim();
       existingSupplier.name = newName;
       existingSupplier.phone = normalizedPhone;
-      if (input.companyName !== undefined) existingSupplier.companyName = input.companyName?.trim() || undefined;
-      if (input.email !== undefined) existingSupplier.email = input.email?.trim() || undefined;
-      if (input.address !== undefined) existingSupplier.address = input.address?.trim() || undefined;
-      if (input.gstin !== undefined) existingSupplier.gstin = input.gstin?.trim() || undefined;
-      if (input.notes !== undefined) existingSupplier.notes = input.notes?.trim() || undefined;
+      if (input.companyName !== undefined)
+        existingSupplier.companyName = input.companyName?.trim() || undefined;
+      if (input.email !== undefined)
+        existingSupplier.email = input.email?.trim() || undefined;
+      if (input.address !== undefined)
+        existingSupplier.address = input.address?.trim() || undefined;
+      if (input.gstin !== undefined)
+        existingSupplier.gstin = input.gstin?.trim() || undefined;
+      if (input.notes !== undefined)
+        existingSupplier.notes = input.notes?.trim() || undefined;
       await existingSupplier.save();
 
       if (newName !== oldName) {
@@ -3825,7 +4481,9 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
                 ? [
                     { "supplierSnapshot.phone": rawDigits },
                     { "supplierSnapshot.phone": `+91${rawDigits}` },
-                    { "supplierSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}` },
+                    {
+                      "supplierSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}`,
+                    },
                     { "supplierSnapshot.phone": `0${rawDigits}` },
                   ]
                 : []),
@@ -3835,9 +4493,14 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
             $set: {
               "supplierSnapshot.name": newName,
               "supplierSnapshot.phone": normalizedPhone,
-              ...(existingSupplier.companyName ? { "supplierSnapshot.companyName": existingSupplier.companyName } : {}),
+              ...(existingSupplier.companyName
+                ? {
+                    "supplierSnapshot.companyName":
+                      existingSupplier.companyName,
+                  }
+                : {}),
             },
-          }
+          },
         );
       }
 
@@ -3978,7 +4641,7 @@ export async function updateSupplierAction(rawInput: unknown): Promise<{
             "supplierSnapshot.phone": supplier.phone,
             "supplierSnapshot.companyName": supplier.companyName,
           },
-        }
+        },
       );
     }
 
@@ -4102,7 +4765,7 @@ export async function updateCustomerAction(rawInput: unknown): Promise<{
             "customerSnapshot.name": customer.name,
             "customerSnapshot.phone": customer.phone,
           },
-        }
+        },
       );
     }
 
@@ -4118,16 +4781,27 @@ export async function updateCustomerAction(rawInput: unknown): Promise<{
       notes: customer.notes || undefined,
       visits: customer.stats?.totalVisits ?? 0,
       lastVisit: customer.stats?.lastVisitAt
-        ? new Date(customer.stats.lastVisitAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+        ? new Date(customer.stats.lastVisitAt).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+          })
         : "Never",
       lastVisitRaw: customer.stats?.lastVisitAt
         ? new Date(customer.stats.lastVisitAt).toISOString()
         : customer.updatedAt
-        ? new Date(customer.updatedAt).toISOString()
+          ? new Date(customer.updatedAt).toISOString()
+          : undefined,
+      totalSpent:
+        typeof customer.stats?.totalSpend === "number"
+          ? customer.stats.totalSpend
+          : 0,
+      outstandingDue:
+        typeof customer.stats?.outstandingBalance === "number"
+          ? customer.stats.outstandingBalance
+          : 0,
+      createdAt: customer.createdAt
+        ? new Date(customer.createdAt).toISOString()
         : undefined,
-      totalSpent: typeof customer.stats?.totalSpend === "number" ? customer.stats.totalSpend : 0,
-      outstandingDue: typeof customer.stats?.outstandingBalance === "number" ? customer.stats.outstandingBalance : 0,
-      createdAt: customer.createdAt ? new Date(customer.createdAt).toISOString() : undefined,
     };
 
     return {
@@ -4147,7 +4821,8 @@ export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
 }> {
   try {
     const session = await auth();
-    if (!session?.user) return { success: false, error: "Unauthorized session" };
+    if (!session?.user)
+      return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
 
@@ -4159,7 +4834,10 @@ export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
       po = await PurchaseOrder.findOne({ _id: cleanQuery, tenantId }).lean();
     }
     if (!po) {
-      po = await PurchaseOrder.findOne({ purchaseOrderNumber: cleanQuery, tenantId }).lean();
+      po = await PurchaseOrder.findOne({
+        purchaseOrderNumber: cleanQuery,
+        tenantId,
+      }).lean();
     }
     if (!po) {
       const escaped = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -4177,7 +4855,9 @@ export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
         purchaseOrderNumber: po.purchaseOrderNumber,
         supplierId: po.supplierId?.toString() || "",
         supplierName: po.supplierSnapshot?.name || "Supplier",
-        supplierPhone: po.supplierSnapshot?.phone ? formatPhoneNumber(po.supplierSnapshot.phone) : undefined,
+        supplierPhone: po.supplierSnapshot?.phone
+          ? formatPhoneNumber(po.supplierSnapshot.phone)
+          : undefined,
         supplierCompany: po.supplierSnapshot?.companyName,
         itemsCount: po.items?.length || 0,
         items: (po.items || []).map((it: any) => ({
@@ -4188,6 +4868,7 @@ export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
           purchaseCost: it.purchaseCost || 0,
           expectedSellPrice: it.expectedSellPrice || 0,
           itemTotalCost: it.itemTotalCost || 0,
+          returnedQuantity: it.returnedQuantity || 0,
         })),
         payments: (po.payments || []).map((p: any) => ({
           amount: p.amount,
@@ -4195,7 +4876,25 @@ export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
           notes: p.notes,
           recordedBy: p.recordedBy,
           type: p.type || "settlement",
-          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : undefined,
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : undefined,
+        })),
+        returns: (po.returns || []).map((r: any) => ({
+          returnNumber: r.returnNumber,
+          productId: r.productId?.toString(),
+          productName: r.productName,
+          quantity: r.quantity,
+          stockType: r.stockType,
+          unitCost: r.unitCost,
+          totalRefundAmount: r.totalRefundAmount,
+          refundMode: r.refundMode,
+          amountDeductedFromDue: r.amountDeductedFromDue,
+          notes: r.notes,
+          recordedBy: r.recordedBy,
+          returnedAt: r.returnedAt
+            ? new Date(r.returnedAt).toISOString()
+            : undefined,
         })),
         totalAmount: po.totalAmount,
         amountPaid: po.amountPaid,
@@ -4203,16 +4902,27 @@ export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
         paymentMode: po.paymentMode,
         paymentStatus: po.paymentStatus,
         settlementMode: po.settlementMode,
-        stockAllocated: po.stockAllocated ?? (po.settlementMode === "completed" || po.settlementMode === "pending"),
+        stockAllocated:
+          po.stockAllocated ??
+          (po.settlementMode === "completed" ||
+            po.settlementMode === "pending"),
         dueDate: po.dueDate ? new Date(po.dueDate).toISOString() : undefined,
-        expectedDeliveryDate: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toISOString() : undefined,
+        expectedDeliveryDate: po.expectedDeliveryDate
+          ? new Date(po.expectedDeliveryDate).toISOString()
+          : undefined,
         deliveryTime: po.deliveryTime,
-        invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+        invoiceDate: po.invoiceDate
+          ? new Date(po.invoiceDate).toISOString()
+          : new Date().toISOString(),
         dealerInvoiceNumber: po.dealerInvoiceNumber,
         notes: po.notes,
         recordedBy: po.recordedBy || undefined,
-        createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: po.updatedAt ? new Date(po.updatedAt).toISOString() : undefined,
+        createdAt: po.createdAt
+          ? new Date(po.createdAt).toISOString()
+          : new Date().toISOString(),
+        updatedAt: po.updatedAt
+          ? new Date(po.updatedAt).toISOString()
+          : undefined,
         lastUpdatedTime: getBillLastUpdatedTime(po),
       },
     };
@@ -4229,7 +4939,8 @@ export async function getOrderByIdAction(idOrNumber: string): Promise<{
 }> {
   try {
     const session = await auth();
-    if (!session?.user) return { success: false, error: "Unauthorized session" };
+    if (!session?.user)
+      return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
 
@@ -4241,7 +4952,10 @@ export async function getOrderByIdAction(idOrNumber: string): Promise<{
       order = await Order.findOne({ _id: cleanQuery, tenantId }).lean();
     }
     if (!order) {
-      order = await Order.findOne({ orderNumber: cleanQuery.replace(/^#/, ""), tenantId }).lean();
+      order = await Order.findOne({
+        orderNumber: cleanQuery.replace(/^#/, ""),
+        tenantId,
+      }).lean();
     }
     if (!order) {
       const escaped = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -4262,32 +4976,51 @@ export async function getOrderByIdAction(idOrNumber: string): Promise<{
         paid: order.amountPaid,
         status: order.status,
         time: formatOrderTime(order.createdAt),
-        itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", "),
+        itemsSummary: (order.lineItems || [])
+          .map((li: any) => li.name)
+          .join(", "),
         lineItems: (order.lineItems || []).map((li: any) => ({
           name: li.name,
           itemType: li.itemType,
+          itemId: li.itemId ? li.itemId.toString() : undefined,
           unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
           quantity: typeof li.quantity === "number" ? li.quantity : 1,
           discount: li.discount,
-          finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
+          finalPrice:
+            typeof li.finalPrice === "number"
+              ? li.finalPrice
+              : (li.unitPrice || 0) * (li.quantity || 1),
           fulfilled: li.fulfilled,
+          returnedQuantity: li.returnedQuantity || 0,
+          returnCondition: li.returnCondition,
         })),
         payments: (order.payments || []).map((p: any) => ({
           amount: p.amount,
           mode: p.mode || p.paymentMode || "cash",
-          recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : new Date().toISOString(),
           recordedBy: p.recordedBy,
           type: p.type || undefined,
         })),
         refundAmount: order.refundDetails?.refundAmount,
         refundMode: order.refundDetails?.refundMode,
         refundReason: order.refundDetails?.refundReason,
-        refundedAt: order.refundDetails?.refundedAt ? new Date(order.refundDetails.refundedAt).toISOString() : undefined,
-        scheduledFor: order.scheduledFor ? new Date(order.scheduledFor).toISOString() : undefined,
-        scheduledTime: order.scheduledTime || order.appointmentTime || undefined,
+        refundedAt: order.refundDetails?.refundedAt
+          ? new Date(order.refundDetails.refundedAt).toISOString()
+          : undefined,
+        scheduledFor: order.scheduledFor
+          ? new Date(order.scheduledFor).toISOString()
+          : undefined,
+        scheduledTime:
+          order.scheduledTime || order.appointmentTime || undefined,
         notes: order.notes,
-        customerPhone: order.customerSnapshot?.phone ? formatPhoneNumber(order.customerSnapshot.phone) : undefined,
-        createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : undefined,
+        customerPhone: order.customerSnapshot?.phone
+          ? formatPhoneNumber(order.customerSnapshot.phone)
+          : undefined,
+        createdAt: order.createdAt
+          ? new Date(order.createdAt).toISOString()
+          : undefined,
       },
     };
   } catch (err) {
@@ -4296,4 +5029,506 @@ export async function getOrderByIdAction(idOrNumber: string): Promise<{
   }
 }
 
+async function processSupplierReturn(
+  tenantId: string | Types.ObjectId,
+  poId: string,
+  productId: string,
+  quantityToReturn: number,
+  refundMode: "reduce_due" | "replacement_pending",
+  notes: string | undefined,
+  userRole: string,
+  dbSession: ClientSession,
+  productName?: string
+) {
+  const tenantObj = Types.ObjectId.isValid(tenantId)
+    ? new Types.ObjectId(tenantId)
+    : tenantId;
 
+  const po = await PurchaseOrder.findOne({ 
+    tenantId: tenantObj,
+    $or: [
+      ...(poId.length === 24 && Types.ObjectId.isValid(poId) ? [{ _id: new Types.ObjectId(poId) }] : []),
+      { purchaseOrderNumber: poId },
+    ],
+  }).session(dbSession);
+  if (!po) throw new Error("Purchase Order not found for supplier return");
+
+  const item = po.items.find(
+    (i: any) =>
+      (productId && (i.productId === productId || i.productId?.toString() === productId)) ||
+      (productName && i.productName && i.productName.trim().toLowerCase() === productName.trim().toLowerCase())
+  );
+  if (!item) throw new Error("Product not found in this Purchase Order");
+
+  const previouslyReturned = item.returnedQuantity || 0;
+  const totalPurchased = item.quantityForSell + item.quantityForUse;
+  if (quantityToReturn <= 0 || quantityToReturn > totalPurchased - previouslyReturned) {
+    throw new Error(`Invalid supplier return quantity. You can only return up to ${totalPurchased - previouslyReturned} items for this PO.`);
+  }
+
+  const returnValue = quantityToReturn * item.purchaseCost;
+  item.returnedQuantity = previouslyReturned + quantityToReturn;
+  item.itemTotalCost = (totalPurchased - item.returnedQuantity) * item.purchaseCost;
+
+  if (refundMode === "reduce_due") {
+    po.amountPending = Math.max(0, (po.amountPending || 0) - returnValue);
+    po.totalAmount = Math.max(0, (po.totalAmount || 0) - returnValue);
+
+    const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId: tenantObj }).session(dbSession);
+    if (supplier) {
+      supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - returnValue);
+      await supplier.save({ session: dbSession });
+    }
+  }
+
+  if (!po.payments) po.payments = [];
+  po.payments.push({
+    amount: -returnValue,
+    paymentMode: refundMode as any,
+    notes: notes || undefined,
+    recordedBy: userRole === "staff" ? "staff" : "owner",
+    type: "refund",
+    recordedAt: new Date(),
+  });
+
+  const finalNote = notes ? `[Refund] Returned ${quantityToReturn}x ${item.productName}. Note: ${notes}` : `[Refund] Returned ${quantityToReturn}x ${item.productName}.`;
+  po.notes = po.notes ? `${po.notes}\n${finalNote}` : finalNote;
+
+  po.returns = po.returns || [];
+  let amountDeductedFromDue = 0;
+  if (refundMode === "reduce_due") {
+    amountDeductedFromDue = returnValue;
+  }
+
+  po.returns.push({
+    returnNumber: `RET-${Date.now()}`,
+    productId: item.productId,
+    productName: item.productName,
+    quantity: quantityToReturn,
+    stockType: "sell",
+    unitCost: item.purchaseCost,
+    totalRefundAmount: returnValue,
+    refundMode,
+    amountDeductedFromDue,
+    notes: notes,
+    returnedAt: new Date(),
+    recordedBy: userRole === "staff" ? "staff" : "owner",
+  });
+
+  po.markModified("items");
+  po.markModified("returns");
+  po.markModified("payments");
+  await po.save({ session: dbSession });
+}
+
+export async function returnPurchaseOrderItemAction(
+  purchaseOrderId: string,
+  productId: string,
+  quantityToReturn: number,
+  stockSource: "sellStock" | "useStock" | "defectiveStock",
+  refundMode: "reduce_due" | "replacement_pending",
+  notes?: string,
+): Promise<{ success: boolean; error?: string; expenseId?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user)
+      return { success: false, error: "Unauthorized session" };
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) return { success: false, error: "Tenant not found" };
+
+    return await withTransaction(async (dbSession) => {
+      const poQuery = {
+        tenantId,
+        $or: [
+          ...(purchaseOrderId.length === 24 ? [{ _id: purchaseOrderId }] : []),
+          { purchaseOrderNumber: purchaseOrderId },
+        ],
+      };
+      const po = await PurchaseOrder.findOne(poQuery).session(dbSession);
+      if (!po) throw new Error("Purchase Order not found");
+
+      const item = po.items.find(
+        (i: any) => i.productId.toString() === productId,
+      );
+      if (!item) throw new Error("Product not found in this Purchase Order");
+
+      if (quantityToReturn <= 0) throw new Error("Invalid return quantity");
+
+      // Verify they aren't returning more than they bought
+      const totalPurchased =
+        (item.quantityForSell || 0) + (item.quantityForUse || 0);
+      const previouslyReturned = item.returnedQuantity || 0;
+      if (quantityToReturn > totalPurchased - previouslyReturned) {
+        throw new Error(
+          `Cannot return more than purchased. Remaining available to return: ${totalPurchased - previouslyReturned}`,
+        );
+      }
+
+      // Deduct stock if not replacement pending (wait, actually, stock leaves the shelf even if replacement is pending!)
+      const product = await Product.findOne({
+        _id: productId,
+        tenantId,
+      }).session(dbSession);
+      if (!product) throw new Error("Product no longer exists in catalog");
+
+      if (stockSource === "sellStock") {
+        if (product.sellStock < quantityToReturn)
+          throw new Error("Insufficient retail stock to return");
+        product.sellStock -= quantityToReturn;
+      } else if (stockSource === "useStock") {
+        if (product.useStock < quantityToReturn)
+          throw new Error("Insufficient salon use stock to return");
+        product.useStock -= quantityToReturn;
+      } else if (stockSource === "defectiveStock") {
+        if (product.defectiveStock < quantityToReturn)
+          throw new Error("Insufficient defective stock to return");
+        product.defectiveStock -= quantityToReturn;
+      } else {
+        throw new Error("Invalid stock source");
+      }
+      await product.save({ session: dbSession });
+      await cleanupProductBatchNames(tenantId, product.name, dbSession);
+
+      // Financials
+      const returnValue = quantityToReturn * item.purchaseCost;
+      item.returnedQuantity = previouslyReturned + quantityToReturn;
+      item.itemTotalCost =
+        (totalPurchased - item.returnedQuantity) * item.purchaseCost;
+
+      let newExpenseId: string | undefined;
+      let amountDeductedFromDue = 0;
+
+      if (refundMode === "reduce_due") {
+        po.amountPending -= returnValue;
+        po.totalAmount -= returnValue;
+        amountDeductedFromDue = returnValue;
+
+        const supplier = await Supplier.findOne({
+          _id: po.supplierId,
+          tenantId,
+        }).session(dbSession);
+        if (supplier) {
+          supplier.totalPending = (supplier.totalPending || 0) - returnValue;
+          await supplier.save({ session: dbSession });
+        }
+      } else if (refundMode === "replacement_pending") {
+        // Money balances stay the same, but we record the return sub-doc
+      }
+
+      // Record refund in PO payment history
+      if (!po.payments) po.payments = [];
+      po.payments.push({
+        amount: -returnValue,
+        paymentMode: refundMode as any,
+        notes: notes || undefined,
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        type: "refund",
+        recordedAt: new Date(),
+      });
+
+      // Generate a default system note for the return
+      const systemNote = `[Refund] Returned ${quantityToReturn}x ${product.name}.`;
+      const finalNote = notes
+        ? `${systemNote} Note: ${notes.trim()}`
+        : systemNote;
+
+      if (po.notes) {
+        po.notes = `${po.notes}\n${finalNote}`;
+      } else {
+        po.notes = finalNote;
+      }
+
+      // Record the return
+      po.returns = po.returns || [];
+      po.returns.push({
+        returnNumber: `RET-${Date.now()}`,
+        productId: product._id,
+        productName: product.name,
+        quantity: quantityToReturn,
+        stockType: stockSource === "sellStock" ? "sell" : "use",
+        unitCost: item.purchaseCost,
+        totalRefundAmount: returnValue,
+        refundMode,
+        amountDeductedFromDue,
+        notes: notes || undefined,
+        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        returnedAt: new Date(),
+      });
+
+      // Re-evaluate payment status
+      if (po.totalAmount <= 0) {
+        po.paymentStatus = "paid";
+        po.settlementMode = "completed";
+      } else if (po.amountPending === 0) {
+        po.paymentStatus = "paid";
+        po.settlementMode = "completed";
+      } else if (po.amountPaid > 0) {
+        po.paymentStatus = "partial";
+      } else {
+        po.paymentStatus = "unpaid";
+      }
+
+      // ponytail: PO's `items` is an array of subdocuments. Marking it as modified is sometimes required in Mongoose to save changes to subdoc fields correctly.
+      po.markModified("items");
+      po.markModified("returns");
+      po.markModified("payments");
+      po.markModified("notes");
+      await po.save({ session: dbSession });
+
+      return { success: true, expenseId: newExpenseId };
+    });
+  } catch (error: any) {
+    console.error("Return PO Item Error:", error);
+    return {
+      success: false,
+      error: error.message || "Failed to process return",
+    };
+  }
+}
+
+export async function returnCustomerOrderItemAction(
+  orderId: string,
+  lineItemIndex: number,
+  quantityToReturn: number,
+  returnCondition: "restocked" | "defective_dealer_claim",
+  refundMode: "cash" | "upi" | "card" | "reduce_due",
+  notes?: string,
+  overrideRefundAmount?: number,
+  customerResolution: "refund" | "replacement" = "refund",
+  supplierReturnDetails?: {
+    poId: string;
+    refundMode: "reduce_due" | "replacement_pending";
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user)
+      return { success: false, error: "Unauthorized session" };
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) return { success: false, error: "Tenant not found" };
+
+    return await withTransaction(async (dbSession) => {
+      const query = buildOrderLookupQuery(tenantId, orderId);
+      const order = await Order.findOne(query).session(dbSession);
+      if (!order) throw new Error("Order not found");
+
+      if (
+        order.status === "cancelled_refunded" ||
+        order.status === "cancelled_converted"
+      ) {
+        throw new Error(
+          "Cannot return items from a cancelled or fully refunded order.",
+        );
+      }
+
+      if (lineItemIndex < 0 || lineItemIndex >= order.lineItems.length) {
+        throw new Error("Invalid line item index");
+      }
+
+      const item = order.lineItems[lineItemIndex];
+      if (item.itemType !== "product") {
+        throw new Error("Only product line items can be returned");
+      }
+
+      const previouslyReturned = item.returnedQuantity || 0;
+      if (
+        quantityToReturn <= 0 ||
+        quantityToReturn > item.quantity - previouslyReturned
+      ) {
+        throw new Error("Invalid return quantity");
+      }
+
+      const unitFinalPrice = item.finalPrice / item.quantity;
+      const refundAmount =
+        overrideRefundAmount !== undefined && !isNaN(overrideRefundAmount)
+          ? overrideRefundAmount
+          : unitFinalPrice * quantityToReturn;
+
+      const product = await Product.findOne({
+        _id: item.itemId,
+        tenantId,
+      }).session(dbSession);
+      
+      if (product) {
+        if (returnCondition === "restocked") {
+          product.sellStock += quantityToReturn;
+          if (customerResolution === "replacement") {
+            product.sellStock -= quantityToReturn;
+          }
+        } else {
+          if (customerResolution === "replacement") {
+            if (product.sellStock < quantityToReturn) {
+              throw new Error("Insufficient stock on shelf to provide a replacement.");
+            }
+            product.sellStock -= quantityToReturn;
+          }
+          if (supplierReturnDetails) {
+            await processSupplierReturn(
+              tenantId,
+              supplierReturnDetails.poId,
+              product._id.toString(),
+              quantityToReturn,
+              supplierReturnDetails.refundMode,
+              notes,
+              session.user.role || "owner",
+              dbSession,
+              product.name
+            );
+          }
+        }
+        await product.save({ session: dbSession });
+        await cleanupProductBatchNames(tenantId, product.name, dbSession);
+      }
+
+      item.returnedQuantity = previouslyReturned + quantityToReturn;
+      item.returnCondition = returnCondition;
+
+      if (customerResolution === "refund") {
+        if (refundMode === "reduce_due") {
+          if (order.amountPending < refundAmount) {
+            throw new Error(
+              "Cannot reduce due by more than the pending amount. Choose a Cash/UPI refund instead.",
+            );
+          }
+          order.amountPending -= refundAmount;
+          order.totalAmount -= refundAmount;
+          order.subtotal -= refundAmount;
+        } else {
+          const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+            tenantId: new Types.ObjectId(tenantId),
+            type: "expense",
+            session: dbSession,
+          });
+
+          await Expense.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                expenseNumber,
+                title: `Customer Return: ${quantityToReturn}x ${item.name}`,
+                category: "refund",
+                amount: refundAmount,
+                paymentMode: refundMode,
+                linkedOrderId: order._id,
+                notes: `Refunded customer for returned product. Condition: ${returnCondition}. ${notes || ""}`,
+                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                expenseDate: new Date(),
+              },
+            ],
+            { session: dbSession },
+          );
+        }
+            } else {
+        const replaceNote = `[Replacement] Exchanged ${quantityToReturn}x ${item.name}`;
+        order.notes = order.notes ? `${order.notes}\n${replaceNote}` : replaceNote;
+        
+        // As requested by user: log expense for replacement
+        const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+          tenantId: new Types.ObjectId(tenantId),
+          type: "expense",
+          session: dbSession,
+        });
+
+        await Expense.create(
+          [
+            {
+              tenantId: new Types.ObjectId(tenantId),
+              expenseNumber,
+              title: `Product Replacement: ${quantityToReturn}x ${item.name}`,
+              category: "refund", // or replacement, sticking to refund to keep charts working
+              amount: refundAmount,
+              paymentMode: "cash", // no real cash moved, but this accounts for the loss of value
+              linkedOrderId: order._id,
+              notes: `Customer given replacement product from shelf. Logged expense for product price as requested.`,
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              expenseDate: new Date(),
+            },
+          ],
+          { session: dbSession },
+        );
+      }
+
+      order.markModified("lineItems");
+      await order.save({ session: dbSession });
+
+      revalidatePath("/dashboard");
+      broadcastUpdate(tenantId, "order_returned");
+
+      return { success: true };
+    });
+  } catch (error: any) {
+    console.error("Failed to return order item:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+
+export async function getPurchaseOrdersForProductAction(
+  productId?: string,
+  productName?: string
+) {
+  try {
+    const session = await auth();
+    if (!session?.user) return { success: false, error: "Unauthorized" };
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) return { success: false, error: "No tenant" };
+
+    const orConditions: any[] = [];
+    if (productId && productId.trim()) {
+      const trimmedId = productId.trim();
+      orConditions.push({ "items.productId": trimmedId });
+      if (Types.ObjectId.isValid(trimmedId)) {
+        orConditions.push({ "items.productId": new Types.ObjectId(trimmedId) });
+      }
+    }
+    if (productName && productName.trim()) {
+      const trimmedName = productName.trim();
+      // ponytail: Case-insensitive regex fallback assumes product names are unique within a tenant. Upgrade path: enforce unique names per tenant in schema or require itemId.
+      orConditions.push({ "items.productName": trimmedName });
+      orConditions.push({
+        "items.productName": {
+          $regex: `^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+          $options: "i",
+        },
+      });
+    }
+
+    if (orConditions.length === 0) {
+      return { success: true, pos: [] };
+    }
+
+    const tenantObj = Types.ObjectId.isValid(tenantId)
+      ? new Types.ObjectId(tenantId)
+      : tenantId;
+
+    const pos = await PurchaseOrder.find({
+      tenantId: tenantObj,
+      $or: orConditions,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formatted = pos.map((po) => ({
+      id: po._id.toString(),
+      purchaseOrderNumber: po.purchaseOrderNumber,
+      supplierName:
+        (po as any).supplierSnapshot?.name ||
+        (po as any).supplierName ||
+        "Supplier",
+      createdAt: po.createdAt.toISOString(),
+      items: po.items.map((item) => ({
+        productId: item.productId?.toString() || "",
+        productName: item.productName,
+        quantityForSell: item.quantityForSell || 0,
+        quantityForUse: item.quantityForUse || 0,
+        returnedQuantity: item.returnedQuantity || 0,
+        purchaseCost: item.purchaseCost,
+      })),
+    }));
+
+    return { success: true, pos: formatted };
+  } catch (error: any) {
+    console.error("Failed to fetch pos:", error);
+    return { success: false, error: error.message };
+  }
+}

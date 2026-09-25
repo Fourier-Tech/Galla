@@ -135,11 +135,9 @@ export function SupplierDetailsView({
     const totalPendingFromBills = bills.reduce((sum, b) => sum + (b.amountPending || 0), 0);
     const pendingCount = bills.filter((b) => b.paymentStatus !== "paid").length;
 
-    const totalPurchases =
-      totalPurchasesFromBills > 0 ? totalPurchasesFromBills : supplier.totalPurchases || 0;
-    const totalPaid = totalPaidFromBills > 0 ? totalPaidFromBills : supplier.totalPaid || 0;
-    const totalPending =
-      totalPendingFromBills > 0 ? totalPendingFromBills : supplier.totalPending || 0;
+    const totalPurchases = supplier.totalPurchases || 0;
+    const totalPaid = supplier.totalPaid || 0;
+    const totalPending = supplier.totalPending || 0;
 
     const avgTicket = totalBills > 0 ? Math.round(totalPurchases / totalBills) : totalPurchases;
 
@@ -235,6 +233,10 @@ export function SupplierDetailsView({
       const itemMatch = b.items?.some((it) => it.productName.toLowerCase().includes(q));
 
       return poMatch || invMatch || notesMatch || itemMatch;
+    }).sort((a, b) => {
+      const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+      const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+      return dateB - dateA;
     });
   }, [bills, statusFilter, search]);
 
@@ -422,10 +424,11 @@ export function SupplierDetailsView({
         </div>
 
         {/* Outstanding Dues */}
+        {/* Outstanding Dues / Credit Balance */}
         <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-[11.5px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
-              Outstanding Dues
+              {metrics.totalPending < 0 ? "Credit Balance" : "Outstanding Dues"}
             </span>
             <div
               className={`h-7 w-7 rounded-[5px] flex items-center justify-center border ${metrics.totalPending > 0
@@ -444,12 +447,14 @@ export function SupplierDetailsView({
             className={`text-[22px] font-bold font-heading mt-2 ${metrics.totalPending > 0 ? "text-rose-700" : "text-emerald-700"
               }`}
           >
-            {formatRupee(metrics.totalPending)}
+            {formatRupee(Math.abs(metrics.totalPending))}
           </div>
           <span className="text-[11.5px] text-galla-ink-soft mt-1 block">
             {metrics.totalPending > 0
               ? `${metrics.pendingCount} unpaid / partial bill(s)`
-              : "Fully settled (₹0 balance)"}
+              : metrics.totalPending < 0 
+                ? "Dealer owes you this amount" 
+                : "Fully settled (₹0 balance)"}
           </span>
         </div>
       </div>

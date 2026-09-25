@@ -142,7 +142,7 @@ export function NewExpenseModal({
         <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Category Selector */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Category
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -169,7 +169,7 @@ export function NewExpenseModal({
           {/* Conditional Second Field */}
           {category === "Day-to-day" && (
             <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 What was it for?
               </label>
               <input
@@ -186,7 +186,7 @@ export function NewExpenseModal({
 
           {category === "Salary" && (
             <div>
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Whom did you pay?
               </label>
               <input
@@ -203,7 +203,7 @@ export function NewExpenseModal({
 
           {/* Amount */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Amount (₹)
             </label>
             <input
@@ -218,7 +218,7 @@ export function NewExpenseModal({
 
           {/* Payment Mode */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Payment Mode
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -241,7 +241,7 @@ export function NewExpenseModal({
 
           {/* Notes */}
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               {category === "Rent" ? "Month / Remarks (Optional)" : "Notes (Optional)"}
             </label>
             <input

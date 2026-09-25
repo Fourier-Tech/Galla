@@ -119,6 +119,7 @@ export async function GET(request: Request) {
       category: p.category || "General Supplies",
       sell: p.sellStock,
       use: p.useStock,
+      defectiveStock: p.defectiveStock || 0,
       price: p.expectedSellPrice,
       purchaseCost: p.purchaseCost,
       lowStockThreshold: p.lowStockThreshold,

@@ -8,6 +8,7 @@ export interface IPurchaseOrderItem {
   purchaseCost: number;
   expectedSellPrice: number;
   itemTotalCost: number;
+  returnedQuantity?: number;
 }
 
 export interface IPurchaseOrderPayment {
@@ -30,8 +31,10 @@ export interface IPurchaseOrder extends Document {
   };
   items: IPurchaseOrderItem[];
   payments?: IPurchaseOrderPayment[];
+  returns?: IPurchaseOrderReturn[];
   totalAmount: number;
   amountPaid: number;
+  ledgerAdjustment?: number;
   amountPending: number;
   paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "credit";
   paymentStatus: "paid" | "partial" | "unpaid";
@@ -50,10 +53,20 @@ export interface IPurchaseOrder extends Document {
 
 const PurchaseOrderPaymentSchema = new Schema<IPurchaseOrderPayment>(
   {
-    amount: { type: Number, required: true, min: 0 },
+    amount: { type: Number, required: true },
     paymentMode: {
       type: String,
-      enum: ["cash", "upi", "card", "bank_transfer"],
+      enum: [
+        "cash",
+        "upi",
+        "card",
+        "bank_transfer",
+        "reduce_due",
+        "refund",
+        "replacement_pending",
+        "cash_refund",
+        "upi_refund",
+      ],
       required: true,
     },
     notes: { type: String, trim: true },
@@ -61,7 +74,7 @@ const PurchaseOrderPaymentSchema = new Schema<IPurchaseOrderPayment>(
     type: { type: String, default: "settlement" },
     recordedAt: { type: Date, default: Date.now },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>(
@@ -110,8 +123,50 @@ const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>(
       required: true,
       min: 0,
     },
+    returnedQuantity: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
-  { _id: false }
+  { _id: false },
+);
+
+export interface IPurchaseOrderReturn {
+  returnNumber: string;
+  productId: Types.ObjectId;
+  productName: string;
+  quantity: number;
+  stockType: "sell" | "use";
+  unitCost: number;
+  totalRefundAmount: number;
+  refundMode: "reduce_due" | "replacement_pending";
+  amountDeductedFromDue: number;
+  notes?: string;
+  recordedBy: "owner" | "staff";
+  returnedAt: Date;
+}
+
+const PurchaseOrderReturnSchema = new Schema<IPurchaseOrderReturn>(
+  {
+    returnNumber: { type: String, required: true },
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    stockType: { type: String, enum: ["sell", "use"], required: true },
+    unitCost: { type: Number, required: true, min: 0 },
+    totalRefundAmount: { type: Number, required: true, min: 0 },
+    refundMode: {
+      type: String,
+      enum: ["reduce_due", "replacement_pending"],
+      required: true,
+    },
+    amountDeductedFromDue: { type: Number, default: 0 },
+    notes: { type: String, trim: true },
+    recordedBy: { type: String, enum: ["owner", "staff"], default: "owner" },
+    returnedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
 );
 
 const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
@@ -151,6 +206,10 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
       type: [PurchaseOrderPaymentSchema],
       default: [],
     },
+    returns: {
+      type: [PurchaseOrderReturnSchema],
+      default: [],
+    },
     totalAmount: {
       type: Number,
       required: true,
@@ -162,10 +221,13 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
       min: 0,
       default: 0,
     },
+    ledgerAdjustment: {
+      type: Number,
+      default: 0,
+    },
     amountPending: {
       type: Number,
       required: true,
-      min: 0,
       default: 0,
     },
     paymentMode: {
@@ -219,12 +281,16 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 PurchaseOrderSchema.index({ tenantId: 1, invoiceDate: -1 });
 PurchaseOrderSchema.index({ tenantId: 1, supplierId: 1 });
 PurchaseOrderSchema.index({ tenantId: 1, purchaseOrderNumber: 1 });
+
+if (process.env.NODE_ENV === "development") {
+  delete mongoose.models.PurchaseOrder;
+}
 
 export const PurchaseOrder: Model<IPurchaseOrder> =
   mongoose.models.PurchaseOrder ||

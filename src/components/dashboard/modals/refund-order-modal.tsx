@@ -31,6 +31,10 @@ export function RefundOrderModal({
 
   const parsedAmount = Number(refundAmount) || 0;
 
+  const hasUnreturnedProducts = order?.lineItems?.some(
+    (item) => item.itemType === "product" && (!item.returnedQuantity || item.returnedQuantity < item.quantity)
+  );
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -121,10 +125,39 @@ export function RefundOrderModal({
           </div>
         )}
 
+        {hasUnreturnedProducts ? (
+          <div className="space-y-4">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-[5px]">
+              <div className="flex gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="font-heading font-semibold text-[13px] text-amber-900">
+                    Products Must Be Returned First
+                  </h4>
+                  <p className="font-sans text-[12px] text-amber-800 leading-relaxed">
+                    This order contains physical products that have not been returned. 
+                    To ensure your inventory remains accurate, please close this modal and use the <strong>&quot;Return&quot;</strong> button next to each product on the Order Details screen.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full bg-galla-ink text-white font-heading font-semibold tracking-wider text-[11px] uppercase py-[11px] px-4 rounded-[5px] hover:bg-galla-ink/90 transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
+        ) : (
+
         <form onSubmit={handleFormSubmit} className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block font-sans text-[12px] font-medium text-galla-ink-soft">
+              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
                 Refund Amount (₹)
               </label>
               <button
@@ -191,7 +224,7 @@ export function RefundOrderModal({
           </div>
 
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Payment Mode
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -213,7 +246,7 @@ export function RefundOrderModal({
           </div>
 
           <div>
-            <label className="block font-sans text-[12px] font-medium text-galla-ink-soft mb-1">
+            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
               Refund Reason (Optional)
             </label>
             <input
@@ -245,6 +278,7 @@ export function RefundOrderModal({
             </button>
           </div>
         </form>
+        )}
 
         <ConfirmModal
           isOpen={showConfirm}

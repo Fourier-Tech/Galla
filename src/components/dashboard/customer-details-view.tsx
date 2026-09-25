@@ -25,6 +25,37 @@ import { formatRupee, formatDisplayNumber, calculatePendingAmount } from "@/lib/
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
+import { formatOrderTime } from "@/lib/utils";
+
+function getOrderLastUpdatedTime(order: DashboardOrder): string | undefined {
+  if (order.lastUpdatedTime) return order.lastUpdatedTime;
+
+  const candidateTimestamps = [
+    order.latestActivityAt ? new Date(order.latestActivityAt).getTime() : 0,
+    order.completedAt ? new Date(order.completedAt).getTime() : 0,
+    order.refundedAt ? new Date(order.refundedAt).getTime() : 0,
+    ...(order.payments || []).map((p) =>
+      p.recordedAt ? new Date(p.recordedAt).getTime() : 0
+    ),
+  ].filter((t) => Boolean(t) && !isNaN(t));
+
+  if (candidateTimestamps.length === 0) return undefined;
+
+  const latestTime = Math.max(...candidateTimestamps);
+  const createdTime = order.createdAt ? new Date(order.createdAt).getTime() : 0;
+
+  const isMeaningfullyUpdated = Boolean(
+    (createdTime > 0 && latestTime - createdTime > 5000) ||
+      (order.payments && order.payments.length > 1) ||
+      order.payments?.some((p) => p.type === "settlement")
+  );
+
+  if (isMeaningfullyUpdated && latestTime) {
+    return formatOrderTime(new Date(latestTime));
+  }
+
+  return undefined;
+}
 
 interface CustomerDetailsViewProps {
   customer: DashboardCustomer;
@@ -102,17 +133,8 @@ export function CustomerDetailsView({
     const totalSpendFromOrders = validOrders.reduce((sum, o) => sum + (o.paid || 0), 0);
     const pendingDuesFromOrders = calculatePendingAmount(orders);
 
-    const totalSpend = !isLoading
-      ? totalSpendFromOrders
-      : customer.totalSpent && customer.totalSpent > 0
-      ? customer.totalSpent
-      : 0;
-
-    const outstandingDue = !isLoading
-      ? pendingDuesFromOrders
-      : typeof customer.outstandingDue === "number" && customer.outstandingDue > 0
-      ? customer.outstandingDue
-      : 0;
+    const totalSpend = customer.totalSpent || 0;
+    const outstandingDue = customer.outstandingDue || 0;
 
     const totalVisits = !isLoading
       ? totalOrders > 0
@@ -235,6 +257,10 @@ export function CustomerDetailsView({
       const itemsMatch = o.itemsSummary?.toLowerCase().includes(q);
       const timeMatch = o.time?.toLowerCase().includes(q);
       return idMatch || itemsMatch || timeMatch;
+    }).sort((a, b) => {
+      const dateA = new Date(a.latestActivityAt || a.createdAt || "").getTime();
+      const dateB = new Date(b.latestActivityAt || b.createdAt || "").getTime();
+      return dateB - dateA;
     });
   }, [orders, typeFilter, search]);
 
@@ -595,6 +621,12 @@ export function CustomerDetailsView({
                             {order.time}
                           </span>
                         </div>
+                        {getOrderLastUpdatedTime(order) && (
+                          <div className="font-sans text-[11px] text-galla-ink-soft/75 mt-0.5 flex items-center gap-1 truncate">
+                            <span className="text-galla-ink-soft/60">Last update:</span>
+                            <span className="font-medium text-galla-ink-soft">{getOrderLastUpdatedTime(order)}</span>
+                          </div>
+                        )}
                         {order.notes && (
                           <div
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
