@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { getCustomerOrdersAction } from "@/app/dashboard/actions";
-import { formatRupee, formatDisplayNumber, calculatePendingAmount } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber, calculatePendingAmount, getBookingUrgency } from "@/lib/utils";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
@@ -672,8 +672,10 @@ export function CustomerDetailsView({
                         className="flex items-center gap-1.5 shrink-0"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {/* 1. Settle & Done: for orders with pending due balance / advance */}
+                        {/* 1. Settle & Done: for orders with pending due balance / advance when appointment date has arrived */}
                         {!isPaidFull &&
+                          (!order.scheduledFor ||
+                            (getBookingUrgency(order.scheduledFor)?.daysAway ?? 0) <= 0) &&
                           order.status !== "cancelled_refunded" &&
                           order.status !== "cancelled_converted" &&
                           onOpenSettle && (

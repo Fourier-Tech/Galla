@@ -80,6 +80,7 @@ export function OrderDetailsModal({
   const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
   const isTomorrow = urgency?.tone === "tomorrow";
   const isToday = urgency?.tone === "today";
+  const isScheduledDateArrived = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
   // Prefill reminder text for advance booking, payment due, or replacement orders
   const shouldPrefillMsg = isAdvance || isDue || isReplacement;
@@ -600,11 +601,6 @@ export function OrderDetailsModal({
                       <span className="inline-flex items-center gap-1.5">
                         <Wallet className="h-3.5 w-3.5 text-galla-ink-soft" />
                         <span>Amount Collected:</span>
-                        {order.paymentMode && (
-                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                            {order.paymentMode}
-                          </span>
-                        )}
                       </span>
                       <span className="tabular-nums font-mono">
                         {formatRupee(totalCollected)}
@@ -637,11 +633,6 @@ export function OrderDetailsModal({
                       <span className="inline-flex items-center gap-1.5">
                         <Wallet className="h-3.5 w-3.5" />
                         <span>Amount Paid:</span>
-                        {order.paymentMode && (
-                          <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                            {order.paymentMode}
-                          </span>
-                        )}
                       </span>
                       <span className="tabular-nums font-mono">{formatRupee(order.paid)}</span>
                     </div>
@@ -909,6 +900,11 @@ export function OrderDetailsModal({
             {isDue ? (
               <span className="text-amber-800 font-medium">
                 Customer has {formatRupee(dueAmount)} remaining due
+                {!isScheduledDateArrived && order.scheduledFor && (
+                  <span className="text-[11px] text-galla-ink-soft/80 block sm:inline sm:ml-1 font-normal">
+                    &bull; Settle available on appointment day ({formatBookingDate(order.scheduledFor)})
+                  </span>
+                )}
               </span>
             ) : isReplacement ? (
               <span className="text-amber-800 font-medium">Replacement order &bull; Awaiting dealer delivery</span>
@@ -920,7 +916,7 @@ export function OrderDetailsModal({
           </div>
 
           <div className="flex items-center gap-2">
-            {isDue && onOpenSettle && (
+            {isDue && isScheduledDateArrived && onOpenSettle && (
               <button
                 type="button"
                 onClick={() => {
@@ -933,7 +929,7 @@ export function OrderDetailsModal({
               </button>
             )}
 
-            {!isDue && !isCompleted && hasPendingDelivery && onOpenSettle && (
+            {!isDue && !isCompleted && hasPendingDelivery && isScheduledDateArrived && onOpenSettle && (
               <button
                 type="button"
                 onClick={() => {
