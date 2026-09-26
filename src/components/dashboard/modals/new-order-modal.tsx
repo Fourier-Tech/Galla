@@ -1355,13 +1355,13 @@ export function NewOrderModal({
 
             {/* Out of Stock Notice Banner */}
             {hasOutOfStockItems && (
-              <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-[6px] text-amber-950 space-y-1 animate-in fade-in duration-150">
-                <div className="flex items-center gap-1.5 font-semibold text-[12.5px]">
-                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
-                  <span>Stock Notice: Advance Booking / Delivery Pending</span>
+              <div className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-[6px] text-amber-950 space-y-0.5 animate-in fade-in duration-150">
+                <div className="flex items-center gap-1.5 font-semibold text-[12px]">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                  <span>Delivery Pending &bull; Out of Stock</span>
                 </div>
-                <p className="text-[11.5px] text-amber-800 leading-snug">
-                  This order includes products currently out of stock ({outOfStockItems.map((it) => it.name).join(", ")}). Delivery cannot be handed over immediately. You can collect full payment or an advance deposit now; physical fulfillment will take place upon stock arrival.
+                <p className="text-[11px] text-amber-800 leading-snug">
+                  Includes out-of-stock items ({outOfStockItems.map((it) => it.name).join(", ")}). Collect payment or advance now; deliver upon stock arrival.
                 </p>
               </div>
             )}
@@ -1676,16 +1676,9 @@ export function NewOrderModal({
                   {/* Advance Amount (only for partial deposit) */}
                   {settlementMode === "advance" && (
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                          Advance Paid (₹)
-                        </label>
-                        {advance.trim() !== "" && Number(advance) > 0 && (
-                          <span className="text-[11px] font-sans text-galla-ink-soft">
-                            Pending: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
-                          </span>
-                        )}
-                      </div>
+                      <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                        Advance Paid (₹)
+                      </label>
                       <input
                         type="text"
                         value={advance}
@@ -1765,7 +1758,7 @@ export function NewOrderModal({
                   {settlementMode === "advance" ? (
                     advance.trim() !== "" && Number(advance) > 0 ? (
                       <span>
-                        Remaining: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
+                        Pending: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
                       </span>
                     ) : null
                   ) : (
