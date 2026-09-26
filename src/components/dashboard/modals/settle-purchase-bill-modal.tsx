@@ -4,6 +4,7 @@ import { DashboardPurchaseOrder, DashboardSupplier, DashboardExpense, DashboardP
 import { recordPurchaseOrderPaymentAction } from "@/app/dashboard/actions";
 import { formatRupee, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 interface SettlePurchaseBillModalProps {
   bill: DashboardPurchaseOrder | null;
@@ -261,34 +262,12 @@ function SettlePurchaseBillModalContent({
               </div>
 
               {/* Payment Mode Selection */}
-              <div>
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                  Payment Mode for Settlement
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  {(
-                    [
-                      { id: "cash", label: "Cash" },
-                      { id: "upi", label: "UPI" },
-                      { id: "card", label: "Card" },
-                      { id: "bank_transfer", label: "Bank" },
-                    ] as const
-                  ).map((mode) => (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      onClick={() => setPaymentMode(mode.id)}
-                      className={`py-1.5 text-[12px] font-sans font-medium rounded-[4px] border uppercase tracking-wider transition-all cursor-pointer ${
-                        paymentMode === mode.id
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs font-semibold"
-                          : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink"
-                      }`}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <PaymentModeSelect
+                label="Payment Mode for Settlement"
+                value={paymentMode}
+                onChange={setPaymentMode}
+                allowedModes={["cash", "upi", "card", "bank_transfer"]}
+              />
 
           {/* Notes / Reference */}
           <div>

@@ -5,6 +5,7 @@ import { X, Loader2, CheckCircle2, RotateCcw, Package, AlertCircle } from "lucid
 import { DashboardProduct } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
 import { settleSupplierReplacementAction, getPurchaseOrdersForProductAction } from "@/app/dashboard/actions";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 interface SettleReplacementModalProps {
   isOpen: boolean;
@@ -274,43 +275,40 @@ export function SettleReplacementModal({
               </div>
             </div>
           ) : (
-            /* Conditional Options: Credit / Refund */
-            <div className="p-3 bg-galla-paper/40 border border-galla-line/80 rounded-[5px] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
-                  Credit / Refund Mode
-                </label>
-                <span className="font-mono text-[12px] font-semibold text-rose-700">
-                  Total: {formatRupee(estimatedCost)}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRefundMode("reduce_due")}
-                  className={`p-2 rounded-[4px] border text-left transition-all cursor-pointer ${
-                    refundMode === "reduce_due"
-                      ? "bg-rose-50 border-rose-300 text-rose-700 font-medium"
-                      : "bg-galla-surface border-galla-line text-galla-ink hover:bg-galla-paper"
-                  }`}
-                >
-                  <div className="font-sans text-[11.5px] font-semibold">Reduce Supplier Due</div>
-                  <div className="font-sans text-[10px] text-galla-ink-soft">Deduct from pending bills</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRefundMode("cash")}
-                  className={`p-2 rounded-[4px] border text-left transition-all cursor-pointer ${
-                    refundMode === "cash"
-                      ? "bg-rose-50 border-rose-300 text-rose-700 font-medium"
-                      : "bg-galla-surface border-galla-line text-galla-ink hover:bg-galla-paper"
-                  }`}
-                >
-                  <div className="font-sans text-[11.5px] font-semibold">Cash / Direct Refund</div>
-                  <div className="font-sans text-[10px] text-galla-ink-soft">Dealer handed cash/UPI</div>
-                </button>
-              </div>
+            <div className="p-3 bg-galla-paper/40 border border-galla-line/80 rounded-[5px]">
+              {/* Conditional Options: Credit / Refund */}
+              <PaymentModeSelect
+                label="Credit / Refund Mode"
+                badge={
+                  <span className="font-mono text-[12px] font-semibold text-rose-700">
+                    Total: {formatRupee(estimatedCost)}
+                  </span>
+                }
+                value={refundMode}
+                onChange={setRefundMode}
+                allowedModes={[
+                  {
+                    value: "reduce_due",
+                    label: "Reduce Supplier Due",
+                    sublabel: "Deduct from pending bills",
+                  },
+                  {
+                    value: "cash",
+                    label: "Cash / Direct Refund",
+                    sublabel: "Dealer handed cash or direct refund",
+                  },
+                  {
+                    value: "upi",
+                    label: "UPI / Online Refund",
+                    sublabel: "Dealer transferred via UPI / Netbanking",
+                  },
+                  {
+                    value: "card",
+                    label: "Card Reversal",
+                    sublabel: "Refunded to card terminal",
+                  },
+                ]}
+              />
             </div>
           )}
 

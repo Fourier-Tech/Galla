@@ -42,6 +42,7 @@ import {
   getLocalDateString,
 } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 interface StockInModalProps {
   isOpen: boolean;
@@ -1642,68 +1643,18 @@ export function StockInModal({
 
             {/* 4. Payment Method Selector (Shown when paying > 0) */}
             {(settlementMode !== "pending" || enteredPayLaterPaid > 0) && (
-              <div>
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                  {settlementMode === "pending"
+              <PaymentModeSelect
+                label={
+                  settlementMode === "pending"
                     ? `Mode of Upfront Payment (${formatRupee(enteredPayLaterPaid)})`
                     : settlementMode === "advance"
                       ? `Mode of Advance Payment (${formatRupee(enteredAdvance)})`
-                      : "Mode of Payment"}
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("cash")}
-                    className={`py-2 px-2 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      paymentMode === "cash"
-                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                    }`}
-                  >
-                    <Banknote className="h-3.5 w-3.5" />
-                    <span>Cash</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("upi")}
-                    className={`py-2 px-2 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      paymentMode === "upi"
-                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                    }`}
-                  >
-                    <QrCode className="h-3.5 w-3.5" />
-                    <span>UPI / QR</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("card")}
-                    className={`py-2 px-2 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      paymentMode === "card"
-                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                    }`}
-                  >
-                    <CreditCard className="h-3.5 w-3.5" />
-                    <span>Card</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("bank_transfer")}
-                    className={`py-2 px-2 text-[12px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      paymentMode === "bank_transfer"
-                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                    }`}
-                  >
-                    <Landmark className="h-3.5 w-3.5" />
-                    <span>Bank Transfer</span>
-                  </button>
-                </div>
-              </div>
+                      : "Mode of Payment"
+                }
+                value={paymentMode}
+                onChange={setPaymentMode}
+                allowedModes={["cash", "upi", "card", "bank_transfer"]}
+              />
             )}
 
             {/* Notes / Memo (Optional) */}

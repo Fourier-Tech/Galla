@@ -6,6 +6,7 @@ import { DashboardExpense } from "@/types/dashboard";
 import { createExpenseAction } from "@/app/dashboard/actions";
 import { formatRupee } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 interface NewExpenseModalProps {
   isOpen: boolean;
@@ -217,27 +218,12 @@ export function NewExpenseModal({
           </div>
 
           {/* Payment Mode */}
-          <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-              Payment Mode
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {PAYMENT_MODES.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPaymentMode(mode)}
-                  className={`py-1.5 text-[12.5px] font-sans font-medium rounded-[4px] border uppercase tracking-wider transition-all cursor-pointer ${
-                    paymentMode === mode
-                      ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold shadow-2xs"
-                      : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink"
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-          </div>
+          <PaymentModeSelect
+            label="Payment Mode"
+            value={paymentMode}
+            onChange={setPaymentMode}
+            allowedModes={["cash", "upi", "card"]}
+          />
 
           {/* Notes */}
           <div>

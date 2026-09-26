@@ -24,6 +24,7 @@ import {
   returnCustomerOrderItemAction,
   getProductByIdAction,
 } from "@/app/dashboard/actions";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 interface ReturnCustomerOrderItemModalProps {
   isOpen: boolean;
@@ -464,46 +465,30 @@ export function ReturnCustomerOrderItemModal({
               </div>
 
               {/* Refund Customer Mode */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
-                    Refund Customer Mode
-                  </label>
+              <PaymentModeSelect
+                label="Refund Customer Mode"
+                badge={
                   <span className="font-mono text-[12px] font-semibold text-rose-700">
                     Refund: {formatRupee(finalReturnAmount)}
                   </span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  {(["cash", "upi", "card"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setRefundMode(m)}
-                      className={`py-1.5 px-2 rounded-[4px] border text-center transition-all capitalize font-sans text-[11.5px] cursor-pointer ${
-                        refundMode === m
-                          ? "bg-rose-50 border-rose-300 text-rose-700 font-semibold"
-                          : "bg-galla-surface border-galla-line text-galla-ink hover:bg-galla-paper"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                  {pendingAmount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setRefundMode("reduce_due")}
-                      className={`py-1.5 px-2 rounded-[4px] border text-center transition-all font-sans text-[11.5px] cursor-pointer ${
-                        refundMode === "reduce_due"
-                          ? "bg-rose-50 border-rose-300 text-rose-700 font-semibold"
-                          : "bg-galla-surface border-galla-line text-galla-ink hover:bg-galla-paper"
-                      }`}
-                      title={`Reduce pending order balance of ${formatRupee(pendingAmount)}`}
-                    >
-                      Reduce Due
-                    </button>
-                  )}
-                </div>
-              </div>
+                }
+                value={refundMode}
+                onChange={setRefundMode}
+                allowedModes={
+                  pendingAmount > 0
+                    ? [
+                        "cash",
+                        "upi",
+                        "card",
+                        {
+                          value: "reduce_due",
+                          label: "Reduce Customer Due",
+                          sublabel: `Reduce pending order balance of ${formatRupee(pendingAmount)}`,
+                        },
+                      ]
+                    : ["cash", "upi", "card"]
+                }
+              />
             </div>
           ) : (
             /* Condition Flow B: Defective -> Ask Resolution (Refund vs Replace) */
@@ -560,43 +545,30 @@ export function ReturnCustomerOrderItemModal({
               {/* Defective -> Choice 1: Money Refund */}
               {defectiveResolution === "refund" && (
                 <div className="space-y-2 pt-2 border-t border-rose-200/60">
-                  <div className="flex items-center justify-between">
-                    <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
-                      Refund Customer via
-                    </label>
-                    <span className="font-mono text-[12px] font-semibold text-rose-700">
-                      Total: {formatRupee(finalReturnAmount)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                    {(["cash", "upi", "card"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setRefundMode(m)}
-                        className={`py-1.5 px-2 rounded-[4px] border text-center transition-all capitalize font-sans text-[11.5px] cursor-pointer ${
-                          refundMode === m
-                            ? "bg-rose-100/80 border-rose-400 text-rose-800 font-semibold"
-                            : "bg-galla-surface border-galla-line text-galla-ink hover:bg-galla-paper"
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                    {pendingAmount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setRefundMode("reduce_due")}
-                        className={`py-1.5 px-2 rounded-[4px] border text-center transition-all font-sans text-[11.5px] cursor-pointer ${
-                          refundMode === "reduce_due"
-                            ? "bg-rose-100/80 border-rose-400 text-rose-800 font-semibold"
-                            : "bg-galla-surface border-galla-line text-galla-ink hover:bg-galla-paper"
-                        }`}
-                      >
-                        Reduce Due
-                      </button>
-                    )}
-                  </div>
+                  <PaymentModeSelect
+                    label="Refund Customer via"
+                    badge={
+                      <span className="font-mono text-[12px] font-semibold text-rose-700">
+                        Total: {formatRupee(finalReturnAmount)}
+                      </span>
+                    }
+                    value={refundMode}
+                    onChange={setRefundMode}
+                    allowedModes={
+                      pendingAmount > 0
+                        ? [
+                            "cash",
+                            "upi",
+                            "card",
+                            {
+                              value: "reduce_due",
+                              label: "Reduce Customer Due",
+                              sublabel: `Reduce pending order balance of ${formatRupee(pendingAmount)}`,
+                            },
+                          ]
+                        : ["cash", "upi", "card"]
+                    }
+                  />
                   <p className="text-[10.5px] font-sans text-rose-800/80">
                     Defective piece ({parsedQty} pcs) will be labeled in defective inventory to claim credit or return to dealer in future.
                   </p>

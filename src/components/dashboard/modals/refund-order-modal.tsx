@@ -6,6 +6,7 @@ import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
 import { refundOrderAction } from "@/app/dashboard/actions";
 import { formatRupee, formatBookingDate, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 interface RefundOrderModalProps {
   order: DashboardOrder | null;
@@ -223,27 +224,12 @@ export function RefundOrderModal({
             )}
           </div>
 
-          <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-              Payment Mode
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["cash", "upi", "card"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setRefundMode(mode)}
-                  className={`py-1.5 text-[12.5px] font-sans font-medium rounded-[4px] border uppercase tracking-wider transition-all cursor-pointer ${
-                    refundMode === mode
-                      ? "bg-red-50 text-red-800 border-red-300 shadow-2xs font-semibold"
-                      : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink"
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-          </div>
+          <PaymentModeSelect
+            label="Refund Payment Mode"
+            value={refundMode}
+            onChange={setRefundMode}
+            allowedModes={["cash", "upi", "card"]}
+          />
 
           <div>
             <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">

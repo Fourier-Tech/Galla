@@ -6,6 +6,7 @@ import { DashboardOrder } from "@/types/dashboard";
 import { completeOrderAction } from "@/app/dashboard/actions";
 import { formatRupee, formatBookingDate, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 interface SettleOrderModalProps {
   order: DashboardOrder | null;
@@ -238,27 +239,12 @@ function SettleOrderModalContent({
           </div>
 
           {/* Payment Mode Selection */}
-          <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-              Payment Mode for Remaining Balance
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["cash", "upi", "card"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPaymentMode(mode)}
-                  className={`py-1.5 text-[12.5px] font-sans font-medium rounded-[4px] border uppercase tracking-wider transition-all cursor-pointer ${
-                    paymentMode === mode
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs font-semibold"
-                      : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink"
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-          </div>
+          <PaymentModeSelect
+            label="Payment Mode for Remaining Balance"
+            value={paymentMode}
+            onChange={setPaymentMode}
+            allowedModes={["cash", "upi", "card"]}
+          />
 
           {/* Notes / Remarks */}
           <div>

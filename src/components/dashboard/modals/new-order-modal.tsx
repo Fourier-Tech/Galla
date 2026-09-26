@@ -28,6 +28,7 @@ import {
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
 import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber, getPhoneDigits } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
+import { PaymentModeSelect } from "../payment-mode-select";
 
 function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]) {
   if (!pkg.products || pkg.products.length === 0) {
@@ -1558,55 +1559,18 @@ export function NewOrderModal({
 
             {/* Mode of Payment (Shown when not pay_later or when paying partial upfront in pay_later) */}
             {(settlementMode !== "pay_later" || enteredPayLaterPaid > 0) && (
-              <div>
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                  {settlementMode === "pay_later"
+              <PaymentModeSelect
+                label={
+                  settlementMode === "pay_later"
                     ? `Mode of Upfront Payment (${formatRupee(enteredPayLaterPaid)})`
                     : settlementMode === "advance"
                     ? "Mode of Advance Payment"
-                    : "Mode of Payment"}
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("cash")}
-                    className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      paymentMode === "cash"
-                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                    }`}
-                  >
-                    <Banknote className="h-3.5 w-3.5" />
-                    <span>Cash</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("upi")}
-                    className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      paymentMode === "upi"
-                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                    }`}
-                  >
-                    <QrCode className="h-3.5 w-3.5" />
-                    <span>UPI / QR</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("card")}
-                    className={`py-2 px-2 text-[12.5px] font-sans font-medium rounded-[5px] border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      paymentMode === "card"
-                        ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs font-semibold"
-                        : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
-                    }`}
-                  >
-                    <CreditCard className="h-3.5 w-3.5" />
-                    <span>Card</span>
-                  </button>
-                </div>
-              </div>
+                    : "Mode of Payment"
+                }
+                value={paymentMode}
+                onChange={setPaymentMode}
+                allowedModes={["cash", "upi", "card"]}
+              />
             )}
 
             {/* Order Notes / Special Instructions (Optional) */}
