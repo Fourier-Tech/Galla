@@ -372,7 +372,8 @@ export function DashboardClient({
 
   const handleRefundSuccess = (
     updatedOrder: DashboardOrder,
-    newExpense?: DashboardExpense
+    newExpense?: DashboardExpense,
+    updatedProducts?: DashboardProduct[]
   ) => {
     setOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
@@ -384,6 +385,15 @@ export function DashboardClient({
         cancelled_refunded: (prev.cancelled_refunded || 0) + 1,
       };
     });
+    if (updatedProducts && updatedProducts.length > 0) {
+      setProducts((prev) => {
+        const prodMap = new Map(prev.map((p) => [String(p.id), p]));
+        for (const up of updatedProducts) {
+          prodMap.set(String(up.id), up);
+        }
+        return Array.from(prodMap.values());
+      });
+    }
     if (newExpense) {
       setExpenses((prev) => [newExpense, ...prev]);
       setTotalExpensesCount((prev) => prev + 1);

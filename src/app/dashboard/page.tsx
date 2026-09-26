@@ -401,12 +401,21 @@ export default async function DashboardPage() {
             returnCondition: r.returnCondition,
             customerResolution: r.customerResolution,
             refundMode: r.refundMode,
-            supplierClaim: r.supplierClaim ? {
-              poId: r.supplierClaim.poId,
-              purchaseOrderNumber: r.supplierClaim.purchaseOrderNumber,
-              supplierName: r.supplierClaim.supplierName,
-              refundMode: r.supplierClaim.refundMode,
-            } : undefined,
+            supplierClaim:
+              r.supplierClaim &&
+              (r.supplierClaim.poId ||
+                r.supplierClaim.purchaseOrderNumber ||
+                r.supplierClaim.supplierName)
+                ? {
+                    poId: r.supplierClaim.poId
+                      ? r.supplierClaim.poId.toString()
+                      : undefined,
+                    purchaseOrderNumber:
+                      r.supplierClaim.purchaseOrderNumber || undefined,
+                    supplierName: r.supplierClaim.supplierName || undefined,
+                    refundMode: r.supplierClaim.refundMode || undefined,
+                  }
+                : undefined,
             customerReplacementId: r.customerReplacementId ? r.customerReplacementId.toString() : undefined,
             expectedPickupDate: r.expectedPickupDate ? new Date(r.expectedPickupDate).toISOString() : undefined,
             restockLocation: r.restockLocation,

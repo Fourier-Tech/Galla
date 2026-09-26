@@ -1269,6 +1269,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
   success: boolean;
   order?: DashboardOrder;
   newExpense?: DashboardExpense;
+  updatedProducts?: DashboardProduct[];
   error?: string;
 }> {
   try {
@@ -1413,6 +1414,78 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       };
     }
 
+    // Restock any physical products in the order
+    const updatedProductsList: DashboardProduct[] = [];
+    if (order.lineItems && order.lineItems.length > 0) {
+      for (let idx = 0; idx < order.lineItems.length; idx++) {
+        const item = order.lineItems[idx];
+        if (item.itemType === "product") {
+          const unreturnedQty = (item.quantity || 1) - (item.returnedQuantity || 0);
+          if (unreturnedQty > 0) {
+            const product = await Product.findOne({
+              _id: item.itemId,
+              tenantId,
+            });
+            if (product) {
+              product.sellStock = (product.sellStock || 0) + unreturnedQty;
+              await product.save();
+              await cleanupProductBatchNames(tenantId, product.name);
+              updatedProductsList.push({
+                id: product._id.toString(),
+                name: product.name,
+                category: product.category,
+                sell: product.sellStock,
+                use: product.useStock,
+                defectiveStock: product.defectiveStock || 0,
+                price: product.expectedSellPrice,
+                purchaseCost: product.purchaseCost,
+                lowStockThreshold: product.lowStockThreshold,
+                description: product.description,
+                barcode: product.barcode,
+                isActive: product.isActive,
+              });
+            }
+            item.returnedQuantity = item.quantity;
+            item.returnCondition = "restocked";
+
+            order.returns = order.returns || [];
+            order.returns.push({
+              returnNumber: `CRET-${Date.now()}-${idx}`,
+              lineItemId: item._id,
+              lineItemIndex: idx,
+              productId: product?._id,
+              productName: item.name,
+              quantity: unreturnedQty,
+              unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : 0,
+              refundAmount: (item.finalPrice / (item.quantity || 1)) * unreturnedQty,
+              returnCondition: "restocked",
+              customerResolution: "refund",
+              refundMode: refundMode,
+              restockLocation: "sellStock",
+              isSameDayReturn: isSameDay,
+              notes: refundReason || "Full order refund restock",
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              returnedAt: new Date(),
+            });
+          }
+        }
+      }
+    }
+
+    if (!order.payments) order.payments = [];
+    order.payments.push({
+      amount: -refundAmount,
+      mode: refundMode as any,
+      notes: `Order refund: ${refundReason || "Full refund & items restocked"}`,
+      recordedBy: session.user.role === "staff" ? "staff" : "owner",
+      type: "refund",
+      recordedAt: new Date(),
+    });
+
+    order.markModified("lineItems");
+    order.markModified("returns");
+    order.markModified("payments");
+
     order.amountPending = 0;
     order.status = "cancelled_refunded";
 
@@ -1444,6 +1517,10 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     try {
       revalidatePath("/dashboard");
       broadcastUpdate(tenantId, "order_refunded");
+      if (updatedProductsList.length > 0) {
+        broadcastUpdate(tenantId, "inventory_updated");
+        broadcastUpdate(tenantId, "order_returned");
+      }
     } catch (revalErr) {
       console.warn("revalidatePath warning:", revalErr);
     }
@@ -1454,6 +1531,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       success: boolean;
       order: DashboardOrder;
       newExpense?: DashboardExpense;
+      updatedProducts?: DashboardProduct[];
     } = {
       success: true,
       order: {
@@ -1487,11 +1565,77 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
           ? new Date(order.scheduledFor).toISOString()
           : undefined,
         customerPhone: order.customerSnapshot?.phone || undefined,
+        lineItems: (order.lineItems || []).map((li: any) => ({
+          name: li.name,
+          itemType: li.itemType,
+          itemId: li.itemId ? li.itemId.toString() : undefined,
+          unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
+          quantity: typeof li.quantity === "number" ? li.quantity : 1,
+          discount: li.discount,
+          finalPrice:
+            typeof li.finalPrice === "number"
+              ? li.finalPrice
+              : (li.unitPrice || 0) * (li.quantity || 1),
+          fulfilled: li.fulfilled,
+          returnedQuantity: li.returnedQuantity || 0,
+          returnCondition: li.returnCondition,
+        })),
+        payments: (order.payments || []).map((p: any) => ({
+          amount: p.amount,
+          mode: p.mode,
+          notes: p.notes,
+          recordedAt: p.recordedAt
+            ? new Date(p.recordedAt).toISOString()
+            : new Date().toISOString(),
+          recordedBy: p.recordedBy,
+          type: p.type || undefined,
+        })),
+        returns: (order.returns || []).map((ret: any) => ({
+          returnNumber: ret.returnNumber,
+          lineItemId: ret.lineItemId ? ret.lineItemId.toString() : undefined,
+          lineItemIndex: ret.lineItemIndex,
+          productId: ret.productId ? ret.productId.toString() : undefined,
+          productName: ret.productName,
+          quantity: ret.quantity,
+          unitPrice: ret.unitPrice,
+          refundAmount: ret.refundAmount,
+          returnCondition: ret.returnCondition,
+          customerResolution: ret.customerResolution,
+          refundMode: ret.refundMode,
+          supplierClaim:
+            ret.supplierClaim &&
+            (ret.supplierClaim.poId ||
+              ret.supplierClaim.purchaseOrderNumber ||
+              ret.supplierClaim.supplierName)
+              ? {
+                  poId: ret.supplierClaim.poId
+                    ? ret.supplierClaim.poId.toString()
+                    : undefined,
+                  purchaseOrderNumber:
+                    ret.supplierClaim.purchaseOrderNumber || undefined,
+                  supplierName: ret.supplierClaim.supplierName || undefined,
+                  refundMode: ret.supplierClaim.refundMode || undefined,
+                }
+              : undefined,
+          customerReplacementId: ret.customerReplacementId
+            ? ret.customerReplacementId.toString()
+            : undefined,
+          expectedPickupDate: ret.expectedPickupDate ? new Date(ret.expectedPickupDate).toISOString() : undefined,
+          restockLocation: ret.restockLocation,
+          isSameDayReturn: ret.isSameDayReturn,
+          notes: ret.notes,
+          recordedBy: ret.recordedBy,
+          returnedAt: ret.returnedAt ? new Date(ret.returnedAt).toISOString() : new Date().toISOString(),
+        })),
       },
     };
 
     if (newExpense) {
       result.newExpense = newExpense;
+    }
+
+    if (updatedProductsList.length > 0) {
+      result.updatedProducts = updatedProductsList;
     }
 
     return result;

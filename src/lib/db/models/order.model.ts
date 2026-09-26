@@ -281,6 +281,7 @@ const OrderItemReturnSchema = new Schema<IOrderItemReturn>(
       enum: ["cash", "upi", "card", "reduce_due"],
     },
     supplierClaim: {
+      _id: false,
       poId: { type: String },
       purchaseOrderNumber: { type: String },
       supplierName: { type: String },
