@@ -17,6 +17,7 @@ import {
   Plus,
   Calendar,
   ShoppingBag,
+  ChevronDown,
 } from "lucide-react";
 import {
   DashboardCustomer,
@@ -147,8 +148,9 @@ export function NewOrderModal({
   }, [isOpen, fetchLiveProducts]);
 
   // Step 3 State
-  const [customPrice, setCustomPrice] = useState("");
   const [discount, setDiscount] = useState("");
+  const [discountType, setDiscountType] = useState<"percentage" | "flat">("percentage");
+  const [isDiscountDropdownOpen, setIsDiscountDropdownOpen] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
   const [settlementMode, setSettlementMode] = useState<"completed" | "pay_later" | "advance" | "paid_full">("completed");
   const [payLaterPaid, setPayLaterPaid] = useState("");
@@ -165,6 +167,7 @@ export function NewOrderModal({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const discountDropdownRef = useRef<HTMLDivElement>(null);
 
   // Filter customers by name query
   const filteredCustomers = useMemo(() => {
@@ -210,6 +213,31 @@ export function NewOrderModal({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // Outside click listener for discount type dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        discountDropdownRef.current &&
+        !discountDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDiscountDropdownOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsDiscountDropdownOpen(false);
+      }
+    }
+    if (isDiscountDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isDiscountDropdownOpen]);
 
   // Filter active catalog items
   const filteredServices = useMemo(() => {
@@ -311,23 +339,32 @@ export function NewOrderModal({
     return selectedItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   }, [selectedItems]);
 
-  const basePrice = useMemo(() => {
-    if (customPrice !== "" && !isNaN(Number(customPrice))) {
-      return Number(customPrice);
-    }
-    return calculatedSubtotal;
-  }, [customPrice, calculatedSubtotal]);
+  const basePrice = calculatedSubtotal;
 
-  const discountPercent = useMemo(() => {
+  const discountValue = useMemo(() => {
     if (discount !== "" && !isNaN(Number(discount))) {
-      return Math.min(100, Math.max(0, Number(discount)));
+      const num = Number(discount);
+      if (discountType === "percentage") {
+        return Math.min(100, Math.max(0, num));
+      }
+      return Math.min(basePrice, Math.max(0, num));
     }
     return 0;
-  }, [discount]);
+  }, [discount, discountType, basePrice]);
 
   const calculatedDiscountAmount = useMemo(() => {
-    return Math.round((basePrice * discountPercent) / 100);
-  }, [basePrice, discountPercent]);
+    if (discountType === "percentage") {
+      return Math.round((basePrice * discountValue) / 100);
+    }
+    return Math.min(basePrice, discountValue);
+  }, [basePrice, discountType, discountValue]);
+
+  const discountPercent = useMemo(() => {
+    if (discountType === "percentage") {
+      return discountValue;
+    }
+    return basePrice > 0 ? Math.round((calculatedDiscountAmount / basePrice) * 100) : 0;
+  }, [discountType, discountValue, calculatedDiscountAmount, basePrice]);
 
   const finalTotal = useMemo(() => {
     return Math.max(0, basePrice - calculatedDiscountAmount);
@@ -373,8 +410,9 @@ export function NewOrderModal({
     setPhone("");
     setOrderType("Service booking");
     setSelectedItems([]);
-    setCustomPrice("");
     setDiscount("");
+    setDiscountType("percentage");
+    setIsDiscountDropdownOpen(false);
     setPaymentMode("cash");
     setSettlementMode("completed");
     setPayLaterPaid("");
@@ -423,12 +461,7 @@ export function NewOrderModal({
   };
 
   const handleRemoveItem = (id: string, type: "service" | "package" | "product") => {
-    setSelectedItems((prev) => {
-      const next = prev.filter((i) => !(i.id === id && i.type === type));
-      const nextSubtotal = next.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-      setCustomPrice(String(nextSubtotal));
-      return next;
-    });
+    setSelectedItems((prev) => prev.filter((i) => !(i.id === id && i.type === type)));
   };
 
   const handleUpdateQuantity = (id: string, type: "service" | "package" | "product", delta: number) => {
@@ -442,8 +475,6 @@ export function NewOrderModal({
           return item;
         })
         .filter(Boolean) as SelectedOrderItem[];
-      const nextSubtotal = next.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-      setCustomPrice(String(nextSubtotal));
       return next;
     });
   };
@@ -472,8 +503,7 @@ export function NewOrderModal({
       setErrorMsg("Please select at least one item to continue.");
       return;
     }
-    // Always refresh custom price with current calculated subtotal when moving to Step 3
-    setCustomPrice(String(calculatedSubtotal));
+    // Move to Step 3
     setStep(3);
   };
 
@@ -576,8 +606,8 @@ export function NewOrderModal({
         paidAmount: paidAmount,
         status: status,
         subtotal: calculatedSubtotal,
-        discountType: "percentage",
-        discountValue: discountPercent,
+        discountType: discountType,
+        discountValue: discountValue,
         discountAmount: calculatedDiscountAmount,
         paymentMode: paymentMode,
         bookingDate: resolvedBookingDate,
@@ -1265,57 +1295,149 @@ export function NewOrderModal({
               </div>
             )}
 
-            {/* Editable Pricing & Direct Discount Section */}
+            {/* Pricing & Direct Discount Section */}
             <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                {/* Editable Base Price */}
+                {/* Non-editable Base Subtotal */}
                 <div>
-                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                    Entered Price (₹) <span className="text-[10px] text-galla-ink-soft/70">(Editable)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={customPrice}
-                    onChange={(e) => setCustomPrice(e.target.value.replace(/\D/g, ""))}
-                    placeholder={String(calculatedSubtotal)}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                      Subtotal
+                    </label>
+                    <span className="text-[10px] font-sans font-medium text-galla-ink-soft/70 uppercase">
+                      Fixed
+                    </span>
+                  </div>
+                  <div className="w-full bg-galla-paper/60 border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink select-none flex items-center justify-between shadow-2xs">
+                    <span>{formatRupee(calculatedSubtotal)}</span>
+                    <span className="text-[10.5px] font-sans font-normal text-galla-ink-soft">
+                      {selectedItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} {selectedItems.reduce((acc, it) => acc + (it.quantity || 1), 0) === 1 ? "item" : "items"}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Percentage Discount */}
+                {/* Discount with % and ₹ Dropdown Toggle */}
                 <div>
-                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                    Discount (%)
-                  </label>
-                  <div className="relative">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                      Discount
+                    </label>
+                    <span className="text-[10.5px] font-sans text-galla-ink-soft">
+                      {discountType === "percentage" ? "Percent (%)" : "Flat (₹)"}
+                    </span>
+                  </div>
+                  <div className="relative" ref={discountDropdownRef}>
                     <input
                       type="text"
+                      id="new-order-discount-input"
                       value={discount}
                       onChange={(e) => {
                         const cleaned = e.target.value.replace(/[^0-9.]/g, "");
                         if ((cleaned.match(/\./g) || []).length > 1) return;
                         const num = Number(cleaned);
-                        if (!isNaN(num) && num > 100) {
-                          setDiscount("100");
+                        if (discountType === "percentage") {
+                          if (!isNaN(num) && num > 100) {
+                            setDiscount("100");
+                          } else {
+                            setDiscount(cleaned);
+                          }
                         } else {
-                          setDiscount(cleaned);
+                          if (!isNaN(num) && num > calculatedSubtotal) {
+                            setDiscount(String(calculatedSubtotal));
+                          } else {
+                            setDiscount(cleaned);
+                          }
                         }
                       }}
-                      placeholder="e.g. 10"
-                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-2.5 pr-8 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
+                      placeholder={discountType === "percentage" ? "e.g. 10" : "e.g. 150"}
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-2.5 pr-14 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
                     />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] font-bold text-galla-ink-soft select-none">
-                      %
-                    </span>
+
+                    {/* Interactive Dropdown / Toggle Button inside the input */}
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setIsDiscountDropdownOpen((prev) => !prev)}
+                        className="h-6 px-1.5 rounded-[4px] bg-galla-paper hover:bg-galla-line/80 border border-galla-line text-galla-ink font-heading font-bold text-[11.5px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs select-none"
+                        title={`Current: ${discountType === "percentage" ? "Percentage %" : "Flat Rupees ₹"}. Click to switch.`}
+                        aria-haspopup="listbox"
+                        aria-expanded={isDiscountDropdownOpen}
+                      >
+                        <span className="text-galla-teal font-extrabold">{discountType === "percentage" ? "%" : "₹"}</span>
+                        <ChevronDown
+                          className={`h-3 w-3 text-galla-ink-soft transition-transform duration-150 ${
+                            isDiscountDropdownOpen ? "rotate-180 text-galla-teal" : ""
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Dropdown Menu Panel */}
+                    {isDiscountDropdownOpen && (
+                      <div
+                        role="listbox"
+                        className="absolute right-0 top-full mt-1 z-30 w-36 bg-galla-surface border border-galla-line rounded-[5px] shadow-lg py-1 animate-in fade-in-50 zoom-in-95 duration-100 divide-y divide-galla-line/40"
+                      >
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={discountType === "percentage"}
+                          onClick={() => {
+                            setDiscountType("percentage");
+                            setIsDiscountDropdownOpen(false);
+                            if (Number(discount) > 100) {
+                              setDiscount("100");
+                            }
+                          }}
+                          className={`w-full px-2.5 py-1.5 text-left text-[12px] flex items-center justify-between cursor-pointer transition-colors ${
+                            discountType === "percentage"
+                              ? "bg-galla-teal-soft text-galla-teal font-semibold"
+                              : "hover:bg-galla-paper text-galla-ink font-medium"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-bold text-[13px]">%</span>
+                            <span>Percent (%)</span>
+                          </span>
+                          {discountType === "percentage" && <Check className="h-3.5 w-3.5 text-galla-teal" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={discountType === "flat"}
+                          onClick={() => {
+                            setDiscountType("flat");
+                            setIsDiscountDropdownOpen(false);
+                            if (Number(discount) > calculatedSubtotal) {
+                              setDiscount(String(calculatedSubtotal));
+                            }
+                          }}
+                          className={`w-full px-2.5 py-1.5 text-left text-[12px] flex items-center justify-between cursor-pointer transition-colors ${
+                            discountType === "flat"
+                              ? "bg-galla-teal-soft text-galla-teal font-semibold"
+                              : "hover:bg-galla-paper text-galla-ink font-medium"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-bold text-[13px]">₹</span>
+                            <span>Flat Rupee (₹)</span>
+                          </span>
+                          {discountType === "flat" && <Check className="h-3.5 w-3.5 text-galla-teal" />}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Real-time Final Total Calculation */}
               <div className="space-y-1.5 pt-2 border-t border-galla-line/60">
-                {discountPercent > 0 && (
+                {calculatedDiscountAmount > 0 && (
                   <div className="flex items-center justify-between text-[11.5px] text-galla-ink-soft">
-                    <span>Discount ({discountPercent}%)</span>
+                    <span>
+                      Discount {discountType === "percentage" ? `(${discountValue}%)` : `(Flat ${formatRupee(calculatedDiscountAmount)})`}
+                    </span>
                     <span className="font-heading font-semibold text-emerald-600">
                       - {formatRupee(calculatedDiscountAmount)}
                     </span>
