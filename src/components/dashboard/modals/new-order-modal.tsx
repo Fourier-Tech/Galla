@@ -48,11 +48,20 @@ function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]
   let totalRetail = 0;
 
   for (const pItem of pkg.products) {
-    const cleanItemName = pItem.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase();
+    const cleanItemName = pItem.name
+      .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
+      .replace(/\s*\(batch[^\)]*\)$/i, "")
+      .trim()
+      .toLowerCase();
     const matchingProducts = products.filter((p) => {
       if (p.id === pItem.productId) return true;
-      const base = p.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase();
-      return base === cleanItemName;
+      const base = p.name
+        .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
+        .replace(/\s*\(batch[^\)]*\)$/i, "")
+        .trim()
+        .toLowerCase();
+      if (base === cleanItemName) return true;
+      return base.includes(cleanItemName) || cleanItemName.includes(base);
     });
 
     const useAvailable = matchingProducts.reduce((sum, p) => sum + (p.use || 0), 0);

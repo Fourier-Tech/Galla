@@ -114,38 +114,76 @@ async function resolveTenantId(
 }
 
 /**
- * Resolves all product batches belonging to a product family (by ID or base name),
- * sorted by profit margin ascending (i.e. the "not better" / lower margin batch is prioritized first for salon usage).
+ * Resolves all product batches belonging to a product family (by ID or name),
+ * sorted by profit margin ascending (i.e. the lower margin batch is prioritized first for salon usage).
  */
 async function getProductBatchesForInternalUse(
   tenantId: Types.ObjectId | string,
-  productId: Types.ObjectId | string,
+  productId?: Types.ObjectId | string | null,
+  productName?: string,
   session?: ClientSession,
 ): Promise<IProduct[]> {
-  const primary = await Product.findOne({ _id: productId, tenantId }).session(
-    session || null,
-  );
-  if (!primary) return [];
-  const baseName = primary.name
-    .replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "")
-    .trim();
+  let primary: IProduct | null = null;
+  if (productId && Types.ObjectId.isValid(productId)) {
+    primary = await Product.findOne({ _id: productId, tenantId }).session(
+      session || null,
+    );
+  }
+
+  let baseName = "";
+  if (primary) {
+    baseName = primary.name
+      .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
+      .replace(/\s*\(batch[^\)]*\)$/i, "")
+      .trim();
+  } else if (productName) {
+    baseName = productName
+      .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
+      .replace(/\s*\(batch[^\)]*\)$/i, "")
+      .trim();
+  }
+
+  if (!baseName) return [];
+
   const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const candidates = await Product.find({
+  let candidates = await Product.find({
     tenantId,
     isActive: true,
-    name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
+    name: new RegExp(`^${escapedBase}(\\s*\\((?:old|new|batch[^\)]*).*\\))?$`, "i"),
   }).session(session || null);
+
+  if (candidates.length === 0) {
+    candidates = await Product.find({
+      tenantId,
+      isActive: true,
+      name: new RegExp(escapedBase, "i"),
+    }).session(session || null);
+  }
+
+  if (candidates.length === 0) {
+    // Keyword-based fallback (e.g. "Absolut Repair Mask")
+    const keywords = baseName.split(/\s+/).filter((w) => w.length > 3 && !w.startsWith("("));
+    if (keywords.length > 0) {
+      const regexStr = keywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+      candidates = await Product.find({
+        tenantId,
+        isActive: true,
+        name: new RegExp(regexStr, "i"),
+      }).session(session || null);
+    }
+  }
 
   // Sort ascending by absolute profit: (Sell - Cost) — use lowest-profit batch for internal use first
   return candidates.sort((a, b) => {
-    const profitA = Math.max(0, a.expectedSellPrice - a.purchaseCost);
-    const profitB = Math.max(0, b.expectedSellPrice - b.purchaseCost);
+    const profitA = Math.max(0, (a.expectedSellPrice || 0) - (a.purchaseCost || 0));
+    const profitB = Math.max(0, (b.expectedSellPrice || 0) - (b.purchaseCost || 0));
     return profitA - profitB;
   });
 }
 
 /**
  * Checks if all required products for a package template are available in stock.
+ * Checks both internal useStock and sellStock (retail backup).
  * Returns { available: boolean; missing: { name: string; needed: number; available: number }[] }
  */
 async function checkPackageProductsAvailability(
@@ -172,12 +210,19 @@ async function checkPackageProductsAvailability(
     const batches = await getProductBatchesForInternalUse(
       tenantId,
       pItem.productId,
+      pItem.name,
       session,
     );
-    const totalAvailable = batches.reduce(
+    const useStockTotal = batches.reduce(
       (sum, b) => sum + Math.max(0, b.useStock),
       0,
     );
+    const sellStockTotal = batches.reduce(
+      (sum, b) => sum + Math.max(0, b.sellStock),
+      0,
+    );
+    const totalAvailable = useStockTotal + sellStockTotal;
+
     if (totalAvailable < needed) {
       missing.push({
         name: pItem.name,
@@ -194,8 +239,9 @@ async function checkPackageProductsAvailability(
 }
 
 /**
- * Deducts package product requirements strictly from internal useStock:
- * - Prioritizes the lower profit margin batch for in-salon consumption
+ * Deducts package product requirements:
+ * - Prioritizes internal useStock first
+ * - Seamlessly draws from sellStock (retail backup) if useStock is exhausted
  */
 async function deductPackageProductsFromStock(
   tenantId: Types.ObjectId | string,
@@ -214,8 +260,11 @@ async function deductPackageProductsFromStock(
     const batches = await getProductBatchesForInternalUse(
       tenantId,
       pItem.productId,
+      pItem.name,
       session,
     );
+
+    // Phase 1: Deduct from useStock first
     for (const batch of batches) {
       if (remaining <= 0) break;
       const takeUse = Math.min(batch.useStock, remaining);
@@ -250,6 +299,45 @@ async function deductPackageProductsFromStock(
         }
       }
     }
+
+    // Phase 2: If useStock was insufficient, draw remaining from sellStock (retail backup)
+    if (remaining > 0) {
+      for (const batch of batches) {
+        if (remaining <= 0) break;
+        const takeSell = Math.min(batch.sellStock, remaining);
+        if (takeSell > 0) {
+          batch.sellStock -= takeSell;
+          remaining -= takeSell;
+          await batch.save(session ? { session } : undefined);
+
+          const unitCost =
+            typeof batch.purchaseCost === "number" && !isNaN(batch.purchaseCost)
+              ? batch.purchaseCost
+              : 0;
+          const consumptionCost = unitCost * takeSell;
+
+          if (consumptionCost > 0) {
+            await Expense.create(
+              [
+                {
+                  tenantId: new Types.ObjectId(tenantId),
+                  expenseDate: new Date(),
+                  title: `Retail stock transferred to service usage: ${takeSell}x ${batch.name}`,
+                  category: "other",
+                  amount: consumptionCost,
+                  paymentMode: "internal_transfer",
+                  linkedProductId: batch._id,
+                  linkedQuantity: takeSell,
+                  notes: `Transferred and deducted ${takeSell} units from retail sellStock for service/package fulfillment.`,
+                },
+              ],
+              session ? { session } : undefined,
+            );
+          }
+        }
+      }
+    }
+
     if (batches.length > 0) {
       await cleanupProductBatchNames(tenantId, batches[0].name, session);
     }
