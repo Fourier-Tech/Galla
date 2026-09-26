@@ -41,6 +41,7 @@ interface OrderDetailsModalProps {
   onOpenSettle?: (order: DashboardOrder) => void;
   onOpenReschedule?: (order: DashboardOrder) => void;
   onOpenRefund?: (order: DashboardOrder) => void;
+  zIndex?: string;
 }
 
 export function OrderDetailsModal({
@@ -51,6 +52,7 @@ export function OrderDetailsModal({
   onOpenSettle,
   onOpenReschedule,
   onOpenRefund,
+  zIndex = "z-50",
 }: OrderDetailsModalProps) {
   const [returningItemIndex, setReturningItemIndex] = useState<number | null>(null);
 
@@ -198,7 +200,7 @@ export function OrderDetailsModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150"
+      className={`fixed inset-0 ${zIndex} flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150`}
     >
       <div className="w-full max-w-[620px] bg-galla-surface border border-galla-line rounded-[10px] shadow-2xl transition-all max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
@@ -364,6 +366,8 @@ export function OrderDetailsModal({
                     >
                       {isReplacement
                         ? "Expected Replacement Delivery"
+                        : isDue && !hasPendingDelivery
+                        ? "Payment Due Date"
                         : order.type === "Product sale"
                         ? "Expected Pickup"
                         : "Appointment Slot"}
@@ -703,6 +707,9 @@ export function OrderDetailsModal({
                 if (p.type === "advance") {
                   return { label: "Advance", style: "bg-amber-50 text-amber-800 border-amber-200/90" };
                 }
+                if (p.type === "partial_payment" || p.type === "down_payment") {
+                  return { label: "Partial Paid", style: "bg-blue-50 text-blue-800 border-blue-200/90" };
+                }
                 if (p.type === "settlement") {
                   return { label: "Settle", style: "bg-emerald-50 text-emerald-800 border-emerald-200/90" };
                 }
@@ -713,6 +720,9 @@ export function OrderDetailsModal({
                 // Intelligently infer for existing historical orders
                 if (total > 1) {
                   if (idx === 0) {
+                    if (order.status === "created" || (!order.scheduledFor && order.status !== "advance_paid")) {
+                      return { label: "Partial Paid", style: "bg-blue-50 text-blue-800 border-blue-200/90" };
+                    }
                     return { label: "Advance", style: "bg-amber-50 text-amber-800 border-amber-200/90" };
                   }
                   if (idx === total - 1) {
@@ -723,10 +733,12 @@ export function OrderDetailsModal({
 
                 if (
                   order.status === "advance_paid" ||
-                  (order.advanceAmount && order.advanceAmount > 0) ||
-                  order.paid < order.amount
+                  (order.advanceAmount && order.advanceAmount > 0)
                 ) {
                   return { label: "Advance", style: "bg-amber-50 text-amber-800 border-amber-200/90" };
+                }
+                if (order.status === "created" || order.paid < order.amount) {
+                  return { label: "Partial Paid", style: "bg-blue-50 text-blue-800 border-blue-200/90" };
                 }
                 if (order.notes?.toLowerCase().includes("cleared via")) {
                   return { label: "Settle", style: "bg-emerald-50 text-emerald-800 border-emerald-200/90" };
@@ -902,7 +914,7 @@ export function OrderDetailsModal({
                 Customer has {formatRupee(dueAmount)} remaining due
                 {!isScheduledDateArrived && order.scheduledFor && (
                   <span className="text-[11px] text-galla-ink-soft/80 block sm:inline sm:ml-1 font-normal">
-                    &bull; Settle available on appointment day ({formatBookingDate(order.scheduledFor)})
+                    &bull; Settle available on {isDue && !hasPendingDelivery ? "due date" : order.type === "Product sale" ? "pickup day" : "appointment day"} ({formatBookingDate(order.scheduledFor)})
                   </span>
                 )}
               </span>
@@ -952,7 +964,15 @@ export function OrderDetailsModal({
                 }}
                 className="px-3 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft transition-colors cursor-pointer"
               >
-                {order.scheduledFor ? "Reschedule" : "Set Delivery Date"}
+                {order.scheduledFor
+                  ? isDue && !hasPendingDelivery
+                    ? "Change Due Date"
+                    : "Reschedule"
+                  : isDue && !hasPendingDelivery
+                  ? "Set Due Date"
+                  : isReplacement
+                  ? "Set Delivery Date"
+                  : "Set Date"}
               </button>
             )}
 

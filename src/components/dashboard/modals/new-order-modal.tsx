@@ -30,6 +30,7 @@ import {
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
 import { formatPhoneNumber, formatCustomerName, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber, getPhoneDigits } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
+import { OrderDetailsModal } from "./order-details-modal";
 import { PaymentModeSelect } from "../payment-mode-select";
 
 function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]) {
@@ -180,6 +181,7 @@ export function NewOrderModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [inspectingOrder, setInspectingOrder] = useState<DashboardOrder | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -405,6 +407,13 @@ export function NewOrderModal({
     }
   }, [hasOutOfStockItems, settlementMode]);
 
+  // When settlement mode is pay later / due, do not include previous due
+  useEffect(() => {
+    if (settlementMode === "pay_later" && includePreviousDue) {
+      setIncludePreviousDue(false);
+    }
+  }, [settlementMode, includePreviousDue]);
+
   // Pricing calculations
   const calculatedSubtotal = useMemo(() => {
     return selectedItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
@@ -496,6 +505,7 @@ export function NewOrderModal({
     setShowConfirm(false);
     setErrorMsg(null);
     setShowSuggestions(false);
+    setInspectingOrder(null);
   };
 
   const handleClose = () => {
@@ -1376,20 +1386,35 @@ export function NewOrderModal({
                       Previous Outstanding Due: {formatRupee(totalPreviousDue)}
                     </span>
                     <p className="font-sans text-[11.5px] text-amber-800 mt-0.5">
-                      {customer} has pending payment due from {customerDueOrders.map((o) => o.id).join(", ")}.
+                      {customer} has pending payment due from{" "}
+                      {customerDueOrders.map((o, idx) => (
+                        <React.Fragment key={o.id}>
+                          {idx > 0 && ", "}
+                          <button
+                            type="button"
+                            onClick={() => setInspectingOrder(o)}
+                            className="font-semibold underline hover:text-amber-950 transition-colors cursor-pointer"
+                            title={`Click to view details for order ${formatDisplayNumber(o.id)}`}
+                          >
+                            {formatDisplayNumber(o.id)}
+                          </button>
+                        </React.Fragment>
+                      ))}.
                     </p>
                   </div>
                 </div>
 
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                  <input
-                    type="checkbox"
-                    checked={includePreviousDue}
-                    onChange={(e) => setIncludePreviousDue(e.target.checked)}
-                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
-                  />
-                  <span>Add previous due ({formatRupee(totalPreviousDue)}) to this bill</span>
-                </label>
+                {settlementMode !== "pay_later" && (
+                  <label className="flex items-center gap-2 font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={includePreviousDue}
+                      onChange={(e) => setIncludePreviousDue(e.target.checked)}
+                      className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
+                    />
+                    <span>Add previous due ({formatRupee(totalPreviousDue)}) to this bill</span>
+                  </label>
+                )}
               </div>
             )}
 
@@ -1552,14 +1577,9 @@ export function NewOrderModal({
 
                 {includePreviousDue && totalPreviousDue > 0 && (
                   <div className="pt-2 border-t border-galla-line/60 space-y-2 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between text-[12px] text-amber-900 bg-amber-50/80 px-2.5 py-1.5 rounded border border-amber-200">
-                      <div>
-                        <span className="font-medium">Previous Due to Settle</span>
-                        <div className="text-[10px] text-amber-700/80">
-                          Order {customerDueOrders.map((o) => formatDisplayNumber(o.id)).join(", ")} will be marked settled
-                        </div>
-                      </div>
-                      <span className="font-heading font-bold text-rose-700">
+                    <div className="flex items-center justify-between text-[13px] text-amber-950 bg-amber-50/80 px-3 py-2 rounded-[5px] border border-amber-200">
+                      <span className="font-semibold">Previous Due to Settle</span>
+                      <span className="font-heading font-bold text-[14px] text-rose-700 tabular-nums">
                         + {formatRupee(totalPreviousDue)}
                       </span>
                     </div>
@@ -1903,6 +1923,16 @@ export function NewOrderModal({
         onConfirm={executeSubmitOrder}
         onClose={() => setShowConfirm(false)}
       />
+
+      {/* Inspect Past Order Details Modal without closing New Order Modal */}
+      {inspectingOrder && (
+        <OrderDetailsModal
+          order={inspectingOrder}
+          isOpen={Boolean(inspectingOrder)}
+          onClose={() => setInspectingOrder(null)}
+          zIndex="z-[70]"
+        />
+      )}
     </div>
   );
 }

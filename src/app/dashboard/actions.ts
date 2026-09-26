@@ -444,6 +444,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       ? formatPhoneNumber(input.customerPhone)
       : "";
 
+    // ponytail: Counter orders (completed/created) fulfill items immediately, whereas advance bookings hold stock for pickup. Upgrade path: granular per-item fulfillment status if split delivery is introduced.
+    const isImmediateSale = input.status === "completed" || input.status === "created";
     const mappedLineItems: IOrderLineItem[] =
       input.lineItems && input.lineItems.length > 0
         ? input.lineItems.map((item) => ({
@@ -456,7 +458,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             quantity: item.quantity || 1,
             discount: 0,
             finalPrice: item.finalPrice,
-            fulfilled: isFullPayment,
+            fulfilled: isImmediateSale || isFullPayment,
           }))
         : [
             {
@@ -472,7 +474,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               quantity: 1,
               discount: 0,
               finalPrice: input.totalAmount,
-              fulfilled: isFullPayment,
+              fulfilled: isImmediateSale || isFullPayment,
             },
           ];
 
@@ -507,6 +509,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       // Stock will be deducted upon customer pickup when the order is completed.
       const isAdvancePreOrder =
         input.status !== "completed" &&
+        input.status !== "created" &&
         (Boolean(input.bookingDate) ||
           input.status === "advance_paid" ||
           input.status === "paid_full");
@@ -535,8 +538,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               hasUnfulfilledProduct = true;
             } else {
               prod.sellStock -= requested;
-              item.fulfilled = isFullPayment;
-              if (!item.fulfilled) hasUnfulfilledProduct = true;
+              item.fulfilled = true;
               await prod.save({ session: dbSession });
               affectedProductNames.add(prod.name);
             }
@@ -558,8 +560,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             item.fulfilled = false;
             hasUnfulfilledProduct = true;
           } else {
-            item.fulfilled = isFullPayment;
-            if (!item.fulfilled) hasUnfulfilledProduct = true;
+            item.fulfilled = true;
             await deductPackageProductsFromStock(
               tenantId,
               item.itemId,
@@ -613,7 +614,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         if (input.paidAmount >= input.totalAmount) {
           orderInitialStatus = "paid_full";
         } else if (input.paidAmount > 0) {
-          orderInitialStatus = "advance_paid";
+          orderInitialStatus = input.status === "created" ? "created" : "advance_paid";
         } else {
           orderInitialStatus = "created";
         }
@@ -659,9 +660,10 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                         session.user.role === "staff" ? "staff" : "owner",
                       type:
                         orderInitialStatus === "advance_paid" ||
-                        isAdvancePreOrder ||
-                        amountPending > 0
+                        isAdvancePreOrder
                           ? "advance"
+                          : amountPending > 0
+                          ? "partial_payment"
                           : "full_payment",
                     },
                   ]

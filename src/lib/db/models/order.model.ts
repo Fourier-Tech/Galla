@@ -48,7 +48,7 @@ export interface IOrderPayment {
   transactionRef?: string;
   recordedAt: Date;
   recordedBy: "owner" | "staff";
-  type?: "advance" | "settlement" | "full_payment" | "refund" | string;
+  type?: "advance" | "settlement" | "full_payment" | "refund" | "partial_payment" | string;
   notes?: string;
 }
 
@@ -247,7 +247,7 @@ const OrderPaymentSchema = new Schema<IOrderPayment>(
     },
     type: {
       type: String,
-      enum: ["advance", "settlement", "full_payment", "refund", "other"],
+      enum: ["advance", "settlement", "full_payment", "refund", "partial_payment", "other"],
     },
     notes: {
       type: String,

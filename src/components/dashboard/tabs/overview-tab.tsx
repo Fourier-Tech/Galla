@@ -974,7 +974,12 @@ export function OverviewTab({
                           <div className="space-y-0.5 mt-0.5">
                             {order.paid > 0 && (
                               <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                                <span>{formatRupee(order.paid)} adv.</span>
+                                <span>
+                                  {formatRupee(order.paid)}{" "}
+                                  {order.status === "advance_paid" || order.status === "paid_full" || order.scheduledFor
+                                    ? "adv."
+                                    : "paid"}
+                                </span>
                                 {order.paymentMode && (
                                   <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {order.paymentMode}
