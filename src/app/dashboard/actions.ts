@@ -456,7 +456,13 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             name: item.name,
             unitPrice: item.unitPrice,
             quantity: item.quantity || 1,
-            discount: 0,
+            discount:
+              typeof (item as any).discount === "number"
+                ? (item as any).discount
+                : Math.max(
+                    0,
+                    item.unitPrice * (item.quantity || 1) - item.finalPrice
+                  ),
             finalPrice: item.finalPrice,
             fulfilled: isImmediateSale || isFullPayment,
           }))
@@ -5708,6 +5714,9 @@ export async function returnCustomerOrderItemAction(
         tenantId,
       }).session(dbSession);
 
+      let actualDueDeduction = 0;
+      let actualCashRefund = 0;
+
       if (returnCondition === "restocked") {
         // Good condition: add to sellStock or useStock
         const restockLoc = options?.restockLocation || "sellStock";
@@ -5716,37 +5725,47 @@ export async function returnCustomerOrderItemAction(
           await product.save({ session: dbSession });
           await cleanupProductBatchNames(tenantId, product.name, dbSession);
         }
+      } else {
+        // Defective item: taken back by salon into defectiveStock
+        if (product) {
+          product.defectiveStock = (product.defectiveStock || 0) + quantityToReturn;
+        }
+      }
 
-        if (refundMode === "reduce_due") {
-          order.amountPending = Math.max(0, order.amountPending - refundAmount);
-          order.totalAmount = Math.max(0, order.totalAmount - refundAmount);
-          order.subtotal = Math.max(0, order.subtotal - refundAmount);
+      if (customerResolution === "refund") {
+        const currentPending = Math.max(0, order.amountPending || 0);
+        actualDueDeduction = Math.min(currentPending, refundAmount);
+        actualCashRefund = Math.max(0, refundAmount - actualDueDeduction);
 
-          if (!order.payments) order.payments = [];
+        if (!order.payments) order.payments = [];
+
+        if (actualDueDeduction > 0) {
+          order.amountPending = Math.max(0, order.amountPending - actualDueDeduction);
+
+          if (order.customerId) {
+            await Customer.updateOne(
+              { _id: order.customerId, tenantId },
+              { $inc: { "stats.outstandingBalance": -actualDueDeduction } },
+              { session: dbSession }
+            );
+          }
+
           order.payments.push({
-            amount: -refundAmount,
+            amount: -actualDueDeduction,
             mode: "cash",
-            notes: `Return refund (due reduced): ${quantityToReturn}x ${item.name}`,
+            notes: `Return credit (due reduced): ${quantityToReturn}x ${item.name}`,
             recordedBy: session.user.role === "staff" ? "staff" : "owner",
             type: "refund",
             recordedAt: new Date(),
           });
-        } else {
+        }
+
+        if (actualCashRefund > 0) {
+          const actualMode = refundMode === "reduce_due" ? "cash" : refundMode;
+
           if (isSameDay) {
             // Same-day order return: deduct from today's income directly
-            order.amountPaid = Math.max(0, order.amountPaid - refundAmount);
-            order.totalAmount = Math.max(0, order.totalAmount - refundAmount);
-            order.subtotal = Math.max(0, order.subtotal - refundAmount);
-
-            if (!order.payments) order.payments = [];
-            order.payments.push({
-              amount: -refundAmount,
-              mode: refundMode as any,
-              notes: `Return refund: ${quantityToReturn}x ${item.name}`,
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
-              type: "refund",
-              recordedAt: new Date(),
-            });
+            order.amountPaid = Math.max(0, order.amountPaid - actualCashRefund);
           } else {
             // Past-day order return: log an Expense of today
             const { fullNumber: expenseNumber } = await Counter.getNextSequence({
@@ -5755,95 +5774,51 @@ export async function returnCustomerOrderItemAction(
               session: dbSession,
             });
 
+            const restockNote =
+              returnCondition === "restocked"
+                ? `Restocked in ${(options?.restockLocation || "sellStock") === "sellStock" ? "retail" : "salon use"}.`
+                : "Piece held in defective stock.";
+
             await Expense.create(
               [
                 {
                   tenantId: new Types.ObjectId(tenantId),
                   expenseNumber,
-                  title: `Customer Return: ${quantityToReturn}x ${item.name}`,
+                  title: `Customer Return${returnCondition === "defective_dealer_claim" ? " (Defective)" : ""}: ${quantityToReturn}x ${item.name}`,
                   category: "refund",
-                  amount: refundAmount,
-                  paymentMode: refundMode,
+                  amount: actualCashRefund,
+                  paymentMode: actualMode,
                   linkedOrderId: order._id,
-                  notes: `Refunded customer for returned product. Restocked in ${restockLoc === "sellStock" ? "retail" : "salon use"}. ${notes || ""}`,
+                  notes: `Refunded customer for returned product. ${restockNote} ${notes || ""}`.trim(),
                   recordedBy: session.user.role === "staff" ? "staff" : "owner",
                   expenseDate: new Date(),
                 },
               ],
-              { session: dbSession },
+              { session: dbSession }
             );
-
-            if (!order.payments) order.payments = [];
-            order.payments.push({
-              amount: -refundAmount,
-              mode: refundMode as any,
-              notes: `Return refund: ${quantityToReturn}x ${item.name}`,
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
-              type: "refund",
-              recordedAt: new Date(),
-            });
           }
+
+          order.payments.push({
+            amount: -actualCashRefund,
+            mode: actualMode as any,
+            notes: `Return refund: ${quantityToReturn}x ${item.name}`,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            type: "refund",
+            recordedAt: new Date(),
+          });
+        }
+
+        order.totalAmount = Math.max(0, order.totalAmount - refundAmount);
+        order.subtotal = Math.max(0, order.subtotal - refundAmount);
+
+        if (returnCondition === "defective_dealer_claim" && product) {
+          await product.save({ session: dbSession });
+          await cleanupProductBatchNames(tenantId, product.name, dbSession);
         }
       } else {
-        // Defective item: taken back by salon into defectiveStock
-        if (product) {
-          product.defectiveStock = (product.defectiveStock || 0) + quantityToReturn;
-        }
-
-        if (customerResolution === "refund") {
-          if (refundMode === "reduce_due") {
-            order.amountPending = Math.max(0, order.amountPending - refundAmount);
-            order.totalAmount = Math.max(0, order.totalAmount - refundAmount);
-            order.subtotal = Math.max(0, order.subtotal - refundAmount);
-
-            if (!order.payments) order.payments = [];
-            order.payments.push({
-              amount: -refundAmount,
-              mode: "cash",
-              notes: `Defective return refund (due reduced): ${quantityToReturn}x ${item.name}`,
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
-              type: "refund",
-              recordedAt: new Date(),
-            });
-          } else {
-            const { fullNumber: expenseNumber } = await Counter.getNextSequence({
-              tenantId: new Types.ObjectId(tenantId),
-              type: "expense",
-              session: dbSession,
-            });
-
-            await Expense.create(
-              [
-                {
-                  tenantId: new Types.ObjectId(tenantId),
-                  expenseNumber,
-                  title: `Customer Return (Defective): ${quantityToReturn}x ${item.name}`,
-                  category: "refund",
-                  amount: refundAmount,
-                  paymentMode: refundMode,
-                  linkedOrderId: order._id,
-                  notes: `Customer refunded for defective product. Piece held in defective stock. ${notes || ""}`,
-                  recordedBy: session.user.role === "staff" ? "staff" : "owner",
-                  expenseDate: new Date(),
-                },
-              ],
-              { session: dbSession },
-            );
-
-            if (!order.payments) order.payments = [];
-            order.payments.push({
-              amount: -refundAmount,
-              mode: refundMode as any,
-              notes: `Defective return refund: ${quantityToReturn}x ${item.name}`,
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
-              type: "refund",
-              recordedAt: new Date(),
-            });
-          }
-        } else {
-          // Customer wants replacement
-          const availableShelf = product ? product.sellStock : 0;
-          let handedQty = 0;
+        // Customer wants replacement
+        const availableShelf = product ? product.sellStock : 0;
+        let handedQty = 0;
 
           if (options?.replacementOption === "immediate_partial") {
             handedQty = Math.min(availableShelf, options.handedQuantity ?? availableShelf);
@@ -5998,15 +5973,14 @@ export async function returnCustomerOrderItemAction(
             const repNote = `[Replacement Order #${replacementOrderNumber} Handed] ${quantityToReturn}x ${item.name} handed from shelf stock.`;
             order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
           }
+
+          if (product) {
+            await product.save({ session: dbSession });
+            await cleanupProductBatchNames(tenantId, product.name, dbSession);
+          }
         }
 
-        if (product) {
-          await product.save({ session: dbSession });
-          await cleanupProductBatchNames(tenantId, product.name, dbSession);
-        }
-      }
-
-      item.returnedQuantity = previouslyReturned + quantityToReturn;
+        item.returnedQuantity = previouslyReturned + quantityToReturn;
       item.returnCondition = returnCondition;
 
       let supplierClaimData: any = undefined;
@@ -6063,7 +6037,14 @@ export async function returnCustomerOrderItemAction(
         refundAmount: customerResolution === "refund" ? refundAmount : 0,
         returnCondition,
         customerResolution,
-        refundMode: customerResolution === "refund" ? refundMode : undefined,
+        refundMode:
+          customerResolution === "refund"
+            ? actualCashRefund > 0
+              ? refundMode === "reduce_due"
+                ? "cash"
+                : refundMode
+              : "reduce_due"
+            : undefined,
         supplierClaim: supplierClaimData,
         customerReplacementId,
         expectedPickupDate: options?.expectedPickupDate ? new Date(options.expectedPickupDate) : undefined,

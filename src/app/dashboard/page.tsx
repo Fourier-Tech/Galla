@@ -257,8 +257,10 @@ export default async function DashboardPage() {
         );
         const hasTodayRefund = Boolean(o.refundDetails?.refundedAt && checkIsToday(o.refundDetails.refundedAt));
         const hasLast24hRefund = Boolean(o.refundDetails?.refundedAt && checkIsLast24Hours(o.refundDetails.refundedAt));
-        const isToday = checkIsToday(o.createdAt) || Boolean(o.completedAt && checkIsToday(o.completedAt)) || hasTodayPayment || hasTodayRefund;
-        const isLast24Hours = checkIsLast24Hours(o.createdAt) || Boolean(o.completedAt && checkIsLast24Hours(o.completedAt)) || hasLast24hPayment || hasLast24hRefund;
+        const hasTodayReturn = Boolean(o.returns && Array.isArray(o.returns) && o.returns.some((r: any) => r.returnedAt && checkIsToday(r.returnedAt)));
+        const hasLast24hReturn = Boolean(o.returns && Array.isArray(o.returns) && o.returns.some((r: any) => r.returnedAt && checkIsLast24Hours(r.returnedAt)));
+        const isToday = checkIsToday(o.createdAt) || Boolean(o.completedAt && checkIsToday(o.completedAt)) || hasTodayPayment || hasTodayRefund || hasTodayReturn;
+        const isLast24Hours = checkIsLast24Hours(o.createdAt) || Boolean(o.completedAt && checkIsLast24Hours(o.completedAt)) || hasLast24hPayment || hasLast24hRefund || hasLast24hReturn;
 
         const todayPaid = (() => {
           let rawTodayPaid = 0;
@@ -270,22 +272,23 @@ export default async function DashboardPage() {
             rawTodayPaid = checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
           }
 
-          if (o.status === "cancelled_refunded") {
-            const netRetained = typeof o.amountPaid === "number" ? Math.max(0, o.amountPaid) : 0;
-            return Math.min(rawTodayPaid, netRetained);
-          }
-          return rawTodayPaid;
+          const netRetained = typeof o.amountPaid === "number" ? Math.max(0, o.amountPaid) : 0;
+          return Math.max(0, Math.min(rawTodayPaid, netRetained));
         })();
 
         const latestPaymentDate = (o.payments && Array.isArray(o.payments) && o.payments.length > 0)
           ? o.payments[o.payments.length - 1]?.recordedAt
           : null;
         const refundedDate = o.refundDetails?.refundedAt || null;
+        const returnedDate = (o.returns && Array.isArray(o.returns) && o.returns.length > 0)
+          ? o.returns[o.returns.length - 1]?.returnedAt
+          : null;
         const candidateTimestamps = [
           o.createdAt ? new Date(o.createdAt).getTime() : 0,
           o.completedAt ? new Date(o.completedAt).getTime() : 0,
           latestPaymentDate ? new Date(latestPaymentDate).getTime() : 0,
           refundedDate ? new Date(refundedDate).getTime() : 0,
+          returnedDate ? new Date(returnedDate).getTime() : 0,
           o.updatedAt ? new Date(o.updatedAt).getTime() : 0,
         ].filter(Boolean);
 

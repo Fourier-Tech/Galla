@@ -115,7 +115,7 @@ export function ReturnCustomerOrderItemModal({
       const d = new Date();
       d.setDate(d.getDate() + 2);
       setExpectedPickupDate(getLocalDateString(d));
-      setRefundMode(pendingAmount > 0 ? "reduce_due" : "cash");
+      setRefundMode("cash");
       setError(null);
       setNotes("");
     }
@@ -126,6 +126,9 @@ export function ReturnCustomerOrderItemModal({
   const defaultReturnTotal = isNaN(parsedQty) ? 0 : Math.round(parsedQty * unitPrice * 100) / 100;
   const finalReturnAmount =
     customAmountStr !== "" ? parseFloat(customAmountStr) || 0 : defaultReturnTotal;
+
+  const dueDeduction = Math.min(pendingAmount, finalReturnAmount);
+  const cashRefund = Math.max(0, Math.round((finalReturnAmount - dueDeduction) * 100) / 100);
 
   const shelfStock = matchedProduct ? matchedProduct.sell : 0;
 
@@ -141,6 +144,80 @@ export function ReturnCustomerOrderItemModal({
       }
     }
   }, [isGoodCondition, defectiveResolution, shelfStock, parsedQty, isValidQty]);
+
+  const renderSettlementSection = (label: string) => {
+    if (pendingAmount > 0) {
+      return (
+        <div className="p-3 bg-galla-surface border border-galla-line/80 rounded-[5px] space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+              Settlement Breakdown
+            </label>
+            <span className="font-sans text-[11px] text-amber-800 font-medium">
+              Order Due: {formatRupee(pendingAmount)}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 text-[12px] font-sans bg-galla-paper/50 p-2.5 rounded-[4px] border border-galla-line/50">
+            <div className="flex justify-between items-center text-galla-ink">
+              <span className="text-galla-ink-soft">Return Credit Total:</span>
+              <span className="font-mono font-semibold">{formatRupee(finalReturnAmount)}</span>
+            </div>
+            {dueDeduction > 0 && (
+              <div className="flex justify-between items-center text-emerald-800">
+                <span>Deducted from Pending Due:</span>
+                <span className="font-mono font-medium">-{formatRupee(dueDeduction)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-1.5 border-t border-galla-line/60">
+              <span className="font-semibold text-galla-ink">Net Cash Payout to Client:</span>
+              <span
+                className={`font-mono font-bold text-[13px] ${
+                  cashRefund > 0 ? "text-rose-700" : "text-emerald-700"
+                }`}
+              >
+                {formatRupee(cashRefund)}
+              </span>
+            </div>
+          </div>
+
+          {cashRefund > 0 ? (
+            <div className="pt-1">
+              <PaymentModeSelect
+                label="Pay Out Net Refund Via"
+                badge={
+                  <span className="font-mono text-[11px] font-semibold text-rose-700">
+                    Payout: {formatRupee(cashRefund)}
+                  </span>
+                }
+                value={refundMode === "reduce_due" ? "cash" : refundMode}
+                onChange={setRefundMode}
+                allowedModes={["cash", "upi", "card"]}
+              />
+            </div>
+          ) : (
+            <div className="p-2 rounded-[4px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[11px] font-sans">
+              {formatRupee(dueDeduction)} applied to reduce pending due. No cash payout needed.
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <PaymentModeSelect
+        label={label}
+        badge={
+          <span className="font-mono text-[12px] font-semibold text-rose-700">
+            Refund: {formatRupee(finalReturnAmount)}
+          </span>
+        }
+        value={refundMode}
+        onChange={setRefundMode}
+        allowedModes={["cash", "upi", "card"]}
+      />
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -169,17 +246,6 @@ export function ReturnCustomerOrderItemModal({
       ? "refund"
       : defectiveResolution;
 
-    if (
-      customerResolution === "refund" &&
-      refundMode === "reduce_due" &&
-      finalReturnAmount > pendingAmount
-    ) {
-      setError(
-        `Cannot deduct ${formatRupee(finalReturnAmount)} from due because order pending balance is only ${formatRupee(pendingAmount)}. Choose Cash, UPI, or Card instead.`
-      );
-      return;
-    }
-
     let handedQty = 0;
     if (!isGoodCondition && customerResolution === "replacement") {
       if (replacementOption === "immediate_full") {
@@ -194,13 +260,20 @@ export function ReturnCustomerOrderItemModal({
     setIsSubmitting(true);
     setError(null);
 
+    const effectiveRefundMode: "cash" | "upi" | "card" | "reduce_due" =
+      pendingAmount > 0 && cashRefund === 0
+        ? "reduce_due"
+        : refundMode === "reduce_due"
+        ? "cash"
+        : refundMode;
+
     try {
       const res = await returnCustomerOrderItemAction(
         order.id,
         lineItemIndex,
         parsedQty,
         returnCondition,
-        refundMode,
+        effectiveRefundMode,
         notes.trim() || undefined,
         finalReturnAmount,
         customerResolution,
@@ -250,7 +323,7 @@ export function ReturnCustomerOrderItemModal({
                 Customer Return &amp; Replacement
               </h2>
               <p className="font-sans text-[11px] text-galla-ink-soft truncate">
-                Order #{formatDisplayNumber(order.id)} &bull; {order.customer} &bull; {lineItem.name}
+                Order #{formatDisplayNumber(order.id)} &bull; {order.customer}
               </p>
             </div>
           </div>
@@ -279,11 +352,8 @@ export function ReturnCustomerOrderItemModal({
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="font-mono text-[12px] font-semibold text-galla-ink">
+              <div className="font-mono text-[13px] font-semibold text-galla-ink">
                 {formatRupee(unitPrice)} <span className="font-sans text-[10px] text-galla-ink-soft font-normal">/pc</span>
-              </div>
-              <div className="text-[10.5px] font-sans text-galla-ink-soft">
-                Shelf Stock: <strong className="font-mono text-galla-ink">{isLoadingStock ? "..." : `${shelfStock} pcs`}</strong>
               </div>
             </div>
           </div>
@@ -366,11 +436,11 @@ export function ReturnCustomerOrderItemModal({
               <div className="font-sans text-[10.5px] text-galla-ink-soft mt-1 truncate">
                 {!isGoodCondition && defectiveResolution === "replacement" ? (
                   <span className="text-amber-800">Replacement selected &mdash; ₹0 refund</span>
-                ) : (
-                  <>
-                    Default: <strong className="font-mono text-galla-ink">{formatRupee(unitPrice)}/pc</strong> &bull; Total: <strong className="font-mono text-galla-ink">{formatRupee(defaultReturnTotal)}</strong>
-                  </>
-                )}
+                ) : parsedQty > 1 ? (
+                  <span>{parsedQty} pcs &times; {formatRupee(unitPrice)} = <strong className="font-mono text-galla-ink">{formatRupee(defaultReturnTotal)}</strong></span>
+                ) : customAmountStr !== "" && customAmountStr !== String(defaultReturnTotal) ? (
+                  <span>Default: <strong className="font-mono text-galla-ink">{formatRupee(defaultReturnTotal)}</strong></span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -398,7 +468,7 @@ export function ReturnCustomerOrderItemModal({
                   {isGoodCondition && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
                 </div>
                 <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
-                  Restock product into shop &amp; refund customer.
+                  Restock item &amp; refund customer.
                 </p>
               </button>
 
@@ -419,7 +489,7 @@ export function ReturnCustomerOrderItemModal({
                   {!isGoodCondition && <CheckCircle2 className="h-4 w-4 text-rose-600" />}
                 </div>
                 <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
-                  Take into salon defective stock for dealer claim.
+                  Hold in defective inventory for dealer claim.
                 </p>
               </button>
             </div>
@@ -443,7 +513,7 @@ export function ReturnCustomerOrderItemModal({
                     }`}
                   >
                     <div className="font-sans text-[12px] flex items-center justify-between">
-                      <span>Retail Shelf (Resell)</span>
+                      <span>Retail Shelf</span>
                       {restockLocation === "sellStock" && <CheckCircle2 className="h-3.5 w-3.5" />}
                     </div>
                   </button>
@@ -464,31 +534,7 @@ export function ReturnCustomerOrderItemModal({
                 </div>
               </div>
 
-              {/* Refund Customer Mode */}
-              <PaymentModeSelect
-                label="Refund Customer Mode"
-                badge={
-                  <span className="font-mono text-[12px] font-semibold text-rose-700">
-                    Refund: {formatRupee(finalReturnAmount)}
-                  </span>
-                }
-                value={refundMode}
-                onChange={setRefundMode}
-                allowedModes={
-                  pendingAmount > 0
-                    ? [
-                        "cash",
-                        "upi",
-                        "card",
-                        {
-                          value: "reduce_due",
-                          label: "Reduce Customer Due",
-                          sublabel: `Reduce pending order balance of ${formatRupee(pendingAmount)}`,
-                        },
-                      ]
-                    : ["cash", "upi", "card"]
-                }
-              />
+              {renderSettlementSection("Refund Customer Mode")}
             </div>
           ) : (
             /* Condition Flow B: Defective -> Ask Resolution (Refund vs Replace) */
@@ -515,7 +561,7 @@ export function ReturnCustomerOrderItemModal({
                       {defectiveResolution === "replacement" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                     </div>
                     <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
-                      Hand from shelf or schedule pickup.
+                      Hand replacement from stock.
                     </p>
                   </button>
 
@@ -536,7 +582,7 @@ export function ReturnCustomerOrderItemModal({
                       {defectiveResolution === "refund" && <CheckCircle2 className="h-3.5 w-3.5 text-rose-600" />}
                     </div>
                     <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
-                      Refund funds &amp; claim dealer credit later.
+                      Refund client money.
                     </p>
                   </button>
                 </div>
@@ -545,32 +591,9 @@ export function ReturnCustomerOrderItemModal({
               {/* Defective -> Choice 1: Money Refund */}
               {defectiveResolution === "refund" && (
                 <div className="space-y-2 pt-2 border-t border-rose-200/60">
-                  <PaymentModeSelect
-                    label="Refund Customer via"
-                    badge={
-                      <span className="font-mono text-[12px] font-semibold text-rose-700">
-                        Total: {formatRupee(finalReturnAmount)}
-                      </span>
-                    }
-                    value={refundMode}
-                    onChange={setRefundMode}
-                    allowedModes={
-                      pendingAmount > 0
-                        ? [
-                            "cash",
-                            "upi",
-                            "card",
-                            {
-                              value: "reduce_due",
-                              label: "Reduce Customer Due",
-                              sublabel: `Reduce pending order balance of ${formatRupee(pendingAmount)}`,
-                            },
-                          ]
-                        : ["cash", "upi", "card"]
-                    }
-                  />
+                  {renderSettlementSection("Refund Customer via")}
                   <p className="text-[10.5px] font-sans text-rose-800/80">
-                    Defective piece ({parsedQty} pcs) will be labeled in defective inventory to claim credit or return to dealer in future.
+                    Defective piece ({parsedQty} pcs) held for dealer claim.
                   </p>
                 </div>
               )}
@@ -580,13 +603,13 @@ export function ReturnCustomerOrderItemModal({
                 <div className="space-y-3 pt-2 border-t border-rose-200/60">
                   {/* Case 1: Shelf stock fully available */}
                   {shelfStock >= parsedQty ? (
-                    <div className="p-2.5 rounded-[4px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[11.5px] font-sans space-y-1">
+                    <div className="p-2.5 rounded-[4px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[11.5px] font-sans space-y-0.5">
                       <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
                         <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>Shelf Stock Available ({shelfStock} pcs in retail)</span>
+                        <span>Stock Available ({shelfStock} pcs)</span>
                       </div>
                       <p className="text-[11px] text-emerald-800">
-                        Hand over {parsedQty} new unit{parsedQty > 1 ? "s" : ""} to the client immediately from the shelf. The returned defective unit will be stored in salon defective stock.
+                        Hand over {parsedQty} replacement unit{parsedQty > 1 ? "s" : ""} to the client immediately.
                       </p>
                     </div>
                   ) : shelfStock === 0 ? (
@@ -595,10 +618,10 @@ export function ReturnCustomerOrderItemModal({
                       <div className="p-2.5 rounded-[4px] bg-amber-50 border border-amber-200 text-amber-950 text-[11.5px] font-sans">
                         <div className="flex items-center gap-1.5 font-semibold text-amber-900">
                           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                          <span>Out of Stock on Shelf (0 pcs available)</span>
+                          <span>Out of Stock (0 pcs)</span>
                         </div>
                         <p className="text-[11px] text-amber-800 mt-0.5">
-                          Set the date client is expected to collect. A dashboard alert will notify you if dealer replacement hasn&rsquo;t arrived by this date.
+                          Set expected pickup date for client collection.
                         </p>
                       </div>
 
@@ -622,10 +645,10 @@ export function ReturnCustomerOrderItemModal({
                       <div className="p-2.5 rounded-[4px] bg-amber-50 border border-amber-200 text-amber-950 text-[11.5px] font-sans">
                         <div className="flex items-center gap-1.5 font-semibold text-amber-900">
                           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                          <span>Partial Stock Available ({shelfStock} of {parsedQty} pcs)</span>
+                          <span>Partial Stock ({shelfStock} of {parsedQty} pcs)</span>
                         </div>
                         <p className="text-[11px] text-amber-800 mt-0.5">
-                          Choose whether to hand over available items now or wait for all together.
+                          Hand available stock now or wait for all together.
                         </p>
                       </div>
 
@@ -644,7 +667,7 @@ export function ReturnCustomerOrderItemModal({
                             {replacementOption === "immediate_partial" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                           </div>
                           <p className="text-[10.5px] text-galla-ink-soft mt-0.5">
-                            Give {shelfStock} now, {parsedQty - shelfStock} on expected date.
+                            Remaining {parsedQty - shelfStock} pcs on pickup date.
                           </p>
                         </button>
 
@@ -658,11 +681,11 @@ export function ReturnCustomerOrderItemModal({
                           }`}
                         >
                           <div className="font-heading text-[11.5px] font-semibold flex items-center justify-between">
-                            <span>Wait for All ({parsedQty}) Together</span>
+                            <span>Wait for All ({parsedQty})</span>
                             {replacementOption === "wait_all" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                           </div>
                           <p className="text-[10.5px] text-galla-ink-soft mt-0.5">
-                            Client will pick up all pieces once arrived.
+                            Client will collect all once arrived.
                           </p>
                         </button>
                       </div>
@@ -696,7 +719,7 @@ export function ReturnCustomerOrderItemModal({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Broken pump, client disliked shade, agreed to exchange on Friday..."
+              placeholder="e.g. Defective seal, client preference, exchange..."
               className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-sans text-[12px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />
           </div>
@@ -728,9 +751,17 @@ export function ReturnCustomerOrderItemModal({
               {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               <span>
                 {isGoodCondition
-                  ? `Confirm Return & Refund (${formatRupee(finalReturnAmount)})`
+                  ? pendingAmount > 0
+                    ? cashRefund > 0
+                      ? `Confirm Return (Clear ${formatRupee(dueDeduction)} Due + Refund ${formatRupee(cashRefund)})`
+                      : `Confirm Return & Clear Due (${formatRupee(dueDeduction)})`
+                    : `Confirm Return & Refund (${formatRupee(finalReturnAmount)})`
                   : defectiveResolution === "replacement"
                   ? "Confirm Replacement"
+                  : pendingAmount > 0
+                  ? cashRefund > 0
+                    ? `Confirm Return (Clear ${formatRupee(dueDeduction)} Due + Refund ${formatRupee(cashRefund)})`
+                    : `Confirm Return & Clear Due (${formatRupee(dueDeduction)})`
                   : `Confirm Refund (${formatRupee(finalReturnAmount)})`}
               </span>
             </button>

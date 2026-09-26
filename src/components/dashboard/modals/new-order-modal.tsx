@@ -670,14 +670,32 @@ export function NewOrderModal({
         ? totalPreviousDue
         : undefined;
 
-      const lineItems = selectedItems.map((item) => ({
-        itemId: item.id,
-        itemType: item.type,
-        name: item.name,
-        unitPrice: item.price,
-        quantity: item.quantity,
-        finalPrice: item.price * item.quantity,
-      }));
+      let remainingDiscountToDistribute = calculatedDiscountAmount;
+      const lineItems = selectedItems.map((item, index) => {
+        const itemTotal = item.price * (item.quantity || 1);
+        let itemDiscount = 0;
+        if (calculatedDiscountAmount > 0 && calculatedSubtotal > 0) {
+          if (index === selectedItems.length - 1) {
+            itemDiscount = Math.max(0, Math.min(itemTotal, remainingDiscountToDistribute));
+          } else {
+            itemDiscount = Math.min(
+              itemTotal,
+              Math.round(calculatedDiscountAmount * (itemTotal / calculatedSubtotal))
+            );
+            remainingDiscountToDistribute -= itemDiscount;
+          }
+        }
+        const itemFinalPrice = Math.max(0, itemTotal - itemDiscount);
+        return {
+          itemId: item.id,
+          itemType: item.type,
+          name: item.name,
+          unitPrice: item.price,
+          quantity: item.quantity,
+          discount: itemDiscount,
+          finalPrice: itemFinalPrice,
+        };
+      });
       // Use the customer name entered by the user; fallback to existing customer name or Walk-in Guest
       const resolvedCustomerName = formatCustomerName(customer) || phoneConflictCustomer?.name || "Walk-in Guest";
 

@@ -29,6 +29,7 @@ export const createOrderSchema = z.object({
         name: z.string(),
         unitPrice: z.number(),
         quantity: z.number().default(1),
+        discount: z.number().optional(),
         finalPrice: z.number(),
       })
     )
