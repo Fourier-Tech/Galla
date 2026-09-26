@@ -41,7 +41,9 @@ function SettleOrderModalContent({
   onClose: () => void;
   onSettleSuccess: (updatedOrder: DashboardOrder) => void;
 }) {
-  const defaultDue = Math.max(0, order.amount - order.paid);
+  const isReplacement =
+    order.status === "replacement_pending" || order.status === "replacement";
+  const defaultDue = isReplacement ? 0 : Math.max(0, order.amount - order.paid);
 
   const [remainingAmount, setRemainingAmount] = useState(String(defaultDue));
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
@@ -100,11 +102,15 @@ function SettleOrderModalContent({
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-heading font-semibold text-[18px] text-galla-ink">
-              {defaultDue === 0 ? "Deliver & Fulfill Order" : "Settle Due & Complete Order"}
+              {isReplacement
+                ? "Deliver Replacement Product"
+                : defaultDue === 0
+                ? "Deliver & Fulfill Order"
+                : "Settle Due & Complete Order"}
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft">
               {formatDisplayNumber(order.id)} &bull; <strong className="text-galla-ink font-medium">{order.customer}</strong>
-              {order.scheduledFor ? ` • Booked: ${formatBookingDate(order.scheduledFor)}` : ""}
+              {order.scheduledFor ? ` • ${isReplacement ? "Expected Delivery" : "Booked"}: ${formatBookingDate(order.scheduledFor)}` : ""}
             </p>
           </div>
           <button
@@ -119,25 +125,46 @@ function SettleOrderModalContent({
 
         {/* Order Payment Summary Card */}
         <div className="mb-4 p-3 bg-galla-paper/70 border border-galla-line rounded-[5px] space-y-1.5 text-[12.5px] font-sans">
-          <div className="flex justify-between text-galla-ink-soft">
-            <span>Original Total Bill:</span>
-            <span className="font-medium text-galla-ink tabular-nums">{formatRupee(order.amount)}</span>
-          </div>
-          <div className={`flex justify-between ${order.paid > 0 ? "text-galla-teal font-medium" : "text-galla-ink-soft"}`}>
-            <span>{order.scheduledFor ? "Advance Collected:" : "Paid Upfront:"}</span>
-            <span className="tabular-nums">
-              {formatRupee(order.paid)}
-              {order.paid > 0 && order.paymentMode ? (
-                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 ml-1">
-                  {order.paymentMode}
+          {isReplacement ? (
+            <>
+              <div className="flex justify-between text-galla-ink-soft">
+                <span>Replacement Item:</span>
+                <span className="font-medium text-galla-ink">{order.itemsSummary || order.type}</span>
+              </div>
+              <div className="flex justify-between text-emerald-700 font-medium">
+                <span>Order Status:</span>
+                <span className="uppercase text-[10px] font-bold tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                  Zero Balance (Free Swap)
                 </span>
-              ) : null}
-            </span>
-          </div>
-          <div className="flex justify-between text-galla-brass font-medium">
-            <span>Current Due:</span>
-            <span className="tabular-nums">{formatRupee(defaultDue)}</span>
-          </div>
+              </div>
+              <div className="flex justify-between text-galla-ink font-medium pt-1 border-t border-galla-line/50">
+                <span>Balance to Collect:</span>
+                <span className="tabular-nums font-semibold text-emerald-700">₹0</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between text-galla-ink-soft">
+                <span>Original Total Bill:</span>
+                <span className="font-medium text-galla-ink tabular-nums">{formatRupee(order.amount)}</span>
+              </div>
+              <div className={`flex justify-between ${order.paid > 0 ? "text-galla-teal font-medium" : "text-galla-ink-soft"}`}>
+                <span>{order.scheduledFor ? "Advance Collected:" : "Paid Upfront:"}</span>
+                <span className="tabular-nums">
+                  {formatRupee(order.paid)}
+                  {order.paid > 0 && order.paymentMode ? (
+                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 ml-1">
+                      {order.paymentMode}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              <div className="flex justify-between text-galla-brass font-medium">
+                <span>Current Due:</span>
+                <span className="tabular-nums">{formatRupee(defaultDue)}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {errorMsg && (
@@ -152,7 +179,11 @@ function SettleOrderModalContent({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                Remaining Payment to Collect (₹)
+                {isReplacement
+                  ? "Balance to Collect (₹0 - Free Warranty Swap)"
+                  : defaultDue === 0
+                  ? "Payment to Collect (₹0 - Paid in full)"
+                  : "Remaining Payment to Collect (₹)"}
               </label>
               <div className="flex items-center gap-2">
                 <button
@@ -261,11 +292,15 @@ function SettleOrderModalContent({
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Settling...</span>
+                  <span>{defaultDue === 0 && enteredNum === 0 ? "Delivering..." : "Settling..."}</span>
                 </>
               ) : (
                 <>
-                  <span>Settle ({formatRupee(enteredNum)}) &amp; Done</span>
+                  <span>
+                    {defaultDue === 0 && enteredNum === 0
+                      ? "Deliver & Done"
+                      : `Settle (${formatRupee(enteredNum)}) & Done`}
+                  </span>
                   <Check className="h-4 w-4" />
                 </>
               )}
@@ -275,16 +310,37 @@ function SettleOrderModalContent({
 
         <ConfirmModal
           isOpen={showConfirm}
-          title="Confirm Order Settlement"
-          description={
-            <span>
-              Are you sure you want to collect <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
-              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong> from{" "}
-              <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> and mark Order{" "}
-              <strong className="font-semibold text-galla-ink">{formatDisplayNumber(order.id)}</strong> as fully settled &amp; completed?
-            </span>
+          title={
+            isReplacement
+              ? "Confirm Replacement Delivery"
+              : defaultDue === 0 && enteredNum === 0
+              ? "Confirm Product Delivery & Handover"
+              : "Confirm Order Settlement"
           }
-          confirmLabel="Yes, Settle Order"
+          description={
+            isReplacement || (defaultDue === 0 && enteredNum === 0) ? (
+              <span>
+                Confirm that the {isReplacement ? "replacement product" : "order items"} for Order{" "}
+                <strong className="font-semibold text-galla-ink">{formatDisplayNumber(order.id)}</strong> have been handed over to{" "}
+                <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> with{" "}
+                <strong className="font-semibold text-emerald-700">₹0 remaining balance</strong> to collect?
+              </span>
+            ) : (
+              <span>
+                Are you sure you want to collect <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
+                <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong> from{" "}
+                <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong> and mark Order{" "}
+                <strong className="font-semibold text-galla-ink">{formatDisplayNumber(order.id)}</strong> as fully settled &amp; completed?
+              </span>
+            )
+          }
+          confirmLabel={
+            isReplacement
+              ? "Yes, Confirm Handover"
+              : defaultDue === 0 && enteredNum === 0
+              ? "Yes, Confirm Delivery"
+              : "Yes, Settle Order"
+          }
           cancelLabel="Cancel"
           isLoading={isSubmitting}
           onConfirm={executeSettleOrder}

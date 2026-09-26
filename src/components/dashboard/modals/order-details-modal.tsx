@@ -27,6 +27,7 @@ import {
   formatAppointmentTime,
   formatPhoneNumber,
   getWhatsAppReminderUrl,
+  getBookingUrgency,
   formatDisplayNumber,
 } from "@/lib/utils";
 import { ReturnCustomerOrderItemModal } from "@/components/dashboard/modals/return-customer-order-item-modal";
@@ -69,15 +70,19 @@ export function OrderDetailsModal({
   const dueAmount = Math.max(0, order.amount - order.paid);
   const isDue = dueAmount > 0 && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted";
   const isAdvance = order.status === "advance_paid";
-  const isCompleted = order.status === "completed";
+  const isCompleted = order.status === "completed" || order.status === "replacement_completed";
+  const isReplacement = order.status === "replacement_pending" || order.status === "replacement";
   const isRefunded = order.status === "cancelled_refunded";
   const hasPendingDelivery = Boolean(
-    order.lineItems && order.lineItems.some((li) => !li.fulfilled)
+    (order.lineItems && order.lineItems.some((li) => !li.fulfilled)) || isReplacement
   );
 
-  // Only prefill reminder text if order is in advance booking (advance_paid) or has payment due
-  // For completed orders (like #1056) or full counter sales, leave message blank
-  const shouldPrefillMsg = isAdvance || isDue;
+  const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+  const isTomorrow = urgency?.tone === "tomorrow";
+  const isToday = urgency?.tone === "today";
+
+  // Prefill reminder text for advance booking, payment due, or replacement orders
+  const shouldPrefillMsg = isAdvance || isDue || isReplacement;
 
   const waUrl = order.customerPhone
     ? shouldPrefillMsg
@@ -92,6 +97,9 @@ export function OrderDetailsModal({
           orderId: order.id,
           pendingAmount: dueAmount,
           isPaymentDue: isDue,
+          isReplacement: isReplacement,
+          isTomorrow: isTomorrow,
+          isToday: isToday,
         })
       : (() => {
           // ponytail: Assumes Indian 10-digit mobile numbers (+91). Upgrade path: Add country code support to tenant profile if expanding internationally.
@@ -137,6 +145,36 @@ export function OrderDetailsModal({
   const extraOnBill = order.amount > expectedNet ? order.amount - expectedNet : 0;
   const overpaid = order.paid > order.amount ? order.paid - order.amount : 0;
   const totalExtra = extraOnBill + overpaid;
+
+  const combinedPayments = (() => {
+    const list = [...(order.payments || [])];
+    if (order.returns && Array.isArray(order.returns)) {
+      for (const ret of order.returns) {
+        if (ret.customerResolution === "refund" && ret.refundAmount > 0) {
+          const alreadyInPayments = list.some(
+            (p) =>
+              (p.type === "refund" || p.amount < 0) &&
+              Math.abs(Math.abs(p.amount) - ret.refundAmount) < 0.01 &&
+              (p.notes?.includes(ret.productName) ||
+                (ret.returnedAt &&
+                  p.recordedAt &&
+                  Math.abs(new Date(p.recordedAt).getTime() - new Date(ret.returnedAt).getTime()) < 60000))
+          );
+          if (!alreadyInPayments) {
+            list.push({
+              amount: -ret.refundAmount,
+              mode: (ret.refundMode === "reduce_due" ? "cash" : ret.refundMode || "cash") as any,
+              recordedAt: ret.returnedAt || new Date().toISOString(),
+              recordedBy: ret.recordedBy,
+              type: "refund",
+              notes: `Return refund: ${ret.quantity}x ${ret.productName}${ret.refundMode === "reduce_due" ? " (Due reduced)" : ""}${ret.notes ? ` - ${ret.notes}` : ""}`,
+            });
+          }
+        }
+      }
+    }
+    return list;
+  })();
 
   return (
     <div
@@ -287,18 +325,46 @@ export function OrderDetailsModal({
                 </div>
               </div>
             ) : order.scheduledFor ? (
-              <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-[6px] flex items-start gap-2.5 text-amber-950">
-                <Clock className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+              <div
+                className={`p-3 rounded-[6px] flex items-start gap-2.5 ${
+                  isReplacement && isTomorrow
+                    ? "bg-rose-50 border border-rose-300 text-rose-950 ring-1 ring-rose-300/40"
+                    : "bg-amber-50/50 border border-amber-200/80 text-amber-950"
+                }`}
+              >
+                <Clock
+                  className={`h-4 w-4 shrink-0 mt-0.5 ${
+                    isReplacement && isTomorrow ? "text-rose-700" : "text-amber-700"
+                  }`}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[11px] font-heading uppercase tracking-wider font-semibold text-amber-900">
-                      {order.type === "Product sale" ? "Expected Pickup" : "Appointment Slot"}
+                    <span
+                      className={`block text-[11px] font-heading uppercase tracking-wider font-semibold ${
+                        isReplacement && isTomorrow ? "text-rose-900" : "text-amber-900"
+                      }`}
+                    >
+                      {isReplacement
+                        ? "Expected Replacement Delivery"
+                        : order.type === "Product sale"
+                        ? "Expected Pickup"
+                        : "Appointment Slot"}
                     </span>
-                    <span className="text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
-                      Upcoming
+                    <span
+                      className={`text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded border ${
+                        isReplacement && isTomorrow
+                          ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
+                          : "bg-amber-100 text-amber-800 border-amber-300/80"
+                      }`}
+                    >
+                      {isReplacement && isTomorrow
+                        ? "Urgent: Tomorrow"
+                        : isToday
+                        ? "Today"
+                        : "Upcoming"}
                     </span>
                   </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block text-amber-950">
+                  <span className="text-[12.5px] font-medium mt-0.5 block">
                     {formatBookingDate(order.scheduledFor)}
                     {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
                   </span>
@@ -524,13 +590,13 @@ export function OrderDetailsModal({
                   <span className="tabular-nums font-mono">{formatRupee(order.paid)}</span>
                 </div>
 
-                {order.payments && order.payments.some(p => p.type === "refund" || p.amount < 0) && (
+                {combinedPayments.some(p => p.type === "refund" || p.amount < 0) && (
                   <div className="flex justify-between text-[13px] text-rose-700 font-medium">
                     <span className="inline-flex items-center gap-1.5">
                       <Undo2 className="h-3.5 w-3.5" />
                       <span>Total Refunded:</span>
                     </span>
-                    <span className="tabular-nums font-mono">- {formatRupee(order.payments.filter(p => p.type === "refund" || p.amount < 0).reduce((sum, p) => sum + Math.abs(p.amount), 0))}</span>
+                    <span className="tabular-nums font-mono">- {formatRupee(combinedPayments.filter(p => p.type === "refund" || p.amount < 0).reduce((sum, p) => sum + Math.abs(p.amount), 0))}</span>
                   </div>
                 )}
 
@@ -574,13 +640,13 @@ export function OrderDetailsModal({
                 ) : null}
 
             {/* Payment History Log */}
-            {order.payments && order.payments.length > 0 && (() => {
-              const getPaymentBadge = (p: typeof order.payments[number], idx: number, total: number) => {
+            {combinedPayments.length > 0 && (() => {
+              const getPaymentBadge = (p: typeof combinedPayments[number], idx: number, total: number) => {
+                if (p.type === "refund" || p.amount < 0) {
+                  return { label: "Refund", style: "bg-rose-50 text-rose-800 border-rose-200/90" };
+                }
                 if (p.type === "advance") {
                   return { label: "Advance", style: "bg-amber-50 text-amber-800 border-amber-200/90" };
-                }
-                if (p.type === "refund") {
-                  return { label: "Refund", style: "bg-rose-50 text-rose-800 border-rose-200/90" };
                 }
                 if (p.type === "settlement") {
                   return { label: "Settle", style: "bg-emerald-50 text-emerald-800 border-emerald-200/90" };
@@ -616,11 +682,12 @@ export function OrderDetailsModal({
               return (
                 <div className="pt-2 border-t border-galla-line/60 space-y-1.5">
                   <span className="text-[11px] font-heading uppercase tracking-wider text-galla-ink-soft block font-semibold">
-                    Payment History ({order.payments.length})
+                    Payment History ({combinedPayments.length})
                   </span>
                   <div className="space-y-1">
-                    {order.payments.map((p, pIdx) => {
-                      const badge = getPaymentBadge(p, pIdx, order.payments!.length);
+                    {combinedPayments.map((p, pIdx) => {
+                      const badge = getPaymentBadge(p, pIdx, combinedPayments.length);
+                      const isRefund = p.type === "refund" || p.amount < 0;
                       return (
                         <div
                           key={pIdx}
@@ -634,7 +701,9 @@ export function OrderDetailsModal({
                                 {badge.label}
                               </span>
                               <span>
-                                <strong className="text-galla-ink font-semibold">{formatRupee(p.amount)}</strong> via{" "}
+                                <strong className={isRefund ? "text-rose-700 font-semibold" : "text-galla-ink font-semibold"}>
+                                  {formatRupee(p.amount)}
+                                </strong> via{" "}
                                 <span className="uppercase font-medium text-galla-ink">{p.mode}</span>
                                 {p.recordedBy ? ` (${p.recordedBy})` : ""}
                               </span>
@@ -764,8 +833,10 @@ export function OrderDetailsModal({
               <span className="text-amber-800 font-medium">
                 Customer has {formatRupee(dueAmount)} remaining due
               </span>
+            ) : isReplacement ? (
+              <span className="text-amber-800 font-medium">Replacement order &bull; Awaiting dealer delivery</span>
             ) : isCompleted ? (
-              <span className="text-emerald-700 font-medium">Order is complete &amp; paid</span>
+              <span className="text-emerald-700 font-medium">Order is complete</span>
             ) : hasPendingDelivery ? (
               <span className="text-blue-700 font-medium">Paid in full &bull; Delivery pending stock pickup</span>
             ) : null}
@@ -799,7 +870,7 @@ export function OrderDetailsModal({
               </button>
             )}
 
-            {(isAdvance || isDue) && order.scheduledFor && onOpenReschedule && (
+            {(isAdvance || isDue || isReplacement) && onOpenReschedule && (
               <button
                 type="button"
                 onClick={() => {
@@ -808,7 +879,7 @@ export function OrderDetailsModal({
                 }}
                 className="px-3 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft transition-colors cursor-pointer"
               >
-                Reschedule
+                {order.scheduledFor ? "Reschedule" : "Set Delivery Date"}
               </button>
             )}
 

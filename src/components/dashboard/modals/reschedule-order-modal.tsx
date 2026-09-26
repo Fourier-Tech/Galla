@@ -29,15 +29,36 @@ export function RescheduleOrderModal({
       order.status !== "cancelled_refunded" &&
       order.status !== "cancelled_converted");
 
-  const title = isDueOrder
+  const isReplacementOrder =
+    order.status === "replacement_pending" || order.status === "replacement";
+
+  const title = isReplacementOrder
+    ? order.scheduledFor
+      ? "Reschedule Replacement Delivery Date"
+      : "Set Replacement Delivery Date"
+    : isDueOrder
     ? order.scheduledFor
       ? "Reschedule Due Date"
       : "Set Payment Due Date"
     : "Reschedule & Set Time";
 
-  const currentSlotLabel = isDueOrder ? "Current Due Date:" : "Current Booking:";
-  const dateLabel = isDueOrder ? "Payment Due Date" : "Booking Date";
-  const submitButtonLabel = isDueOrder ? "Confirm Due Date" : "Confirm Booking Slot";
+  const currentSlotLabel = isReplacementOrder
+    ? "Current Expected Delivery:"
+    : isDueOrder
+    ? "Current Due Date:"
+    : "Current Booking:";
+
+  const dateLabel = isReplacementOrder
+    ? "Expected Delivery Date"
+    : isDueOrder
+    ? "Payment Due Date"
+    : "Booking Date";
+
+  const submitButtonLabel = isReplacementOrder
+    ? "Confirm Delivery Date"
+    : isDueOrder
+    ? "Confirm Due Date"
+    : "Confirm Booking Slot";
 
   return (
     <BaseRescheduleModal

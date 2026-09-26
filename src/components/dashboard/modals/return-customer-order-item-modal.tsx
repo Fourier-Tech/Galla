@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Loader2,
@@ -9,21 +9,16 @@ import {
   Package,
   AlertCircle,
   Calendar,
-  History,
-  Store,
-  Sparkles,
 } from "lucide-react";
 import {
   DashboardOrder,
   DashboardOrderLineItem,
   DashboardProduct,
-  DashboardOrderReturn,
 } from "@/types/dashboard";
 import {
   formatRupee,
   formatDisplayNumber,
   getLocalDateString,
-  formatBookingDate,
 } from "@/lib/utils";
 import {
   returnCustomerOrderItemAction,
@@ -82,14 +77,13 @@ export function ReturnCustomerOrderItemModal({
   });
   const [isLoadingStock, setIsLoadingStock] = useState<boolean>(false);
 
-  // Return history filter tab
-  const [historyScope, setHistoryScope] = useState<"this_item" | "all_order">("this_item");
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const unitPrice =
-    lineItem.quantity > 0 ? lineItem.finalPrice / lineItem.quantity : lineItem.unitPrice;
+    lineItem.quantity > 0
+      ? Math.round((lineItem.finalPrice / lineItem.quantity) * 100) / 100
+      : lineItem.unitPrice;
   const pendingAmount = Math.max(0, order.amount - order.paid);
 
   // Fetch product stock if not provided in props
@@ -112,7 +106,7 @@ export function ReturnCustomerOrderItemModal({
   useEffect(() => {
     if (isOpen && lineItem) {
       setQuantity("1");
-      setCustomAmountStr(String(unitPrice));
+      setCustomAmountStr(String(Math.round(unitPrice * 100) / 100));
       setIsGoodCondition(true);
       setRestockLocation("sellStock");
       setDefectiveResolution("replacement");
@@ -123,13 +117,12 @@ export function ReturnCustomerOrderItemModal({
       setRefundMode(pendingAmount > 0 ? "reduce_due" : "cash");
       setError(null);
       setNotes("");
-      setHistoryScope("this_item");
     }
   }, [isOpen, lineItem, order, unitPrice, pendingAmount]);
 
   const parsedQty = parseInt(quantity || "0", 10);
   const isValidQty = !isNaN(parsedQty) && parsedQty > 0 && parsedQty <= availableToReturn;
-  const defaultReturnTotal = isNaN(parsedQty) ? 0 : parsedQty * unitPrice;
+  const defaultReturnTotal = isNaN(parsedQty) ? 0 : Math.round(parsedQty * unitPrice * 100) / 100;
   const finalReturnAmount =
     customAmountStr !== "" ? parseFloat(customAmountStr) || 0 : defaultReturnTotal;
 
@@ -148,32 +141,13 @@ export function ReturnCustomerOrderItemModal({
     }
   }, [isGoodCondition, defectiveResolution, shelfStock, parsedQty, isValidQty]);
 
-  // History filtering
-  const allReturns: DashboardOrderReturn[] = useMemo(() => {
-    return order.returns || [];
-  }, [order.returns]);
-
-  const thisItemReturns = useMemo(() => {
-    return allReturns.filter((r) => {
-      if (lineItem.itemId && r.productId) {
-        return r.productId === lineItem.itemId;
-      }
-      return (
-        r.lineItemIndex === lineItemIndex ||
-        r.productName?.trim().toLowerCase() === lineItem.name.trim().toLowerCase()
-      );
-    });
-  }, [allReturns, lineItem.itemId, lineItem.name, lineItemIndex]);
-
-  const displayedHistory = historyScope === "this_item" ? thisItemReturns : allReturns;
-
   if (!isOpen) return null;
 
   const handleQuantityChange = (val: string) => {
     setQuantity(val);
     const qty = parseInt(val || "0", 10);
-    if (!isNaN(qty)) {
-      setCustomAmountStr(String(qty * unitPrice));
+    if (!isNaN(qty) && qty > 0) {
+      setCustomAmountStr(String(Math.round(qty * unitPrice * 100) / 100));
     } else {
       setCustomAmountStr("");
     }
@@ -313,43 +287,90 @@ export function ReturnCustomerOrderItemModal({
             </div>
           </div>
 
-          {/* Question 1: Quantity to Return */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
-                1. Quantity to Return
-              </label>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuantityChange("1")}
-                  className="font-sans text-[10.5px] text-galla-teal hover:underline cursor-pointer"
-                >
-                  1 pc
-                </button>
-                <span className="text-galla-ink-soft text-[10px]">&bull;</span>
-                <button
-                  type="button"
-                  onClick={() => handleQuantityChange(String(availableToReturn))}
-                  className="font-sans text-[10.5px] text-galla-teal hover:underline cursor-pointer font-medium"
-                >
-                  All ({availableToReturn})
-                </button>
+          {/* Quantity & Return Price (2-Column Grid) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Question 1: Quantity to Return */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+                  1. Quantity to Return
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuantityChange("1")}
+                    className="font-sans text-[10.5px] text-galla-teal hover:underline cursor-pointer"
+                  >
+                    1 pc
+                  </button>
+                  <span className="text-galla-ink-soft text-[10px]">&bull;</span>
+                  <button
+                    type="button"
+                    onClick={() => handleQuantityChange(String(availableToReturn))}
+                    className="font-sans text-[10.5px] text-galla-teal hover:underline cursor-pointer font-medium"
+                  >
+                    All ({availableToReturn})
+                  </button>
+                </div>
+              </div>
+              <div className="relative flex items-center">
+                <input
+                  type="number"
+                  min="1"
+                  max={availableToReturn}
+                  value={quantity}
+                  onChange={(e) => handleQuantityChange(e.target.value)}
+                  className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+                  required
+                />
+                <span className="absolute right-3 font-sans text-[11px] text-galla-ink-soft pointer-events-none">
+                  pcs
+                </span>
               </div>
             </div>
-            <div className="relative flex items-center">
-              <input
-                type="number"
-                min="1"
-                max={availableToReturn}
-                value={quantity}
-                onChange={(e) => handleQuantityChange(e.target.value)}
-                className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-                required
-              />
-              <span className="absolute right-3 font-sans text-[11px] text-galla-ink-soft pointer-events-none">
-                pcs
-              </span>
+
+            {/* Editable Return / Refund Price */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+                  Return / Refund Price (₹)
+                </label>
+                {customAmountStr !== String(defaultReturnTotal) && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomAmountStr(String(defaultReturnTotal))}
+                    className="font-sans text-[10.5px] text-galla-teal hover:underline cursor-pointer"
+                    title="Reset to default calculated price"
+                  >
+                    Reset ({formatRupee(defaultReturnTotal)})
+                  </button>
+                )}
+              </div>
+              <div className="relative flex items-center">
+                <span className="absolute left-2.5 font-mono text-[13px] text-galla-ink-soft pointer-events-none">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  disabled={!isGoodCondition && defectiveResolution === "replacement"}
+                  value={customAmountStr}
+                  onChange={(e) => setCustomAmountStr(e.target.value)}
+                  className="w-full h-8 pl-6 pr-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors disabled:bg-galla-paper/50 disabled:text-galla-ink-soft/70 disabled:cursor-not-allowed"
+                  placeholder={String(defaultReturnTotal)}
+                  required={isGoodCondition || defectiveResolution === "refund"}
+                />
+              </div>
+              <div className="font-sans text-[10.5px] text-galla-ink-soft mt-1 truncate">
+                {!isGoodCondition && defectiveResolution === "replacement" ? (
+                  <span className="text-amber-800">Replacement selected &mdash; ₹0 refund</span>
+                ) : (
+                  <>
+                    Default: <strong className="font-mono text-galla-ink">{formatRupee(unitPrice)}/pc</strong> &bull; Total: <strong className="font-mono text-galla-ink">{formatRupee(defaultReturnTotal)}</strong>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -715,101 +736,7 @@ export function ReturnCustomerOrderItemModal({
             </div>
           )}
 
-          {/* Return History Section at Bottom */}
-          <div className="pt-3 border-t border-galla-line/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <History className="h-3.5 w-3.5 text-galla-teal" />
-                <span className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
-                  Return &amp; Replacement History
-                </span>
-              </div>
-              <div className="flex items-center gap-1 bg-galla-paper p-0.5 rounded-[4px] border border-galla-line/70">
-                <button
-                  type="button"
-                  onClick={() => setHistoryScope("this_item")}
-                  className={`px-2 py-0.5 rounded-[3px] font-sans text-[10.5px] transition-colors cursor-pointer ${
-                    historyScope === "this_item"
-                      ? "bg-galla-surface text-galla-ink font-semibold shadow-2xs"
-                      : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  This Item ({thisItemReturns.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHistoryScope("all_order")}
-                  className={`px-2 py-0.5 rounded-[3px] font-sans text-[10.5px] transition-colors cursor-pointer ${
-                    historyScope === "all_order"
-                      ? "bg-galla-surface text-galla-ink font-semibold shadow-2xs"
-                      : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  All Order ({allReturns.length})
-                </button>
-              </div>
-            </div>
 
-            {displayedHistory.length > 0 ? (
-              <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
-                {displayedHistory.map((ret, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2 bg-galla-paper/30 border border-galla-line/70 rounded-[4px] text-[11px] space-y-0.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10px] text-galla-ink-soft">
-                          {ret.returnNumber || `RET-${idx + 1}`}
-                        </span>
-                        <span className="font-semibold text-galla-ink">
-                          {ret.quantity}x {ret.productName}
-                        </span>
-                      </div>
-                      <span className="font-mono text-[10px] text-galla-ink-soft">
-                        {ret.returnedAt
-                          ? new Date(ret.returnedAt).toLocaleString("en-IN", {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })
-                          : ""}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span
-                        className={`text-[9px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded border ${
-                          ret.returnCondition === "defective_dealer_claim"
-                            ? "bg-rose-50 text-rose-700 border-rose-200"
-                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        }`}
-                      >
-                        {ret.returnCondition === "defective_dealer_claim" ? "Defective" : "Good (Restocked)"}
-                      </span>
-
-                      <span className="text-[10px] font-sans text-galla-ink-soft bg-galla-surface px-1.5 py-0.2 rounded border border-galla-line">
-                        {ret.customerResolution === "replacement"
-                          ? ret.expectedPickupDate
-                            ? `Replacement (Expected: ${formatBookingDate(ret.expectedPickupDate)})`
-                            : "Replacement Given"
-                          : `Refund: ${formatRupee(ret.refundAmount)} (${ret.refundMode || "cash"})`}
-                      </span>
-
-                      {ret.notes && (
-                        <span className="text-[10px] font-sans text-galla-ink-soft italic truncate max-w-[200px]">
-                          &ldquo;{ret.notes}&rdquo;
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-2 text-center text-[10.5px] font-sans text-galla-ink-soft bg-galla-paper/20 rounded-[4px] border border-dashed border-galla-line">
-                No previous returns recorded for {historyScope === "this_item" ? "this product" : "this order"}.
-              </div>
-            )}
-          </div>
 
           {/* Action Buttons - Fixed at bottom of form */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-galla-line shrink-0">

@@ -119,10 +119,12 @@ export default async function DashboardPage() {
   let initialCustomerReplacements: DashboardCustomerReplacement[] = [];
   let initialOrderStatusCounts: Record<string, number> = {
     all: 0,
+    created: 0,
     advance_paid: 0,
     paid_full: 0,
     completed: 0,
     cancelled_refunded: 0,
+    replacement: 0,
   };
   let initialSalonProfile: DashboardSalonProfile = {
     id: "",
@@ -182,6 +184,7 @@ export default async function DashboardPage() {
         rawSuppliers,
         rawPurchaseOrders,
         rawCustomerReplacements,
+        replacementOrdersCount,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
         Product.find({ tenantId: tenantObjectId }).sort({ createdAt: 1 }).lean(),
@@ -217,15 +220,24 @@ export default async function DashboardPage() {
           tenantId: tenantObjectId,
           status: { $in: ["pending_dealer", "arrived_call_client"] },
         }).sort({ expectedDate: 1 }).lean(),
+        Order.countDocuments({
+          tenantId: tenantObjectId,
+          $or: [
+            { status: { $in: ["replacement", "replacement_pending", "replacement_completed"] } },
+            { "returns.customerResolution": "replacement" },
+          ],
+        }),
       ]);
 
       initialTotalOrdersCount = count;
       initialOrderStatusCounts = {
         all: count,
+        created: 0,
         advance_paid: 0,
         paid_full: 0,
         completed: 0,
         cancelled_refunded: 0,
+        replacement: replacementOrdersCount,
       };
       statusAgg.forEach((item: { _id: string; count: number }) => {
         if (item._id && initialOrderStatusCounts[item._id] !== undefined) {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Plus, AlertTriangle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
+import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
 import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
@@ -27,6 +27,7 @@ interface OverviewTabProps {
   onCompleteOrder?: (orderId: string) => Promise<void> | void;
   onOpenRefund?: (order: DashboardOrder) => void;
   onNavigateToInventory?: () => void;
+  onNavigateToReplacementOrders?: () => void;
   onOpenSettle?: (order: DashboardOrder) => void;
   onRescheduleOrder?: (updatedOrder: DashboardOrder) => void;
   onUpdateReplacement?: (updated: DashboardCustomerReplacement) => void;
@@ -48,6 +49,7 @@ export function OverviewTab({
   onCompleteOrder,
   onOpenRefund,
   onNavigateToInventory,
+  onNavigateToReplacementOrders,
   onOpenSettle,
   onRescheduleOrder,
   customerReplacements = [],
@@ -76,6 +78,15 @@ export function OverviewTab({
   const pendingDealerReplacements = useMemo(
     () => (replacementsList || []).filter((r) => r.status === "pending_dealer"),
     [replacementsList]
+  );
+  const urgentDealerReplacements = useMemo(
+    () =>
+      (pendingDealerReplacements || []).filter((r) => {
+        if (!r.expectedDate) return false;
+        const u = getBookingUrgency(r.expectedDate);
+        return u && (u.tone === "tomorrow" || u.tone === "today" || u.tone === "overdue");
+      }),
+    [pendingDealerReplacements]
   );
 
   const handleMarkCollected = async (r: DashboardCustomerReplacement) => {
@@ -114,9 +125,16 @@ export function OverviewTab({
   // Overall Customer Outstanding Dues
   const pendingAmount = useMemo(() => calculatePendingAmount(orders), [orders]);
 
-  // Overall Dealer / Supplier Dues (sum of all pending amounts owed to active suppliers)
-  const dealerDues = useMemo(() => {
-    return suppliers.reduce((sum, s) => sum + (s.totalPending || 0), 0);
+  // Overall Dealer / Supplier Dues and Credits
+  const { totalDealerDues, totalDealerCredit } = useMemo(() => {
+    let dues = 0;
+    let credit = 0;
+    for (const s of suppliers) {
+      const p = s.totalPending || 0;
+      if (p > 0) dues += p;
+      else if (p < 0) credit += Math.abs(p);
+    }
+    return { totalDealerDues: dues, totalDealerCredit: credit };
   }, [suppliers]);
 
   // Low stock products
@@ -436,11 +454,19 @@ export function OverviewTab({
         </div>
         <div className="bg-galla-surface col-span-2 lg:col-span-1">
           <StatBlock
-            label="Dealer Dues"
+            label={totalDealerDues > 0 ? "Dealer Dues" : totalDealerCredit > 0 ? "Dealer Credit" : "Dealer Dues"}
             badge="Overall"
-            value={formatRupee(dealerDues)}
-            subtext="Owed to suppliers"
-            tone={dealerDues > 0 ? "brick" : "ink"}
+            value={formatRupee(totalDealerDues > 0 ? totalDealerDues : totalDealerCredit)}
+            subtext={
+              totalDealerDues > 0
+                ? totalDealerCredit > 0
+                  ? `Owed to suppliers (₹${totalDealerCredit.toLocaleString("en-IN")} credit available)`
+                  : "Owed to suppliers"
+                : totalDealerCredit > 0
+                ? "Credit from returns (Owed to you)"
+                : "No outstanding dues"
+            }
+            tone={totalDealerDues > 0 ? "brick" : totalDealerCredit > 0 ? "sage" : "ink"}
           />
         </div>
       </div>
@@ -479,153 +505,111 @@ export function OverviewTab({
         </div>
       )}
 
-      {/* Customer Replacements Arrived Banner (Green) */}
+      {/* Customer Replacements Arrived Banner (Green - Compact Single Line) */}
       {arrivedReplacements.length > 0 && (
         <div
           role="alert"
-          className="shrink-0 p-3 rounded-[5px] bg-emerald-50/90 border border-emerald-300 text-emerald-950 text-[12px] font-sans shadow-xs space-y-2"
+          className="shrink-0 px-3.5 py-2 rounded-[5px] bg-emerald-50 border border-emerald-300 text-emerald-950 text-[12px] font-sans flex items-center justify-between gap-3 shadow-xs"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span className="font-heading font-semibold text-[13px] text-emerald-900">
-                {arrivedReplacements.length} Replacement{arrivedReplacements.length > 1 ? "s" : ""} Arrived from Dealer &mdash; Ready for Client Handover
-              </span>
-            </div>
-            <span className="text-[11px] font-sans text-emerald-800 hidden sm:inline">
-              Stock received. Call client to collect from salon.
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <span className="truncate">
+              <strong className="font-semibold">
+                {arrivedReplacements.length} client replacement{arrivedReplacements.length > 1 ? "s" : ""} arrived from dealer
+              </strong>{" "}
+              &mdash; ready for client handover ({arrivedReplacements.map((r) => `${r.customerName} (#${r.orderNumber})`).join(", ")}).
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {arrivedReplacements.map((r) => (
-              <div
-                key={r.id}
-                className="p-2.5 rounded-[4px] bg-white border border-emerald-200 flex items-center justify-between gap-3 shadow-2xs"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <strong className="font-heading font-semibold text-[12.5px] text-galla-ink truncate">
-                      {r.customerName}
-                    </strong>
-                    <span className="font-mono text-[10.5px] text-galla-ink-soft bg-galla-paper px-1.5 py-0.2 rounded border border-galla-line/60">
-                      #{r.orderNumber}
-                    </span>
-                  </div>
-                  <div className="font-sans text-[11px] text-emerald-900 font-medium truncate mt-0.5">
-                    {r.pendingQuantity}x {r.productName}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {r.customerPhone && (
-                    <a
-                      href={`tel:${r.customerPhone}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-emerald-100/70 hover:bg-emerald-200 text-emerald-900 text-[11px] font-medium border border-emerald-300 transition-colors"
-                      title={`Call ${r.customerName} at ${r.customerPhone}`}
-                    >
-                      <Phone className="h-3 w-3 text-emerald-700" />
-                      <span>Call</span>
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    disabled={collectingReplacementId === r.id}
-                    onClick={() => handleMarkCollected(r)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-                  >
-                    {collectingReplacementId === r.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Check className="h-3 w-3" />
-                    )}
-                    <span>Mark Handed Over</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          {onNavigateToReplacementOrders && (
+            <button
+              type="button"
+              onClick={onNavigateToReplacementOrders}
+              className="inline-flex items-center gap-1 shrink-0 font-semibold text-[12px] text-emerald-900 hover:text-emerald-950 underline underline-offset-2 hover:underline-offset-4 transition-all cursor-pointer group"
+              title="Go to Orders tab to view replacement orders"
+            >
+              <span>Go to Orders</span>
+              <ArrowRight className="h-3.5 w-3.5 text-emerald-900 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
         </div>
       )}
 
-      {/* Customer Replacements Awaiting Dealer Banner (Amber) */}
-      {pendingDealerReplacements.length > 0 && (
-        <div
-          role="alert"
-          className="shrink-0 p-3 rounded-[5px] bg-amber-50/90 border border-amber-300 text-amber-950 text-[12px] font-sans shadow-xs space-y-2"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-              <span className="font-heading font-semibold text-[13px] text-amber-900">
-                {pendingDealerReplacements.length} Client Replacement{pendingDealerReplacements.length > 1 ? "s" : ""} Pending from Dealer
-              </span>
-            </div>
-            <span className="text-[11px] font-sans text-amber-800 hidden sm:inline">
-              Stock awaiting dealer replacement delivery.
-            </span>
-          </div>
+      {/* Customer Replacements Awaiting Dealer Banner (Compact Single Line with Tomorrow/Overdue Urgency warning) */}
+      {pendingDealerReplacements.length > 0 && (() => {
+        const hasUrgent = urgentDealerReplacements.length > 0;
+        const tomorrowList = urgentDealerReplacements.filter(
+          (r) => getBookingUrgency(r.expectedDate)?.tone === "tomorrow"
+        );
+        const overdueOrTodayList = urgentDealerReplacements.filter((r) => {
+          const t = getBookingUrgency(r.expectedDate)?.tone;
+          return t === "today" || t === "overdue";
+        });
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {pendingDealerReplacements.map((r) => {
-              const urgency = getBookingUrgency(r.expectedDate);
-              const isUrgent = urgency && (urgency.tone === "today" || urgency.tone === "overdue");
+        const alertStyle = hasUrgent
+          ? "bg-rose-50 border-rose-300 text-rose-950 ring-1 ring-rose-400/30"
+          : "bg-amber-50 border-amber-300 text-amber-950";
 
-              return (
-                <div
-                  key={r.id}
-                  className={`p-2.5 rounded-[4px] bg-white border flex items-center justify-between gap-3 shadow-2xs ${
-                    isUrgent ? "border-amber-400 ring-1 ring-amber-400/40" : "border-amber-200"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <strong className="font-heading font-semibold text-[12.5px] text-galla-ink truncate">
-                        {r.customerName}
-                      </strong>
-                      <span className="font-mono text-[10.5px] text-galla-ink-soft bg-galla-paper px-1.5 py-0.2 rounded border border-galla-line/60">
-                        #{r.orderNumber}
+        const icon = hasUrgent ? (
+          <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+        ) : (
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+        );
+
+        return (
+          <div
+            role="alert"
+            className={`shrink-0 px-3.5 py-2 rounded-[5px] border text-[12px] font-sans flex items-center justify-between gap-3 shadow-xs ${alertStyle}`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {icon}
+              <span className="truncate">
+                {tomorrowList.length > 0 ? (
+                  <>
+                    <strong className="font-semibold text-rose-900">
+                      🚨 Urgent: {tomorrowList.length} client replacement{tomorrowList.length > 1 ? "s" : ""} expected tomorrow
+                    </strong>{" "}
+                    &mdash; {tomorrowList.map((r) => `${r.customerName} (#${formatDisplayNumber(r.orderNumber)})`).join(", ")}.
+                    {pendingDealerReplacements.length > tomorrowList.length && (
+                      <span className="text-rose-800/80 ml-1">
+                        (+{pendingDealerReplacements.length - tomorrowList.length} others pending)
                       </span>
-                      {isUrgent && (
-                        <span className="text-[9.5px] font-heading font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                          {urgency?.label || "Due"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="font-sans text-[11px] text-galla-ink truncate mt-0.5">
-                      {r.pendingQuantity}x {r.productName} &bull; Expected:{" "}
-                      <strong className="font-mono text-amber-950 font-medium">
-                        {formatBookingDate(r.expectedDate)}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {r.customerPhone && (
-                      <a
-                        href={`tel:${r.customerPhone}`}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-amber-100/70 hover:bg-amber-200 text-amber-900 text-[11px] font-medium border border-amber-300 transition-colors"
-                        title={`Call ${r.customerName} at ${r.customerPhone}`}
-                      >
-                        <Phone className="h-3 w-3 text-amber-700" />
-                        <span>Call</span>
-                      </a>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedReplacementToChangeDate(r)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-galla-surface hover:bg-galla-paper text-galla-ink text-[11px] font-medium border border-galla-line transition-colors shadow-2xs cursor-pointer"
-                    >
-                      <Calendar className="h-3 w-3 text-galla-ink-soft" />
-                      <span>Change Date</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                  </>
+                ) : overdueOrTodayList.length > 0 ? (
+                  <>
+                    <strong className="font-semibold text-rose-900">
+                      ⚠️ {overdueOrTodayList.length} client replacement{overdueOrTodayList.length > 1 ? "s" : ""} due today / overdue
+                    </strong>{" "}
+                    &mdash; {overdueOrTodayList.map((r) => `${r.customerName} (#${formatDisplayNumber(r.orderNumber)})`).join(", ")}.
+                  </>
+                ) : (
+                  <>
+                    <strong className="font-semibold">
+                      {pendingDealerReplacements.length} client replacement{pendingDealerReplacements.length > 1 ? "s" : ""} pending from dealer
+                    </strong>{" "}
+                    &mdash; {pendingDealerReplacements.map((r) => `${r.customerName} (#${formatDisplayNumber(r.orderNumber)})`).join(", ")}.
+                  </>
+                )}
+              </span>
+            </div>
+
+            {onNavigateToReplacementOrders && (
+              <button
+                type="button"
+                onClick={onNavigateToReplacementOrders}
+                className={`inline-flex items-center gap-1 shrink-0 font-semibold text-[12px] underline underline-offset-2 hover:underline-offset-4 transition-all cursor-pointer group ${
+                  hasUrgent ? "text-rose-900 hover:text-rose-950" : "text-amber-900 hover:text-amber-950"
+                }`}
+                title="Go to Orders tab to view replacement orders"
+              >
+                <span>Go to Orders</span>
+                <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
 
       {/* Recent Orders Section (Flex-1 scrollable table) */}
@@ -1061,13 +1045,14 @@ export function OverviewTab({
                           ) : (
                             <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                           )
-                        ) : order.status === "paid_full" ? (
+                        ) : order.status === "paid_full" || order.status === "replacement_pending" || order.status === "replacement" ? (
                           <>
                             {isAppointmentDue && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const hasDeliverable = order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
+                                  const isRep = order.status === "replacement_pending" || order.status === "replacement";
+                                  const hasDeliverable = isRep || order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
                                   if (hasDeliverable && onOpenSettle) {
                                     onOpenSettle(order);
                                   } else {
@@ -1076,13 +1061,23 @@ export function OverviewTab({
                                 }}
                                 disabled={loadingId === order.id}
                                 className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                                title={order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled) ? "Deliver products and complete order" : "Mark service as completed"}
+                                title={
+                                  order.status === "replacement_pending" || order.status === "replacement"
+                                    ? "Deliver replacement product and complete order"
+                                    : order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
+                                    ? "Deliver products and complete order"
+                                    : "Mark service as completed"
+                                }
                               >
                                 {loadingId === order.id ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
                                 ) : (
                                   <>
-                                    <span>{order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled) ? "Deliver & Done" : "Mark Done"}</span>
+                                    <span>
+                                      {order.status === "replacement_pending" || order.status === "replacement" || order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
+                                        ? "Deliver & Done"
+                                        : "Mark Done"}
+                                    </span>
                                     <Check className="h-3.5 w-3.5 text-green-700" />
                                   </>
                                 )}

@@ -58,6 +58,13 @@ export async function GET(request: Request) {
     if (status && status !== "all") {
       if (status === "advance_paid") {
         conditions.push({ status: { $in: ["advance_paid", "paid_full"] } });
+      } else if (status === "replacement") {
+        conditions.push({
+          $or: [
+            { status: { $in: ["replacement", "replacement_pending", "replacement_completed"] } },
+            { "returns.customerResolution": "replacement" },
+          ],
+        });
       } else {
         conditions.push({ status });
       }
@@ -111,7 +118,7 @@ export async function GET(request: Request) {
         ? { scheduledFor: -1, createdAt: -1 }
         : { updatedAt: sortDirection, createdAt: sortDirection };
 
-    const [totalCount, rawOrders, statusAgg, overallTotal] = await Promise.all([
+    const [totalCount, rawOrders, statusAgg, overallTotal, replacementCount] = await Promise.all([
       Order.countDocuments(query),
       Order.find(query)
         .sort(sortQuery)
@@ -123,6 +130,13 @@ export async function GET(request: Request) {
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
       Order.countDocuments({ tenantId }),
+      Order.countDocuments({
+        tenantId,
+        $or: [
+          { status: { $in: ["replacement", "replacement_pending", "replacement_completed"] } },
+          { "returns.customerResolution": "replacement" },
+        ],
+      }),
     ]);
 
     const statusCounts: Record<string, number> = {
@@ -132,6 +146,7 @@ export async function GET(request: Request) {
       paid_full: 0,
       completed: 0,
       cancelled_refunded: 0,
+      replacement: replacementCount,
     };
     statusAgg.forEach((item: { _id: string; count: number }) => {
       if (item._id && statusCounts[item._id] !== undefined) {
@@ -286,6 +301,32 @@ export async function GET(request: Request) {
               componentPrice: c.componentPrice,
             })) : [],
           } : undefined,
+        })) : undefined,
+        returns: o.returns && Array.isArray(o.returns) ? o.returns.map((r: any) => ({
+          returnNumber: r.returnNumber,
+          lineItemId: r.lineItemId ? r.lineItemId.toString() : undefined,
+          lineItemIndex: r.lineItemIndex,
+          productId: r.productId ? r.productId.toString() : undefined,
+          productName: r.productName,
+          quantity: r.quantity,
+          unitPrice: r.unitPrice,
+          refundAmount: r.refundAmount,
+          returnCondition: r.returnCondition,
+          customerResolution: r.customerResolution,
+          refundMode: r.refundMode,
+          supplierClaim: r.supplierClaim ? {
+            poId: r.supplierClaim.poId,
+            purchaseOrderNumber: r.supplierClaim.purchaseOrderNumber,
+            supplierName: r.supplierClaim.supplierName,
+            refundMode: r.supplierClaim.refundMode,
+          } : undefined,
+          customerReplacementId: r.customerReplacementId ? r.customerReplacementId.toString() : undefined,
+          expectedPickupDate: r.expectedPickupDate ? new Date(r.expectedPickupDate).toISOString() : undefined,
+          restockLocation: r.restockLocation,
+          isSameDayReturn: r.isSameDayReturn,
+          notes: r.notes,
+          recordedBy: r.recordedBy,
+          returnedAt: r.returnedAt ? new Date(r.returnedAt).toISOString() : new Date().toISOString(),
         })) : undefined,
       };
     });

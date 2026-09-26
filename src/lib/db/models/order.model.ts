@@ -7,7 +7,10 @@ export type OrderStatus =
   | "fulfilled"
   | "completed"
   | "cancelled_refunded"
-  | "cancelled_converted";
+  | "cancelled_converted"
+  | "replacement"
+  | "replacement_pending"
+  | "replacement_completed";
 
 export type OrderType = "product_sale" | "service_booking" | "package_sale" | "mixed";
 export type PaymentMode = "cash" | "upi" | "card" | "split";
@@ -335,6 +338,9 @@ const OrderSchema = new Schema<IOrder>(
         "completed",
         "cancelled_refunded",
         "cancelled_converted",
+        "replacement",
+        "replacement_pending",
+        "replacement_completed",
       ],
       default: "created",
       index: true,

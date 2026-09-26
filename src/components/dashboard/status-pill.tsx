@@ -40,6 +40,18 @@ const STATUS_CONFIG: Record<
     label: "Payment Due",
     className: "bg-amber-50 text-amber-800 border border-amber-300",
   },
+  replacement_pending: {
+    label: "Replacement Pending",
+    className: "bg-amber-50 text-amber-900 border border-amber-300",
+  },
+  replacement: {
+    label: "Replacement",
+    className: "bg-amber-50 text-amber-900 border border-amber-300",
+  },
+  replacement_completed: {
+    label: "Replacement Done",
+    className: "bg-green-50 text-green-800 border border-green-300",
+  },
 };
 
 export function StatusPill({ status, className = "", customLabel, title }: StatusPillProps) {

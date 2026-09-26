@@ -964,8 +964,11 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       order.paymentMode = paymentMode;
     }
 
+    const isReplacementOrder =
+      order.status === "replacement_pending" || order.status === "replacement";
+
     order.amountPending = 0;
-    order.status = "completed";
+    order.status = isReplacementOrder ? "replacement_completed" : "completed";
     order.completedAt = new Date();
 
     if (notes?.trim()) {
@@ -973,6 +976,22 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         ? `${order.notes} | ${notes.trim()}`
         : notes.trim();
     }
+
+    // Also update any matching CustomerReplacement to completed
+    await CustomerReplacement.updateMany(
+      {
+        tenantId,
+        $or: [{ orderId: order._id }, { orderNumber: order.orderNumber }],
+        status: { $in: ["pending_dealer", "arrived_call_client"] },
+      },
+      {
+        $set: {
+          status: "completed",
+          pendingQuantity: 0,
+          completedAt: new Date(),
+        },
+      }
+    );
 
     // Update customer stats
     if (order.customerSnapshot?.phone) {
@@ -997,7 +1016,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       );
     }
 
-    // Mark line items fulfilled & deduct stock upon customer pickup for backordered / pre-ordered products & packages
+    // Mark line items fulfilled & deduct stock upon customer pickup for backordered / pre-ordered / replacement products & packages
     const affectedProductNames = new Set<string>();
     if (order.lineItems && order.lineItems.length > 0) {
       for (const item of order.lineItems) {
@@ -1044,6 +1063,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     await order.save();
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_completed");
+    broadcastUpdate(tenantId, "customer_replacement_updated");
 
     const mappedType = mapOrderType(order.orderType);
 
@@ -1070,7 +1090,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         type: mappedType,
         amount: order.totalAmount,
         paid: order.amountPaid,
-        status: "completed",
+        status: order.status,
         time: formatOrderTime(order.createdAt),
         lastUpdatedTime: "Today, Just now",
         isToday: true,
@@ -1189,8 +1209,20 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
     }
     await order.save();
 
+    // Also sync expectedDate on any matching CustomerReplacement record
+    await CustomerReplacement.updateMany(
+      {
+        tenantId,
+        $or: [{ orderId: order._id }, { orderNumber: order.orderNumber }],
+      },
+      {
+        $set: { expectedDate: parsedScheduledDate },
+      }
+    );
+
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_updated");
+    broadcastUpdate(tenantId, "customer_replacement_updated");
 
     const mappedType = mapOrderType(order.orderType);
 
@@ -5149,12 +5181,12 @@ async function processSupplierReturn(
   item.itemTotalCost = (totalPurchased - item.returnedQuantity) * item.purchaseCost;
 
   if (refundMode === "reduce_due") {
-    po.amountPending = Math.max(0, (po.amountPending || 0) - returnValue);
+    po.amountPending = (po.amountPending || 0) - returnValue;
     po.totalAmount = Math.max(0, (po.totalAmount || 0) - returnValue);
 
     const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId: tenantObj }).session(dbSession);
     if (supplier) {
-      supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - returnValue);
+      supplier.totalPending = (supplier.totalPending || 0) - returnValue;
       await supplier.save({ session: dbSession });
     }
   }
@@ -5453,6 +5485,16 @@ export async function returnCustomerOrderItemAction(
           order.amountPending = Math.max(0, order.amountPending - refundAmount);
           order.totalAmount = Math.max(0, order.totalAmount - refundAmount);
           order.subtotal = Math.max(0, order.subtotal - refundAmount);
+
+          if (!order.payments) order.payments = [];
+          order.payments.push({
+            amount: -refundAmount,
+            mode: "cash",
+            notes: `Return refund (due reduced): ${quantityToReturn}x ${item.name}`,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            type: "refund",
+            recordedAt: new Date(),
+          });
         } else {
           if (isSameDay) {
             // Same-day order return: deduct from today's income directly
@@ -5464,7 +5506,7 @@ export async function returnCustomerOrderItemAction(
             order.payments.push({
               amount: -refundAmount,
               mode: refundMode as any,
-              notes: `Same-day return refund: ${quantityToReturn}x ${item.name}`,
+              notes: `Return refund: ${quantityToReturn}x ${item.name}`,
               recordedBy: session.user.role === "staff" ? "staff" : "owner",
               type: "refund",
               recordedAt: new Date(),
@@ -5494,6 +5536,16 @@ export async function returnCustomerOrderItemAction(
               ],
               { session: dbSession },
             );
+
+            if (!order.payments) order.payments = [];
+            order.payments.push({
+              amount: -refundAmount,
+              mode: refundMode as any,
+              notes: `Return refund: ${quantityToReturn}x ${item.name}`,
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              type: "refund",
+              recordedAt: new Date(),
+            });
           }
         }
       } else {
@@ -5507,6 +5559,16 @@ export async function returnCustomerOrderItemAction(
             order.amountPending = Math.max(0, order.amountPending - refundAmount);
             order.totalAmount = Math.max(0, order.totalAmount - refundAmount);
             order.subtotal = Math.max(0, order.subtotal - refundAmount);
+
+            if (!order.payments) order.payments = [];
+            order.payments.push({
+              amount: -refundAmount,
+              mode: "cash",
+              notes: `Defective return refund (due reduced): ${quantityToReturn}x ${item.name}`,
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              type: "refund",
+              recordedAt: new Date(),
+            });
           } else {
             const { fullNumber: expenseNumber } = await Counter.getNextSequence({
               tenantId: new Types.ObjectId(tenantId),
@@ -5531,6 +5593,16 @@ export async function returnCustomerOrderItemAction(
               ],
               { session: dbSession },
             );
+
+            if (!order.payments) order.payments = [];
+            order.payments.push({
+              amount: -refundAmount,
+              mode: refundMode as any,
+              notes: `Defective return refund: ${quantityToReturn}x ${item.name}`,
+              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              type: "refund",
+              recordedAt: new Date(),
+            });
           }
         } else {
           // Customer wants replacement
@@ -5561,12 +5633,62 @@ export async function returnCustomerOrderItemAction(
               ? new Date(options.expectedPickupDate)
               : new Date(Date.now() + 2 * 86400000);
 
+            // Generate atomic sequence number for the separate replacement order
+            const { fullNumber: replacementOrderNumber } = await Counter.getNextSequence({
+              tenantId,
+              type: "product_sale",
+              session: dbSession,
+            });
+
+            // Create separate replacement order doc
+            const [newRepOrder] = await Order.create(
+              [
+                {
+                  tenantId: new Types.ObjectId(tenantId),
+                  orderNumber: replacementOrderNumber,
+                  customerId: order.customerId,
+                  customerSnapshot: order.customerSnapshot || {
+                    name: (order as any).customer || "Walk-in Customer",
+                    phone: (order as any).customerPhone || "",
+                  },
+                  orderType: "product_sale",
+                  status: "replacement_pending",
+                  lineItems: [
+                    {
+                      itemType: "product",
+                      itemId: product?._id,
+                      name: item.name,
+                      unitPrice: unitFinalPrice,
+                      quantity: pendingQty,
+                      discount: 0,
+                      finalPrice: 0,
+                      fulfilled: false,
+                      purchaseCost: typeof product?.purchaseCost === "number" ? product.purchaseCost : (item.purchaseCost || 0),
+                    },
+                  ],
+                  subtotal: unitFinalPrice * pendingQty,
+                  discountType: "flat",
+                  discountValue: unitFinalPrice * pendingQty,
+                  discountAmount: unitFinalPrice * pendingQty,
+                  totalAmount: 0,
+                  amountPaid: 0,
+                  amountPending: 0,
+                  paymentMode: order.paymentMode || "cash",
+                  payments: [],
+                  scheduledFor: expectedDate,
+                  notes: `Replacement order for ${pendingQty}x ${item.name} (Original Order #${order.orderNumber}).${notes ? ` ${notes}` : ""}`,
+                  recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                },
+              ],
+              { session: dbSession }
+            );
+
             const [newCR] = await CustomerReplacement.create(
               [
                 {
                   tenantId: new Types.ObjectId(tenantId),
-                  orderId: order._id,
-                  orderNumber: order.orderNumber,
+                  orderId: newRepOrder._id,
+                  orderNumber: replacementOrderNumber,
                   customerId: order.customerId,
                   customerName: order.customerSnapshot?.name || (order as any).customer || "Customer",
                   customerPhone: order.customerSnapshot?.phone || (order as any).customerPhone,
@@ -5585,10 +5707,59 @@ export async function returnCustomerOrderItemAction(
             );
             customerReplacementId = newCR._id as Types.ObjectId;
 
-            const repNote = `[Replacement Scheduled] ${handedQty}x handed now, ${pendingQty}x scheduled for pickup on ${expectedDate.toLocaleDateString("en-IN")}`;
+            const repNote = `[Replacement Order #${replacementOrderNumber} Created] ${handedQty}x handed now, ${pendingQty}x scheduled for pickup on ${expectedDate.toLocaleDateString("en-IN")}`;
             order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
           } else {
-            const repNote = `[Replacement Completed] ${quantityToReturn}x ${item.name} handed from shelf stock.`;
+            // Immediate full replacement from shelf stock: also create completed replacement order
+            const { fullNumber: replacementOrderNumber } = await Counter.getNextSequence({
+              tenantId,
+              type: "product_sale",
+              session: dbSession,
+            });
+
+            await Order.create(
+              [
+                {
+                  tenantId: new Types.ObjectId(tenantId),
+                  orderNumber: replacementOrderNumber,
+                  customerId: order.customerId,
+                  customerSnapshot: order.customerSnapshot || {
+                    name: (order as any).customer || "Walk-in Customer",
+                    phone: (order as any).customerPhone || "",
+                  },
+                  orderType: "product_sale",
+                  status: "replacement_completed",
+                  lineItems: [
+                    {
+                      itemType: "product",
+                      itemId: product?._id,
+                      name: item.name,
+                      unitPrice: unitFinalPrice,
+                      quantity: quantityToReturn,
+                      discount: 0,
+                      finalPrice: 0,
+                      fulfilled: true,
+                      purchaseCost: typeof product?.purchaseCost === "number" ? product.purchaseCost : (item.purchaseCost || 0),
+                    },
+                  ],
+                  subtotal: unitFinalPrice * quantityToReturn,
+                  discountType: "flat",
+                  discountValue: unitFinalPrice * quantityToReturn,
+                  discountAmount: unitFinalPrice * quantityToReturn,
+                  totalAmount: 0,
+                  amountPaid: 0,
+                  amountPending: 0,
+                  paymentMode: order.paymentMode || "cash",
+                  payments: [],
+                  notes: `Immediate replacement for ${quantityToReturn}x ${item.name} handed from shelf stock (Original Order #${order.orderNumber}).${notes ? ` ${notes}` : ""}`,
+                  recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                  completedAt: new Date(),
+                },
+              ],
+              { session: dbSession }
+            );
+
+            const repNote = `[Replacement Order #${replacementOrderNumber} Handed] ${quantityToReturn}x ${item.name} handed from shelf stock.`;
             order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
           }
         }
@@ -5854,7 +6025,7 @@ export async function settleSupplierReplacementAction(
               ],
             }).session(dbSession);
             if (po) {
-              po.amountPending = Math.max(0, (po.amountPending || 0) - totalCreditAmount);
+              po.amountPending = (po.amountPending || 0) - totalCreditAmount;
               po.totalAmount = Math.max(0, (po.totalAmount || 0) - totalCreditAmount);
               const noteText = `[Defective Credit Settle] Deducted ₹${totalCreditAmount} from due for ${quantity}x ${product.name}.${options.notes ? ` Note: ${options.notes}` : ""}`;
               po.notes = po.notes ? `${po.notes}\n${noteText}` : noteText;
@@ -5863,14 +6034,14 @@ export async function settleSupplierReplacementAction(
 
               const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId }).session(dbSession);
               if (supplier) {
-                supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - totalCreditAmount);
+                supplier.totalPending = (supplier.totalPending || 0) - totalCreditAmount;
                 await supplier.save({ session: dbSession });
               }
             }
           } else if (options?.supplierId) {
             const supplier = await Supplier.findOne({ _id: options.supplierId, tenantId }).session(dbSession);
             if (supplier) {
-              supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - totalCreditAmount);
+              supplier.totalPending = (supplier.totalPending || 0) - totalCreditAmount;
               await supplier.save({ session: dbSession });
             }
           }
@@ -5991,6 +6162,16 @@ export async function markCustomerReplacementCollectedAction(
       }).session(dbSession);
       if (order) {
         order.notes = order.notes ? `${order.notes}\n${collectedNote}` : collectedNote;
+        if (order.status === "replacement_pending" || order.status === "replacement") {
+          order.status = "replacement_completed";
+          order.completedAt = new Date();
+          if (order.lineItems) {
+            order.lineItems.forEach((li) => {
+              li.fulfilled = true;
+            });
+            order.markModified("lineItems");
+          }
+        }
         order.markModified("notes");
         await order.save({ session: dbSession });
       }

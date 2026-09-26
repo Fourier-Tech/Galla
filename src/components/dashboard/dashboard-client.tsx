@@ -82,13 +82,19 @@ export function DashboardClient({
   const role: UserRole = initialRole;
   const activeTabDefault: TabId = "overview";
   const [activeTab, setActiveTab] = useState<TabId>(activeTabDefault);
-  const [ordersFilter, setOrdersFilter] = useState<OrderStatus | "all">("all");
+  const [ordersFilter, setOrdersFilter] = useState<OrderStatus | "all" | "replacement">("all");
   const [ordersNavKey, setOrdersNavKey] = useState(0);
   const [billsFilter, setBillsFilter] = useState<BillStatusKey | "all">("all");
   const [billsNavKey, setBillsNavKey] = useState(0);
 
   const handleNavigateToAdvanceOrders = () => {
     setOrdersFilter("advance_paid");
+    setOrdersNavKey((k) => k + 1);
+    setActiveTab("orders");
+  };
+
+  const handleNavigateToReplacementOrders = () => {
+    setOrdersFilter("replacement");
     setOrdersNavKey((k) => k + 1);
     setActiveTab("orders");
   };
@@ -733,6 +739,7 @@ export function DashboardClient({
               onOpenSettle={(order) => setSettleOrder(order)}
               onRescheduleOrder={handleRescheduleOrder}
               onNavigateToInventory={() => setActiveTab("inventory")}
+              onNavigateToReplacementOrders={handleNavigateToReplacementOrders}
               onUpdateReplacement={(updated) => {
                 setCustomerReplacements((prev) =>
                   prev.map((c) => (c.id === updated.id ? updated : c))

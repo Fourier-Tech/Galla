@@ -35,7 +35,7 @@ interface OrdersTabProps {
   orders: DashboardOrder[];
   initialTotalCount?: number;
   initialStatusCounts?: Record<string, number>;
-  initialFilter?: OrderStatus | "all";
+  initialFilter?: OrderStatus | "all" | "replacement";
   salonName?: string;
   onOpenNewOrder: () => void;
   onCompleteOrder?: (orderId: string) => Promise<void> | void;
@@ -44,10 +44,11 @@ interface OrdersTabProps {
   onOpenSettle?: (order: DashboardOrder) => void;
 }
 
-const FILTER_OPTIONS: { id: "all" | OrderStatus; label: string }[] = [
+const FILTER_OPTIONS: { id: "all" | OrderStatus | "replacement"; label: string }[] = [
   { id: "all", label: "All Orders" },
   { id: "created", label: "Payment Due" },
   { id: "advance_paid", label: "Advance Bookings" },
+  { id: "replacement", label: "Replacements" },
   { id: "completed", label: "Completed" },
   { id: "cancelled_refunded", label: "Refunded" },
 ];
@@ -65,7 +66,7 @@ export function OrdersTab({
   onRescheduleOrder,
   onOpenSettle,
 }: OrdersTabProps) {
-  const [filter, setFilter] = useState<"all" | OrderStatus>(initialFilter || "all");
+  const [filter, setFilter] = useState<"all" | OrderStatus | "replacement">(initialFilter || "all");
   const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
   const [reschedulingOrder, setReschedulingOrder] = useState<DashboardOrder | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<DashboardOrder | null>(null);
@@ -111,6 +112,15 @@ export function OrdersTab({
       } else if (initialFilter === "advance_paid") {
         const inMemory = orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full");
         setDisplayedOrders(inMemory);
+      } else if (initialFilter === "replacement") {
+        const inMemory = orders.filter(
+          (o) =>
+            o.status === "replacement" ||
+            o.status === "replacement_pending" ||
+            o.status === "replacement_completed" ||
+            o.returns?.some((r) => r.customerResolution === "replacement")
+        );
+        setDisplayedOrders(inMemory);
       } else {
         const inMemory = orders.filter((o) => o.status === initialFilter);
         setDisplayedOrders(inMemory);
@@ -131,6 +141,14 @@ export function OrdersTab({
       const matchingNew = newOrders.filter((no) => {
         if (filter === "all") return true;
         if (filter === "advance_paid") return no.status === "advance_paid" || no.status === "paid_full";
+        if (filter === "replacement") {
+          return (
+            no.status === "replacement" ||
+            no.status === "replacement_pending" ||
+            no.status === "replacement_completed" ||
+            Boolean(no.returns?.some((r) => r.customerResolution === "replacement"))
+          );
+        }
         return no.status === filter;
       });
 
@@ -158,7 +176,9 @@ export function OrdersTab({
         setDisplayedOrders((prev) => {
           const updatedExisting = prev.map((disp) => orders.find((o) => o.id === disp.id) || disp);
           if (page === 1 && !searchQuery && !startDate && !endDate && matchingNew.length > 0) {
-            return [...matchingNew, ...updatedExisting];
+            const existingIds = new Set(updatedExisting.map((o) => o.id));
+            const trulyNew = matchingNew.filter((no) => !existingIds.has(no.id));
+            return trulyNew.length > 0 ? [...trulyNew, ...updatedExisting] : updatedExisting;
           }
           return updatedExisting;
         });
@@ -225,7 +245,7 @@ export function OrdersTab({
   const fetchPage = useCallback(
     async (
       targetPage: number,
-      currentFilter: "all" | OrderStatus,
+      currentFilter: "all" | OrderStatus | "replacement",
       currentSearch: string,
       currentStart: string,
       currentEnd: string,
@@ -298,13 +318,22 @@ export function OrdersTab({
   }, [filter, debouncedSearch, startDate, endDate, sortOrder, fetchPage]);
 
   // Instant in-memory filter on button click (0ms visual feedback)
-  const handleFilterClick = (newFilter: "all" | OrderStatus) => {
+  const handleFilterClick = (newFilter: "all" | OrderStatus | "replacement") => {
     setFilter(newFilter);
     if (!searchQuery && !startDate && !endDate) {
       if (newFilter === "all") {
         setDisplayedOrders(orders);
       } else if (newFilter === "advance_paid") {
         const inMemory = orders.filter((o) => o.status === "advance_paid" || o.status === "paid_full");
+        setDisplayedOrders(inMemory);
+      } else if (newFilter === "replacement") {
+        const inMemory = orders.filter(
+          (o) =>
+            o.status === "replacement" ||
+            o.status === "replacement_pending" ||
+            o.status === "replacement_completed" ||
+            o.returns?.some((r) => r.customerResolution === "replacement")
+        );
         setDisplayedOrders(inMemory);
       } else {
         const inMemory = orders.filter((o) => o.status === newFilter);
@@ -317,15 +346,29 @@ export function OrdersTab({
 
   // Priority urgency sorting for Advance Booking & Payment Due: nearest date to today first
   const sortedOrders = useMemo(() => {
-    if ((filter !== "advance_paid" && filter !== "created") || searchQuery || startDate || endDate) {
-      return displayedOrders;
+    const seen = new Set<string>();
+    const uniqueOrders = displayedOrders.filter((o) => {
+      if (!o.id || seen.has(o.id)) return false;
+      seen.add(o.id);
+      return true;
+    });
+
+    if (
+      (filter !== "advance_paid" && filter !== "created" && filter !== "replacement") ||
+      searchQuery ||
+      startDate ||
+      endDate
+    ) {
+      return uniqueOrders;
     }
 
-    return [...displayedOrders].sort((a, b) => {
+    return [...uniqueOrders].sort((a, b) => {
       const isDueA = a.status === "created" || (a.paid < a.amount && a.status !== "advance_paid" && a.status !== "paid_full" && a.status !== "cancelled_refunded" && a.status !== "cancelled_converted");
       const isDueB = b.status === "created" || (b.paid < b.amount && b.status !== "advance_paid" && b.status !== "paid_full" && b.status !== "cancelled_refunded" && b.status !== "cancelled_converted");
-      const isPendingA = a.status === "advance_paid" || a.status === "paid_full" || isDueA;
-      const isPendingB = b.status === "advance_paid" || b.status === "paid_full" || isDueB;
+      const isReplacementA = a.status === "replacement_pending" || a.status === "replacement";
+      const isReplacementB = b.status === "replacement_pending" || b.status === "replacement";
+      const isPendingA = a.status === "advance_paid" || a.status === "paid_full" || isDueA || isReplacementA;
+      const isPendingB = b.status === "advance_paid" || b.status === "paid_full" || isDueB || isReplacementB;
       const urgencyA = isPendingA && a.scheduledFor ? getBookingUrgency(a.scheduledFor) : null;
       const urgencyB = isPendingB && b.scheduledFor ? getBookingUrgency(b.scheduledFor) : null;
 
@@ -518,6 +561,8 @@ export function OrdersTab({
             const count =
               opt.id === "all"
                 ? (statusCounts.all ?? totalCount)
+                : opt.id === "replacement"
+                ? (statusCounts.replacement ?? 0)
                 : (statusCounts[opt.id] ?? 0);
 
             return (
@@ -571,7 +616,8 @@ export function OrdersTab({
                 const isPartialRefund =
                   order.status === "cancelled_refunded" &&
                   Boolean(order.refundAmount && order.paid > 0);
-                const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full";
+                const isReplacementOrder = order.status === "replacement_pending" || order.status === "replacement";
+                const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full" || isReplacementOrder;
                 const isDueOrder =
                   order.status === "created" ||
                   (order.paid < order.amount &&
@@ -642,6 +688,25 @@ export function OrdersTab({
                           >
                             <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
                             <span>Set Due Date</span>
+                            <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                              + Add
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                      {isReplacementOrder && !order.scheduledFor && (
+                        <div className="mt-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReschedulingOrder(order);
+                            }}
+                            className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
+                            title="Click to set replacement delivery date"
+                          >
+                            <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                            <span>Set Delivery Date</span>
                             <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
                               + Add
                             </span>
@@ -773,8 +838,19 @@ export function OrdersTab({
                         const isToday = urgency.tone === "today";
                         const isTomorrow = urgency.tone === "tomorrow";
                         const isIn2Days = urgency.tone === "in_2_days";
+                        const isOverdue = urgency.tone === "overdue";
 
-                        const badgeStyle = (isProductSale && isTomorrow)
+                        const badgeStyle = isReplacementOrder
+                          ? isTomorrow
+                            ? "text-rose-900 bg-rose-50 border-rose-300 font-semibold shadow-xs ring-1 ring-rose-300/40"
+                            : isToday
+                            ? "text-rose-800 bg-rose-50 border-rose-200 font-semibold"
+                            : isIn2Days
+                            ? "text-blue-800 bg-blue-50 border-blue-200"
+                            : isOverdue
+                            ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                            : "text-amber-900 bg-amber-50 border-amber-200/90"
+                          : (isProductSale && isTomorrow)
                           ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
                           : isToday
                             ? "text-rose-800 bg-rose-50 border-rose-200"
@@ -782,7 +858,7 @@ export function OrdersTab({
                               ? "text-amber-900 bg-amber-50 border-amber-300"
                               : isIn2Days
                                 ? "text-blue-800 bg-blue-50 border-blue-200"
-                                : urgency.tone === "overdue"
+                                : isOverdue
                                   ? "text-gray-700 bg-gray-100 border-gray-300"
                                   : "text-amber-800 bg-amber-50/90 border-amber-200/80";
 
@@ -790,14 +866,24 @@ export function OrdersTab({
                         const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
                         const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
 
-                        const badgeLabel = isProductSale
+                        const badgeLabel = isReplacementOrder
+                          ? isTomorrow
+                            ? `🚨 Urgent: Replacement Delivery Tomorrow (${fullSlotStr})`
+                            : isToday
+                            ? `🛍️ Replacement Delivery Today (${fullSlotStr})`
+                            : isOverdue
+                            ? `⚠️ Replacement Delivery Overdue (${fullSlotStr})`
+                            : isIn2Days
+                            ? `📦 Expected in 2 Days (${fullSlotStr})`
+                            : `Expected Delivery: ${fullSlotStr}`
+                          : isProductSale
                           ? isTomorrow
                             ? `🚨 Urgent: Expected Tomorrow (${fullSlotStr})`
                             : isToday
                               ? `🛍️ Ready for Pickup Today (${fullSlotStr})`
                               : isIn2Days
                                 ? `📦 Expected in 2 Days (${fullSlotStr})`
-                                : urgency.tone === "overdue"
+                                : isOverdue
                                   ? `⚠️ Pickup Overdue (${fullSlotStr})`
                                   : `Expected Pickup: ${fullSlotStr}`
                           : isToday
@@ -806,15 +892,18 @@ export function OrdersTab({
                               ? `⏰ Tomorrow (${fullSlotStr})`
                               : isIn2Days
                                 ? `📅 In 2 Days (${fullSlotStr})`
-                                : urgency.tone === "overdue"
+                                : isOverdue
                                   ? `⚠️ Overdue (${fullSlotStr})`
                                   : `Booked for: ${fullSlotStr}`;
 
                         // Show Call & Msg on:
+                        // - Replacement order: 1 day before (isTomorrow), on delivery day (isToday), or overdue
                         // - Product sale: on the selected date that day (isToday) or overdue
                         // - Service booking: 1 day before (isTomorrow)
-                        const showContactOptions = isProductSale
-                          ? (isToday || urgency.tone === "overdue")
+                        const showContactOptions = isReplacementOrder
+                          ? (isTomorrow || isToday || isOverdue)
+                          : isProductSale
+                          ? (isToday || isOverdue)
                           : isTomorrow;
 
                         const waUrl = showContactOptions
@@ -828,6 +917,9 @@ export function OrdersTab({
                             productName: order.itemsSummary,
                             orderId: order.id,
                             pendingAmount: Math.max(0, order.amount - order.paid),
+                            isReplacement: isReplacementOrder,
+                            isTomorrow: isTomorrow,
+                            isToday: isToday,
                           })
                           : null;
 
@@ -841,7 +933,7 @@ export function OrdersTab({
                                   setReschedulingOrder(order);
                                 }}
                                 className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] font-medium shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${badgeStyle}`}
-                                title="Click to reschedule appointment date"
+                                title={isReplacementOrder ? "Click to reschedule replacement delivery date" : "Click to reschedule appointment date"}
                               >
                                 <Calendar className="h-3 w-3 shrink-0" />
                                 <span>{badgeLabel}</span>
@@ -880,10 +972,10 @@ export function OrdersTab({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
-                                    title={isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
+                                    title={isReplacementOrder ? "Send replacement delivery update via WhatsApp" : isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
                                   >
                                     <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
-                                    <span>{isProductSale ? "WhatsApp (Msg)" : "WhatsApp Reminder"}</span>
+                                    <span>{isReplacementOrder ? "WhatsApp Msg" : isProductSale ? "WhatsApp (Msg)" : "WhatsApp Reminder"}</span>
                                   </a>
                                 ) : null}
 
@@ -1024,13 +1116,14 @@ export function OrdersTab({
                         ) : (
                           <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                         )
-                      ) : order.status === "paid_full" ? (
+                      ) : order.status === "paid_full" || order.status === "replacement_pending" || order.status === "replacement" ? (
                         <>
                           {isAppointmentDue && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const hasDeliverable = order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
+                                const isRep = order.status === "replacement_pending" || order.status === "replacement";
+                                const hasDeliverable = isRep || order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
                                 if (hasDeliverable && onOpenSettle) {
                                   onOpenSettle(order);
                                 } else {
@@ -1039,13 +1132,23 @@ export function OrdersTab({
                               }}
                               disabled={loadingId === order.id}
                               className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                              title={order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled) ? "Deliver products and complete order" : "Mark service as completed"}
+                              title={
+                                order.status === "replacement_pending" || order.status === "replacement"
+                                  ? "Deliver replacement product and complete order"
+                                  : order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
+                                  ? "Deliver products and complete order"
+                                  : "Mark service as completed"
+                              }
                             >
                               {loadingId === order.id ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
                               ) : (
                                 <>
-                                  <span>{order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled) ? "Deliver & Done" : "Mark Done"}</span>
+                                  <span>
+                                    {order.status === "replacement_pending" || order.status === "replacement" || order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
+                                      ? "Deliver & Done"
+                                      : "Mark Done"}
+                                  </span>
                                   <Check className="h-3.5 w-3.5 text-green-700" />
                                 </>
                               )}

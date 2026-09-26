@@ -564,15 +564,22 @@ export function PurchaseOrdersView({
             );
           })}
 
-          {/* Small Pending Balance Badge */}
-          {stats.totalPending > 0 && (
+          {/* Small Pending / Credit Balance Badge */}
+          {stats.totalPending > 0 ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-900 font-sans text-[12px] font-medium shadow-2xs">
               <Clock className="h-3.5 w-3.5 text-amber-700 shrink-0" />
               <span>
                 Pending: <strong className="tabular-nums font-semibold text-amber-950">{formatRupee(stats.totalPending)}</strong>
               </span>
             </span>
-          )}
+          ) : stats.totalPending < 0 ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-emerald-50/90 border border-emerald-200 text-emerald-900 font-sans text-[12px] font-medium shadow-2xs">
+              <Clock className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+              <span>
+                Credit Balance: <strong className="tabular-nums font-semibold text-emerald-950">{formatRupee(Math.abs(stats.totalPending))}</strong>
+              </span>
+            </span>
+          ) : null}
         </div>
 
         {hasActiveFilters && (

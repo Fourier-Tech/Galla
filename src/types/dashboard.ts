@@ -5,7 +5,10 @@ export type OrderStatus =
   | "advance_paid"
   | "cancelled_refunded"
   | "cancelled_converted"
-  | "created";
+  | "created"
+  | "replacement"
+  | "replacement_pending"
+  | "replacement_completed";
 
 export type OrderType = "Product sale" | "Service booking" | "Package sale";
 

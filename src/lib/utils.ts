@@ -7,6 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatRupee(amount: number): string {
   const safe = typeof amount === "number" && !isNaN(amount) ? amount : 0;
+  if (safe < 0) {
+    return "-₹" + Math.abs(safe).toLocaleString("en-IN");
+  }
   return "₹" + safe.toLocaleString("en-IN");
 }
 
@@ -228,6 +231,9 @@ export function getWhatsAppReminderUrl(options: {
   orderId?: string;
   pendingAmount?: number;
   isPaymentDue?: boolean;
+  isReplacement?: boolean;
+  isTomorrow?: boolean;
+  isToday?: boolean;
 }): string | null {
   if (!options.phone) return null;
   const cleaned = options.phone.replace(/\D/g, "");
@@ -243,6 +249,20 @@ export function getWhatsAppReminderUrl(options: {
 
   const formattedDate = formatBookingDate(options.bookingDate);
   const formattedTime = formatAppointmentTime(options.bookingTime);
+
+  // Replacement order pickup / delivery reminder format
+  if (options.isReplacement) {
+    const productInfo = options.productName ? ` for *${options.productName}*` : "";
+    const timing = options.isTomorrow ? "tomorrow" : options.isToday ? "today" : `on *${formattedDate}*`;
+    const message =
+      `Hello ${options.customerName}! 👋\n\n` +
+      `This is an update from *${options.salonName || "our salon"}* regarding your replacement product${productInfo}.\n\n` +
+      `Your replacement delivery is scheduled ${timing}. We will notify you as soon as it arrives for pickup!\n\n` +
+      `Please let us know if you have any questions or wish to reschedule.\n\n` +
+      `Thank you!`;
+
+    return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+  }
 
   // Payment Due reminder format
   if (options.isPaymentDue) {
