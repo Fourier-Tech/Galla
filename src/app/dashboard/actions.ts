@@ -60,6 +60,7 @@ import {
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
 import {
   formatPhoneNumber,
+  formatCustomerName,
   checkIsToday,
   checkIsLast24Hours,
   formatOrderTime,
@@ -341,6 +342,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
     }
 
     const input = parseResult.data;
+    input.customerName = formatCustomerName(input.customerName);
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -4997,7 +4999,7 @@ export async function updateCustomerAction(rawInput: unknown): Promise<{
       customer.phone = normalizedNewPhone;
     }
 
-    customer.name = input.name.trim();
+    customer.name = formatCustomerName(input.name);
     customer.email = input.email?.trim() || undefined;
     customer.gender = input.gender || undefined;
     customer.notes = input.notes?.trim() || undefined;

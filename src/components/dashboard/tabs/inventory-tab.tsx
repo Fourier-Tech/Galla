@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowRightLeft,
+  TrendingUp,
 } from "lucide-react";
 import { DashboardProduct, DashboardExpense, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
@@ -152,6 +153,60 @@ export function InventoryTab({
       )
     ) as string[];
     return cats.sort();
+  }, [products]);
+
+  // Identify products with higher profit among old/new batches or price variants
+  const higherProfitProductIds = useMemo(() => {
+    const groups: Record<string, DashboardProduct[]> = {};
+
+    for (const p of products) {
+      if (!p.name) continue;
+      const baseName = p.name
+        .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
+        .replace(/\s*\(batch[^\)]*\)$/i, "")
+        .trim()
+        .toLowerCase();
+
+      if (!groups[baseName]) {
+        groups[baseName] = [];
+      }
+      groups[baseName].push(p);
+    }
+
+    const bestIds = new Set<string>();
+
+    for (const group of Object.values(groups)) {
+      if (group.length < 2) continue;
+
+      const variants = group
+        .filter((p) => typeof p.price === "number")
+        .map((p) => {
+          const profit =
+            typeof p.purchaseCost === "number"
+              ? p.price - p.purchaseCost
+              : p.price;
+          return {
+            id: String(p.id),
+            profit,
+          };
+        });
+
+      if (variants.length < 2) continue;
+
+      const profits = variants.map((v) => v.profit);
+      const maxProfit = Math.max(...profits);
+      const minProfit = Math.min(...profits);
+
+      if (maxProfit > minProfit) {
+        for (const v of variants) {
+          if (v.profit === maxProfit) {
+            bestIds.add(v.id);
+          }
+        }
+      }
+    }
+
+    return bestIds;
   }, [products]);
 
 
@@ -482,6 +537,15 @@ export function InventoryTab({
                           {product.name.includes("(New)") && (
                             <span className="text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
                               New Batch
+                            </span>
+                          )}
+                          {higherProfitProductIds.has(String(product.id)) && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs"
+                              title="This product variant yields higher profit for the salon"
+                            >
+                              <TrendingUp className="h-3 w-3 text-emerald-600 shrink-0" />
+                              <span>More Profit &bull; Best to Sell</span>
                             </span>
                           )}
                         </div>

@@ -18,6 +18,7 @@ import {
   Calendar,
   ShoppingBag,
   ChevronDown,
+  TrendingUp,
 } from "lucide-react";
 import {
   DashboardCustomer,
@@ -27,7 +28,7 @@ import {
   DashboardProduct,
 } from "@/types/dashboard";
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber, getPhoneDigits } from "@/lib/utils";
+import { formatPhoneNumber, formatCustomerName, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber, getPhoneDigits } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 import { PaymentModeSelect } from "../payment-mode-select";
 
@@ -125,6 +126,12 @@ export function NewOrderModal({
   const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>([]);
   const [liveProducts, setLiveProducts] = useState<DashboardProduct[]>(initialProducts);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+
+  useEffect(() => {
+    if (initialProducts && initialProducts.length > 0) {
+      setLiveProducts(initialProducts);
+    }
+  }, [initialProducts]);
 
   // Fetch live products on open and dropdown interaction to bypass stale cache
   const fetchLiveProducts = React.useCallback(async () => {
@@ -274,6 +281,60 @@ export function NewOrderModal({
       );
     });
   }, [liveProducts, catalogSearch]);
+
+  // Identify products with higher profit among old/new batches or price variants
+  const higherProfitProductIds = useMemo(() => {
+    const groups: Record<string, DashboardProduct[]> = {};
+
+    for (const p of liveProducts) {
+      if (!p.name) continue;
+      const baseName = p.name
+        .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
+        .replace(/\s*\(batch[^\)]*\)$/i, "")
+        .trim()
+        .toLowerCase();
+
+      if (!groups[baseName]) {
+        groups[baseName] = [];
+      }
+      groups[baseName].push(p);
+    }
+
+    const bestIds = new Set<string>();
+
+    for (const group of Object.values(groups)) {
+      if (group.length < 2) continue;
+
+      const variants = group
+        .filter((p) => typeof p.price === "number")
+        .map((p) => {
+          const profit =
+            typeof p.purchaseCost === "number"
+              ? p.price - p.purchaseCost
+              : p.price;
+          return {
+            id: String(p.id),
+            profit,
+          };
+        });
+
+      if (variants.length < 2) continue;
+
+      const profits = variants.map((v) => v.profit);
+      const maxProfit = Math.max(...profits);
+      const minProfit = Math.min(...profits);
+
+      if (maxProfit > minProfit) {
+        for (const v of variants) {
+          if (v.profit === maxProfit) {
+            bestIds.add(v.id);
+          }
+        }
+      }
+    }
+
+    return bestIds;
+  }, [liveProducts]);
 
   // Customer previous due orders detection
   const customerDueOrders = useMemo(() => {
@@ -483,10 +544,12 @@ export function NewOrderModal({
   const handleNextFromStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    if (!customer.trim()) {
+    const formatted = formatCustomerName(customer);
+    if (!formatted) {
       setErrorMsg("Please enter customer name");
       return;
     }
+    setCustomer(formatted);
     if (orderType === "Product sale") {
       setCatalogTab("products");
       fetchLiveProducts();
@@ -596,7 +659,7 @@ export function NewOrderModal({
         finalPrice: item.price * item.quantity,
       }));
       // Use the customer name entered by the user; fallback to existing customer name or Walk-in Guest
-      const resolvedCustomerName = customer.trim() || phoneConflictCustomer?.name || "Walk-in Guest";
+      const resolvedCustomerName = formatCustomerName(customer) || phoneConflictCustomer?.name || "Walk-in Guest";
 
       const res = await createOrderAction({
         customerName: resolvedCustomerName,
@@ -697,6 +760,11 @@ export function NewOrderModal({
                 }}
                 onFocus={() => {
                   if (customer.trim().length > 0) setShowSuggestions(true);
+                }}
+                onBlur={() => {
+                  if (customer.trim()) {
+                    setCustomer(formatCustomerName(customer));
+                  }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setShowSuggestions(false);
@@ -939,8 +1007,19 @@ export function NewOrderModal({
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
                           <div>
-                            <div className="font-heading font-medium text-[13.5px] text-galla-ink">
-                              {p.name}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-heading font-medium text-[13.5px] text-galla-ink">
+                                {p.name}
+                              </span>
+                              {higherProfitProductIds.has(String(p.id)) && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
+                                  title="This product variant yields higher profit for the salon"
+                                >
+                                  <TrendingUp className="h-3 w-3 text-emerald-600 shrink-0" />
+                                  <span>More Profit &bull; Best to Sell</span>
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
                               {isOutOfStock ? (
@@ -1211,6 +1290,15 @@ export function NewOrderModal({
                         <span className="font-medium text-galla-ink truncate">
                           {item.name}
                         </span>
+                        {item.type === "product" && higherProfitProductIds.has(String(item.id)) && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0"
+                            title="This product variant yields higher profit for the salon"
+                          >
+                            <TrendingUp className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                            <span>More Profit &bull; Best to Sell</span>
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2.5 shrink-0">

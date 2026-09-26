@@ -1,4 +1,5 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
+import { formatCustomerName } from "@/lib/utils";
 
 export type OrderStatus =
   | "created"
@@ -321,7 +322,11 @@ const OrderSchema = new Schema<IOrder>(
       index: true,
     },
     customerSnapshot: {
-      name: { type: String, trim: true },
+      name: {
+        type: String,
+        trim: true,
+        set: (val: string) => formatCustomerName(val),
+      },
       phone: { type: String, trim: true },
     },
     orderType: {

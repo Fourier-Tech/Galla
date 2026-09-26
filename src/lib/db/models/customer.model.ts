@@ -1,4 +1,5 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
+import { formatCustomerName } from "@/lib/utils";
 
 export interface ICustomerStats {
   totalVisits: number;
@@ -33,6 +34,7 @@ const CustomerSchema = new Schema<ICustomer>(
       type: String,
       required: [true, "Customer name is required"],
       trim: true,
+      set: (val: string) => formatCustomerName(val),
     },
     phone: {
       type: String,

@@ -65,6 +65,21 @@ export function getPhoneDigits(phone?: string | null): string {
   return phone.replace(/\D/g, "").slice(-10);
 }
 
+/**
+ * Formats a customer name in Title Case where the first letter of each word
+ * is capitalized and all other letters are lowercase (e.g. "ANSh GaJera" -> "Ansh Gajera").
+ */
+export function formatCustomerName(name?: string | null): string {
+  if (!name) return "";
+  const trimmed = name.trim();
+  if (!trimmed) return "";
+
+  return trimmed
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
 export function checkIsToday(date: Date | string | undefined): boolean {
   if (!date) return false;
   const d = new Date(date);

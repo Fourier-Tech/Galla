@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { X, User, AlertCircle, Loader2 } from "lucide-react";
 import { DashboardCustomer } from "@/types/dashboard";
 import { updateCustomerAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber } from "@/lib/utils";
+import { formatPhoneNumber, formatCustomerName } from "@/lib/utils";
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -74,7 +74,7 @@ export function CustomerModal({
     e.preventDefault();
     setErrorMsg(null);
 
-    const trimmedName = name.trim();
+    const trimmedName = formatCustomerName(name);
     if (!trimmedName) {
       setErrorMsg("Customer name is required.");
       return;
@@ -162,6 +162,9 @@ export function CustomerModal({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={() => {
+                if (name.trim()) setName(formatCustomerName(name));
+              }}
               placeholder="e.g. Priya Sharma"
               className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line text-[13.5px] font-sans text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none"
             />
