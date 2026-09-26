@@ -70,6 +70,7 @@ export function getPhoneDigits(phone?: string | null): string {
  * is capitalized and all other letters are lowercase (e.g. "ANSh GaJera" -> "Ansh Gajera").
  */
 export function formatCustomerName(name?: string | null): string {
+  // ponytail: Simple whitespace title-casing. Upgrade path: add locale-aware capitalization rules or prefix handling (e.g. McDonald, von, van) if expanding internationally.
   if (!name) return "";
   const trimmed = name.trim();
   if (!trimmed) return "";

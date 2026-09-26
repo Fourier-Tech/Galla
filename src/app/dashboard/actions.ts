@@ -161,7 +161,7 @@ async function getProductBatchesForInternalUse(
   }
 
   if (candidates.length === 0) {
-    // Keyword-based fallback (e.g. "Absolut Repair Mask")
+    // ponytail: Keyword-based regex fallback matches products when package template references slightly differ (e.g. "Argan Secrets Serum" vs "Argan Secrets Hair Serum") or IDs are re-seeded. Upgrade path: relational product catalog foreign key constraint.
     const keywords = baseName.split(/\s+/).filter((w) => w.length > 3 && !w.startsWith("("));
     if (keywords.length > 0) {
       const regexStr = keywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");

@@ -157,6 +157,7 @@ export function InventoryTab({
 
   // Identify products with higher profit among old/new batches or price variants
   const higherProfitProductIds = useMemo(() => {
+    // ponytail: Regex grouping assumes standard salon batch naming conventions (Old/New/Batch #). Upgrade path: explicit parentProductId or productFamilyId field in schema for multi-batch tracking.
     const groups: Record<string, DashboardProduct[]> = {};
 
     for (const p of products) {
