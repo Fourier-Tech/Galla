@@ -5,7 +5,7 @@ import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, Ar
 import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus, canOrderBeRefunded } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { ChangeReplacementDateModal } from "@/components/dashboard/modals/change-replacement-date-modal";
@@ -932,54 +932,101 @@ export function OverviewTab({
                           )}
                       </div>
 
-                      <div className="text-right">
-                        <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
-                          {formatRupee(order.amount)}
-                        </div>
-                        {order.status === "cancelled_refunded" ? (
-                          <div className="space-y-0.5 mt-0.5">
-                            {order.advanceAmount && order.advanceAmount > 0 && (
-                              <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                                <span>{formatRupee(order.advanceAmount)} adv. paid</span>
-                                {(order.advancePaymentMode || order.paymentMode) && (
-                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                    {order.advancePaymentMode || order.paymentMode}
+                      {(() => {
+                        const returnEvents = Array.isArray(order.returns) ? order.returns : [];
+                        const returnRefundTotal = returnEvents
+                          .filter((r) => r.customerResolution === "refund")
+                          .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+                        const cashRefundTotal = returnEvents.reduce((sum, r) => {
+                          if (typeof r.cashRefund === "number") return sum + r.cashRefund;
+                          return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0);
+                        }, 0);
+                        const effectiveOrderAmount = Math.max(0, order.amount - returnRefundTotal);
+                        const effectivePaid = Math.max(0, order.paid - cashRefundTotal);
+                        const effectiveDue = Math.max(0, effectiveOrderAmount - effectivePaid);
+
+                        return (
+                          <div className="text-right">
+                            <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                              {formatRupee(effectiveOrderAmount)}
+                            </div>
+                            {order.status === "cancelled_refunded" ? (
+                              <div className="space-y-0.5 mt-0.5">
+                                {order.advanceAmount && order.advanceAmount > 0 && (
+                                  <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                                    <span>{formatRupee(order.advanceAmount)} adv. paid</span>
+                                    {(order.advancePaymentMode || order.paymentMode) && (
+                                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                        {order.advancePaymentMode || order.paymentMode}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
+                                  <span>
+                                    {order.refundAmount
+                                      ? `${formatRupee(order.refundAmount)} refunded`
+                                      : "Refunded"}
                                   </span>
+                                  {order.refundMode && (
+                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      {order.refundMode}
+                                    </span>
+                                  )}
+                                </div>
+                                {isPartialRefund && (
+                                  <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
+                                    {formatRupee(order.paid)} kept
+                                  </div>
                                 )}
                               </div>
-                            )}
-                            <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
-                              <span>
-                                {order.refundAmount
-                                  ? `${formatRupee(order.refundAmount)} refunded`
-                                  : "Refunded"}
-                              </span>
-                              {order.refundMode && (
-                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                  {order.refundMode}
-                                </span>
-                              )}
-                            </div>
-                            {isPartialRefund && (
-                              <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                                {formatRupee(order.paid)} kept
+                            ) : order.status === "cancelled_converted" ? (
+                              <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
+                                Converted
                               </div>
-                            )}
-                          </div>
-                        ) : order.status === "cancelled_converted" ? (
-                          <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
-                            Converted
-                          </div>
-                        ) : order.paid < order.amount ? (
-                          <div className="space-y-0.5 mt-0.5">
-                            {order.paid > 0 && (
-                              <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                                <span>
-                                  {formatRupee(order.paid)}{" "}
-                                  {order.status === "advance_paid" || order.status === "paid_full" || order.scheduledFor
-                                    ? "adv."
-                                    : "paid"}
-                                </span>
+                            ) : effectiveDue > 0 ? (
+                              <div className="space-y-0.5 mt-0.5">
+                                {effectivePaid > 0 && (
+                                  <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                                    <span>
+                                      {formatRupee(effectivePaid)}{" "}
+                                      {order.status === "advance_paid" || order.status === "paid_full" || order.scheduledFor
+                                        ? "adv."
+                                        : "paid"}
+                                    </span>
+                                    {order.paymentMode && (
+                                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                        {order.paymentMode}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
+                                  {formatRupee(effectiveDue)} due
+                                </div>
+                              </div>
+                            ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < effectiveOrderAmount ? (
+                              <div className="space-y-0.5 mt-0.5">
+                                <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                                  <span>{formatRupee(order.advanceAmount)} adv.</span>
+                                  {order.advancePaymentMode && (
+                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      {order.advancePaymentMode}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                                  <span>{formatRupee(effectiveOrderAmount - order.advanceAmount)} settled</span>
+                                  {order.paymentMode && (
+                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      {order.paymentMode}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
+                                <span>Settled</span>
                                 {order.paymentMode && (
                                   <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {order.paymentMode}
@@ -987,40 +1034,9 @@ export function OverviewTab({
                                 )}
                               </div>
                             )}
-                            <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
-                              {formatRupee(order.amount - order.paid)} due
-                            </div>
                           </div>
-                        ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < order.amount ? (
-                          <div className="space-y-0.5 mt-0.5">
-                            <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                              <span>{formatRupee(order.advanceAmount)} adv.</span>
-                              {order.advancePaymentMode && (
-                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                  {order.advancePaymentMode}
-                                </span>
-                              )}
-                            </div>
-                            <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                              <span>{formatRupee(order.amount - order.advanceAmount)} settled</span>
-                              {order.paymentMode && (
-                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                  {order.paymentMode}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
-                            <span>Settled</span>
-                            {order.paymentMode && (
-                              <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                {order.paymentMode}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                        );
+                      })()}
 
                       <div className="flex justify-center">
                         <StatusPill
@@ -1036,7 +1052,7 @@ export function OverviewTab({
 
                       <div className="flex items-center justify-end gap-2">
                         {order.status === "completed" || order.status === "replacement_completed" ? (
-                          onOpenRefund && (order.paid > 0 || (order.status === "replacement_completed" && Boolean(order.lineItems?.some((i) => i.itemType === "product" && (i.quantity || 1) > (i.returnedQuantity || 0))))) ? (
+                          canOrderBeRefunded(order) && onOpenRefund ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

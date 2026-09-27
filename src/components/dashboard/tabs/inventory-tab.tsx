@@ -210,6 +210,61 @@ export function InventoryTab({
     return bestIds;
   }, [products]);
 
+  // ponytail: Identifies 0-stock old batches by stripping suffix notation to group siblings. Upgrade path: query by shared parentProductId.
+  const zeroStockOldBatchProductIds = useMemo(() => {
+    const groups: Record<string, DashboardProduct[]> = {};
+
+    for (const p of products) {
+      if (!p.name || p.isActive === false) continue;
+      const baseName = p.name
+        .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
+        .replace(/\s*\(batch[^\)]*\)$/i, "")
+        .trim()
+        .toLowerCase();
+
+      if (!groups[baseName]) {
+        groups[baseName] = [];
+      }
+      groups[baseName].push(p);
+    }
+
+    const obsoleteOldBatchIds = new Set<string>();
+
+    for (const group of Object.values(groups)) {
+      if (group.length < 2) continue;
+
+      // Group must have at least one sibling with active stock or labeled as (New)
+      const hasSiblingWithStockOrNew = group.some(
+        (p) => p.sell > 0 || p.use > 0 || p.name.includes("(New)")
+      );
+      if (!hasSiblingWithStockOrNew) continue;
+
+      for (const p of group) {
+        const isZeroStock = p.sell <= 0 && p.use <= 0;
+        if (!isZeroStock) continue;
+
+        const isExplicitOld =
+          p.name.includes("(Old)") ||
+          p.name.toLowerCase().includes("old batch");
+
+        const isPriceOlder = group.some(
+          (other) =>
+            other.id !== p.id &&
+            (other.name.includes("(New)") ||
+              (typeof other.price === "number" &&
+                typeof p.price === "number" &&
+                other.price > p.price))
+        );
+
+        if (isExplicitOld || isPriceOlder) {
+          obsoleteOldBatchIds.add(String(p.id));
+        }
+      }
+    }
+
+    return obsoleteOldBatchIds;
+  }, [products]);
+
 
   // Keep displayed products in sync when products prop changes
   if (products !== prevProducts) {
@@ -650,15 +705,28 @@ export function InventoryTab({
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => setProductToDelete(product)}
-                            disabled={isDeleting}
-                            className="p-1.5 text-galla-ink-soft hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer disabled:opacity-50"
-                            title="Delete product permanently"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {zeroStockOldBatchProductIds.has(String(product.id)) ? (
+                            <button
+                              type="button"
+                              onClick={() => setProductToDelete(product)}
+                              disabled={isDeleting}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-sans font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-[4px] shadow-2xs transition-all cursor-pointer ring-1 ring-rose-400/50 group"
+                              title="This old batch has 0 stock while a new batch exists. Click to delete if this old price batch will not return."
+                            >
+                              <Trash2 className="h-3 w-3 text-rose-600 group-hover:scale-110 transition-transform" />
+                              <span>Delete (0 qty)</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setProductToDelete(product)}
+                              disabled={isDeleting}
+                              className="p-1.5 text-galla-ink-soft hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer disabled:opacity-50"
+                              title="Delete product permanently"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -769,15 +837,26 @@ export function InventoryTab({
       {/* Permanent Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={Boolean(productToDelete)}
-        title="Confirm Delete Product"
+        title={
+          productToDelete && zeroStockOldBatchProductIds.has(String(productToDelete.id))
+            ? "Delete 0-Stock Old Batch"
+            : "Confirm Delete Product"
+        }
         isDestructive={true}
         description={
           productToDelete ? (
-            <span>
-              Are you sure you want to permanently delete{" "}
-              <strong className="font-semibold text-galla-ink">&ldquo;{productToDelete.name}&rdquo;</strong>{" "}
-              from your inventory?
-            </span>
+            <div className="space-y-2 text-left">
+              <p>
+                Are you sure you want to permanently delete{" "}
+                <strong className="font-semibold text-galla-ink">&ldquo;{productToDelete.name}&rdquo;</strong>{" "}
+                from your inventory?
+              </p>
+              {zeroStockOldBatchProductIds.has(String(productToDelete.id)) && (
+                <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-[4px] leading-relaxed">
+                  💡 This old batch has 0 stock. Deleting it will keep your inventory clean and automatically restore the active new batch to its clean original product name.
+                </p>
+              )}
+            </div>
           ) : null
         }
         confirmLabel="Yes, Delete Permanently"

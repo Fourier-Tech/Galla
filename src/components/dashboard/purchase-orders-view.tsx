@@ -874,15 +874,38 @@ export function PurchaseOrdersView({
                       </div>
 
                       {/* Column 3: Settlement (Matching Orders Tab Pixel-for-Pixel) */}
-                      <div className="text-right">
-                        <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
-                          {formatRupee(po.totalAmount)}
-                        </div>
-                        {po.amountPending > 0 ? (
-                          <div className="space-y-0.5 mt-0.5">
-                            {po.amountPaid > 0 && (
-                              <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                                <span>{formatRupee(po.amountPaid)} adv.</span>
+                      {(() => {
+                        const returnEvents = Array.isArray(po.returns) ? po.returns : [];
+                        const totalReturns = returnEvents.reduce(
+                          (sum, r) => sum + (r.amountDeductedFromDue || 0),
+                          0
+                        );
+                        const effectivePOAmount = Math.max(0, po.totalAmount - totalReturns);
+
+                        return (
+                          <div className="text-right">
+                            <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                              {formatRupee(effectivePOAmount)}
+                            </div>
+                            {po.amountPending > 0 ? (
+                              <div className="space-y-0.5 mt-0.5">
+                                {po.amountPaid > 0 && (
+                                  <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                                    <span>{formatRupee(po.amountPaid)} adv.</span>
+                                    {po.paymentMode && (
+                                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                        {po.paymentMode}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
+                                  {formatRupee(po.amountPending)} due
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
+                                <span>{billStatus.pillStatus === "paid_full" ? "Paid in full" : "Settled"}</span>
                                 {po.paymentMode && (
                                   <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {po.paymentMode}
@@ -890,21 +913,9 @@ export function PurchaseOrdersView({
                                 )}
                               </div>
                             )}
-                            <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
-                              {formatRupee(po.amountPending)} due
-                            </div>
                           </div>
-                        ) : (
-                          <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
-                            <span>{billStatus.pillStatus === "paid_full" ? "Paid in full" : "Settled"}</span>
-                            {po.paymentMode && (
-                              <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                {po.paymentMode}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                        );
+                      })()}
 
                       {/* Column 4: Status (StatusPill: Advance, Paid in full, Completed, Pending) */}
                       <div className="flex justify-center">

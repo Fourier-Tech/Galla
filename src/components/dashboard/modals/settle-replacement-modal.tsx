@@ -48,6 +48,9 @@ export function SettleReplacementModal({
         .then((res: any) => {
           if (res.success && res.pos) {
             setPos(res.pos);
+            if (res.pos.length === 1) {
+              setSelectedPOId(res.pos[0].id);
+            }
           }
         })
         .finally(() => {
@@ -70,6 +73,11 @@ export function SettleReplacementModal({
       return;
     }
 
+    if (!selectedPOId) {
+      setErrorMsg("Please select an original supplier bill to link this settlement.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg(null);
 
@@ -81,7 +89,7 @@ export function SettleReplacementModal({
         {
           targetStock: resolutionType === "replace_stock" ? targetStock : undefined,
           refundMode: resolutionType === "credit_refund" ? refundMode : undefined,
-          poId: selectedPOId || undefined,
+          poId: selectedPOId,
           notes: notes.trim() || undefined,
         }
       );
@@ -312,26 +320,50 @@ export function SettleReplacementModal({
             </div>
           )}
 
-          {/* Optional PO Selection */}
-          {pos.length > 0 && (
-            <div>
-              <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
-                Link to Purchase Bill (Optional)
+          {/* Mandatory PO Selection */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+                Link to Original Purchase Bill <span className="text-red-600">*</span>
               </label>
+              <span className="font-sans text-[10.5px] text-galla-ink-soft">
+                {isLoadingPOs ? (
+                  <span className="inline-flex items-center gap-1 text-galla-teal">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                  </span>
+                ) : (
+                  `${pos.length} bill${pos.length === 1 ? "" : "s"} found`
+                )}
+              </span>
+            </div>
+
+            {isLoadingPOs ? (
+              <div className="p-2.5 border border-galla-line rounded-[5px] bg-galla-paper/30 flex items-center justify-center">
+                <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
+              </div>
+            ) : pos.length === 0 ? (
+              <div className="p-2.5 border border-dashed border-rose-300 rounded-[5px] text-[11.5px] font-sans text-rose-700 bg-rose-50/50">
+                No purchase bills found for &ldquo;{product.name}&rdquo;. A linked supplier bill is required to adjust dues or track settlement history.
+              </div>
+            ) : (
               <select
                 value={selectedPOId}
-                onChange={(e) => setSelectedPOId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedPOId(e.target.value);
+                  setErrorMsg(null);
+                }}
+                required
                 className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-sans text-[12px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors cursor-pointer"
               >
-                <option value="">-- No specific bill / General settlement --</option>
+                <option value="">-- Select Original Supplier Bill * --</option>
                 {pos.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.purchaseOrderNumber} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString()})
                   </option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Notes */}
           <div>
@@ -367,7 +399,7 @@ export function SettleReplacementModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !isValidQty}
+              disabled={isSubmitting || !isValidQty || !selectedPOId}
               className="h-8 px-4 rounded-[5px] bg-galla-teal text-white text-[12px] font-heading font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               {isSubmitting ? (

@@ -9,11 +9,22 @@ export interface IPurchaseOrderItem {
   expectedSellPrice: number;
   itemTotalCost: number;
   returnedQuantity?: number;
+  replacedQuantity?: number;
 }
 
 export interface IPurchaseOrderPayment {
   amount: number;
-  paymentMode: "cash" | "upi" | "card" | "bank_transfer";
+  paymentMode:
+    | "cash"
+    | "upi"
+    | "card"
+    | "bank_transfer"
+    | "reduce_due"
+    | "refund"
+    | "replacement_pending"
+    | "cash_refund"
+    | "upi_refund"
+    | string;
   notes?: string;
   recordedBy?: "owner" | "staff";
   type?: "initial" | "settlement" | "full_payment" | string;
@@ -128,6 +139,11 @@ const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>(
       default: 0,
       min: 0,
     },
+    replacedQuantity: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { _id: false },
 );
@@ -137,10 +153,16 @@ export interface IPurchaseOrderReturn {
   productId: Types.ObjectId;
   productName: string;
   quantity: number;
-  stockType: "sell" | "use";
+  stockType: "sell" | "use" | "defective" | "mixed";
   unitCost: number;
   totalRefundAmount: number;
-  refundMode: "reduce_due" | "replacement_pending";
+  refundMode:
+    | "reduce_due"
+    | "replacement_pending"
+    | "cash"
+    | "upi"
+    | "card"
+    | "bank_transfer";
   amountDeductedFromDue: number;
   replacementStatus?: "pending" | "fulfilled";
   notes?: string;
@@ -154,12 +176,23 @@ const PurchaseOrderReturnSchema = new Schema<IPurchaseOrderReturn>(
     productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
     productName: { type: String, required: true },
     quantity: { type: Number, required: true, min: 1 },
-    stockType: { type: String, enum: ["sell", "use"], required: true },
+    stockType: {
+      type: String,
+      enum: ["sell", "use", "defective", "mixed"],
+      required: true,
+    },
     unitCost: { type: Number, required: true, min: 0 },
     totalRefundAmount: { type: Number, required: true, min: 0 },
     refundMode: {
       type: String,
-      enum: ["reduce_due", "replacement_pending"],
+      enum: [
+        "reduce_due",
+        "replacement_pending",
+        "cash",
+        "upi",
+        "card",
+        "bank_transfer",
+      ],
       required: true,
     },
     amountDeductedFromDue: { type: Number, default: 0 },

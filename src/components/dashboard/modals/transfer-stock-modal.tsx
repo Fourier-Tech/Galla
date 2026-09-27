@@ -75,13 +75,21 @@ function TransferStockModalContent({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Supplier Return State
-  const [supplierStockSource, setSupplierStockSource] = useState<"defectiveStock" | "sellStock" | "useStock">(
-    (product.defectiveStock || 0) > 0 ? "defectiveStock" : product.sell > 0 ? "sellStock" : "useStock"
-  );
+  // Supplier Return State
   const [supplierRefundMode, setSupplierRefundMode] = useState<"reduce_due" | "replacement_pending">("reduce_due");
   const [pos, setPos] = useState<any[]>([]);
   const [isLoadingPOs, setIsLoadingPOs] = useState(false);
   const [selectedPOId, setSelectedPOId] = useState<string | null>(null);
+
+  // Per-location breakdown for supplier return
+  const [retSellInput, setRetSellInput] = useState<string>("0");
+  const [retUseInput, setRetUseInput] = useState<string>("0");
+  const [retDefInput, setRetDefInput] = useState<string>("0");
+
+  const parsedReturnSell = Math.max(0, parseInt(retSellInput || "0", 10) || 0);
+  const parsedReturnUse = Math.max(0, parseInt(retUseInput || "0", 10) || 0);
+  const parsedReturnDef = Math.max(0, parseInt(retDefInput || "0", 10) || 0);
+  const totalReturnSupplierQty = parsedReturnSell + parsedReturnUse + parsedReturnDef;
 
   useEffect(() => {
     if (mode === "return_supplier") {
@@ -95,6 +103,17 @@ function TransferStockModalContent({
         }
         setIsLoadingPOs(false);
       });
+
+      // Default initial allocation if empty
+      if (parsedReturnSell === 0 && parsedReturnUse === 0 && parsedReturnDef === 0) {
+        if ((product.defectiveStock || 0) > 0) {
+          setRetDefInput("1");
+        } else if (product.sell > 0) {
+          setRetSellInput("1");
+        } else if (product.use > 0) {
+          setRetUseInput("1");
+        }
+      }
     }
   }, [mode, product.id, product.name]);
 
@@ -107,31 +126,52 @@ function TransferStockModalContent({
       (product.name && i.productName && i.productName.trim().toLowerCase() === product.name.trim().toLowerCase())
   );
   const maxReturnableFromBill = selectedItem
-    ? Math.max(0, (selectedItem.quantityForSell || 0) + (selectedItem.quantityForUse || 0) - (selectedItem.returnedQuantity || 0))
+    ? Math.max(0, (selectedItem.quantityForSell || 0) + (selectedItem.quantityForUse || 0) - ((selectedItem.returnedQuantity || 0) + (selectedItem.replacedQuantity || 0)))
     : 0;
 
+  const totalPhysicalStock = product.sell + product.use + (product.defectiveStock || 0);
+  const maxAutoAll = selectedPOId && maxReturnableFromBill > 0
+    ? Math.min(totalPhysicalStock, maxReturnableFromBill)
+    : totalPhysicalStock;
+
+  const handleReturnAllStock = () => {
+    let rem = maxAutoAll;
+    const defAlloc = Math.min(product.defectiveStock || 0, rem);
+    rem -= defAlloc;
+    const sellAlloc = Math.min(product.sell, rem);
+    rem -= sellAlloc;
+    const useAlloc = Math.min(product.use, rem);
+
+    setRetDefInput(String(defAlloc));
+    setRetSellInput(String(sellAlloc));
+    setRetUseInput(String(useAlloc));
+    setErrorMsg(null);
+  };
+
+  const handleClearReturnBreakdown = () => {
+    setRetDefInput("0");
+    setRetSellInput("0");
+    setRetUseInput("0");
+    setErrorMsg(null);
+  };
+
   const physicalStockAvailable =
-    mode === "return_supplier"
-      ? supplierStockSource === "defectiveStock"
-        ? (product.defectiveStock || 0)
-        : supplierStockSource === "sellStock"
-        ? product.sell
-        : product.use
-      : mode === "consume"
+    mode === "consume"
       ? product.use
       : direction === "sell_to_use"
       ? product.sell
       : product.use;
 
-  const maxAvailable =
-    mode === "return_supplier"
-      ? selectedPOId
-        ? Math.min(physicalStockAvailable, maxReturnableFromBill)
-        : physicalStockAvailable
-      : physicalStockAvailable;
+  const maxAvailable = physicalStockAvailable;
 
   const isValidQty =
-    !isNaN(numQty) && Number.isInteger(numQty) && numQty > 0 && numQty <= maxAvailable;
+    mode === "return_supplier"
+      ? totalReturnSupplierQty > 0 &&
+        parsedReturnSell <= product.sell &&
+        parsedReturnUse <= product.use &&
+        parsedReturnDef <= (product.defectiveStock || 0) &&
+        (!selectedPOId || maxReturnableFromBill <= 0 || totalReturnSupplierQty <= maxReturnableFromBill)
+      : !isNaN(numQty) && Number.isInteger(numQty) && numQty > 0 && numQty <= maxAvailable;
 
   const estUnitCost =
     product.purchaseCost !== undefined && product.purchaseCost !== null
@@ -139,7 +179,12 @@ function TransferStockModalContent({
       : 0;
   const returnUnitCost = selectedItem?.purchaseCost !== undefined ? selectedItem.purchaseCost : estUnitCost;
   const estTotalCost = isValidQty ? numQty * estUnitCost : 0;
-  const estReturnCost = isValidQty ? numQty * returnUnitCost : 0;
+  const estReturnCost =
+    mode === "return_supplier"
+      ? totalReturnSupplierQty * returnUnitCost
+      : isValidQty
+      ? numQty * returnUnitCost
+      : 0;
   const unitProfit = Math.max(0, product.price - estUnitCost);
   const marginPct = product.price > 0 ? Math.round((unitProfit / product.price) * 100) : 0;
 
@@ -169,14 +214,24 @@ function TransferStockModalContent({
         setErrorMsg("Please select the original supplier bill to return against");
         return;
       }
-      if (maxAvailable <= 0) {
-        setErrorMsg(
-          supplierStockSource === "defectiveStock"
-            ? "No defective pieces or returnable quantity available on selected bill"
-            : supplierStockSource === "sellStock"
-            ? "No retail shelf stock or returnable quantity available on selected bill"
-            : "No salon internal stock or returnable quantity available on selected bill"
-        );
+      if (totalReturnSupplierQty <= 0) {
+        setErrorMsg("Please specify at least 1 unit to return from Retail, Salon Use, or Defective stock");
+        return;
+      }
+      if (parsedReturnSell > product.sell) {
+        setErrorMsg(`Retail quantity (${parsedReturnSell} pcs) exceeds available shelf stock (${product.sell} pcs)`);
+        return;
+      }
+      if (parsedReturnUse > product.use) {
+        setErrorMsg(`Salon use quantity (${parsedReturnUse} pcs) exceeds available internal stock (${product.use} pcs)`);
+        return;
+      }
+      if (parsedReturnDef > (product.defectiveStock || 0)) {
+        setErrorMsg(`Defective quantity (${parsedReturnDef} pcs) exceeds available defective stock (${product.defectiveStock || 0} pcs)`);
+        return;
+      }
+      if (maxReturnableFromBill > 0 && totalReturnSupplierQty > maxReturnableFromBill) {
+        setErrorMsg(`Total return quantity (${totalReturnSupplierQty} pcs) exceeds remaining quantity on this bill (${maxReturnableFromBill} pcs)`);
         return;
       }
     } else if (maxAvailable <= 0) {
@@ -209,25 +264,43 @@ function TransferStockModalContent({
           setErrorMsg("Please select a purchase bill");
           return;
         }
+
+        const effectiveStockSource =
+          parsedReturnSell > 0 && parsedReturnUse === 0 && parsedReturnDef === 0
+            ? "sellStock"
+            : parsedReturnUse > 0 && parsedReturnSell === 0 && parsedReturnDef === 0
+            ? "useStock"
+            : parsedReturnDef > 0 && parsedReturnSell === 0 && parsedReturnUse === 0
+            ? "defectiveStock"
+            : "mixed";
+
         const res = await returnInventoryToSupplierAction(
           String(product.id),
           selectedPOId,
-          numQty,
-          supplierStockSource,
+          totalReturnSupplierQty,
+          effectiveStockSource,
           supplierRefundMode,
-          consumeNotes.trim() || undefined
+          consumeNotes.trim() || undefined,
+          {
+            sellStock: parsedReturnSell,
+            useStock: parsedReturnUse,
+            defectiveStock: parsedReturnDef,
+          }
         );
 
         if (res.success) {
           const updated: DashboardProduct = {
             ...product,
-            sell: supplierStockSource === "sellStock" ? Math.max(0, product.sell - numQty) : product.sell,
-            use: supplierStockSource === "useStock" ? Math.max(0, product.use - numQty) : product.use,
-            defectiveStock: supplierStockSource === "defectiveStock"
-              ? Math.max(0, (product.defectiveStock || 0) - numQty)
-              : supplierRefundMode === "replacement_pending"
-              ? (product.defectiveStock || 0) + numQty
-              : (product.defectiveStock || 0),
+            sell: Math.max(0, product.sell - parsedReturnSell),
+            use: Math.max(0, product.use - parsedReturnUse),
+            defectiveStock: Math.max(
+              0,
+              (product.defectiveStock || 0) -
+                parsedReturnDef +
+                (supplierRefundMode === "replacement_pending"
+                  ? parsedReturnSell + parsedReturnUse
+                  : 0)
+            ),
           };
           onTransferSuccess(updated);
           onClose();
@@ -653,115 +726,43 @@ function TransferStockModalContent({
           {/* Mode 3: Supplier Return Form (Compact, Multi-Column Layout) */}
           {mode === "return_supplier" && (
             <div className="space-y-2.5">
-              {/* Row 1: Deduct Return From & Supplier Settlement Mode side by side */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
-                    Deduct Return From
-                  </label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSupplierStockSource("defectiveStock");
-                        setErrorMsg(null);
-                      }}
-                      className={`p-1.5 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        supplierStockSource === "defectiveStock"
-                          ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-900"
-                          : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft"
-                      }`}
-                    >
-                      <div className="font-sans text-[11px] font-semibold flex items-center justify-between">
-                        <span className="truncate">Defective</span>
-                        {supplierStockSource === "defectiveStock" && <Check className="h-3 w-3 text-rose-600 shrink-0" />}
-                      </div>
-                      <div className="text-[10.5px] opacity-80 mt-0.5 font-mono">
-                        {product.defectiveStock || 0} pcs
-                      </div>
-                    </button>
+              {/* Row 1: Supplier Settlement Mode */}
+              <div>
+                <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
+                  Supplier Settlement Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSupplierRefundMode("reduce_due")}
+                    className={`p-2 rounded-[5px] border text-left transition-all cursor-pointer ${
+                      supplierRefundMode === "reduce_due"
+                        ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-900"
+                        : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft"
+                    }`}
+                  >
+                    <div className="font-sans text-[12px] font-semibold flex items-center justify-between">
+                      <span>Reduce Due</span>
+                      {supplierRefundMode === "reduce_due" && <Check className="h-3.5 w-3.5 text-rose-600" />}
+                    </div>
+                    <div className="text-[11px] opacity-80 mt-0.5">Deduct from bill pending due</div>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSupplierStockSource("sellStock");
-                        setErrorMsg(null);
-                      }}
-                      className={`p-1.5 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        supplierStockSource === "sellStock"
-                          ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-900"
-                          : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft"
-                      }`}
-                    >
-                      <div className="font-sans text-[11px] font-semibold flex items-center justify-between">
-                        <span className="truncate">Retail</span>
-                        {supplierStockSource === "sellStock" && <Check className="h-3 w-3 text-rose-600 shrink-0" />}
-                      </div>
-                      <div className="text-[10.5px] opacity-80 mt-0.5 font-mono">
-                        {product.sell} pcs
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSupplierStockSource("useStock");
-                        setErrorMsg(null);
-                      }}
-                      className={`p-1.5 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        supplierStockSource === "useStock"
-                          ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-900"
-                          : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft"
-                      }`}
-                    >
-                      <div className="font-sans text-[11px] font-semibold flex items-center justify-between">
-                        <span className="truncate">Salon Use</span>
-                        {supplierStockSource === "useStock" && <Check className="h-3 w-3 text-rose-600 shrink-0" />}
-                      </div>
-                      <div className="text-[10.5px] opacity-80 mt-0.5 font-mono">
-                        {product.use} pcs
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
-                    Supplier Settlement Mode
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSupplierRefundMode("reduce_due")}
-                      className={`p-2 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        supplierRefundMode === "reduce_due"
-                          ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-900"
-                          : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft"
-                      }`}
-                    >
-                      <div className="font-sans text-[12px] font-semibold flex items-center justify-between">
-                        <span>Reduce Due</span>
-                        {supplierRefundMode === "reduce_due" && <Check className="h-3.5 w-3.5 text-rose-600" />}
-                      </div>
-                      <div className="text-[11px] opacity-80 mt-0.5">Deduct from bill</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSupplierRefundMode("replacement_pending")}
-                      className={`p-2 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        supplierRefundMode === "replacement_pending"
-                          ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-900"
-                          : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft"
-                      }`}
-                    >
-                      <div className="font-sans text-[12px] font-semibold flex items-center justify-between">
-                        <span>Wait Replace</span>
-                        {supplierRefundMode === "replacement_pending" && <Check className="h-3.5 w-3.5 text-rose-600" />}
-                      </div>
-                      <div className="text-[11px] opacity-80 mt-0.5">Stock later</div>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierRefundMode("replacement_pending")}
+                    className={`p-2 rounded-[5px] border text-left transition-all cursor-pointer ${
+                      supplierRefundMode === "replacement_pending"
+                        ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-900"
+                        : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft"
+                    }`}
+                  >
+                    <div className="font-sans text-[12px] font-semibold flex items-center justify-between">
+                      <span>Wait Replace</span>
+                      {supplierRefundMode === "replacement_pending" && <Check className="h-3.5 w-3.5 text-rose-600" />}
+                    </div>
+                    <div className="text-[11px] opacity-80 mt-0.5">Dealer exchanges stock later</div>
+                  </button>
                 </div>
               </div>
 
@@ -801,7 +802,7 @@ function TransferStockModalContent({
                       if (!item) return null;
                       const maxRet = Math.max(
                         0,
-                        (item.quantityForSell || 0) + (item.quantityForUse || 0) - (item.returnedQuantity || 0)
+                        (item.quantityForSell || 0) + (item.quantityForUse || 0) - ((item.returnedQuantity || 0) + (item.replacedQuantity || 0))
                       );
                       const isSelected = selectedPOId === po.id;
                       const isNoStockOnBill = maxRet <= 0;
@@ -857,85 +858,253 @@ function TransferStockModalContent({
                 )}
               </div>
 
-              {/* Row 3: Quantity & Reason side by side */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
-                      Quantity to Return <span className="text-red-600">*</span>
+              {/* Row 3: Per-Location Return Allocation */}
+              <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[6px] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block">
+                      Deduct Return From (Stock Allocation) <span className="text-red-600">*</span>
                     </label>
-                    <span className="font-sans text-[11px] text-galla-ink-soft">
-                      Available: {maxAvailable} pcs
+                    <span className="text-[11px] text-galla-ink-soft">
+                      Specify exact quantity from Retail, Salon Use, or Defective
                     </span>
                   </div>
-                  <div className="relative flex items-center">
-                    <input
-                      type="number"
-                      min="1"
-                      max={Math.max(1, maxAvailable)}
-                      step="1"
-                      required
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line font-sans text-[13.5px] text-galla-ink focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all tabular-nums"
-                    />
-                    <span className="absolute right-3 font-sans text-[12px] text-galla-ink-soft pointer-events-none">
-                      pcs
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    {[1, 2, 5].map((q) => (
-                      <button
-                        key={q}
-                        type="button"
-                        disabled={q > maxAvailable}
-                        onClick={() => setQuantity(String(q))}
-                        className={`px-2 py-0.5 text-[11px] font-sans font-medium rounded-[4px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                          quantity === String(q)
-                            ? "bg-rose-50 text-rose-700 border-rose-300 font-semibold"
-                            : "border-galla-line bg-galla-paper/30 text-galla-ink-soft hover:bg-galla-paper"
-                        }`}
-                      >
-                        +{q}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      disabled={maxAvailable <= 0}
-                      onClick={() => setQuantity(String(maxAvailable))}
-                      className="ml-auto px-2 py-0.5 text-[11px] font-sans font-medium rounded-[4px] border border-galla-line bg-galla-paper/30 text-galla-ink-soft hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={handleReturnAllStock}
+                      disabled={maxAutoAll <= 0}
+                      className="px-2 py-0.5 text-[11px] font-heading font-semibold rounded-[4px] border border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      All ({maxAvailable})
+                      Return All ({maxAutoAll} pcs)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearReturnBreakdown}
+                      className="px-2 py-0.5 text-[11px] font-sans text-galla-ink-soft hover:text-galla-ink rounded-[4px] border border-galla-line bg-galla-surface hover:bg-galla-paper transition-colors cursor-pointer"
+                    >
+                      Reset
                     </button>
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
-                    Reason / Notes
-                  </label>
-                  <input
-                    type="text"
-                    value={consumeNotes}
-                    onChange={(e) => setConsumeNotes(e.target.value)}
-                    placeholder="e.g. damaged seal, defective pump, expired..."
-                    className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[12px] text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all mt-0.5"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  {/* Retail Shelf Card */}
+                  <div className={`p-2.5 rounded-[5px] border transition-all ${parsedReturnSell > 0 ? "border-rose-400 bg-rose-50/40 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
+                    <div className="flex items-center justify-between text-[11.5px] mb-1.5">
+                      <span className="font-sans font-semibold text-galla-ink">Retail Shelf</span>
+                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                        Avail: <strong className="text-galla-ink font-medium">{product.sell}</strong> pcs
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={parsedReturnSell <= 0}
+                        onClick={() => {
+                          setRetSellInput(String(Math.max(0, parsedReturnSell - 1)));
+                          setErrorMsg(null);
+                        }}
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        max={product.sell}
+                        step="1"
+                        value={retSellInput}
+                        onChange={(e) => {
+                          setRetSellInput(e.target.value);
+                          setErrorMsg(null);
+                        }}
+                        className="flex-1 h-7 text-center font-mono text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={parsedReturnSell >= product.sell}
+                        onClick={() => {
+                          setRetSellInput(String(Math.min(product.sell, parsedReturnSell + 1)));
+                          setErrorMsg(null);
+                        }}
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={product.sell <= 0}
+                        onClick={() => {
+                          setRetSellInput(String(product.sell));
+                          setErrorMsg(null);
+                        }}
+                        className="text-[10px] text-rose-700 hover:underline cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                      >
+                        All ({product.sell})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Salon Use Card */}
+                  <div className={`p-2.5 rounded-[5px] border transition-all ${parsedReturnUse > 0 ? "border-rose-400 bg-rose-50/40 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
+                    <div className="flex items-center justify-between text-[11.5px] mb-1.5">
+                      <span className="font-sans font-semibold text-galla-ink">Salon Use</span>
+                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                        Avail: <strong className="text-galla-ink font-medium">{product.use}</strong> pcs
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={parsedReturnUse <= 0}
+                        onClick={() => {
+                          setRetUseInput(String(Math.max(0, parsedReturnUse - 1)));
+                          setErrorMsg(null);
+                        }}
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        max={product.use}
+                        step="1"
+                        value={retUseInput}
+                        onChange={(e) => {
+                          setRetUseInput(e.target.value);
+                          setErrorMsg(null);
+                        }}
+                        className="flex-1 h-7 text-center font-mono text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={parsedReturnUse >= product.use}
+                        onClick={() => {
+                          setRetUseInput(String(Math.min(product.use, parsedReturnUse + 1)));
+                          setErrorMsg(null);
+                        }}
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={product.use <= 0}
+                        onClick={() => {
+                          setRetUseInput(String(product.use));
+                          setErrorMsg(null);
+                        }}
+                        className="text-[10px] text-rose-700 hover:underline cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                      >
+                        All ({product.use})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Defective Card */}
+                  <div className={`p-2.5 rounded-[5px] border transition-all ${parsedReturnDef > 0 ? "border-rose-400 bg-rose-50/40 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
+                    <div className="flex items-center justify-between text-[11.5px] mb-1.5">
+                      <span className="font-sans font-semibold text-galla-ink">Defective</span>
+                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                        Avail: <strong className="text-galla-ink font-medium">{product.defectiveStock || 0}</strong> pcs
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={parsedReturnDef <= 0}
+                        onClick={() => {
+                          setRetDefInput(String(Math.max(0, parsedReturnDef - 1)));
+                          setErrorMsg(null);
+                        }}
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        max={product.defectiveStock || 0}
+                        step="1"
+                        value={retDefInput}
+                        onChange={(e) => {
+                          setRetDefInput(e.target.value);
+                          setErrorMsg(null);
+                        }}
+                        className="flex-1 h-7 text-center font-mono text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={parsedReturnDef >= (product.defectiveStock || 0)}
+                        onClick={() => {
+                          setRetDefInput(String(Math.min(product.defectiveStock || 0, parsedReturnDef + 1)));
+                          setErrorMsg(null);
+                        }}
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={(product.defectiveStock || 0) <= 0}
+                        onClick={() => {
+                          setRetDefInput(String(product.defectiveStock || 0));
+                          setErrorMsg(null);
+                        }}
+                        className="text-[10px] text-rose-700 hover:underline cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                      >
+                        All ({product.defectiveStock || 0})
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {isValidQty && selectedPO && (
-                <div className="p-2 bg-rose-50/80 border border-rose-200/80 rounded-[4px] text-[11.5px] font-sans text-rose-950">
+              {/* Row 4: Reason / Notes */}
+              <div>
+                <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
+                  Reason / Notes
+                </label>
+                <input
+                  type="text"
+                  value={consumeNotes}
+                  onChange={(e) => setConsumeNotes(e.target.value)}
+                  placeholder="e.g. damaged seal, defective pump, batch return..."
+                  className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[12px] text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all"
+                />
+              </div>
+
+              {totalReturnSupplierQty > 0 && selectedPO && (
+                <div className="p-2.5 bg-rose-50/80 border border-rose-200/80 rounded-[4px] text-[11.5px] font-sans text-rose-950 space-y-1">
                   <div className="flex items-center justify-between">
-                    <span>Total Return Value:</span>
-                    <span className="font-semibold tabular-nums text-rose-900 font-mono">
+                    <span className="font-semibold text-rose-900">
+                      Total Returning: {totalReturnSupplierQty} pcs
+                      {parsedReturnSell > 0 || parsedReturnUse > 0 || parsedReturnDef > 0 ? (
+                        <span className="font-normal text-rose-800 ml-1.5 font-sans">
+                          ({[
+                            parsedReturnSell > 0 ? `${parsedReturnSell} retail` : null,
+                            parsedReturnUse > 0 ? `${parsedReturnUse} salon use` : null,
+                            parsedReturnDef > 0 ? `${parsedReturnDef} defective` : null,
+                          ].filter(Boolean).join(" + ")})
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="font-bold tabular-nums text-rose-900 font-mono text-[13px]">
                       {formatRupee(estReturnCost)}
                     </span>
                   </div>
-                  <p className="text-[11px] text-rose-800/80 mt-0.5">
+                  <p className="text-[11px] text-rose-800/80">
                     {supplierRefundMode === "reduce_due"
-                      ? `Will deduct ${numQty} pcs from ${supplierStockSource === "defectiveStock" ? "defective pieces" : supplierStockSource === "sellStock" ? "retail shelf" : "salon use"} and reduce ${formatRupee(estReturnCost)} from ${selectedPO.supplierName}'s pending dues.`
-                      : `Will deduct ${numQty} pcs from ${supplierStockSource === "defectiveStock" ? "defective pieces" : supplierStockSource === "sellStock" ? "retail shelf" : "salon use"}. Supplier will provide replacement stock later.`}
+                      ? `Will deduct from stock and reduce ${formatRupee(estReturnCost)} from ${selectedPO.supplierName}'s pending dues on this bill.`
+                      : `Will remove items from active stock to pending replacement. Supplier will provide replacement units later.`}
                   </p>
                 </div>
               )}
@@ -959,8 +1128,7 @@ function TransferStockModalContent({
             disabled={
               isSubmitting ||
               !isValidQty ||
-              maxAvailable <= 0 ||
-              (mode === "return_supplier" && !selectedPOId)
+              (mode === "return_supplier" ? totalReturnSupplierQty <= 0 || !selectedPOId : maxAvailable <= 0)
             }
             className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[5px] text-white font-sans text-[12.5px] font-medium shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
               mode === "consume"
@@ -977,7 +1145,7 @@ function TransferStockModalContent({
                 : mode === "consume"
                 ? `Deduct ${numQty || 1} pcs`
                 : mode === "return_supplier"
-                ? `Return ${numQty || 1} pcs to Supplier`
+                ? `Return ${totalReturnSupplierQty || 1} pcs to Supplier`
                 : direction === "sell_to_use"
                 ? `Move ${numQty || 1} pcs to Use`
                 : `Move ${numQty || 1} pcs to Retail`}
@@ -1013,11 +1181,15 @@ function TransferStockModalContent({
               ) : mode === "return_supplier" ? (
                 <>
                   Are you sure you want to return{" "}
-                  <strong className="font-semibold text-galla-ink">{numQty} pcs</strong> of{" "}
+                  <strong className="font-semibold text-galla-ink">{totalReturnSupplierQty} pcs</strong> of{" "}
                   <strong className="font-semibold text-galla-ink">&ldquo;{product.name}&rdquo;</strong> to{" "}
                   <strong className="font-semibold text-galla-ink">{selectedPO?.supplierName || "supplier"}</strong>?
                   <span className="block mt-1 text-[12px] text-galla-ink-soft">
-                    Deducted from: <strong>{supplierStockSource === "defectiveStock" ? "Defective Pieces" : supplierStockSource === "sellStock" ? "Retail Shelf" : "Salon Use"}</strong> &bull; Total Value: <strong className="font-mono text-galla-ink">{formatRupee(estReturnCost)}</strong>
+                    Allocation: <strong>{[
+                      parsedReturnSell > 0 ? `${parsedReturnSell}x Retail Shelf` : null,
+                      parsedReturnUse > 0 ? `${parsedReturnUse}x Salon Use` : null,
+                      parsedReturnDef > 0 ? `${parsedReturnDef}x Defective` : null,
+                    ].filter(Boolean).join(" + ") || "None"}</strong> &bull; Total Value: <strong className="font-mono text-galla-ink">{formatRupee(estReturnCost)}</strong>
                   </span>
                   <span className="block mt-1 text-[12px] text-rose-800 font-medium">
                     Settlement: {supplierRefundMode === "reduce_due" ? "Deducts from supplier pending due balance" : "Wait for replacement stock from supplier"}

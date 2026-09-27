@@ -774,7 +774,18 @@ export function SupplierDetailsView({
                     <div className="flex items-center justify-between sm:justify-end gap-3.5 shrink-0">
                       <div className="text-right">
                         <div className="font-mono text-[13.5px] font-bold text-galla-ink">
-                          {formatRupee(bill.totalAmount)}
+                          {formatRupee(
+                            Math.max(
+                              0,
+                              bill.totalAmount -
+                                (Array.isArray(bill.returns)
+                                  ? bill.returns.reduce(
+                                      (sum, r) => sum + (r.amountDeductedFromDue || 0),
+                                      0
+                                    )
+                                  : 0)
+                            )
+                          )}
                         </div>
                         <div className="text-[11px] font-sans text-galla-ink-soft">
                           {isPaidFull ? (

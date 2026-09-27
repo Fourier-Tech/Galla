@@ -29,6 +29,7 @@ export interface DashboardOrderLineItem {
     components?: { name: string; componentPrice: number }[];
   };
   returnedQuantity?: number;
+  replacedQuantity?: number;
   returnCondition?: "restocked" | "defective_dealer_claim";
 }
 
@@ -65,6 +66,11 @@ export interface DashboardOrderReturn {
   expectedPickupDate?: string;
   restockLocation?: "sellStock" | "useStock";
   isSameDayReturn?: boolean;
+  replacementProductId?: string;
+  replacementProductName?: string;
+  replacementProductPrice?: number;
+  priceDifference?: number;
+  priceDifferencePaymentMode?: "cash" | "upi" | "card";
   notes?: string;
   recordedBy?: "owner" | "staff" | string;
   returnedAt: string;
@@ -224,11 +230,22 @@ export interface DashboardPurchaseOrderItem {
   expectedSellPrice: number;
   itemTotalCost: number;
   returnedQuantity?: number;
+  replacedQuantity?: number;
 }
 
 export interface DashboardPurchaseOrderPayment {
   amount: number;
-  paymentMode: "cash" | "upi" | "card" | "bank_transfer";
+  paymentMode:
+    | "cash"
+    | "upi"
+    | "card"
+    | "bank_transfer"
+    | "reduce_due"
+    | "refund"
+    | "replacement_pending"
+    | "cash_refund"
+    | "upi_refund"
+    | string;
   notes?: string;
   recordedBy?: "owner" | "staff";
   type?: "initial" | "settlement" | "full_payment" | string;
@@ -240,10 +257,16 @@ export interface DashboardPurchaseOrderReturn {
   productId: string;
   productName: string;
   quantity: number;
-  stockType: "sell" | "use";
+  stockType: "sell" | "use" | "defective" | "mixed";
   unitCost: number;
   totalRefundAmount: number;
-  refundMode: "reduce_due" | "replacement_pending";
+  refundMode:
+    | "reduce_due"
+    | "replacement_pending"
+    | "cash"
+    | "upi"
+    | "card"
+    | "bank_transfer";
   amountDeductedFromDue: number;
   replacementStatus?: "pending" | "fulfilled";
   notes?: string;

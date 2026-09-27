@@ -52,6 +52,7 @@ import {
   DashboardPackage,
   DashboardPurchaseOrder,
   DashboardPurchaseOrderPayment,
+  DashboardPurchaseOrderReturn,
   DashboardSupplier,
   DashboardCustomer,
   OrderType,
@@ -66,6 +67,8 @@ import {
   formatOrderTime,
   formatDisplayNumber,
   getBillLastUpdatedTime,
+  resolveOrderLineItems,
+  resolvePurchaseOrderItems,
 } from "@/lib/utils";
 
 interface SessionLike {
@@ -1678,21 +1681,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
           ? new Date(order.scheduledFor).toISOString()
           : undefined,
         customerPhone: order.customerSnapshot?.phone || undefined,
-        lineItems: (order.lineItems || []).map((li: any) => ({
-          name: li.name,
-          itemType: li.itemType,
-          itemId: li.itemId ? li.itemId.toString() : undefined,
-          unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
-          quantity: typeof li.quantity === "number" ? li.quantity : 1,
-          discount: li.discount,
-          finalPrice:
-            typeof li.finalPrice === "number"
-              ? li.finalPrice
-              : (li.unitPrice || 0) * (li.quantity || 1),
-          fulfilled: li.fulfilled,
-          returnedQuantity: li.returnedQuantity || 0,
-          returnCondition: li.returnCondition,
-        })),
+        lineItems: resolveOrderLineItems(order.lineItems, order.returns),
         payments: (order.payments || []).map((p: any) => ({
           amount: p.amount,
           mode: p.mode,
@@ -2271,9 +2260,14 @@ export async function returnInventoryToSupplierAction(
   productId: string,
   poId: string,
   quantityToReturn: number,
-  stockSource: "sellStock" | "useStock" | "defectiveStock",
+  stockSource: "sellStock" | "useStock" | "defectiveStock" | "mixed",
   refundMode: "reduce_due" | "replacement_pending",
-  notes?: string
+  notes?: string,
+  stockBreakdown?: {
+    sellStock?: number;
+    useStock?: number;
+    defectiveStock?: number;
+  }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth();
@@ -2285,30 +2279,79 @@ export async function returnInventoryToSupplierAction(
       const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
       if (!product) throw new Error("Product not found in inventory");
 
-      if (stockSource === "sellStock") {
-        if (product.sellStock < quantityToReturn) throw new Error("Insufficient retail stock");
-        product.sellStock -= quantityToReturn;
-      } else if (stockSource === "useStock") {
-        if (product.useStock < quantityToReturn) throw new Error("Insufficient salon use stock");
-        product.useStock -= quantityToReturn;
-      } else if (stockSource === "defectiveStock") {
-        if ((product.defectiveStock || 0) < quantityToReturn) throw new Error("Insufficient defective stock");
-        product.defectiveStock -= quantityToReturn;
+      let effectiveQty = quantityToReturn;
+      let effectiveStockType: "sell" | "use" | "defective" | "mixed" = "sell";
+      let breakdownNotes = "";
+
+      if (stockBreakdown) {
+        const sellQty = Math.max(0, stockBreakdown.sellStock || 0);
+        const useQty = Math.max(0, stockBreakdown.useStock || 0);
+        const defQty = Math.max(0, stockBreakdown.defectiveStock || 0);
+        effectiveQty = sellQty + useQty + defQty;
+
+        if (effectiveQty <= 0) {
+          throw new Error("Please specify at least 1 unit to return");
+        }
+
+        if (product.sellStock < sellQty) throw new Error(`Insufficient retail stock. Available: ${product.sellStock} pcs`);
+        if (product.useStock < useQty) throw new Error(`Insufficient salon use stock. Available: ${product.useStock} pcs`);
+        if ((product.defectiveStock || 0) < defQty) throw new Error(`Insufficient defective stock. Available: ${product.defectiveStock || 0} pcs`);
+
+        product.sellStock -= sellQty;
+        product.useStock -= useQty;
+        product.defectiveStock = (product.defectiveStock || 0) - defQty;
+
+        if (refundMode === "replacement_pending" && (sellQty > 0 || useQty > 0)) {
+          product.defectiveStock = (product.defectiveStock || 0) + (sellQty + useQty);
+        }
+
+        effectiveStockType =
+          sellQty > 0 && useQty === 0 && defQty === 0
+            ? "sell"
+            : useQty > 0 && sellQty === 0 && defQty === 0
+            ? "use"
+            : defQty > 0 && sellQty === 0 && useQty === 0
+            ? "defective"
+            : "mixed";
+
+        const parts: string[] = [];
+        if (sellQty > 0) parts.push(`${sellQty} retail`);
+        if (useQty > 0) parts.push(`${useQty} salon use`);
+        if (defQty > 0) parts.push(`${defQty} defective`);
+        breakdownNotes = parts.length > 1 ? `(${parts.join(", ")})` : "";
+      } else {
+        if (stockSource === "sellStock") {
+          if (product.sellStock < quantityToReturn) throw new Error("Insufficient retail stock");
+          product.sellStock -= quantityToReturn;
+          effectiveStockType = "sell";
+        } else if (stockSource === "useStock") {
+          if (product.useStock < quantityToReturn) throw new Error("Insufficient salon use stock");
+          product.useStock -= quantityToReturn;
+          effectiveStockType = "use";
+        } else if (stockSource === "defectiveStock") {
+          if ((product.defectiveStock || 0) < quantityToReturn) throw new Error("Insufficient defective stock");
+          product.defectiveStock -= quantityToReturn;
+          effectiveStockType = "defective";
+        }
+
+        if (refundMode === "replacement_pending" && stockSource !== "defectiveStock") {
+          product.defectiveStock = (product.defectiveStock || 0) + quantityToReturn;
+        }
       }
 
-      if (refundMode === "replacement_pending" && stockSource !== "defectiveStock") {
-        product.defectiveStock = (product.defectiveStock || 0) + quantityToReturn;
-      }
+      const combinedNote = [breakdownNotes, notes?.trim()].filter(Boolean).join(" - ");
 
       await processSupplierReturn(
         tenantId,
         poId,
         product._id.toString(),
-        quantityToReturn,
+        effectiveQty,
         refundMode,
-        notes,
+        combinedNote || undefined,
         session.user.role || "owner",
-        dbSession
+        dbSession,
+        product.name,
+        effectiveStockType
       );
 
       await product.save({ session: dbSession });
@@ -3440,16 +3483,7 @@ export async function recordPurchaseOrderPaymentAction(
           : undefined,
         supplierCompany: result.po.supplierSnapshot?.companyName || undefined,
         itemsCount: result.po.items?.length || 0,
-        items: (result.po.items || []).map((it: any) => ({
-          productId: it.productId?.toString() || "",
-          productName: it.productName || "Product",
-          quantityForSell: it.quantityForSell || 0,
-          quantityForUse: it.quantityForUse || 0,
-          purchaseCost: it.purchaseCost || 0,
-          expectedSellPrice: it.expectedSellPrice || 0,
-          itemTotalCost: it.itemTotalCost || 0,
-          returnedQuantity: it.returnedQuantity || 0,
-        })),
+        items: resolvePurchaseOrderItems(result.po.items, result.po.returns),
         payments: (result.po.payments || []).map((p: any) => ({
           amount: p.amount,
           paymentMode: p.paymentMode,
@@ -3787,6 +3821,86 @@ export async function getPurchaseOrdersAction(options?: {
           returnedQuantity: it.returnedQuantity || 0,
         })),
         payments,
+        returns: (() => {
+          const mappedReturns: DashboardPurchaseOrderReturn[] = (
+            po.returns || []
+          ).map((r: any) => ({
+            returnNumber: r.returnNumber || `RET-${po.purchaseOrderNumber}`,
+            productId: r.productId?.toString() || "",
+            productName: r.productName || "Product",
+            quantity: r.quantity || 0,
+            stockType: r.stockType || "sell",
+            unitCost: r.unitCost || 0,
+            totalRefundAmount: r.totalRefundAmount || 0,
+            refundMode: r.refundMode || "reduce_due",
+            amountDeductedFromDue: r.amountDeductedFromDue || 0,
+            replacementStatus: r.replacementStatus,
+            notes: r.notes,
+            recordedBy: r.recordedBy,
+            returnedAt: r.returnedAt
+              ? new Date(r.returnedAt).toISOString()
+              : undefined,
+          }));
+
+          if (
+            po.notes &&
+            /\[Defective Credit Settle\]|\[Return Due Deduction\]/i.test(po.notes)
+          ) {
+            const regex1 =
+              /\[Defective Credit Settle\]\s*Deducted\s*₹?([0-9,]+(?:\.[0-9]+)?)\s*(?:from due\s*)?for\s*(\d+)x\s*([^.\n]+)/gi;
+            let match;
+            while ((match = regex1.exec(po.notes)) !== null) {
+              const amt = parseFloat(match[1].replace(/,/g, ""));
+              const q = parseInt(match[2], 10) || 1;
+              const pName = match[3].trim();
+              if (
+                !mappedReturns.some(
+                  (r) =>
+                    r.productName.toLowerCase().includes(pName.toLowerCase()) ||
+                    r.amountDeductedFromDue === amt,
+                )
+              ) {
+                mappedReturns.push({
+                  returnNumber: `RET-${po.purchaseOrderNumber}`,
+                  productId: "",
+                  productName: pName,
+                  quantity: q,
+                  stockType: "defective",
+                  unitCost: amt / q,
+                  totalRefundAmount: amt,
+                  refundMode: "reduce_due",
+                  amountDeductedFromDue: amt,
+                  notes: `[Defective Credit Settle] Deducted ₹${amt} from due for ${q}x ${pName}`,
+                  recordedBy: "owner",
+                  returnedAt: po.createdAt
+                    ? new Date(po.createdAt).toISOString()
+                    : undefined,
+                });
+                if (
+                  !payments.some(
+                    (p) =>
+                      (p.type === "return_due_deduction" ||
+                        p.paymentMode === "reduce_due") &&
+                      Math.abs(p.amount) === amt,
+                  )
+                ) {
+                  payments.push({
+                    amount: -amt,
+                    paymentMode: "reduce_due",
+                    notes: `[Defective Credit Settle] Deducted ₹${amt} from due for ${q}x ${pName}`,
+                    recordedBy: "owner",
+                    type: "return_due_deduction",
+                    recordedAt: po.createdAt
+                      ? new Date(po.createdAt).toISOString()
+                      : undefined,
+                  });
+                }
+              }
+            }
+          }
+
+          return mappedReturns;
+        })(),
         totalAmount: po.totalAmount,
         amountPaid: po.amountPaid,
         ledgerAdjustment: po.ledgerAdjustment,
@@ -4741,20 +4855,7 @@ export async function getCustomerOrdersAction(input: {
         discountValue: o.discountValue,
         discountAmount: o.discountAmount,
         notes: o.notes || undefined,
-        recordedBy: o.recordedBy || undefined,
-        lineItems: o.lineItems?.map((li: any) => ({
-          name: li.name,
-          itemType: li.itemType,
-          itemId: li.itemId ? li.itemId.toString() : undefined,
-          unitPrice: li.unitPrice,
-          quantity: li.quantity,
-          discount: li.discount,
-          finalPrice: li.finalPrice,
-          fulfilled: li.fulfilled,
-          packageDetails: li.packageDetails,
-          returnedQuantity: li.returnedQuantity,
-          returnCondition: li.returnCondition,
-        })),
+        lineItems: resolveOrderLineItems(o.lineItems, o.returns),
         payments: o.payments?.map((p: any) => ({
           amount: p.amount,
           mode: p.mode,
@@ -4764,6 +4865,28 @@ export async function getCustomerOrdersAction(input: {
           recordedBy: p.recordedBy,
           type: p.type,
           notes: p.notes,
+        })),
+        returns: (o.returns || []).map((ret: any) => ({
+          returnNumber: ret.returnNumber,
+          lineItemId: ret.lineItemId ? ret.lineItemId.toString() : undefined,
+          lineItemIndex: ret.lineItemIndex,
+          productId: ret.productId ? ret.productId.toString() : undefined,
+          productName: ret.productName,
+          quantity: ret.quantity,
+          unitPrice: ret.unitPrice,
+          refundAmount: ret.refundAmount,
+          dueDeduction: ret.dueDeduction,
+          cashRefund: ret.cashRefund,
+          returnCondition: ret.returnCondition,
+          customerResolution: ret.customerResolution,
+          refundMode: ret.refundMode,
+          supplierClaim: ret.supplierClaim,
+          customerReplacementId: ret.customerReplacementId ? ret.customerReplacementId.toString() : undefined,
+          expectedPickupDate: ret.expectedPickupDate ? new Date(ret.expectedPickupDate).toISOString() : undefined,
+          restockLocation: ret.restockLocation,
+          notes: ret.notes,
+          recordedBy: ret.recordedBy,
+          returnedAt: ret.returnedAt ? new Date(ret.returnedAt).toISOString() : undefined,
         })),
       };
     });
@@ -5346,21 +5469,7 @@ export async function getOrderByIdAction(idOrNumber: string): Promise<{
         itemsSummary: (order.lineItems || [])
           .map((li: any) => li.name)
           .join(", "),
-        lineItems: (order.lineItems || []).map((li: any) => ({
-          name: li.name,
-          itemType: li.itemType,
-          itemId: li.itemId ? li.itemId.toString() : undefined,
-          unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
-          quantity: typeof li.quantity === "number" ? li.quantity : 1,
-          discount: li.discount,
-          finalPrice:
-            typeof li.finalPrice === "number"
-              ? li.finalPrice
-              : (li.unitPrice || 0) * (li.quantity || 1),
-          fulfilled: li.fulfilled,
-          returnedQuantity: li.returnedQuantity || 0,
-          returnCondition: li.returnCondition,
-        })),
+        lineItems: resolveOrderLineItems(order.lineItems, order.returns),
         payments: (order.payments || []).map((p: any) => ({
           amount: p.amount,
           mode: p.mode || p.paymentMode || "cash",
@@ -5388,6 +5497,28 @@ export async function getOrderByIdAction(idOrNumber: string): Promise<{
         createdAt: order.createdAt
           ? new Date(order.createdAt).toISOString()
           : undefined,
+        returns: (order.returns || []).map((ret: any) => ({
+          returnNumber: ret.returnNumber,
+          lineItemId: ret.lineItemId ? ret.lineItemId.toString() : undefined,
+          lineItemIndex: ret.lineItemIndex,
+          productId: ret.productId ? ret.productId.toString() : undefined,
+          productName: ret.productName,
+          quantity: ret.quantity,
+          unitPrice: ret.unitPrice,
+          refundAmount: ret.refundAmount,
+          dueDeduction: ret.dueDeduction,
+          cashRefund: ret.cashRefund,
+          returnCondition: ret.returnCondition,
+          customerResolution: ret.customerResolution,
+          refundMode: ret.refundMode,
+          supplierClaim: ret.supplierClaim,
+          customerReplacementId: ret.customerReplacementId ? ret.customerReplacementId.toString() : undefined,
+          expectedPickupDate: ret.expectedPickupDate ? new Date(ret.expectedPickupDate).toISOString() : undefined,
+          restockLocation: ret.restockLocation,
+          notes: ret.notes,
+          recordedBy: ret.recordedBy,
+          returnedAt: ret.returnedAt ? new Date(ret.returnedAt).toISOString() : undefined,
+        })),
       },
     };
   } catch (err) {
@@ -5405,7 +5536,8 @@ async function processSupplierReturn(
   notes: string | undefined,
   userRole: string,
   dbSession: ClientSession,
-  productName?: string
+  productName?: string,
+  stockType: "sell" | "use" | "defective" | "mixed" = "sell"
 ) {
   const tenantObj = Types.ObjectId.isValid(tenantId)
     ? new Types.ObjectId(tenantId)
@@ -5428,63 +5560,80 @@ async function processSupplierReturn(
   if (!item) throw new Error("Product not found in this Purchase Order");
 
   const previouslyReturned = item.returnedQuantity || 0;
+  const previouslyReplaced = item.replacedQuantity || 0;
   const totalPurchased = item.quantityForSell + item.quantityForUse;
-  if (quantityToReturn <= 0 || quantityToReturn > totalPurchased - previouslyReturned) {
-    throw new Error(`Invalid supplier return quantity. You can only return up to ${totalPurchased - previouslyReturned} items for this PO.`);
+  if (quantityToReturn <= 0 || quantityToReturn > totalPurchased - (previouslyReturned + previouslyReplaced)) {
+    throw new Error(`Invalid supplier return quantity. You can only return up to ${totalPurchased - (previouslyReturned + previouslyReplaced)} items for this PO.`);
   }
 
   const returnValue = quantityToReturn * item.purchaseCost;
-  item.returnedQuantity = previouslyReturned + quantityToReturn;
-  item.itemTotalCost = (totalPurchased - item.returnedQuantity) * item.purchaseCost;
+  if (refundMode === "replacement_pending") {
+    item.replacedQuantity = previouslyReplaced + quantityToReturn;
+  } else {
+    item.returnedQuantity = previouslyReturned + quantityToReturn;
+    item.itemTotalCost = (totalPurchased - item.returnedQuantity) * item.purchaseCost;
+  }
 
+  let amountDeductedFromDue = 0;
   if (refundMode === "reduce_due") {
-    po.amountPending = (po.amountPending || 0) - returnValue;
-    po.totalAmount = Math.max(0, (po.totalAmount || 0) - returnValue);
+    po.amountPending = Math.max(0, (po.amountPending || 0) - returnValue);
+    amountDeductedFromDue = returnValue;
 
     const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId: tenantObj }).session(dbSession);
     if (supplier) {
-      supplier.totalPending = (supplier.totalPending || 0) - returnValue;
+      supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - returnValue);
       await supplier.save({ session: dbSession });
     }
   }
 
-  if (!po.payments) po.payments = [];
-  po.payments.push({
-    amount: -returnValue,
-    paymentMode: refundMode as any,
-    notes: notes || undefined,
-    recordedBy: userRole === "staff" ? "staff" : "owner",
-    type: "refund",
-    recordedAt: new Date(),
-  });
+  if (refundMode !== "replacement_pending") {
+    if (!po.payments) po.payments = [];
+    po.payments.push({
+      amount: -returnValue,
+      paymentMode: refundMode as any,
+      notes: notes || undefined,
+      recordedBy: userRole === "staff" ? "staff" : "owner",
+      type: refundMode === "reduce_due" ? "return_due_deduction" : "refund",
+      recordedAt: new Date(),
+    });
+  }
 
-  const finalNote = notes ? `[Refund] Returned ${quantityToReturn}x ${item.productName}. Note: ${notes}` : `[Refund] Returned ${quantityToReturn}x ${item.productName}.`;
+  const finalNote = notes
+    ? `[${refundMode === "replacement_pending" ? "Replacement Pending" : "Refund"}] ${refundMode === "replacement_pending" ? "Sent for replacement" : "Returned"} ${quantityToReturn}x ${item.productName}. Note: ${notes}`
+    : `[${refundMode === "replacement_pending" ? "Replacement Pending" : "Refund"}] ${refundMode === "replacement_pending" ? "Sent for replacement" : "Returned"} ${quantityToReturn}x ${item.productName}.`;
   po.notes = po.notes ? `${po.notes}\n${finalNote}` : finalNote;
 
   po.returns = po.returns || [];
-  let amountDeductedFromDue = 0;
-  if (refundMode === "reduce_due") {
-    amountDeductedFromDue = returnValue;
-  }
 
   po.returns.push({
     returnNumber: `RET-${Date.now()}`,
     productId: item.productId,
     productName: item.productName,
     quantity: quantityToReturn,
-    stockType: "sell",
+    stockType,
     unitCost: item.purchaseCost,
-    totalRefundAmount: returnValue,
+    totalRefundAmount: refundMode === "replacement_pending" ? 0 : returnValue,
     refundMode,
     amountDeductedFromDue,
+    replacementStatus: refundMode === "replacement_pending" ? "pending" : undefined,
     notes: notes,
     returnedAt: new Date(),
     recordedBy: userRole === "staff" ? "staff" : "owner",
   });
 
+  if (po.amountPending <= 0) {
+    po.paymentStatus = "paid";
+    po.settlementMode = "completed";
+  } else if (po.amountPaid > 0) {
+    po.paymentStatus = "partial";
+  } else {
+    po.paymentStatus = "unpaid";
+  }
+
   po.markModified("items");
   po.markModified("returns");
   po.markModified("payments");
+  po.markModified("notes");
   await po.save({ session: dbSession });
 }
 
@@ -5525,9 +5674,10 @@ export async function returnPurchaseOrderItemAction(
       const totalPurchased =
         (item.quantityForSell || 0) + (item.quantityForUse || 0);
       const previouslyReturned = item.returnedQuantity || 0;
-      if (quantityToReturn > totalPurchased - previouslyReturned) {
+      const previouslyReplaced = item.replacedQuantity || 0;
+      if (quantityToReturn > totalPurchased - (previouslyReturned + previouslyReplaced)) {
         throw new Error(
-          `Cannot return more than purchased. Remaining available to return: ${totalPurchased - previouslyReturned}`,
+          `Cannot return more than purchased. Remaining available to return: ${totalPurchased - (previouslyReturned + previouslyReplaced)}`,
         );
       }
 
@@ -5562,16 +5712,19 @@ export async function returnPurchaseOrderItemAction(
 
       // Financials
       const returnValue = quantityToReturn * item.purchaseCost;
-      item.returnedQuantity = previouslyReturned + quantityToReturn;
-      item.itemTotalCost =
-        (totalPurchased - item.returnedQuantity) * item.purchaseCost;
+      if (refundMode === "replacement_pending") {
+        item.replacedQuantity = previouslyReplaced + quantityToReturn;
+      } else {
+        item.returnedQuantity = previouslyReturned + quantityToReturn;
+        item.itemTotalCost =
+          (totalPurchased - item.returnedQuantity) * item.purchaseCost;
+      }
 
       let newExpenseId: string | undefined;
       let amountDeductedFromDue = 0;
 
       if (refundMode === "reduce_due") {
-        po.amountPending -= returnValue;
-        po.totalAmount -= returnValue;
+        po.amountPending = Math.max(0, (po.amountPending || 0) - returnValue);
         amountDeductedFromDue = returnValue;
 
         const supplier = await Supplier.findOne({
@@ -5579,26 +5732,30 @@ export async function returnPurchaseOrderItemAction(
           tenantId,
         }).session(dbSession);
         if (supplier) {
-          supplier.totalPending = (supplier.totalPending || 0) - returnValue;
+          supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - returnValue);
           await supplier.save({ session: dbSession });
         }
       } else if (refundMode === "replacement_pending") {
         // Money balances stay the same, but we record the return sub-doc
       }
 
-      // Record refund in PO payment history
-      if (!po.payments) po.payments = [];
-      po.payments.push({
-        amount: -returnValue,
-        paymentMode: refundMode as any,
-        notes: notes || undefined,
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
-        type: "refund",
-        recordedAt: new Date(),
-      });
+      // Record refund in PO payment history ONLY for actual refunds
+      if (refundMode !== "replacement_pending") {
+        if (!po.payments) po.payments = [];
+        po.payments.push({
+          amount: -returnValue,
+          paymentMode: refundMode as any,
+          notes: notes || undefined,
+          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          type: refundMode === "reduce_due" ? "return_due_deduction" : "refund",
+          recordedAt: new Date(),
+        });
+      }
 
       // Generate a default system note for the return
-      const systemNote = `[Refund] Returned ${quantityToReturn}x ${product.name}.`;
+      const systemNote = refundMode === "replacement_pending"
+        ? `[Replacement Pending] Sent ${quantityToReturn}x ${product.name} for supplier replacement.`
+        : `[Refund] Returned ${quantityToReturn}x ${product.name}.`;
       const finalNote = notes
         ? `${systemNote} Note: ${notes.trim()}`
         : systemNote;
@@ -5616,21 +5773,24 @@ export async function returnPurchaseOrderItemAction(
         productId: product._id,
         productName: product.name,
         quantity: quantityToReturn,
-        stockType: stockSource === "sellStock" ? "sell" : "use",
+        stockType:
+          stockSource === "sellStock"
+            ? "sell"
+            : stockSource === "useStock"
+            ? "use"
+            : "defective",
         unitCost: item.purchaseCost,
-        totalRefundAmount: returnValue,
+        totalRefundAmount: refundMode === "replacement_pending" ? 0 : returnValue,
         refundMode,
         amountDeductedFromDue,
+        replacementStatus: refundMode === "replacement_pending" ? "pending" : undefined,
         notes: notes || undefined,
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
         returnedAt: new Date(),
       });
 
       // Re-evaluate payment status
-      if (po.totalAmount <= 0) {
-        po.paymentStatus = "paid";
-        po.settlementMode = "completed";
-      } else if (po.amountPending === 0) {
+      if (po.amountPending <= 0) {
         po.paymentStatus = "paid";
         po.settlementMode = "completed";
       } else if (po.amountPaid > 0) {
@@ -5675,6 +5835,10 @@ export async function returnCustomerOrderItemAction(
       poId: string;
       refundMode: "reduce_due" | "replacement_pending";
     };
+    replacementProductId?: string;
+    replacementProductPrice?: number;
+    priceDifference?: number;
+    priceDifferencePaymentMode?: "cash" | "upi" | "card";
   }
 ): Promise<{ success: boolean; customerReplacementId?: string; error?: string }> {
   try {
@@ -5708,9 +5872,11 @@ export async function returnCustomerOrderItemAction(
       }
 
       const previouslyReturned = item.returnedQuantity || 0;
+      const previouslyReplaced = item.replacedQuantity || 0;
+      const totalHandled = previouslyReturned + previouslyReplaced;
       if (
         quantityToReturn <= 0 ||
-        quantityToReturn > item.quantity - previouslyReturned
+        quantityToReturn > item.quantity - totalHandled
       ) {
         throw new Error("Invalid return quantity");
       }
@@ -5728,13 +5894,27 @@ export async function returnCustomerOrderItemAction(
       const isSameDay = checkIsToday(order.createdAt);
       let customerReplacementId: Types.ObjectId | undefined = undefined;
 
-      const product = await Product.findOne({
+      let product = await Product.findOne({
         _id: item.itemId,
         tenantId,
       }).session(dbSession);
 
+      if (!product && item.name) {
+        // ponytail: Heuristic regex baseName matching assumes batches share prefix followed by (Old)/(New)/(Batch). Upgrade path: add dedicated masterProductId relationship field to Product model.
+        const cleanBase = item.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+        const escapedBase = cleanBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        product = await Product.findOne({
+          tenantId,
+          isActive: true,
+          name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
+        }).session(dbSession);
+      }
+
       let actualDueDeduction = 0;
       let actualCashRefund = 0;
+      let targetReplacementProduct: any = product;
+      let targetItemId: Types.ObjectId | undefined = undefined;
+      let priceDiff = 0;
 
       if (returnCondition === "restocked") {
         // Good condition: add to sellStock or useStock
@@ -5828,171 +6008,253 @@ export async function returnCustomerOrderItemAction(
         }
       } else {
         // Customer wants replacement
-        const availableShelf = product ? product.sellStock : 0;
-        let handedQty = 0;
-
-          if (options?.replacementOption === "immediate_partial") {
-            handedQty = Math.min(availableShelf, options.handedQuantity ?? availableShelf);
-          } else if (options?.replacementOption === "immediate_full") {
-            handedQty = quantityToReturn;
-          } else if (options?.replacementOption === "wait_all") {
-            handedQty = 0;
-          } else {
-            handedQty = availableShelf >= quantityToReturn ? quantityToReturn : availableShelf;
-          }
-
-          const pendingQty = Math.max(0, quantityToReturn - handedQty);
-
-          if (handedQty > 0 && product) {
-            if (product.sellStock < handedQty) {
-              throw new Error(`Insufficient shelf stock to hand over ${handedQty} items.`);
-            }
-            product.sellStock -= handedQty;
-          }
-
-          if (pendingQty > 0) {
-            const expectedDate = options?.expectedPickupDate
-              ? new Date(options.expectedPickupDate)
-              : new Date(Date.now() + 2 * 86400000);
-
-            // Generate atomic sequence number for the separate replacement order
-            const { fullNumber: replacementOrderNumber } = await Counter.getNextSequence({
-              tenantId,
-              type: "product_sale",
-              session: dbSession,
-            });
-
-            // Create separate replacement order doc
-            const [newRepOrder] = await Order.create(
-              [
-                {
-                  tenantId: new Types.ObjectId(tenantId),
-                  orderNumber: replacementOrderNumber,
-                  customerId: order.customerId,
-                  customerSnapshot: order.customerSnapshot || {
-                    name: (order as any).customer || "Walk-in Customer",
-                    phone: (order as any).customerPhone || "",
-                  },
-                  orderType: "product_sale",
-                  status: "replacement_pending",
-                  lineItems: [
-                    {
-                      itemType: "product",
-                      itemId: product?._id,
-                      name: item.name,
-                      unitPrice: unitFinalPrice,
-                      quantity: pendingQty,
-                      discount: 0,
-                      finalPrice: 0,
-                      fulfilled: false,
-                      purchaseCost: typeof product?.purchaseCost === "number" ? product.purchaseCost : (item.purchaseCost || 0),
-                    },
-                  ],
-                  subtotal: unitFinalPrice * pendingQty,
-                  discountType: "flat",
-                  discountValue: unitFinalPrice * pendingQty,
-                  discountAmount: unitFinalPrice * pendingQty,
-                  totalAmount: 0,
-                  amountPaid: 0,
-                  amountPending: 0,
-                  paymentMode: order.paymentMode || "cash",
-                  payments: [],
-                  scheduledFor: expectedDate,
-                  notes: `Replacement order for ${pendingQty}x ${item.name} (Original Order #${order.orderNumber}).${notes ? ` ${notes}` : ""}`,
-                  recordedBy: session.user.role === "staff" ? "staff" : "owner",
-                },
-              ],
-              { session: dbSession }
-            );
-
-            const [newCR] = await CustomerReplacement.create(
-              [
-                {
-                  tenantId: new Types.ObjectId(tenantId),
-                  orderId: newRepOrder._id,
-                  orderNumber: replacementOrderNumber,
-                  customerId: order.customerId,
-                  customerName: order.customerSnapshot?.name || (order as any).customer || "Customer",
-                  customerPhone: order.customerSnapshot?.phone || (order as any).customerPhone,
-                  productId: product?._id,
-                  productName: item.name,
-                  totalQuantity: quantityToReturn,
-                  handedQuantity: handedQty,
-                  pendingQuantity: pendingQty,
-                  expectedDate,
-                  status: "pending_dealer",
-                  notes: notes?.trim() || undefined,
-                  recordedBy: session.user.role === "staff" ? "staff" : "owner",
-                },
-              ],
-              { session: dbSession }
-            );
-            customerReplacementId = newCR._id as Types.ObjectId;
-
-            const repNote = `[Replacement Order #${replacementOrderNumber} Created] ${handedQty}x handed now, ${pendingQty}x scheduled for pickup on ${expectedDate.toLocaleDateString("en-IN")}`;
-            order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
-          } else {
-            // Immediate full replacement from shelf stock: also create completed replacement order
-            const { fullNumber: replacementOrderNumber } = await Counter.getNextSequence({
-              tenantId,
-              type: "product_sale",
-              session: dbSession,
-            });
-
-            await Order.create(
-              [
-                {
-                  tenantId: new Types.ObjectId(tenantId),
-                  orderNumber: replacementOrderNumber,
-                  customerId: order.customerId,
-                  customerSnapshot: order.customerSnapshot || {
-                    name: (order as any).customer || "Walk-in Customer",
-                    phone: (order as any).customerPhone || "",
-                  },
-                  orderType: "product_sale",
-                  status: "replacement_completed",
-                  lineItems: [
-                    {
-                      itemType: "product",
-                      itemId: product?._id,
-                      name: item.name,
-                      unitPrice: unitFinalPrice,
-                      quantity: quantityToReturn,
-                      discount: 0,
-                      finalPrice: 0,
-                      fulfilled: true,
-                      purchaseCost: typeof product?.purchaseCost === "number" ? product.purchaseCost : (item.purchaseCost || 0),
-                    },
-                  ],
-                  subtotal: unitFinalPrice * quantityToReturn,
-                  discountType: "flat",
-                  discountValue: unitFinalPrice * quantityToReturn,
-                  discountAmount: unitFinalPrice * quantityToReturn,
-                  totalAmount: 0,
-                  amountPaid: 0,
-                  amountPending: 0,
-                  paymentMode: order.paymentMode || "cash",
-                  payments: [],
-                  notes: `Immediate replacement for ${quantityToReturn}x ${item.name} handed from shelf stock (Original Order #${order.orderNumber}).${notes ? ` ${notes}` : ""}`,
-                  recordedBy: session.user.role === "staff" ? "staff" : "owner",
-                  completedAt: new Date(),
-                },
-              ],
-              { session: dbSession }
-            );
-
-            const repNote = `[Replacement Order #${replacementOrderNumber} Handed] ${quantityToReturn}x ${item.name} handed from shelf stock.`;
-            order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
-          }
-
-          if (product) {
-            await product.save({ session: dbSession });
-            await cleanupProductBatchNames(tenantId, product.name, dbSession);
-          }
+        let replacementProductDoc: any = null;
+        if (options?.replacementProductId && Types.ObjectId.isValid(options.replacementProductId)) {
+          replacementProductDoc = await Product.findOne({
+            _id: new Types.ObjectId(options.replacementProductId),
+            tenantId,
+          }).session(dbSession);
         }
 
-        item.returnedQuantity = previouslyReturned + quantityToReturn;
-      item.returnCondition = returnCondition;
+        if (!replacementProductDoc && product) {
+          replacementProductDoc = product;
+        }
+
+        if (!replacementProductDoc && item.name) {
+          // ponytail: Fallback to active batch by base name if original purchased batch was deleted from inventory.
+          const cleanBase = item.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim();
+          const escapedBase = cleanBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          replacementProductDoc = await Product.findOne({
+            tenantId,
+            isActive: true,
+            name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
+          }).session(dbSession);
+        }
+
+        const isAlternateProduct = Boolean(
+          replacementProductDoc && (!product || !replacementProductDoc._id.equals(product._id))
+        );
+        targetReplacementProduct = replacementProductDoc || product;
+
+        targetItemId =
+          targetReplacementProduct?._id ||
+          (item.itemId && Types.ObjectId.isValid(item.itemId)
+            ? new Types.ObjectId(item.itemId)
+            : new Types.ObjectId());
+
+        const availableShelf = targetReplacementProduct ? targetReplacementProduct.sellStock : 0;
+        let handedQty = 0;
+
+        if (options?.replacementOption === "immediate_partial") {
+          handedQty = Math.min(availableShelf, options.handedQuantity ?? availableShelf);
+        } else if (options?.replacementOption === "immediate_full") {
+          handedQty = quantityToReturn;
+        } else if (options?.replacementOption === "wait_all") {
+          handedQty = 0;
+        } else {
+          handedQty = availableShelf >= quantityToReturn ? quantityToReturn : availableShelf;
+        }
+
+        const pendingQty = Math.max(0, quantityToReturn - handedQty);
+
+        if (handedQty > 0 && targetReplacementProduct) {
+          if (targetReplacementProduct.sellStock < handedQty) {
+            throw new Error(`Insufficient shelf stock in ${targetReplacementProduct.name} to hand over ${handedQty} items.`);
+          }
+          targetReplacementProduct.sellStock -= handedQty;
+        }
+
+        // Handle price difference between old purchased price and replacement unit price
+        priceDiff = typeof options?.priceDifference === "number" ? Math.floor(options.priceDifference) : 0;
+        if (priceDiff > 0) {
+          const payMode = (options?.priceDifferencePaymentMode || "cash") as any;
+          if (!order.payments) order.payments = [];
+          order.payments.push({
+            amount: priceDiff,
+            mode: payMode,
+            notes: `Replacement price difference (${targetReplacementProduct?.name || item.name} @ ₹${targetReplacementProduct?.expectedSellPrice || 0} vs ${item.name} @ ₹${unitFinalPrice})`,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            type: "settlement",
+            recordedAt: new Date(),
+          });
+          order.totalAmount = (order.totalAmount || 0) + priceDiff;
+          order.amountPaid = (order.amountPaid || 0) + priceDiff;
+        } else if (priceDiff < 0) {
+          const refundDiff = Math.abs(priceDiff);
+          const payMode = (options?.priceDifferencePaymentMode || "cash") as any;
+          if (!order.payments) order.payments = [];
+          order.payments.push({
+            amount: -refundDiff,
+            mode: payMode,
+            notes: `Replacement price difference refund (${targetReplacementProduct?.name || item.name} vs ${item.name})`,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            type: "refund",
+            recordedAt: new Date(),
+          });
+          order.totalAmount = Math.max(0, (order.totalAmount || 0) - refundDiff);
+          order.amountPaid = Math.max(0, (order.amountPaid || 0) - refundDiff);
+        }
+
+        const replacementUnitPrice =
+          typeof options?.replacementProductPrice === "number"
+            ? options.replacementProductPrice
+            : targetReplacementProduct?.expectedSellPrice || unitFinalPrice;
+        const replacementPurchaseCost =
+          typeof targetReplacementProduct?.purchaseCost === "number"
+            ? targetReplacementProduct.purchaseCost
+            : item.purchaseCost || 0;
+        const replacementProductName = targetReplacementProduct?.name || item.name;
+
+        if (pendingQty > 0) {
+          const expectedDate = options?.expectedPickupDate
+            ? new Date(options.expectedPickupDate)
+            : new Date(Date.now() + 2 * 86400000);
+
+          // Generate atomic sequence number for the separate replacement order
+          const { fullNumber: replacementOrderNumber } = await Counter.getNextSequence({
+            tenantId,
+            type: "product_sale",
+            session: dbSession,
+          });
+
+          // Create separate replacement order doc
+          const [newRepOrder] = await Order.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                orderNumber: replacementOrderNumber,
+                customerId: order.customerId,
+                customerSnapshot: order.customerSnapshot || {
+                  name: (order as any).customer || "Walk-in Customer",
+                  phone: (order as any).customerPhone || "",
+                },
+                orderType: "product_sale",
+                status: "replacement_pending",
+                lineItems: [
+                  {
+                    itemType: "product",
+                    itemId: targetItemId,
+                    name: replacementProductName,
+                    unitPrice: replacementUnitPrice,
+                    quantity: pendingQty,
+                    discount: 0,
+                    finalPrice: 0,
+                    fulfilled: false,
+                    purchaseCost: replacementPurchaseCost,
+                  },
+                ],
+                subtotal: replacementUnitPrice * pendingQty,
+                discountType: "flat",
+                discountValue: replacementUnitPrice * pendingQty,
+                discountAmount: replacementUnitPrice * pendingQty,
+                totalAmount: 0,
+                amountPaid: 0,
+                amountPending: 0,
+                paymentMode: order.paymentMode || "cash",
+                payments: [],
+                scheduledFor: expectedDate,
+                notes: `Replacement order for ${pendingQty}x ${replacementProductName} (Original Order #${order.orderNumber}).${notes ? ` ${notes}` : ""}`,
+                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              },
+            ],
+            { session: dbSession }
+          );
+
+          const [newCR] = await CustomerReplacement.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                orderNumber: replacementOrderNumber,
+                customerId: order.customerId,
+                customerName: order.customerSnapshot?.name || (order as any).customer || "Customer",
+                customerPhone: order.customerSnapshot?.phone || (order as any).customerPhone,
+                productId: targetItemId,
+                productName: replacementProductName,
+                totalQuantity: quantityToReturn,
+                handedQuantity: handedQty,
+                pendingQuantity: pendingQty,
+                expectedDate,
+                status: "pending_dealer",
+                notes: notes?.trim() || undefined,
+                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              },
+            ],
+            { session: dbSession }
+          );
+          customerReplacementId = newCR._id as Types.ObjectId;
+
+          const repNote = `[Replacement Order #${replacementOrderNumber} Created] ${handedQty}x handed now, ${pendingQty}x scheduled for pickup on ${expectedDate.toLocaleDateString("en-IN")}`;
+          order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
+        } else {
+          // Immediate full replacement from shelf stock: also create completed replacement order
+          const { fullNumber: replacementOrderNumber } = await Counter.getNextSequence({
+            tenantId,
+            type: "product_sale",
+            session: dbSession,
+          });
+
+          await Order.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                orderNumber: replacementOrderNumber,
+                customerId: order.customerId,
+                customerSnapshot: order.customerSnapshot || {
+                  name: (order as any).customer || "Walk-in Customer",
+                  phone: (order as any).customerPhone || "",
+                },
+                orderType: "product_sale",
+                status: "replacement_completed",
+                lineItems: [
+                  {
+                    itemType: "product",
+                    itemId: targetItemId,
+                    name: replacementProductName,
+                    unitPrice: replacementUnitPrice,
+                    quantity: quantityToReturn,
+                    discount: 0,
+                    finalPrice: 0,
+                    fulfilled: true,
+                    purchaseCost: replacementPurchaseCost,
+                  },
+                ],
+                subtotal: replacementUnitPrice * quantityToReturn,
+                discountType: "flat",
+                discountValue: replacementUnitPrice * quantityToReturn,
+                discountAmount: replacementUnitPrice * quantityToReturn,
+                totalAmount: 0,
+                amountPaid: 0,
+                amountPending: 0,
+                paymentMode: order.paymentMode || "cash",
+                payments: [],
+                notes: `Immediate replacement for ${quantityToReturn}x ${replacementProductName} handed from shelf stock (Original Order #${order.orderNumber}).${priceDiff !== 0 ? ` Price difference: ${priceDiff > 0 ? `+₹${priceDiff} paid` : `-₹${Math.abs(priceDiff)} refunded`}.` : ""}${notes ? ` ${notes}` : ""}`,
+                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                completedAt: new Date(),
+              },
+            ],
+            { session: dbSession }
+          );
+
+          const repNote = `[Replacement Order #${replacementOrderNumber} Handed] ${quantityToReturn}x ${replacementProductName} handed from shelf stock.${priceDiff !== 0 ? ` Price diff: ${priceDiff > 0 ? `+₹${priceDiff}` : `-₹${Math.abs(priceDiff)}`}.` : ""}`;
+          order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
+        }
+
+        if (targetReplacementProduct) {
+          await targetReplacementProduct.save({ session: dbSession });
+          await cleanupProductBatchNames(tenantId, targetReplacementProduct.name, dbSession);
+        }
+        if (product && isAlternateProduct) {
+          await product.save({ session: dbSession });
+          await cleanupProductBatchNames(tenantId, product.name, dbSession);
+        }
+      }
+
+        if (customerResolution === "replacement") {
+          item.replacedQuantity = (item.replacedQuantity || 0) + quantityToReturn;
+        } else {
+          item.returnedQuantity = (item.returnedQuantity || 0) + quantityToReturn;
+        }
+        item.returnCondition = returnCondition;
 
       let supplierClaimData: any = undefined;
       const supplierReturnDetails = options?.supplierReturnDetails;
@@ -6050,6 +6312,14 @@ export async function returnCustomerOrderItemAction(
         cashRefund: customerResolution === "refund" ? actualCashRefund : 0,
         returnCondition,
         customerResolution,
+        replacementProductId: customerResolution === "replacement" ? targetItemId : undefined,
+        replacementProductName: (targetReplacementProduct as any)?.name,
+        replacementProductPrice:
+          typeof options?.replacementProductPrice === "number"
+            ? options.replacementProductPrice
+            : (targetReplacementProduct as any)?.expectedSellPrice,
+        priceDifference: priceDiff,
+        priceDifferencePaymentMode: priceDiff !== 0 ? (options?.priceDifferencePaymentMode || "cash") : undefined,
         refundMode:
           customerResolution === "refund"
             ? actualCashRefund > 0
@@ -6145,14 +6415,7 @@ export async function getPurchaseOrdersForProductAction(
         (po as any).supplierName ||
         "Supplier",
       createdAt: po.createdAt.toISOString(),
-      items: po.items.map((item) => ({
-        productId: item.productId?.toString() || "",
-        productName: item.productName,
-        quantityForSell: item.quantityForSell || 0,
-        quantityForUse: item.quantityForUse || 0,
-        returnedQuantity: item.returnedQuantity || 0,
-        purchaseCost: item.purchaseCost,
-      })),
+      items: resolvePurchaseOrderItems(po.items, po.returns),
     }));
 
     return { success: true, pos: formatted };
@@ -6184,6 +6447,13 @@ export async function settleSupplierReplacementAction(
       return { success: false, error: "Please enter a valid whole quantity" };
     }
 
+    if (!options?.poId) {
+      return {
+        success: false,
+        error: "Supplier purchase bill link is mandatory for defective product settlement.",
+      };
+    }
+
     return await withTransaction(async (dbSession) => {
       const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
       if (!product) throw new Error("Product not found");
@@ -6194,6 +6464,26 @@ export async function settleSupplierReplacementAction(
 
       product.defectiveStock -= quantity;
 
+      // Find linked purchase order (mandatory)
+      const po = await PurchaseOrder.findOne({
+        tenantId,
+        $or: [
+          ...(options.poId!.length === 24 && Types.ObjectId.isValid(options.poId!)
+            ? [{ _id: new Types.ObjectId(options.poId!) }]
+            : []),
+          { purchaseOrderNumber: options.poId },
+        ],
+      }).session(dbSession);
+      if (!po) throw new Error("Linked supplier purchase bill not found");
+
+      const poItem = po.items.find(
+        (i: any) =>
+          (i.productId && i.productId.toString() === product._id.toString()) ||
+          (i.productName && i.productName.trim().toLowerCase() === product.name.trim().toLowerCase())
+      );
+      const unitCost = poItem?.purchaseCost || product.purchaseCost || 0;
+      const totalCreditAmount = quantity * unitCost;
+
       if (resolutionType === "replace_stock") {
         const target = options?.targetStock || "sellStock";
         if (target === "sellStock") {
@@ -6202,24 +6492,29 @@ export async function settleSupplierReplacementAction(
           product.useStock += quantity;
         }
 
-        // If PO is linked, note settlement on PO
-        if (options?.poId) {
-          const po = await PurchaseOrder.findOne({
-            tenantId,
-            $or: [
-              ...(options.poId.length === 24 && Types.ObjectId.isValid(options.poId)
-                ? [{ _id: new Types.ObjectId(options.poId) }]
-                : []),
-              { purchaseOrderNumber: options.poId },
-            ],
-          }).session(dbSession);
-          if (po) {
-            const noteText = `[Replacement Received] Received ${quantity}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock.${options.notes ? ` Note: ${options.notes}` : ""}`;
-            po.notes = po.notes ? `${po.notes}\n${noteText}` : noteText;
-            po.markModified("notes");
-            await po.save({ session: dbSession });
-          }
-        }
+        // Record replacement fulfillment on PO returns
+        po.returns = po.returns || [];
+        po.returns.push({
+          returnNumber: `RET-${Date.now()}`,
+          productId: product._id,
+          productName: product.name,
+          quantity,
+          stockType: "defective",
+          unitCost,
+          totalRefundAmount: 0,
+          refundMode: "replacement_pending",
+          replacementStatus: "fulfilled",
+          amountDeductedFromDue: 0,
+          notes: options.notes || `[Stock Replaced] Received ${quantity}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock`,
+          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          returnedAt: new Date(),
+        });
+
+        const noteText = `[Replacement Received] Received ${quantity}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock.${options.notes ? ` Note: ${options.notes}` : ""}`;
+        po.notes = po.notes ? `${po.notes}\n${noteText}` : noteText;
+        po.markModified("notes");
+        po.markModified("returns");
+        await po.save({ session: dbSession });
 
         // Transition matching CustomerReplacements in pending_dealer to arrived_call_client
         const pendingCustomerReplacements = await CustomerReplacement.find({
@@ -6232,50 +6527,72 @@ export async function settleSupplierReplacementAction(
         for (const cr of pendingCustomerReplacements) {
           if (remStock <= 0) break;
           cr.status = "arrived_call_client";
-          const noteText = `[Dealer Replaced] Stock received on ${new Date().toLocaleDateString("en-IN")}. Call client to collect.`;
-          cr.notes = cr.notes ? `${cr.notes}\n${noteText}` : noteText;
+          const noteMsg = `[Dealer Replaced] Stock received on ${new Date().toLocaleDateString("en-IN")}. Call client to collect.`;
+          cr.notes = cr.notes ? `${cr.notes}\n${noteMsg}` : noteMsg;
           await cr.save({ session: dbSession });
           remStock -= cr.pendingQuantity;
         }
       } else {
         // Dealer cannot replace, gave credit / refund
-        const unitCost = product.purchaseCost || 0;
-        const totalCreditAmount = quantity * unitCost;
         const refundMode = options?.refundMode || "reduce_due";
 
         if (refundMode === "reduce_due") {
-          if (options?.poId) {
-            const po = await PurchaseOrder.findOne({
-              tenantId,
-              $or: [
-                ...(options.poId.length === 24 && Types.ObjectId.isValid(options.poId)
-                  ? [{ _id: new Types.ObjectId(options.poId) }]
-                  : []),
-                { purchaseOrderNumber: options.poId },
-              ],
-            }).session(dbSession);
-            if (po) {
-              po.amountPending = (po.amountPending || 0) - totalCreditAmount;
-              po.totalAmount = Math.max(0, (po.totalAmount || 0) - totalCreditAmount);
-              const noteText = `[Defective Credit Settle] Deducted ₹${totalCreditAmount} from due for ${quantity}x ${product.name}.${options.notes ? ` Note: ${options.notes}` : ""}`;
-              po.notes = po.notes ? `${po.notes}\n${noteText}` : noteText;
-              po.markModified("notes");
-              await po.save({ session: dbSession });
-
-              const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId }).session(dbSession);
-              if (supplier) {
-                supplier.totalPending = (supplier.totalPending || 0) - totalCreditAmount;
-                await supplier.save({ session: dbSession });
-              }
-            }
-          } else if (options?.supplierId) {
-            const supplier = await Supplier.findOne({ _id: options.supplierId, tenantId }).session(dbSession);
-            if (supplier) {
-              supplier.totalPending = (supplier.totalPending || 0) - totalCreditAmount;
-              await supplier.save({ session: dbSession });
-            }
+          po.amountPending = Math.max(0, (po.amountPending || 0) - totalCreditAmount);
+          const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId }).session(dbSession);
+          if (supplier) {
+            supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - totalCreditAmount);
+            await supplier.save({ session: dbSession });
           }
         }
+
+        // Record refund in PO payment history
+        po.payments = po.payments || [];
+        po.payments.push({
+          amount: -totalCreditAmount,
+          paymentMode: refundMode as any,
+          notes: options.notes || `[Defective Credit Settle] Deducted ₹${totalCreditAmount} for ${quantity}x ${product.name}`,
+          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          type: refundMode === "reduce_due" ? "return_due_deduction" : "refund",
+          recordedAt: new Date(),
+        });
+
+        // Record in PO returns
+        po.returns = po.returns || [];
+        po.returns.push({
+          returnNumber: `RET-${Date.now()}`,
+          productId: product._id,
+          productName: product.name,
+          quantity,
+          stockType: "defective",
+          unitCost,
+          totalRefundAmount: totalCreditAmount,
+          refundMode: refundMode as any,
+          amountDeductedFromDue: refundMode === "reduce_due" ? totalCreditAmount : 0,
+          notes: options.notes,
+          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          returnedAt: new Date(),
+        });
+
+        if (poItem) {
+          poItem.returnedQuantity = (poItem.returnedQuantity || 0) + quantity;
+          po.markModified("items");
+        }
+
+        if (po.amountPending <= 0) {
+          po.paymentStatus = "paid";
+          po.settlementMode = "completed";
+        } else if (po.amountPaid > 0) {
+          po.paymentStatus = "partial";
+        } else {
+          po.paymentStatus = "unpaid";
+        }
+
+        const noteText = `[Defective Credit Settle] Deducted ₹${totalCreditAmount} from due for ${quantity}x ${product.name}.${options.notes ? ` Note: ${options.notes}` : ""}`;
+        po.notes = po.notes ? `${po.notes}\n${noteText}` : noteText;
+        po.markModified("notes");
+        po.markModified("returns");
+        po.markModified("payments");
+        await po.save({ session: dbSession });
       }
 
       await product.save({ session: dbSession });
@@ -6569,6 +6886,94 @@ export async function getProductByIdAction(productId: string): Promise<{
     };
   } catch (err: any) {
     return { success: false, error: err.message };
+  }
+}
+
+export async function getProductBatchesForReturnAction(
+  productId?: string,
+  productName?: string,
+): Promise<{
+  success: boolean;
+  product?: DashboardProduct;
+  batches: DashboardProduct[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { success: false, error: "Unauthorized", batches: [] };
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) return { success: false, error: "No tenant", batches: [] };
+
+    await connectToDatabase();
+
+    let productDoc: any = null;
+    if (productId && Types.ObjectId.isValid(productId)) {
+      productDoc = await Product.findOne({ _id: new Types.ObjectId(productId), tenantId }).lean();
+    }
+
+    if (!productDoc && productName) {
+      productDoc = await Product.findOne({
+        tenantId,
+        name: new RegExp(`^${productName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+      }).lean();
+    }
+
+    const nameToClean = productDoc?.name || productName || "";
+    // ponytail: Strips suffix notation to discover all sibling batches under the same product line. Upgrade path: query by masterProductId.
+    const cleanBase = nameToClean
+      .replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "")
+      .trim();
+
+    let batches: DashboardProduct[] = [];
+    if (cleanBase) {
+      const escapedBase = cleanBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const batchDocs = await Product.find({
+        tenantId,
+        isActive: true,
+        name: new RegExp(`^${escapedBase}(\\s*\\((Old|New|Batch[^\)]*)\\))?$`, "i"),
+      }).lean();
+
+      batches = batchDocs.map((p) => ({
+        id: p._id.toString(),
+        name: p.name,
+        category: p.category,
+        sell: p.sellStock,
+        use: p.useStock,
+        defectiveStock: p.defectiveStock || 0,
+        price: p.expectedSellPrice,
+        purchaseCost: p.purchaseCost,
+        lowStockThreshold: p.lowStockThreshold,
+        description: p.description,
+        barcode: p.barcode,
+        isActive: p.isActive,
+      }));
+    }
+
+    const mappedProduct: DashboardProduct | undefined = productDoc
+      ? {
+          id: productDoc._id.toString(),
+          name: productDoc.name,
+          category: productDoc.category,
+          sell: productDoc.sellStock,
+          use: productDoc.useStock,
+          defectiveStock: productDoc.defectiveStock || 0,
+          price: productDoc.expectedSellPrice,
+          purchaseCost: productDoc.purchaseCost,
+          lowStockThreshold: productDoc.lowStockThreshold,
+          description: productDoc.description,
+          barcode: productDoc.barcode,
+          isActive: productDoc.isActive,
+        }
+      : undefined;
+
+    return {
+      success: true,
+      product: mappedProduct,
+      batches,
+    };
+  } catch (err: any) {
+    console.error("Failed to fetch product batches for return:", err);
+    return { success: false, error: err.message, batches: [] };
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   Loader2,
@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Package,
   AlertCircle,
-  Calendar,
 } from "lucide-react";
 import {
   DashboardOrder,
@@ -22,7 +21,7 @@ import {
 } from "@/lib/utils";
 import {
   returnCustomerOrderItemAction,
-  getProductByIdAction,
+  getProductBatchesForReturnAction,
 } from "@/app/dashboard/actions";
 import { PaymentModeSelect } from "../payment-mode-select";
 
@@ -46,7 +45,8 @@ export function ReturnCustomerOrderItemModal({
   onSuccess,
 }: ReturnCustomerOrderItemModalProps) {
   const previouslyReturned = lineItem.returnedQuantity || 0;
-  const availableToReturn = lineItem.quantity - previouslyReturned;
+  const previouslyReplaced = lineItem.replacedQuantity || 0;
+  const availableToReturn = Math.max(0, lineItem.quantity - (previouslyReturned + previouslyReplaced));
 
   // Basic fields
   const [quantity, setQuantity] = useState<string>("1");
@@ -67,7 +67,7 @@ export function ReturnCustomerOrderItemModal({
   const [customAmountStr, setCustomAmountStr] = useState<string>("");
   const [notes, setNotes] = useState("");
 
-  // Product Shelf Stock resolution
+  // Product Shelf Stock & Batches resolution
   const [matchedProduct, setMatchedProduct] = useState<DashboardProduct | null>(() => {
     const found = products.find(
       (p) =>
@@ -76,6 +76,11 @@ export function ReturnCustomerOrderItemModal({
     );
     return found || null;
   });
+  const [availableBatches, setAvailableBatches] = useState<DashboardProduct[]>([]);
+  const [selectedReplacementBatchId, setSelectedReplacementBatchId] = useState<string>("");
+  const [replacementResolutionType, setReplacementResolutionType] = useState<"upgrade_available" | "wait_original">("upgrade_available");
+  const [priceDiffPaymentMode, setPriceDiffPaymentMode] = useState<"cash" | "upi" | "card">("cash");
+  const [customNewPriceStr, setCustomNewPriceStr] = useState<string>("");
   const [isLoadingStock, setIsLoadingStock] = useState<boolean>(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,21 +102,22 @@ export function ReturnCustomerOrderItemModal({
   }, 0);
   const pendingAmount = Math.max(0, order.amount - order.paid - totalDueDeduction);
 
-  // Fetch product stock if not provided in props
+  // Fetch product stock and related batches from server
   useEffect(() => {
-    if (isOpen && lineItem.itemId && !matchedProduct) {
+    if (isOpen && (lineItem.itemId || lineItem.name)) {
       setIsLoadingStock(true);
-      getProductByIdAction(lineItem.itemId)
+      getProductBatchesForReturnAction(lineItem.itemId, lineItem.name)
         .then((res) => {
-          if (res.success && res.product) {
-            setMatchedProduct(res.product);
+          if (res.success) {
+            if (res.product) setMatchedProduct(res.product);
+            if (res.batches) setAvailableBatches(res.batches);
           }
         })
         .finally(() => {
           setIsLoadingStock(false);
         });
     }
-  }, [isOpen, lineItem.itemId, matchedProduct]);
+  }, [isOpen, lineItem.itemId, lineItem.name]);
 
   // Reset modal state on open
   useEffect(() => {
@@ -122,6 +128,10 @@ export function ReturnCustomerOrderItemModal({
       setRestockLocation("sellStock");
       setDefectiveResolution("replacement");
       setReplacementOption("immediate_full");
+      setSelectedReplacementBatchId("");
+      setCustomNewPriceStr("");
+      setReplacementResolutionType("upgrade_available");
+      setPriceDiffPaymentMode("cash");
       const d = new Date();
       d.setDate(d.getDate() + 2);
       setExpectedPickupDate(getLocalDateString(d));
@@ -140,20 +150,109 @@ export function ReturnCustomerOrderItemModal({
   const dueDeduction = Math.floor(Math.min(pendingAmount, finalReturnAmount));
   const cashRefund = Math.max(0, Math.floor(finalReturnAmount - dueDeduction));
 
-  const shelfStock = matchedProduct ? matchedProduct.sell : 0;
+  // Collect all in-stock products matching this item (either matchedProduct or from availableBatches)
+  const inStockProducts = useMemo(() => {
+    const list: DashboardProduct[] = [];
+    const seen = new Set<string>();
+
+    if (matchedProduct && matchedProduct.sell > 0) {
+      list.push(matchedProduct);
+      seen.add(String(matchedProduct.id));
+    }
+
+    for (const b of availableBatches) {
+      if (b.sell > 0 && !seen.has(String(b.id))) {
+        list.push(b);
+        seen.add(String(b.id));
+      }
+    }
+
+    return list;
+  }, [matchedProduct, availableBatches]);
+
+  // Batch having exact same price as customer paid in this order
+  const samePriceBatch = useMemo(() => {
+    return inStockProducts.find((p) => p.price === unitPrice) || null;
+  }, [inStockProducts, unitPrice]);
+
+  const samePriceStock = samePriceBatch ? samePriceBatch.sell : 0;
+
+  // Batches available at a different price / new MRP
+  const newMRPProducts = useMemo(() => {
+    return inStockProducts.filter((p) => p.price !== unitPrice);
+  }, [inStockProducts, unitPrice]);
+
+  // Has new MRP available when old price stock is not enough (or 0)
+  const hasNewMRPAvailable = samePriceStock < parsedQty && newMRPProducts.length > 0;
+
+  const selectedNewMRPProduct = useMemo(() => {
+    if (selectedReplacementBatchId) {
+      const found = newMRPProducts.find((p) => String(p.id) === String(selectedReplacementBatchId));
+      if (found) return found;
+    }
+    return newMRPProducts[0] || null;
+  }, [selectedReplacementBatchId, newMRPProducts]);
+
+  // Keep custom price synchronized with the selected batch price
+  useEffect(() => {
+    if (selectedNewMRPProduct) {
+      setCustomNewPriceStr(String(selectedNewMRPProduct.price));
+    } else {
+      setCustomNewPriceStr("");
+    }
+  }, [selectedNewMRPProduct?.id, selectedNewMRPProduct?.price]);
+
+  const parsedCustomNewPrice = parseFloat(customNewPriceStr);
+  const effectiveNewPrice =
+    customNewPriceStr.trim() !== "" && !isNaN(parsedCustomNewPrice) && parsedCustomNewPrice >= 0
+      ? parsedCustomNewPrice
+      : selectedNewMRPProduct
+      ? selectedNewMRPProduct.price
+      : unitPrice;
+
+  const targetReplacementProduct = useMemo(() => {
+    if (hasNewMRPAvailable && replacementResolutionType === "upgrade_available") {
+      return selectedNewMRPProduct;
+    }
+    return samePriceBatch || matchedProduct;
+  }, [hasNewMRPAvailable, replacementResolutionType, selectedNewMRPProduct, samePriceBatch, matchedProduct]);
+
+  const targetPrice =
+    hasNewMRPAvailable && replacementResolutionType === "upgrade_available"
+      ? effectiveNewPrice
+      : samePriceBatch
+      ? samePriceBatch.price
+      : matchedProduct
+      ? matchedProduct.price
+      : unitPrice;
+
+  const unitPriceDiff = Math.round(targetPrice - unitPrice);
+  const totalPriceDiff = unitPriceDiff * parsedQty;
+
+  const isUpgradingToNewMRP =
+    !isGoodCondition &&
+    defectiveResolution === "replacement" &&
+    hasNewMRPAvailable &&
+    replacementResolutionType === "upgrade_available";
 
   // Auto-adjust replacement option based on available shelf stock
   useEffect(() => {
     if (!isGoodCondition && defectiveResolution === "replacement" && isValidQty) {
-      if (shelfStock >= parsedQty) {
+      if (isUpgradingToNewMRP && selectedNewMRPProduct) {
+        if (selectedNewMRPProduct.sell >= parsedQty) {
+          setReplacementOption("immediate_full");
+        } else {
+          setReplacementOption("immediate_partial");
+        }
+      } else if (samePriceStock >= parsedQty) {
         setReplacementOption("immediate_full");
-      } else if (shelfStock === 0) {
+      } else if (samePriceStock === 0) {
         setReplacementOption("wait_all");
       } else {
         setReplacementOption("immediate_partial");
       }
     }
-  }, [isGoodCondition, defectiveResolution, shelfStock, parsedQty, isValidQty]);
+  }, [isGoodCondition, defectiveResolution, samePriceStock, parsedQty, isValidQty, isUpgradingToNewMRP, selectedNewMRPProduct]);
 
   const renderSettlementSection = (label: string) => {
     if (pendingAmount > 0) {
@@ -258,10 +357,13 @@ export function ReturnCustomerOrderItemModal({
 
     let handedQty = 0;
     if (!isGoodCondition && customerResolution === "replacement") {
-      if (replacementOption === "immediate_full") {
+      if (isUpgradingToNewMRP) {
+        const availableStock = targetReplacementProduct ? targetReplacementProduct.sell : 0;
+        handedQty = Math.min(availableStock, parsedQty);
+      } else if (samePriceStock >= parsedQty) {
         handedQty = parsedQty;
-      } else if (replacementOption === "immediate_partial") {
-        handedQty = Math.min(shelfStock, parsedQty);
+      } else if (samePriceStock > 0) {
+        handedQty = Math.min(samePriceStock, parsedQty);
       } else {
         handedQty = 0;
       }
@@ -289,12 +391,37 @@ export function ReturnCustomerOrderItemModal({
         customerResolution,
         {
           restockLocation: isGoodCondition ? restockLocation : undefined,
-          replacementOption: !isGoodCondition && customerResolution === "replacement" ? replacementOption : undefined,
+          replacementOption:
+            !isGoodCondition && customerResolution === "replacement"
+              ? isUpgradingToNewMRP
+                ? handedQty >= parsedQty
+                  ? "immediate_full"
+                  : handedQty > 0
+                  ? "immediate_partial"
+                  : "wait_all"
+                : samePriceStock >= parsedQty
+                ? "immediate_full"
+                : samePriceStock > 0
+                ? "immediate_partial"
+                : "wait_all"
+              : undefined,
           handedQuantity: handedQty,
           expectedPickupDate:
-            !isGoodCondition && customerResolution === "replacement" && replacementOption !== "immediate_full"
-              ? expectedPickupDate
+            !isGoodCondition && customerResolution === "replacement"
+              ? isUpgradingToNewMRP
+                ? handedQty < parsedQty
+                  ? expectedPickupDate
+                  : undefined
+                : samePriceStock < parsedQty
+                ? expectedPickupDate
+                : undefined
               : undefined,
+          replacementProductId:
+            targetReplacementProduct ? String(targetReplacementProduct.id) : undefined,
+          replacementProductPrice: isUpgradingToNewMRP ? effectiveNewPrice : undefined,
+          priceDifference: isUpgradingToNewMRP ? totalPriceDiff : 0,
+          priceDifferencePaymentMode:
+            isUpgradingToNewMRP && totalPriceDiff !== 0 ? priceDiffPaymentMode : undefined,
         }
       );
 
@@ -357,7 +484,14 @@ export function ReturnCustomerOrderItemModal({
                   {lineItem.name}
                 </div>
                 <div className="font-sans text-[11px] text-galla-ink-soft">
-                  Ordered: <strong className="font-mono text-galla-ink font-medium">{lineItem.quantity}</strong> &bull; Returned: <strong className="font-mono text-galla-ink font-medium">{previouslyReturned}</strong> &bull; Returnable: <strong className="font-mono text-emerald-800 font-semibold">{availableToReturn}</strong>
+                  Ordered: <strong className="font-mono text-galla-ink font-medium">{lineItem.quantity}</strong>
+                  {previouslyReturned > 0 && (
+                    <> &bull; Returned: <strong className="font-mono text-galla-ink font-medium">{previouslyReturned}</strong></>
+                  )}
+                  {previouslyReplaced > 0 && (
+                    <> &bull; Replaced: <strong className="font-mono text-galla-ink font-medium">{previouslyReplaced}</strong></>
+                  )}
+                  &bull; Returnable: <strong className="font-mono text-emerald-800 font-semibold">{availableToReturn}</strong>
                 </div>
               </div>
             </div>
@@ -613,19 +747,213 @@ export function ReturnCustomerOrderItemModal({
               {/* Defective -> Choice 2: Product Replacement */}
               {defectiveResolution === "replacement" && (
                 <div className="space-y-3 pt-2 border-t border-rose-200/60">
-                  {/* Case 1: Shelf stock fully available */}
-                  {shelfStock >= parsedQty ? (
+                  {/* Condition 1: Shelf stock fully available at the exact same price */}
+                  {samePriceStock >= parsedQty ? (
                     <div className="p-2.5 rounded-[4px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[11.5px] font-sans space-y-0.5">
                       <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
                         <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>Stock Available ({shelfStock} pcs)</span>
+                        <span>Stock Available ({samePriceStock} pcs @ {formatRupee(unitPrice)})</span>
                       </div>
                       <p className="text-[11px] text-emerald-800">
                         Hand over {parsedQty} replacement unit{parsedQty > 1 ? "s" : ""} to the client immediately.
                       </p>
                     </div>
-                  ) : shelfStock === 0 ? (
-                    /* Case 2: Shelf is out of stock */
+                  ) : hasNewMRPAvailable && selectedNewMRPProduct ? (
+                    /* Condition 2: Old price product is NOT available, BUT new MRP product is in stock! */
+                    <div className="p-3 rounded-[6px] bg-amber-50/80 border border-amber-300 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 font-semibold text-amber-950 text-[12.5px]">
+                          <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
+                          <span>Old Price Product Not Available</span>
+                        </div>
+                        <span className="font-heading text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300 shrink-0">
+                          New MRP In Stock
+                        </span>
+                      </div>
+
+                      <div className="text-[11.5px] text-amber-900 leading-snug space-y-1">
+                        <p>
+                          The product at the original purchase price (<strong>{formatRupee(unitPrice)}</strong>) is no longer available in stock.
+                        </p>
+                        <p className="font-medium text-amber-950">
+                          Would you like to get the new MRP product by paying the above price difference?
+                        </p>
+                      </div>
+
+                      {/* Product Details & Price Difference Breakdown */}
+                      <div className="p-2.5 bg-galla-surface border border-amber-200/90 rounded-[5px] space-y-2 text-[12px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-galla-ink-soft">Available Product:</span>
+                          {newMRPProducts.length > 1 ? (
+                            <select
+                              value={selectedNewMRPProduct.id}
+                              onChange={(e) => setSelectedReplacementBatchId(e.target.value)}
+                              className="h-7 px-2 bg-galla-surface border border-galla-line rounded font-sans text-[11.5px] text-galla-ink font-semibold focus:outline-none focus:border-galla-teal"
+                            >
+                              {newMRPProducts.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name} ({b.sell} pcs @ {formatRupee(b.price)})
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="font-semibold text-galla-ink">{selectedNewMRPProduct.name}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-galla-ink-soft">Shelf Stock:</span>
+                          <span className="font-mono font-medium text-emerald-800">{selectedNewMRPProduct.sell} pcs available</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-galla-line/60 items-center">
+                          <div>
+                            <span className="text-[11px] text-galla-ink-soft block">Old Purchase Price:</span>
+                            <span className="font-mono font-semibold text-galla-ink">{formatRupee(unitPrice)}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <label htmlFor="replacement-price-input" className="text-[11px] text-galla-ink-soft block font-medium">
+                                New Price:
+                              </label>
+                              {customNewPriceStr.trim() !== "" &&
+                                !isNaN(parseFloat(customNewPriceStr)) &&
+                                parseFloat(customNewPriceStr) !== selectedNewMRPProduct.price && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setCustomNewPriceStr(String(selectedNewMRPProduct.price))}
+                                    className="text-[10px] text-amber-800 hover:text-amber-950 underline font-medium cursor-pointer"
+                                    title="Reset to original catalog MRP"
+                                  >
+                                    Reset (₹{selectedNewMRPProduct.price})
+                                  </button>
+                                )}
+                            </div>
+                            <div className="inline-flex items-center gap-1 mt-0.5 justify-end">
+                              <span className="font-mono text-[12px] text-galla-ink-soft">₹</span>
+                              <input
+                                id="replacement-price-input"
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={customNewPriceStr}
+                                onChange={(e) => setCustomNewPriceStr(e.target.value)}
+                                placeholder={String(selectedNewMRPProduct.price)}
+                                className="w-24 h-7 px-2 text-right bg-white border border-amber-300 rounded font-mono font-bold text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1.5 border-t border-amber-200 bg-amber-100/60 -mx-2.5 -mb-2.5 p-2 rounded-b-[4px]">
+                          <span className="font-semibold text-amber-950 text-[11.5px]">
+                            {totalPriceDiff > 0 ? "Price Difference to Pay:" : totalPriceDiff < 0 ? "Price Difference to Refund:" : "Price Difference:"}
+                          </span>
+                          <span className="font-mono font-bold text-[13px] text-amber-950">
+                            {totalPriceDiff > 0 ? `+${formatRupee(totalPriceDiff)}` : totalPriceDiff < 0 ? `-${formatRupee(Math.abs(totalPriceDiff))}` : "₹0"}
+                            {parsedQty > 1 && (
+                              <span className="font-sans text-[10.5px] font-normal text-amber-800 ml-1">
+                                ({formatRupee(Math.abs(unitPriceDiff))}/pc &times; {parsedQty})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Choice: Get New MRP Product vs Wait for Old Price Stock */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setReplacementResolutionType("upgrade_available")}
+                          className={`p-2 rounded-[4px] border text-left cursor-pointer transition-all ${
+                            replacementResolutionType === "upgrade_available"
+                              ? "bg-galla-surface border-galla-teal ring-1 ring-galla-teal text-galla-ink font-medium"
+                              : "bg-galla-surface/70 border-galla-line text-galla-ink-soft hover:bg-galla-surface"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[11.5px] font-semibold">
+                            <span>Get New MRP Product</span>
+                            {replacementResolutionType === "upgrade_available" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
+                          </div>
+                          <p className="text-[10px] text-galla-ink-soft mt-0.5">
+                            {totalPriceDiff > 0
+                              ? `Hand over now & pay ${formatRupee(totalPriceDiff)} difference.`
+                              : totalPriceDiff < 0
+                              ? `Hand over now & refund ${formatRupee(Math.abs(totalPriceDiff))} excess.`
+                              : "Hand over replacement unit now (₹0 difference)."}
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setReplacementResolutionType("wait_original")}
+                          className={`p-2 rounded-[4px] border text-left cursor-pointer transition-all ${
+                            replacementResolutionType === "wait_original"
+                              ? "bg-galla-surface border-galla-teal ring-1 ring-galla-teal text-galla-ink font-medium"
+                              : "bg-galla-surface/70 border-galla-line text-galla-ink-soft hover:bg-galla-surface"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[11.5px] font-semibold">
+                            <span>Wait for Old Price Stock</span>
+                            {replacementResolutionType === "wait_original" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
+                          </div>
+                          <p className="text-[10px] text-galla-ink-soft mt-0.5">
+                            Client will wait for restock (₹0 difference).
+                          </p>
+                        </button>
+                      </div>
+
+                      {/* When Get New MRP: Collect price difference payment mode */}
+                      {replacementResolutionType === "upgrade_available" && totalPriceDiff > 0 && (
+                        <div className="pt-1.5">
+                          <PaymentModeSelect
+                            label="Pay Price Difference Via"
+                            badge={
+                              <span className="font-mono text-[11px] font-semibold text-amber-900">
+                                Pay: {formatRupee(totalPriceDiff)}
+                              </span>
+                            }
+                            value={priceDiffPaymentMode}
+                            onChange={setPriceDiffPaymentMode}
+                            allowedModes={["cash", "upi", "card"]}
+                          />
+                        </div>
+                      )}
+
+                      {/* When price difference is negative (refund to customer) */}
+                      {replacementResolutionType === "upgrade_available" && totalPriceDiff < 0 && (
+                        <div className="pt-1.5">
+                          <PaymentModeSelect
+                            label="Refund Price Difference Via"
+                            badge={
+                              <span className="font-mono text-[11px] font-semibold text-rose-900">
+                                Refund: {formatRupee(Math.abs(totalPriceDiff))}
+                              </span>
+                            }
+                            value={priceDiffPaymentMode}
+                            onChange={setPriceDiffPaymentMode}
+                            allowedModes={["cash", "upi", "card"]}
+                          />
+                        </div>
+                      )}
+
+                      {/* When Wait: Expected pickup date */}
+                      {replacementResolutionType === "wait_original" && (
+                        <div className="pt-1">
+                          <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1">
+                            Expected Client Pickup Date <span className="text-red-600">*</span>
+                          </label>
+                          <input
+                            type="date"
+                            min={getLocalDateString()}
+                            value={expectedPickupDate}
+                            onChange={(e) => setExpectedPickupDate(e.target.value)}
+                            required
+                            className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[12.5px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : samePriceStock === 0 ? (
+                    /* Condition 3: Completely out of stock */
                     <div className="space-y-2">
                       <div className="p-2.5 rounded-[4px] bg-amber-50 border border-amber-200 text-amber-950 text-[11.5px] font-sans">
                         <div className="flex items-center gap-1.5 font-semibold text-amber-900">
@@ -657,7 +985,7 @@ export function ReturnCustomerOrderItemModal({
                       <div className="p-2.5 rounded-[4px] bg-amber-50 border border-amber-200 text-amber-950 text-[11.5px] font-sans">
                         <div className="flex items-center gap-1.5 font-semibold text-amber-900">
                           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                          <span>Partial Stock ({shelfStock} of {parsedQty} pcs)</span>
+                          <span>Partial Stock ({samePriceStock} of {parsedQty} pcs)</span>
                         </div>
                         <p className="text-[11px] text-amber-800 mt-0.5">
                           Hand available stock now or wait for all together.
@@ -675,11 +1003,11 @@ export function ReturnCustomerOrderItemModal({
                           }`}
                         >
                           <div className="font-heading text-[11.5px] font-semibold flex items-center justify-between">
-                            <span>Hand {shelfStock} Now, Rest Later</span>
+                            <span>Hand {samePriceStock} Now, Rest Later</span>
                             {replacementOption === "immediate_partial" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                           </div>
                           <p className="text-[10.5px] text-galla-ink-soft mt-0.5">
-                            Remaining {parsedQty - shelfStock} pcs on pickup date.
+                            Remaining {parsedQty - samePriceStock} pcs on pickup date.
                           </p>
                         </button>
 
@@ -704,7 +1032,7 @@ export function ReturnCustomerOrderItemModal({
 
                       <div>
                         <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1">
-                          Expected Pickup Date for Remaining ({replacementOption === "immediate_partial" ? parsedQty - shelfStock : parsedQty} pcs)
+                          Expected Pickup Date for Remaining ({replacementOption === "immediate_partial" ? parsedQty - samePriceStock : parsedQty} pcs)
                         </label>
                         <input
                           type="date"
@@ -769,7 +1097,15 @@ export function ReturnCustomerOrderItemModal({
                       : `Confirm Return & Clear Due (${formatRupee(dueDeduction)})`
                     : `Confirm Return & Refund (${formatRupee(finalReturnAmount)})`
                   : defectiveResolution === "replacement"
-                  ? "Confirm Replacement"
+                  ? isUpgradingToNewMRP
+                    ? totalPriceDiff > 0
+                      ? `Confirm Replacement (Pay ${formatRupee(totalPriceDiff)} Difference)`
+                      : totalPriceDiff < 0
+                      ? `Confirm Replacement (Refund ${formatRupee(Math.abs(totalPriceDiff))} Excess)`
+                      : "Confirm Replacement (₹0 Difference)"
+                    : replacementResolutionType === "wait_original" || samePriceStock === 0
+                    ? "Schedule Replacement Order"
+                    : "Confirm Replacement"
                   : pendingAmount > 0
                   ? cashRefund > 0
                     ? `Confirm Return (Clear ${formatRupee(dueDeduction)} Due + Refund ${formatRupee(cashRefund)})`

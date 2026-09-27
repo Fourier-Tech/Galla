@@ -6,7 +6,7 @@ import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Order } from "@/lib/db/models/order.model";
 import { DashboardOrder, DashboardPaymentMode, DashboardRefundMode } from "@/types/dashboard";
-import { formatOrderTime, checkIsToday, checkIsLast24Hours } from "@/lib/utils";
+import { formatOrderTime, checkIsToday, checkIsLast24Hours, resolveOrderLineItems } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
@@ -219,7 +219,7 @@ export async function GET(request: Request) {
         (createdTime > 0 && latestTime - createdTime > 5000) ||
         hasMultiplePayments ||
         Boolean(o.refundDetails?.refundedAt) ||
-        (o.lineItems && o.lineItems.some((li: any) => li.returnedQuantity && li.returnedQuantity > 0));
+        (o.lineItems && o.lineItems.some((li: any) => (li.returnedQuantity && li.returnedQuantity > 0) || (li.replacedQuantity && li.replacedQuantity > 0)));
         
       const lastUpdatedTime = isMeaningfullyUpdated ? formatOrderTime(new Date(latestTime)) : undefined;
 
@@ -294,25 +294,7 @@ export async function GET(request: Request) {
           type: p.type || undefined,
           notes: p.notes || undefined,
         })) : undefined,
-        lineItems: o.lineItems && Array.isArray(o.lineItems) ? o.lineItems.map((li: any) => ({
-          name: li.name,
-          itemType: li.itemType,
-          itemId: li.itemId ? li.itemId.toString() : undefined,
-          unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
-          quantity: typeof li.quantity === "number" ? li.quantity : 1,
-          discount: li.discount,
-          finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
-          fulfilled: li.fulfilled,
-          returnedQuantity: li.returnedQuantity || 0,
-          returnCondition: li.returnCondition,
-          packageDetails: li.packageDetails ? {
-            isCustomized: li.packageDetails.isCustomized,
-            components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({
-              name: c.name,
-              componentPrice: c.componentPrice,
-            })) : [],
-          } : undefined,
-        })) : undefined,
+        lineItems: resolveOrderLineItems(o.lineItems, o.returns),
         returns: o.returns && Array.isArray(o.returns) ? o.returns.map((r: any) => ({
           returnNumber: r.returnNumber,
           lineItemId: r.lineItemId ? r.lineItemId.toString() : undefined,

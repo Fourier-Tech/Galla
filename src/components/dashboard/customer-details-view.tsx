@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { getCustomerOrdersAction } from "@/app/dashboard/actions";
-import { formatRupee, formatDisplayNumber, calculatePendingAmount, getBookingUrgency } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber, calculatePendingAmount, getBookingUrgency, canOrderBeRefunded } from "@/lib/utils";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
@@ -590,8 +590,18 @@ export function CustomerDetailsView({
           ) : filteredOrders.length > 0 ? (
             <div className="divide-y divide-galla-line">
               {filteredOrders.map((order) => {
-                const isPaidFull = order.paid >= order.amount;
-                const pendingBalance = Math.max(0, order.amount - order.paid);
+                const returnEvents = Array.isArray(order.returns) ? order.returns : [];
+                const returnRefundTotal = returnEvents
+                  .filter((r) => r.customerResolution === "refund")
+                  .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+                const cashRefundTotal = returnEvents.reduce((sum, r) => {
+                  if (typeof r.cashRefund === "number") return sum + r.cashRefund;
+                  return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0);
+                }, 0);
+                const effectiveOrderAmount = Math.max(0, order.amount - returnRefundTotal);
+                const effectivePaid = Math.max(0, order.paid - cashRefundTotal);
+                const pendingBalance = Math.max(0, effectiveOrderAmount - effectivePaid);
+                const isPaidFull = pendingBalance === 0 || effectivePaid >= effectiveOrderAmount;
 
                 return (
                   <div
@@ -644,7 +654,7 @@ export function CustomerDetailsView({
                     <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 flex-wrap sm:flex-nowrap">
                       <div className="text-right">
                         <div className="font-mono text-[13.5px] font-bold text-galla-ink">
-                          {formatRupee(order.amount)}
+                          {formatRupee(effectiveOrderAmount)}
                         </div>
                         <div className="text-[11px] font-sans">
                           {order.status === "cancelled_refunded" ? (
@@ -706,8 +716,7 @@ export function CustomerDetailsView({
                             </button>
                           )}
 
-                        {/* 3. Refund: for completed orders with payment or replacement orders with unreturned products */}
-                        {(order.status === "completed" || order.status === "replacement_completed") && (order.paid > 0 || (order.status === "replacement_completed" && Boolean(order.lineItems?.some((i) => i.itemType === "product" && (i.quantity || 1) > (i.returnedQuantity || 0))))) && onOpenRefund && (
+                        {canOrderBeRefunded(order) && onOpenRefund && (
                           <button
                             type="button"
                             onClick={() => onOpenRefund(order)}

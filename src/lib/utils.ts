@@ -559,3 +559,174 @@ export function getBillLastUpdatedTime(po: {
 
   return undefined;
 }
+
+export function resolveOrderLineItems(lineItems: any[], returns?: any[]) {
+  if (!Array.isArray(lineItems)) return [];
+  return lineItems.map((li: any, idx: number) => {
+    const itemReturns = Array.isArray(returns)
+      ? returns.filter(
+          (r: any) =>
+            (r.lineItemId && li._id && r.lineItemId.toString() === li._id.toString()) ||
+            (typeof r.lineItemIndex === "number" && r.lineItemIndex === idx) ||
+            (r.productId && li.itemId && r.productId.toString() === li.itemId.toString()) ||
+            (r.productName && li.name && r.productName.trim().toLowerCase() === li.name.trim().toLowerCase())
+        )
+      : [];
+
+    let returnedQuantity = typeof li.returnedQuantity === "number" ? li.returnedQuantity : 0;
+    let replacedQuantity = typeof li.replacedQuantity === "number" ? li.replacedQuantity : 0;
+
+    if (itemReturns.length > 0) {
+      returnedQuantity = itemReturns
+        .filter((r: any) => r.customerResolution === "refund" || !r.customerResolution)
+        .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
+      replacedQuantity = itemReturns
+        .filter((r: any) => r.customerResolution === "replacement")
+        .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
+    }
+
+    return {
+      name: li.name,
+      itemType: li.itemType,
+      itemId: li.itemId ? li.itemId.toString() : undefined,
+      unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
+      quantity: typeof li.quantity === "number" ? li.quantity : 1,
+      discount: li.discount,
+      finalPrice:
+        typeof li.finalPrice === "number"
+          ? li.finalPrice
+          : (li.unitPrice || 0) * (li.quantity || 1),
+      fulfilled: li.fulfilled,
+      returnedQuantity,
+      replacedQuantity,
+      returnCondition: li.returnCondition,
+      packageDetails: li.packageDetails
+        ? {
+            isCustomized: li.packageDetails.isCustomized,
+            components: Array.isArray(li.packageDetails.components)
+              ? li.packageDetails.components.map((c: any) => ({
+                  name: c.name,
+                  componentPrice: c.componentPrice,
+                }))
+              : [],
+          }
+        : undefined,
+    };
+  });
+}
+
+export function resolvePurchaseOrderItems(items: any[], returns?: any[]) {
+  if (!Array.isArray(items)) return [];
+  return items.map((it: any) => {
+    const itemReturns = Array.isArray(returns)
+      ? returns.filter(
+          (r: any) =>
+            (r.productId && it.productId && r.productId.toString() === it.productId.toString()) ||
+            (r.productName && it.productName && r.productName.trim().toLowerCase() === it.productName.trim().toLowerCase())
+        )
+      : [];
+
+    let returnedQuantity = typeof it.returnedQuantity === "number" ? it.returnedQuantity : 0;
+    let replacedQuantity = typeof it.replacedQuantity === "number" ? it.replacedQuantity : 0;
+
+    if (itemReturns.length > 0) {
+      replacedQuantity = itemReturns
+        .filter(
+          (r: any) =>
+            r.refundMode === "replacement_pending" ||
+            r.replacementStatus === "pending" ||
+            r.replacementStatus === "fulfilled"
+        )
+        .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
+      returnedQuantity = itemReturns
+        .filter(
+          (r: any) =>
+            r.refundMode !== "replacement_pending" &&
+            r.replacementStatus !== "pending" &&
+            r.replacementStatus !== "fulfilled"
+        )
+        .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
+    }
+
+    return {
+      productId: it.productId ? it.productId.toString() : "",
+      productName: it.productName || "Product",
+      quantityForSell: it.quantityForSell || 0,
+      quantityForUse: it.quantityForUse || 0,
+      purchaseCost: it.purchaseCost || 0,
+      expectedSellPrice: it.expectedSellPrice || 0,
+      itemTotalCost: it.itemTotalCost || 0,
+      returnedQuantity,
+      replacedQuantity,
+    };
+  });
+}
+
+export function canOrderBeRefunded(order: {
+  status: string;
+  paid?: number;
+  amount?: number;
+  refundAmount?: number;
+  lineItems?: Array<{
+    itemType?: string;
+    quantity?: number;
+    returnedQuantity?: number;
+    replacedQuantity?: number;
+    itemId?: string;
+    name?: string;
+  }>;
+  returns?: Array<{
+    quantity?: number;
+    customerResolution?: string;
+    lineItemId?: string;
+    lineItemIndex?: number;
+    productId?: string;
+    productName?: string;
+  }>;
+}): boolean {
+  if (
+    order.status === "cancelled_refunded" ||
+    order.status === "cancelled_converted"
+  ) {
+    return false;
+  }
+  const isCompleted =
+    order.status === "completed" || order.status === "replacement_completed";
+  if (!isCompleted) return false;
+
+  const lineItems = order.lineItems || [];
+  const hasProducts = lineItems.some((i) => i.itemType === "product");
+  const hasServicesOrPackages = lineItems.some(
+    (i) => i.itemType === "service" || i.itemType === "package"
+  );
+
+  // If order contains services or packages, it is refundable if paid > 0
+  if (hasServicesOrPackages) {
+    return (order.paid || 0) > 0;
+  }
+
+  // If order is purely products:
+  if (hasProducts) {
+    const hasRemainingProducts = lineItems.some((item, idx) => {
+      if (item.itemType !== "product") return false;
+      const itemReturns = (order.returns || []).filter(
+        (r) =>
+          (r.lineItemId && item.itemId && String(r.lineItemId) === String(item.itemId)) ||
+          (typeof r.lineItemIndex === "number" && r.lineItemIndex === idx) ||
+          (r.productId && item.itemId && String(r.productId) === String(item.itemId)) ||
+          (r.productName && item.name && r.productName.trim().toLowerCase() === item.name.trim().toLowerCase())
+      );
+      const totalHandled = itemReturns.length > 0
+        ? itemReturns.reduce((sum, r) => sum + (r.quantity || 0), 0)
+        : (item.returnedQuantity || 0) + (item.replacedQuantity || 0);
+
+      return (item.quantity || 1) > totalHandled;
+    });
+
+    return hasRemainingProducts;
+  }
+
+  return (order.paid || 0) > 0;
+}
+
+

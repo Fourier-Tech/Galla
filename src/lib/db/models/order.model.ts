@@ -39,6 +39,7 @@ export interface IOrderLineItem {
     components: IOrderPackageComponent[];
   };
   returnedQuantity?: number;
+  replacedQuantity?: number;
   returnCondition?: "restocked" | "defective_dealer_claim";
 }
 
@@ -92,6 +93,11 @@ export interface IOrderItemReturn {
   expectedPickupDate?: Date;
   restockLocation?: "sellStock" | "useStock";
   isSameDayReturn?: boolean;
+  replacementProductId?: Types.ObjectId;
+  replacementProductName?: string;
+  replacementProductPrice?: number;
+  priceDifference?: number;
+  priceDifferencePaymentMode?: "cash" | "upi" | "card";
   notes?: string;
   recordedBy: "owner" | "staff";
   returnedAt: Date;
@@ -215,6 +221,11 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>(
       min: 0,
       default: 0,
     },
+    replacedQuantity: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
     returnCondition: {
       type: String,
       enum: ["restocked", "defective_dealer_claim"],
@@ -299,6 +310,11 @@ const OrderItemReturnSchema = new Schema<IOrderItemReturn>(
     expectedPickupDate: { type: Date },
     restockLocation: { type: String, enum: ["sellStock", "useStock"] },
     isSameDayReturn: { type: Boolean },
+    replacementProductId: { type: Schema.Types.ObjectId, ref: "Product" },
+    replacementProductName: { type: String },
+    replacementProductPrice: { type: Number },
+    priceDifference: { type: Number, default: 0 },
+    priceDifferencePaymentMode: { type: String, enum: ["cash", "upi", "card"] },
     notes: { type: String, trim: true },
     recordedBy: { type: String, enum: ["owner", "staff"], default: "staff" },
     returnedAt: { type: Date, default: Date.now },

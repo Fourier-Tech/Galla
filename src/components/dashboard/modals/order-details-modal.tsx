@@ -29,6 +29,7 @@ import {
   getWhatsAppReminderUrl,
   getBookingUrgency,
   formatDisplayNumber,
+  canOrderBeRefunded,
 } from "@/lib/utils";
 import { ReturnCustomerOrderItemModal } from "@/components/dashboard/modals/return-customer-order-item-modal";
 import { useState } from "react";
@@ -99,6 +100,11 @@ export function OrderDetailsModal({
       : typeof order.subtotal === "number"
       ? order.subtotal
       : order.amount;
+
+  const totalUnits = (order.lineItems || []).reduce(
+    (sum, item) => sum + (item.quantity || 1),
+    0
+  );
 
   const originalDiscountAmount = order.discountAmount || 0;
 
@@ -254,11 +260,23 @@ export function OrderDetailsModal({
               <Receipt className="h-5 w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-heading font-bold text-[18px] text-galla-ink tracking-tight">
                   Order {formatDisplayNumber(order.id)}
                 </h2>
                 <StatusPill status={order.status} />
+                {hasReturns && totalReturnRefundAmount > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 text-[12px] font-sans px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200 font-semibold shadow-2xs">
+                    <span>{formatRupee(netBillAmount)}</span>
+                    <span className="line-through text-rose-400 font-normal text-[10.5px]">
+                      {formatRupee(originalBillAmount)}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="font-sans font-semibold text-[13px] text-galla-ink-soft">
+                    {formatRupee(originalBillAmount)}
+                  </span>
+                )}
               </div>
               <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
                 {order.type} &bull; {order.time}
@@ -481,47 +499,76 @@ export function OrderDetailsModal({
 
             {order.lineItems && order.lineItems.length > 0 ? (
               <div className="divide-y divide-galla-line/70">
-                {order.lineItems.map((item, idx) => (
-                  <div key={idx} className="p-3.5 hover:bg-galla-paper/20 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          {item.itemType === "product" ? (
-                            <ShoppingBag className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                          ) : item.itemType === "package" ? (
-                            <Package className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                          ) : (
-                            <Scissors className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                          )}
-                          <span className={`font-sans font-semibold text-[14px] ${item.returnedQuantity && item.returnedQuantity === item.quantity ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}>
-                            {item.name}
-                          </span>
-                          <span
-                            className={`text-[10.5px] font-medium uppercase px-1.5 py-0.2 rounded border ${
-                              item.itemType === "product"
-                                ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : item.itemType === "package"
-                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                : "bg-purple-50 text-purple-700 border-purple-200"
-                            }`}
-                          >
-                            {item.itemType}
-                          </span>
-                          {item.returnedQuantity ? (
-                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
-                              {item.returnedQuantity} Returned
+                {order.lineItems.map((item, idx) => {
+                  const itemReturns = (order.returns || []).filter(
+                    (r) =>
+                      (r.lineItemId && item.itemId && String(r.lineItemId) === String(item.itemId)) ||
+                      (typeof r.lineItemIndex === "number" && r.lineItemIndex === idx) ||
+                      (r.productId && item.itemId && String(r.productId) === String(item.itemId)) ||
+                      (r.productName && item.name && r.productName.trim().toLowerCase() === item.name.trim().toLowerCase())
+                  );
+
+                  const returnedQty = itemReturns.length > 0
+                    ? itemReturns
+                        .filter((r) => r.customerResolution === "refund" || !r.customerResolution)
+                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                    : (item.returnedQuantity || 0);
+
+                  const replacedQty = itemReturns.length > 0
+                    ? itemReturns
+                        .filter((r) => r.customerResolution === "replacement")
+                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                    : (item.replacedQuantity || 0);
+
+                  const isFullyReturned = returnedQty >= item.quantity;
+                  const totalHandled = returnedQty + replacedQty;
+
+                  return (
+                    <div key={idx} className="p-3.5 hover:bg-galla-paper/20 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {item.itemType === "product" ? (
+                              <ShoppingBag className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                            ) : item.itemType === "package" ? (
+                              <Package className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                            ) : (
+                              <Scissors className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                            )}
+                            <span className={`font-sans font-semibold text-[14px] ${isFullyReturned ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}>
+                              {item.name}
                             </span>
-                          ) : null}
-                          {item.itemType === "product" && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted" && (!item.returnedQuantity || item.returnedQuantity < item.quantity) && (
-                            <button
-                              onClick={() => setReturningItemIndex(idx)}
-                              className="ml-2 text-[11px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-100 transition-colors flex items-center gap-1"
+                            <span
+                              className={`text-[10.5px] font-medium uppercase px-1.5 py-0.2 rounded border ${
+                                item.itemType === "product"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : item.itemType === "package"
+                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                  : "bg-purple-50 text-purple-700 border-purple-200"
+                              }`}
                             >
-                              <Undo2 className="h-3 w-3" />
-                              Return
-                            </button>
-                          )}
-                        </div>
+                              {item.itemType}
+                            </span>
+                            {returnedQty > 0 && (
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
+                                {returnedQty} Returned
+                              </span>
+                            )}
+                            {replacedQty > 0 && (
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 ml-1">
+                                {replacedQty} Replaced
+                              </span>
+                            )}
+                            {item.itemType === "product" && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted" && totalHandled < item.quantity && (
+                              <button
+                                onClick={() => setReturningItemIndex(idx)}
+                                className="ml-2 text-[11px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-100 transition-colors flex items-center gap-1"
+                              >
+                                <Undo2 className="h-3 w-3" />
+                                Return
+                              </button>
+                            )}
+                          </div>
 
                         {/* Package Components Breakdown */}
                         {item.packageDetails?.components && item.packageDetails.components.length > 0 && (
@@ -588,7 +635,23 @@ export function OrderDetailsModal({
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })}
+
+                {/* Final Total row just below productwise calculation (matching purchase modal) */}
+                <div className="px-4 py-3 bg-galla-paper/80 border-t border-galla-line flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-heading font-bold text-[12.5px] uppercase tracking-wider text-galla-ink">
+                      Total ({order.lineItems.length} {order.lineItems.length === 1 ? "Item" : "Items"} &bull;{" "}
+                      {totalUnits} {totalUnits === 1 ? "Unit" : "Units"})
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-heading font-bold text-[15px] text-galla-ink tabular-nums">
+                      {formatRupee(originalSubtotal)}
+                    </span>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="p-4 text-[13px] text-galla-ink-soft">
@@ -612,14 +675,13 @@ export function OrderDetailsModal({
               Payment &amp; Financial Summary
             </span>
 
-            {(typeof originalSubtotal === "number" || (order.lineItems && order.lineItems.length > 0)) &&
-              (originalSubtotal !== originalBillAmount || extraOnBill > 0) && (
-                <div className="flex justify-between text-[13px] text-galla-ink-soft">
-                  <span>Subtotal:</span>
-                  <span className="tabular-nums font-mono">{formatRupee(originalSubtotal)}</span>
-                </div>
-              )}
+            {/* 1. Subtotal */}
+            <div className="flex justify-between text-[13px] text-galla-ink-soft">
+              <span>Subtotal:</span>
+              <span className="tabular-nums font-mono">{formatRupee(originalSubtotal)}</span>
+            </div>
 
+            {/* 2. Discount if applicable */}
             {originalDiscountAmount > 0 ? (
               <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
                 <span>
@@ -638,11 +700,35 @@ export function OrderDetailsModal({
               </div>
             )}
 
+            {/* 3. Bill Amount (Amount to be paid) - Fixed */}
             <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
               <span>Total Bill Amount:</span>
               <span className="tabular-nums text-[16px]">{formatRupee(originalBillAmount)}</span>
             </div>
 
+            {/* 4. When product return is made: add below bill amount and show full calculation */}
+            {hasReturns && totalReturnRefundAmount > 0 && (
+              <>
+                <div className="flex justify-between text-[13.5px] text-rose-700 font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Returned Items Deduction:</span>
+                  </span>
+                  <span className="tabular-nums font-mono font-semibold">
+                    - {formatRupee(totalReturnRefundAmount)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-dashed border-galla-line/60">
+                  <span>Reduced Bill Amount (New Order Price):</span>
+                  <span className="tabular-nums font-mono text-[15px]">
+                    {formatRupee(netBillAmount)}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {/* 5. Two options: If full payment not made vs Settled / Paid in Full */}
             {isRefunded ? (
               <>
                 <div className="flex justify-between text-[13.5px] text-galla-ink font-medium">
@@ -675,80 +761,50 @@ export function OrderDetailsModal({
                   </div>
                 )}
               </>
+            ) : isDue ? (
+              <>
+                <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium pt-1">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span>Amount Paid:</span>
+                    {order.paymentMode && (
+                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                        {order.paymentMode}
+                      </span>
+                    )}
+                  </span>
+                  <span className="tabular-nums font-mono">{formatRupee(netAmountPaid)}</span>
+                </div>
+
+                <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
+                  <span className="inline-flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    <span>Remaining Price to be Paid:</span>
+                  </span>
+                  <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
+                </div>
+              </>
             ) : (
               <>
-                <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium">
+                <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium pt-1">
                   <span className="inline-flex items-center gap-1.5">
                     <Wallet className="h-3.5 w-3.5" />
                     <span>Amount Paid:</span>
                   </span>
-                  <span className="tabular-nums font-mono">{formatRupee(originalAmountPaid)}</span>
+                  <span className="tabular-nums font-mono font-semibold">
+                    {formatRupee(netAmountPaid || (hasReturns ? netBillAmount : originalBillAmount))}
+                  </span>
                 </div>
 
-                {totalCashRefund > 0 && (
-                  <div className="flex justify-between text-[13px] text-rose-700 font-medium">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Undo2 className="h-3.5 w-3.5" />
-                      <span>Refunded Amount:</span>
-                    </span>
-                    <span className="tabular-nums font-mono">
-                      - {formatRupee(totalCashRefund)}
-                    </span>
-                  </div>
-                )}
-
-                {totalDueDeduction > 0 && (
-                  <div className="flex justify-between text-[13px] text-rose-700 font-medium">
-                    <span className="inline-flex items-center gap-1.5">
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      <span>Due Reduced (Return):</span>
-                    </span>
-                    <span className="tabular-nums font-mono">
-                      - {formatRupee(totalDueDeduction)}
-                    </span>
-                  </div>
-                )}
+                <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
+                  <span className="inline-flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>Status:</span>
+                  </span>
+                  <span>Fully Settled (₹0 Due)</span>
+                </div>
               </>
             )}
-
-            {overpaid > 0 && (
-              <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
-                <span className="inline-flex items-center gap-1.5">
-                  <span>Overpaid Extra:</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                    +{formatRupee(overpaid)}
-                  </span>
-                </span>
-                <span className="tabular-nums font-mono">+{formatRupee(overpaid)}</span>
-              </div>
-            )}
-
-            {isDue ? (
-              <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
-                <span className="inline-flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span>Pending Due Balance:</span>
-                </span>
-                <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
-              </div>
-            ) : isCompleted || balanceDue <= 0 ? (
-              <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
-                <span className="inline-flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Balance:</span>
-                </span>
-                {totalExtra > 0 ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span>Fully Settled</span>
-                    <span className="text-[10.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                      +{formatRupee(totalExtra)} Extra Paid
-                    </span>
-                  </span>
-                ) : (
-                  <span>Fully Settled (₹0 Due)</span>
-                )}
-              </div>
-            ) : null}
 
             {/* Payment History Log */}
             {combinedPayments.length > 0 && (() => {
@@ -887,6 +943,12 @@ export function OrderDetailsModal({
                           {ret.customerResolution === "replacement"
                             ? ret.expectedPickupDate
                               ? `Replacement Scheduled (Expected: ${formatBookingDate(ret.expectedPickupDate)})`
+                              : ret.replacementProductName && ret.replacementProductName !== ret.productName
+                              ? `Replacement Handed Over (Upgraded to ${ret.replacementProductName}${
+                                  typeof ret.priceDifference === "number" && ret.priceDifference !== 0
+                                    ? ` • ${ret.priceDifference > 0 ? `Price Diff: +${formatRupee(ret.priceDifference)} via ${(ret.priceDifferencePaymentMode || "cash").toUpperCase()}` : `Excess Refund: -${formatRupee(Math.abs(ret.priceDifference))}`}`
+                                    : ""
+                                })`
                               : "Replacement Handed Over"
                             : (() => {
                                 const hasDueDed = (ret.dueDeduction || 0) > 0;
@@ -1038,7 +1100,7 @@ export function OrderDetailsModal({
               </button>
             )}
 
-            {isCompleted && (netAmountPaid > 0 || (order.status === "replacement_completed" && Boolean(order.lineItems?.some((i) => i.itemType === "product" && (i.quantity || 1) > (i.returnedQuantity || 0))))) && onOpenRefund && (
+            {canOrderBeRefunded(order) && onOpenRefund && (
               <button
                 type="button"
                 onClick={() => {

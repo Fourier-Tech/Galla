@@ -21,6 +21,8 @@ import {
   checkIsLast24Hours,
   formatOrderTime,
   getBillLastUpdatedTime,
+  resolveOrderLineItems,
+  resolvePurchaseOrderItems,
 } from "@/lib/utils";
 import {
   DashboardCustomer,
@@ -381,25 +383,7 @@ export default async function DashboardPage() {
             type: p.type || undefined,
             notes: p.notes || undefined,
           })) : undefined,
-          lineItems: o.lineItems && Array.isArray(o.lineItems) ? o.lineItems.map((li: any) => ({
-            name: li.name,
-            itemType: li.itemType,
-            itemId: li.itemId ? li.itemId.toString() : undefined,
-            unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : 0,
-            quantity: typeof li.quantity === "number" ? li.quantity : 1,
-            discount: li.discount,
-            finalPrice: typeof li.finalPrice === "number" ? li.finalPrice : ((li.unitPrice || 0) * (li.quantity || 1)),
-            fulfilled: li.fulfilled,
-            returnedQuantity: li.returnedQuantity || 0,
-            returnCondition: li.returnCondition,
-            packageDetails: li.packageDetails ? {
-              isCustomized: li.packageDetails.isCustomized,
-              components: Array.isArray(li.packageDetails.components) ? li.packageDetails.components.map((c: any) => ({
-                name: c.name,
-                componentPrice: c.componentPrice,
-              })) : [],
-            } : undefined,
-          })) : undefined,
+          lineItems: resolveOrderLineItems(o.lineItems, o.returns),
           returns: o.returns && Array.isArray(o.returns) ? o.returns.map((r: any) => ({
             returnNumber: r.returnNumber,
             lineItemId: r.lineItemId ? r.lineItemId.toString() : undefined,
@@ -505,16 +489,7 @@ export default async function DashboardPage() {
         supplierPhone: po.supplierSnapshot?.phone ? formatPhoneNumber(po.supplierSnapshot.phone) : undefined,
         supplierCompany: po.supplierSnapshot?.companyName,
         itemsCount: po.items?.length || 0,
-        items: (po.items || []).map((it: any) => ({
-          productId: it.productId?.toString() || "",
-          productName: it.productName || "Product",
-          quantityForSell: it.quantityForSell || 0,
-          quantityForUse: it.quantityForUse || 0,
-          purchaseCost: it.purchaseCost || 0,
-          expectedSellPrice: it.expectedSellPrice || 0,
-          itemTotalCost: it.itemTotalCost || 0,
-          returnedQuantity: it.returnedQuantity || 0,
-        })),
+        items: resolvePurchaseOrderItems(po.items, po.returns),
         payments: (po.payments || []).map((p: any) => ({
           amount: p.amount,
           paymentMode: p.paymentMode,
