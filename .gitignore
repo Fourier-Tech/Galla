@@ -45,6 +45,5 @@ next-env.d.ts
 .aria/
 AGENTS.md
 
-galla-prd-section1.md
-galla-colors.css
-galla-dashboard.jsx
+.agents
+skills-lock.json
