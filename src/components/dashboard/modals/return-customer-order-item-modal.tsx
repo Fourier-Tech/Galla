@@ -81,10 +81,16 @@ export function ReturnCustomerOrderItemModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isReplacementOrder =
+    order.status === "replacement_completed" ||
+    order.status === "replacement_pending" ||
+    order.status === "replacement" ||
+    (lineItem.finalPrice === 0 && lineItem.unitPrice > 0);
+
   const unitPrice =
-    lineItem.quantity > 0
+    lineItem.finalPrice > 0 && lineItem.quantity > 0
       ? Math.floor(lineItem.finalPrice / lineItem.quantity)
-      : Math.floor(lineItem.unitPrice);
+      : Math.floor(lineItem.unitPrice || 0);
   const totalDueDeduction = (order.returns || []).reduce((sum, r) => {
     if (typeof r.dueDeduction === "number") return sum + r.dueDeduction;
     return sum + (r.refundMode === "reduce_due" ? (r.refundAmount || 0) : 0);
@@ -440,6 +446,8 @@ export function ReturnCustomerOrderItemModal({
               <div className="font-sans text-[10.5px] text-galla-ink-soft mt-1 truncate">
                 {!isGoodCondition && defectiveResolution === "replacement" ? (
                   <span className="text-amber-800">Replacement selected &mdash; ₹0 refund</span>
+                ) : isReplacementOrder ? (
+                  <span className="text-emerald-700">Original product value &bull; Billed at ₹0 on replacement</span>
                 ) : parsedQty > 1 ? (
                   <span>{parsedQty} pcs &times; {formatRupee(unitPrice)} = <strong className="font-mono text-galla-ink">{formatRupee(defaultReturnTotal)}</strong></span>
                 ) : customAmountStr !== "" && customAmountStr !== String(defaultReturnTotal) ? (

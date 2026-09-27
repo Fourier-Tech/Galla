@@ -56,6 +56,11 @@ function RefundOrderModalContent({
     updatedProducts?: DashboardProduct[]
   ) => void;
 }) {
+  const isReplacementOrder =
+    order.status === "replacement_completed" ||
+    order.status === "replacement_pending" ||
+    order.status === "replacement";
+
   const totalPaid =
     (order.payments || [])
       .filter((p) => p.amount > 0 && p.type !== "refund")
@@ -67,7 +72,15 @@ function RefundOrderModalContent({
     return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? (r.refundAmount || 0) : 0);
   }, 0);
 
-  const remainingRefundable = Math.max(0, Math.floor(totalPaid - totalCashRefunds));
+  const unreturnedCatalogValue = (order.lineItems || []).reduce((sum, item) => {
+    const unret = Math.max(0, (item.quantity || 1) - (item.returnedQuantity || 0));
+    return sum + Math.floor((item.unitPrice || 0) * unret);
+  }, 0);
+
+  const remainingRefundable =
+    isReplacementOrder && totalPaid === 0
+      ? Math.max(0, unreturnedCatalogValue - totalCashRefunds)
+      : Math.max(0, Math.floor(totalPaid - totalCashRefunds));
 
   const [refundAmount, setRefundAmount] = useState(String(remainingRefundable));
   const [refundMode, setRefundMode] = useState<"cash" | "upi" | "card">(
@@ -186,19 +199,27 @@ function RefundOrderModalContent({
             <div className="p-2.5 bg-galla-paper/50 border border-galla-line rounded-[5px] space-y-1 text-[12px] font-sans">
               <div className="flex justify-between text-galla-ink-soft">
                 <span>Total Order Value:</span>
-                <span className="font-medium text-galla-ink tabular-nums">{formatRupee(order.amount)}</span>
+                <span className="font-medium text-galla-ink tabular-nums">
+                  {formatRupee(isReplacementOrder && order.amount === 0 ? unreturnedCatalogValue : order.amount)}
+                </span>
               </div>
               <div className="flex justify-between text-galla-ink-soft">
                 <span>Collected from Customer:</span>
                 <span className="tabular-nums font-semibold text-galla-ink">{formatRupee(totalPaid)}</span>
               </div>
+              {isReplacementOrder && totalPaid === 0 && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Replacement Product Value:</span>
+                  <span className="tabular-nums font-mono">{formatRupee(unreturnedCatalogValue)}</span>
+                </div>
+              )}
               {totalCashRefunds > 0 && (
                 <div className="flex justify-between text-rose-700">
                   <span>Already Refunded:</span>
                   <span className="tabular-nums font-medium font-mono">- {formatRupee(totalCashRefunds)}</span>
                 </div>
               )}
-              {totalCashRefunds > 0 && (
+              {(totalCashRefunds > 0 || (isReplacementOrder && totalPaid === 0)) && (
                 <div className="flex justify-between text-galla-ink font-semibold border-t border-galla-line/60 pt-1">
                   <span>Remaining Refundable:</span>
                   <span className="tabular-nums font-mono text-emerald-700">{formatRupee(remainingRefundable)}</span>

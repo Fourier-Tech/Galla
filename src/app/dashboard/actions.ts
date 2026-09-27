@@ -5715,11 +5715,14 @@ export async function returnCustomerOrderItemAction(
         throw new Error("Invalid return quantity");
       }
 
-      const unitFinalPrice = Math.floor(item.finalPrice / item.quantity);
+      const unitFinalPrice =
+        item.finalPrice > 0 && item.quantity > 0
+          ? Math.floor(item.finalPrice / item.quantity)
+          : Math.floor(item.unitPrice || 0);
       const refundAmount = Math.floor(
         overrideRefundAmount !== undefined && !isNaN(overrideRefundAmount)
           ? overrideRefundAmount
-          : (item.finalPrice / item.quantity) * quantityToReturn
+          : unitFinalPrice * quantityToReturn
       );
 
       const isSameDay = checkIsToday(order.createdAt);
@@ -5771,9 +5774,12 @@ export async function returnCustomerOrderItemAction(
 
         if (actualCashRefund > 0) {
           const actualMode = refundMode === "reduce_due" ? "cash" : refundMode;
+          const excessCash = isSameDay
+            ? Math.max(0, actualCashRefund - (order.amountPaid || 0))
+            : actualCashRefund;
 
-          if (!isSameDay) {
-            // Past-day order return: log an Expense of today
+          if (excessCash > 0) {
+            // Past-day order return OR same-day replacement/excess refund: log an Expense of today
             const { fullNumber: expenseNumber } = await Counter.getNextSequence({
               tenantId: new Types.ObjectId(tenantId),
               type: "expense",
@@ -5792,7 +5798,7 @@ export async function returnCustomerOrderItemAction(
                   expenseNumber,
                   title: `Customer Return${returnCondition === "defective_dealer_claim" ? " (Defective)" : ""}: ${quantityToReturn}x ${item.name}`,
                   category: "refund",
-                  amount: actualCashRefund,
+                  amount: excessCash,
                   paymentMode: actualMode,
                   linkedOrderId: order._id,
                   notes: `Refunded customer for returned product. ${restockNote} ${notes || ""}`.trim(),

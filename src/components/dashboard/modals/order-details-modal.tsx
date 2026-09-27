@@ -1038,7 +1038,7 @@ export function OrderDetailsModal({
               </button>
             )}
 
-            {isCompleted && netAmountPaid > 0 && onOpenRefund && (
+            {isCompleted && (netAmountPaid > 0 || (order.status === "replacement_completed" && Boolean(order.lineItems?.some((i) => i.itemType === "product" && (i.quantity || 1) > (i.returnedQuantity || 0))))) && onOpenRefund && (
               <button
                 type="button"
                 onClick={() => {

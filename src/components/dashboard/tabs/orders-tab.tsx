@@ -1124,8 +1124,8 @@ export function OrdersTab({
                     </div>
 
                     <div className="flex items-center justify-end gap-2">
-                      {order.status === "completed" ? (
-                        onOpenRefund && order.paid > 0 ? (
+                      {order.status === "completed" || order.status === "replacement_completed" ? (
+                        onOpenRefund && (order.paid > 0 || (order.status === "replacement_completed" && Boolean(order.lineItems?.some((i) => i.itemType === "product" && (i.quantity || 1) > (i.returnedQuantity || 0))))) ? (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

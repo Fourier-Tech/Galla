@@ -706,8 +706,8 @@ export function CustomerDetailsView({
                             </button>
                           )}
 
-                        {/* 3. Refund: for completed orders with payment */}
-                        {order.status === "completed" && order.paid > 0 && onOpenRefund && (
+                        {/* 3. Refund: for completed orders with payment or replacement orders with unreturned products */}
+                        {(order.status === "completed" || order.status === "replacement_completed") && (order.paid > 0 || (order.status === "replacement_completed" && Boolean(order.lineItems?.some((i) => i.itemType === "product" && (i.quantity || 1) > (i.returnedQuantity || 0))))) && onOpenRefund && (
                           <button
                             type="button"
                             onClick={() => onOpenRefund(order)}
