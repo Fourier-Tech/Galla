@@ -33,29 +33,145 @@ import { ConfirmModal } from "./confirm-modal";
 import { OrderDetailsModal } from "./order-details-modal";
 import { PaymentModeSelect } from "../payment-mode-select";
 
-function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]) {
-  if (!pkg.products || pkg.products.length === 0) {
+export interface RequiredProductItem {
+  productId?: string;
+  name: string;
+  quantity: number;
+}
+
+export interface StockEvaluationResult {
+  hasProducts: boolean;
+  hasEnoughUse: boolean;
+  needsSellStock: boolean;
+  isOutOfStock: boolean;
+  missingNames: string[];
+  itemsNeedingSellStock: {
+    name: string;
+    neededFromSell: number;
+    sellAvailable: number;
+    useAvailable: number;
+  }[];
+  hasRetailBackup: boolean;
+  retailAvailable: number;
+  allRequiredProducts: {
+    name: string;
+    needed: number;
+    useAvailable: number;
+    sellAvailable: number;
+  }[];
+}
+
+function getPackageRequiredProducts(
+  pkg: DashboardPackage,
+  services: DashboardService[] = [],
+  quantity: number = 1
+): RequiredProductItem[] {
+  const map = new Map<string, RequiredProductItem>();
+
+  // 1. Direct products in package
+  if (pkg.products && pkg.products.length > 0) {
+    for (const pItem of pkg.products) {
+      const key = (pItem.productId || pItem.name).trim().toLowerCase();
+      const needed = (pItem.quantity || 1) * quantity;
+      const existing = map.get(key);
+      if (existing) {
+        existing.quantity += needed;
+      } else {
+        map.set(key, {
+          productId: pItem.productId,
+          name: pItem.name,
+          quantity: needed,
+        });
+      }
+    }
+  }
+
+  // 2. Products used inside bundled services
+  if (pkg.services && pkg.services.length > 0) {
+    for (const sItem of pkg.services) {
+      const srv = services.find(
+        (s) =>
+          s.id === sItem.serviceId ||
+          s.name.trim().toLowerCase() === sItem.name.trim().toLowerCase()
+      );
+      if (srv && srv.products && srv.products.length > 0) {
+        for (const spItem of srv.products) {
+          const key = (spItem.productId || spItem.name).trim().toLowerCase();
+          const needed = (spItem.quantity || 1) * quantity;
+          const existing = map.get(key);
+          if (existing) {
+            existing.quantity += needed;
+          } else {
+            map.set(key, {
+              productId: spItem.productId,
+              name: spItem.name,
+              quantity: needed,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+function getServiceRequiredProducts(
+  service: DashboardService,
+  quantity: number = 1
+): RequiredProductItem[] {
+  if (!service.products || service.products.length === 0) return [];
+  return service.products.map((p) => ({
+    productId: p.productId,
+    name: p.name,
+    quantity: (p.quantity || 1) * quantity,
+  }));
+}
+
+function evaluateProductsStock(
+  requiredItems: RequiredProductItem[],
+  products: DashboardProduct[]
+): StockEvaluationResult {
+  if (requiredItems.length === 0) {
     return {
       hasProducts: false,
+      hasEnoughUse: true,
+      needsSellStock: false,
       isOutOfStock: false,
       missingNames: [],
+      itemsNeedingSellStock: [],
       hasRetailBackup: false,
       retailAvailable: 0,
+      allRequiredProducts: [],
     };
   }
 
   const missingNames: string[] = [];
-  let hasRetailBackup = false;
-  let totalRetail = 0;
+  const itemsNeedingSellStock: {
+    name: string;
+    neededFromSell: number;
+    sellAvailable: number;
+    useAvailable: number;
+  }[] = [];
+  const allRequiredProducts: {
+    name: string;
+    needed: number;
+    useAvailable: number;
+    sellAvailable: number;
+  }[] = [];
 
-  for (const pItem of pkg.products) {
-    const cleanItemName = pItem.name
+  let totalRetail = 0;
+  let hasRetailBackup = false;
+
+  for (const item of requiredItems) {
+    const cleanItemName = item.name
       .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
       .replace(/\s*\(batch[^\)]*\)$/i, "")
       .trim()
       .toLowerCase();
+
     const matchingProducts = products.filter((p) => {
-      if (p.id === pItem.productId) return true;
+      if (item.productId && String(p.id) === String(item.productId)) return true;
       const base = p.name
         .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
         .replace(/\s*\(batch[^\)]*\)$/i, "")
@@ -68,22 +184,64 @@ function getPackageStockInfo(pkg: DashboardPackage, products: DashboardProduct[]
     const useAvailable = matchingProducts.reduce((sum, p) => sum + (p.use || 0), 0);
     const sellAvailable = matchingProducts.reduce((sum, p) => sum + (p.sell || 0), 0);
 
-    if (useAvailable < (pItem.quantity || 1)) {
-      missingNames.push(pItem.name);
-      if (sellAvailable >= (pItem.quantity || 1)) {
+    allRequiredProducts.push({
+      name: item.name,
+      needed: item.quantity,
+      useAvailable,
+      sellAvailable,
+    });
+
+    if (useAvailable < item.quantity) {
+      const shortage = item.quantity - useAvailable;
+      if (useAvailable + sellAvailable >= item.quantity) {
+        itemsNeedingSellStock.push({
+          name: item.name,
+          neededFromSell: shortage,
+          sellAvailable,
+          useAvailable,
+        });
         hasRetailBackup = true;
         totalRetail += sellAvailable;
+      } else {
+        missingNames.push(item.name);
       }
     }
   }
 
+  const isOutOfStock = missingNames.length > 0;
+  const needsSellStock = itemsNeedingSellStock.length > 0;
+  const hasEnoughUse = !isOutOfStock && !needsSellStock;
+
   return {
     hasProducts: true,
-    isOutOfStock: missingNames.length > 0,
+    hasEnoughUse,
+    needsSellStock,
+    isOutOfStock,
     missingNames,
+    itemsNeedingSellStock,
     hasRetailBackup,
     retailAvailable: totalRetail,
+    allRequiredProducts,
   };
+}
+
+function getPackageStockInfo(
+  pkg: DashboardPackage,
+  products: DashboardProduct[],
+  services: DashboardService[] = [],
+  quantity: number = 1
+): StockEvaluationResult {
+  const reqs = getPackageRequiredProducts(pkg, services, quantity);
+  return evaluateProductsStock(reqs, products);
+}
+
+function getServiceStockInfo(
+  service: DashboardService,
+  products: DashboardProduct[],
+  quantity: number = 1
+): StockEvaluationResult {
+  const reqs = getServiceRequiredProducts(service, quantity);
+  return evaluateProductsStock(reqs, products);
 }
 
 export interface SelectedOrderItem {
@@ -177,6 +335,7 @@ export function NewOrderModal({
   const [bookingDate, setBookingDate] = useState(() => getLocalDateString());
   const [bookingTime, setBookingTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [allowSellStockUsage, setAllowSellStockUsage] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -376,9 +535,51 @@ export function NewOrderModal({
     return customerDueOrders.reduce((sum, o) => sum + Math.max(0, o.amount - o.paid), 0);
   }, [customerDueOrders]);
 
-  // Out of stock items tracking (products with low retail stock or packages with missing products)
+  // Track all products across selected services and packages that need retail shelf stock
+  const orderSellStockItems = useMemo(() => {
+    const map = new Map<
+      string,
+      { name: string; neededFromSell: number; sellAvailable: number; useAvailable: number }
+    >();
+
+    for (const item of selectedItems) {
+      if (item.type === "package") {
+        const pkg = packages.find((p) => p.id === item.id);
+        if (pkg) {
+          const info = getPackageStockInfo(pkg, liveProducts, services, item.quantity || 1);
+          for (const sItem of info.itemsNeedingSellStock) {
+            const key = sItem.name.trim().toLowerCase();
+            const existing = map.get(key);
+            if (existing) {
+              existing.neededFromSell += sItem.neededFromSell;
+            } else {
+              map.set(key, { ...sItem });
+            }
+          }
+        }
+      } else if (item.type === "service") {
+        const srv = services.find((s) => s.id === item.id);
+        if (srv) {
+          const info = getServiceStockInfo(srv, liveProducts, item.quantity || 1);
+          for (const sItem of info.itemsNeedingSellStock) {
+            const key = sItem.name.trim().toLowerCase();
+            const existing = map.get(key);
+            if (existing) {
+              existing.neededFromSell += sItem.neededFromSell;
+            } else {
+              map.set(key, { ...sItem });
+            }
+          }
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  }, [selectedItems, liveProducts, packages, services]);
+
+  // Out of stock items tracking (products with low retail stock, or packages/services with missing stock or unconfirmed sell stock)
   const outOfStockItems = useMemo(() => {
-    const list: { name: string; type: "product" | "package"; missing?: string[] }[] = [];
+    const list: { name: string; type: "product" | "package" | "service"; missing?: string[] }[] = [];
     for (const item of selectedItems) {
       if (item.type === "product") {
         const prod = liveProducts.find((p) => p.id === item.id);
@@ -388,15 +589,35 @@ export function NewOrderModal({
       } else if (item.type === "package") {
         const pkg = packages.find((p) => p.id === item.id);
         if (pkg) {
-          const info = getPackageStockInfo(pkg, liveProducts);
+          const info = getPackageStockInfo(pkg, liveProducts, services, item.quantity || 1);
           if (info.isOutOfStock) {
             list.push({ name: item.name, type: "package", missing: info.missingNames });
+          } else if (info.needsSellStock && !allowSellStockUsage) {
+            list.push({
+              name: item.name,
+              type: "package",
+              missing: info.itemsNeedingSellStock.map((i) => i.name),
+            });
+          }
+        }
+      } else if (item.type === "service") {
+        const srv = services.find((s) => s.id === item.id);
+        if (srv) {
+          const info = getServiceStockInfo(srv, liveProducts, item.quantity || 1);
+          if (info.isOutOfStock) {
+            list.push({ name: item.name, type: "service", missing: info.missingNames });
+          } else if (info.needsSellStock && !allowSellStockUsage) {
+            list.push({
+              name: item.name,
+              type: "service",
+              missing: info.itemsNeedingSellStock.map((i) => i.name),
+            });
           }
         }
       }
     }
     return list;
-  }, [selectedItems, liveProducts, packages]);
+  }, [selectedItems, liveProducts, packages, services, allowSellStockUsage]);
 
   const hasOutOfStockItems = outOfStockItems.length > 0;
 
@@ -502,6 +723,7 @@ export function NewOrderModal({
     setBookingDate(getLocalDateString());
     setBookingTime("");
     setNotes("");
+    setAllowSellStockUsage(false);
     setShowConfirm(false);
     setErrorMsg(null);
     setShowSuggestions(false);
@@ -717,6 +939,7 @@ export function NewOrderModal({
         lineItems,
         clearedDueOrderIds,
         clearedDueAmount,
+        allowSellStockUsage,
       });
 
       if (res.success && res.order) {
@@ -1093,6 +1316,7 @@ export function NewOrderModal({
                 ) : (
                   filteredServices.map((s) => {
                     const isSelected = selectedItems.some((i) => i.id === s.id && i.type === "service");
+                    const stockInfo = getServiceStockInfo(s, liveProducts);
                     return (
                       <div
                         key={s.id}
@@ -1121,8 +1345,25 @@ export function NewOrderModal({
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
                           <div>
-                            <div className="font-heading font-medium text-[13.5px] text-galla-ink">
-                              {s.name}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-heading font-medium text-[13.5px] text-galla-ink">
+                                {s.name}
+                              </span>
+                              {stockInfo.hasProducts && (
+                                stockInfo.isOutOfStock ? (
+                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
+                                    Advance Only &bull; Out of Stock
+                                  </span>
+                                ) : stockInfo.needsSellStock ? (
+                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                                    In-Use Short &bull; Shelf Available
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                    Products In Stock
+                                  </span>
+                                )
+                              )}
                             </div>
                             <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
                               {s.category && (
@@ -1136,6 +1377,17 @@ export function NewOrderModal({
                                 </span>
                               )}
                             </div>
+                            {stockInfo.hasProducts && (
+                              stockInfo.isOutOfStock ? (
+                                <div className="text-[11px] text-rose-700 font-medium mt-0.5">
+                                  ⚠️ Missing stock: {stockInfo.missingNames.join(", ")}
+                                </div>
+                              ) : stockInfo.needsSellStock ? (
+                                <div className="text-[11px] text-amber-700 font-medium mt-0.5">
+                                  ⚠️ In-use stock short: {stockInfo.itemsNeedingSellStock.map((it) => `${it.neededFromSell}x ${it.name} (${it.sellAvailable} on shelf)`).join(", ")}
+                                </div>
+                              ) : null
+                            )}
                           </div>
                         </div>
 
@@ -1155,7 +1407,7 @@ export function NewOrderModal({
                   filteredPackages.map((p) => {
                     const isSelected = selectedItems.some((i) => i.id === p.id && i.type === "package");
                     const price = p.packagePrice || 0;
-                    const stockInfo = getPackageStockInfo(p, liveProducts);
+                    const stockInfo = getPackageStockInfo(p, liveProducts, services);
                     return (
                       <div
                         key={p.id}
@@ -1188,33 +1440,43 @@ export function NewOrderModal({
                               <span className="font-heading font-medium text-[13.5px] text-galla-ink">
                                 {p.name}
                               </span>
-                              {stockInfo.isOutOfStock && (
-                                <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
-                                  Advance Only &bull; No In-Use Stock
-                                </span>
-                              )}
-                              {stockInfo.hasProducts && !stockInfo.isOutOfStock && (
-                                <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                  Products In Stock
-                                </span>
+                              {stockInfo.hasProducts && (
+                                stockInfo.isOutOfStock ? (
+                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
+                                    Advance Only &bull; Out of Stock
+                                  </span>
+                                ) : stockInfo.needsSellStock ? (
+                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                                    In-Use Short &bull; Shelf Available
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                    Products In Stock
+                                  </span>
+                                )
                               )}
                             </div>
                             <div className="text-[11.5px] text-galla-ink-soft mt-0.5 max-w-md line-clamp-2">
                               {p.services.length} services ({p.services.map((s) => s.name).join(", ")})
                               {p.products && p.products.length > 0 && (
-                                <> &bull; {p.products.length} products ({p.products.map((pr) => pr.name).join(", ")})</>
+                                <> &bull; {p.products.length} direct products ({p.products.map((pr) => pr.name).join(", ")})</>
+                              )}
+                              {stockInfo.allRequiredProducts.length > 0 && (
+                                <div className="text-[10.5px] text-galla-ink-soft/80 mt-0.5">
+                                  Total required: {stockInfo.allRequiredProducts.map((pr) => `${pr.needed}x ${pr.name}`).join(", ")}
+                                </div>
                               )}
                             </div>
-                            {stockInfo.isOutOfStock && (
-                              <div className="text-[11px] text-amber-700 font-medium mt-0.5">
-                                ⚠️ Missing in-use stock: {stockInfo.missingNames.join(", ")}
-                                {stockInfo.hasRetailBackup && (
-                                  <span className="text-amber-900 font-normal">
-                                    {" "}
-                                    ({stockInfo.retailAvailable} pcs on retail shelf — use &lsquo;Move / Use&rsquo; in Inventory to transfer)
-                                  </span>
-                                )}
-                              </div>
+                            {stockInfo.hasProducts && (
+                              stockInfo.isOutOfStock ? (
+                                <div className="text-[11px] text-rose-700 font-medium mt-0.5">
+                                  ⚠️ Missing stock: {stockInfo.missingNames.join(", ")}
+                                </div>
+                              ) : stockInfo.needsSellStock ? (
+                                <div className="text-[11px] text-amber-700 font-medium mt-0.5">
+                                  ⚠️ In-use stock short: {stockInfo.itemsNeedingSellStock.map((it) => `${it.neededFromSell}x ${it.name} (${it.sellAvailable} on shelf)`).join(", ")}
+                                </div>
+                              ) : null
                             )}
                           </div>
                         </div>
@@ -1385,6 +1647,54 @@ export function NewOrderModal({
                 )}
               </div>
             </div>
+
+            {/* Option to Allow Using Retail Shelf Stock (Sell Stock) */}
+            {orderSellStockItems.length > 0 && (
+              <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-[6px] text-amber-950 space-y-2 animate-in fade-in duration-150">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-sans font-semibold text-[12.5px] text-amber-950">
+                      In-Use Stock Shortage ({orderSellStockItems.length} product{orderSellStockItems.length > 1 ? "s" : ""})
+                    </span>
+                    <p className="font-sans text-[11.5px] text-amber-800 mt-0.5 leading-snug">
+                      Salon in-use stock is insufficient for service/package fulfillment, but available on the retail shelf:
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-[11px] text-amber-900 font-medium">
+                      {orderSellStockItems.map((it) => (
+                        <li key={it.name} className="flex items-center gap-1.5">
+                          <span>&bull;</span>
+                          <span>
+                            <strong>{it.name}</strong>: need {it.neededFromSell} pcs from retail shelf ({it.sellAvailable} pcs available on shelf)
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <label className="flex items-center gap-2 mt-2 pt-2 border-t border-amber-200 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={allowSellStockUsage}
+                        onChange={(e) => setAllowSellStockUsage(e.target.checked)}
+                        className="rounded border-amber-400 text-galla-teal focus:ring-galla-teal h-3.5 w-3.5"
+                      />
+                      <span className="text-[12px] font-medium text-amber-950">
+                        Allow drawing required products from retail shelf (sell stock)
+                      </span>
+                    </label>
+                    {!allowSellStockUsage ? (
+                      <p className="text-[10.5px] text-amber-700 italic mt-0.5">
+                        If unchecked, this order will be saved as an advance booking pending in-use stock replenishment.
+                      </p>
+                    ) : (
+                      <p className="text-[10.5px] text-emerald-800 font-medium mt-0.5">
+                        ✓ Retail shelf stock will be transferred for fulfillment upon confirmation.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Out of Stock Notice Banner */}
             {hasOutOfStockItems && (
@@ -1886,60 +2196,93 @@ export function NewOrderModal({
             : "Confirm New Order"
         }
         description={
-          settlementMode === "pay_later" ? (
-            <span>
-              Create Pay Later order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
-              <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
-              <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>:{" "}
-              {enteredPayLaterPaid > 0 ? (
-                <>
-                  <strong className="font-semibold text-galla-ink">{formatRupee(enteredPayLaterPaid)}</strong> paid upfront via{" "}
-                  <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>, with{" "}
-                  <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> pending due later
-                </>
-              ) : (
-                <>
-                  <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> marked as pending due to be paid later
-                </>
-              )}
-              {dueDate && (
-                <>
-                  , with expected payment due by{" "}
-                  <strong className="font-semibold text-galla-ink">
-                    {formatBookingDate(dueDate)}
-                  </strong>
-                </>
-              )}
-              ?
-            </span>
-          ) : settlementMode === "advance" ? (
-            <span>
-              Create advance booking for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
-              <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong>:{" "}
-              <strong className="font-semibold text-galla-ink">{formatRupee(enteredAdvance)}</strong> advance paid (
-              <strong className="font-semibold text-amber-800">{formatRupee(Math.max(0, finalTotal - enteredAdvance))}</strong> pending) via{" "}
-              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>
-              {bookingDate && (
-                <>
-                  {" "}scheduled for{" "}
-                  <strong className="font-semibold text-galla-ink">
-                    {formatBookingDate(bookingDate)}{bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : ""}
-                  </strong>
-                </>
-              )}
-              ?
-            </span>
-          ) : (
-            <span>
-              Create order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
-              <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
-              <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>
-              {includePreviousDue && totalPreviousDue > 0 ? (
-                <>, plus settle previous due of <strong className="font-semibold text-rose-700">{formatRupee(totalPreviousDue)}</strong> (Total: <strong className="font-semibold text-galla-teal">{formatRupee(totalWithDue)}</strong>)</>
-              ) : null} via{" "}
-              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>?
-            </span>
-          )
+          <div>
+            {settlementMode === "pay_later" ? (
+              <span>
+                Create Pay Later order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
+                <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
+                <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>:{" "}
+                {enteredPayLaterPaid > 0 ? (
+                  <>
+                    <strong className="font-semibold text-galla-ink">{formatRupee(enteredPayLaterPaid)}</strong> paid upfront via{" "}
+                    <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>, with{" "}
+                    <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> pending due later
+                  </>
+                ) : (
+                  <>
+                    <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> marked as pending due to be paid later
+                  </>
+                )}
+                {dueDate && (
+                  <>
+                    , with expected payment due by{" "}
+                    <strong className="font-semibold text-galla-ink">
+                      {formatBookingDate(dueDate)}
+                    </strong>
+                  </>
+                )}
+                ?
+              </span>
+            ) : settlementMode === "advance" ? (
+              <span>
+                Create advance booking for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
+                <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong>:{" "}
+                <strong className="font-semibold text-galla-ink">{formatRupee(enteredAdvance)}</strong> advance paid (
+                <strong className="font-semibold text-amber-800">{formatRupee(Math.max(0, finalTotal - enteredAdvance))}</strong> pending) via{" "}
+                <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>
+                {bookingDate && (
+                  <>
+                    {" "}scheduled for{" "}
+                    <strong className="font-semibold text-galla-ink">
+                      {formatBookingDate(bookingDate)}{bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : ""}
+                    </strong>
+                  </>
+                )}
+                ?
+              </span>
+            ) : (
+              <span>
+                Create order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
+                <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
+                <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>
+                {includePreviousDue && totalPreviousDue > 0 ? (
+                  <>, plus settle previous due of <strong className="font-semibold text-rose-700">{formatRupee(totalPreviousDue)}</strong> (Total: <strong className="font-semibold text-galla-teal">{formatRupee(totalWithDue)}</strong>)</>
+                ) : null} via{" "}
+                <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>?
+              </span>
+            )}
+
+            {allowSellStockUsage && orderSellStockItems.length > 0 && (
+              <div className="mt-3 p-2.5 bg-amber-50 border border-amber-300 rounded-[5px] text-[12px] text-amber-950 text-left">
+                <div className="font-semibold flex items-center gap-1.5 text-amber-900 mb-1">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                  <span>Confirmation: Use Retail Shelf Stock</span>
+                </div>
+                <p className="text-[11.5px] text-amber-900 leading-snug">
+                  You are confirming the transfer of the following products from the retail shelf (sell stock) to fulfill services/packages:
+                </p>
+                <ul className="mt-1 space-y-0.5 font-medium text-[11px] text-amber-950">
+                  {orderSellStockItems.map((it) => (
+                    <li key={it.name}>
+                      &bull; <strong>{it.neededFromSell}x {it.name}</strong> from retail shelf
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[10.5px] text-amber-800 mt-1">
+                  This will deduct from retail shelf inventory and record the salon purchase cost as an internal expense.
+                </p>
+              </div>
+            )}
+            {!allowSellStockUsage && orderSellStockItems.length > 0 && (
+              <div className="mt-3 p-2.5 bg-amber-50/70 border border-amber-200 rounded-[5px] text-[11.5px] text-amber-900 text-left">
+                <div className="font-semibold flex items-center gap-1.5 text-amber-900 mb-0.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                  <span>Advance Booking Notice</span>
+                </div>
+                In-use stock is insufficient and retail stock usage was not enabled. This order will be saved as an advance booking pending in-use stock arrival.
+              </div>
+            )}
+          </div>
         }
         confirmLabel="Confirm Order"
         isLoading={isSubmitting}

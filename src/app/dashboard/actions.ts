@@ -186,27 +186,42 @@ async function getProductBatchesForInternalUse(
 
 /**
  * Checks if all required products for a service are available in stock.
- * Checks both internal useStock and sellStock (retail backup).
- * Returns { available: boolean; missing: { name: string; needed: number; available: number }[] }
+ * Checks internal useStock first; includes sellStock (retail shelf) only if allowSellStockUsage is enabled.
+ * Returns { available: boolean; needsSellStock: boolean; missing: ... }
  */
 async function checkServiceProductsAvailability(
   tenantId: Types.ObjectId | string,
   serviceId: Types.ObjectId | string,
   serviceQuantity: number,
   session?: ClientSession,
+  allowSellStockUsage: boolean = false,
 ): Promise<{
   available: boolean;
-  missing: { name: string; needed: number; available: number }[];
+  needsSellStock: boolean;
+  missing: {
+    name: string;
+    needed: number;
+    available: number;
+    useAvailable: number;
+    sellAvailable: number;
+  }[];
 }> {
   const service = await Service.findOne({
     _id: serviceId,
     tenantId,
   }).session(session || null);
   if (!service || !service.products || service.products.length === 0) {
-    return { available: true, missing: [] };
+    return { available: true, needsSellStock: false, missing: [] };
   }
 
-  const missing: { name: string; needed: number; available: number }[] = [];
+  const missing: {
+    name: string;
+    needed: number;
+    available: number;
+    useAvailable: number;
+    sellAvailable: number;
+  }[] = [];
+  let needsSellStock = false;
 
   for (const pItem of service.products) {
     const needed = serviceQuantity * pItem.quantity;
@@ -224,25 +239,34 @@ async function checkServiceProductsAvailability(
       (sum, b) => sum + Math.max(0, b.sellStock),
       0,
     );
-    const totalAvailable = useStockTotal + sellStockTotal;
+    const totalAvailable = allowSellStockUsage
+      ? useStockTotal + sellStockTotal
+      : useStockTotal;
+
+    if (useStockTotal < needed && useStockTotal + sellStockTotal >= needed) {
+      needsSellStock = true;
+    }
 
     if (totalAvailable < needed) {
       missing.push({
         name: pItem.name,
         needed,
         available: totalAvailable,
+        useAvailable: useStockTotal,
+        sellAvailable: sellStockTotal,
       });
     }
   }
 
   return {
     available: missing.length === 0,
+    needsSellStock,
     missing,
   };
 }
 
 /**
- * Deducts service product requirements from internal useStock (or sellStock if needed),
+ * Deducts service product requirements from internal useStock (or sellStock if confirmed/allowed by user),
  * and creates an internal consumption Expense for the salon's purchase/specified cost of the product.
  */
 async function deductServiceProductsFromStock(
@@ -252,6 +276,7 @@ async function deductServiceProductsFromStock(
   session?: ClientSession,
   orderId?: Types.ObjectId,
   orderNumber?: string,
+  allowSellStockUsage: boolean = false,
 ): Promise<void> {
   const service = await Service.findOne({
     _id: serviceId,
@@ -280,8 +305,8 @@ async function deductServiceProductsFromStock(
         takeUnits += takeUse;
       }
 
-      // 2. If still remaining, draw from sellStock
-      if (remaining > 0 && batch.sellStock > 0) {
+      // 2. If still remaining and confirmed/allowed by user, draw from sellStock
+      if (remaining > 0 && allowSellStockUsage && batch.sellStock > 0) {
         const takeSell = Math.min(batch.sellStock, remaining);
         batch.sellStock -= takeSell;
         remaining -= takeSell;
@@ -328,74 +353,158 @@ async function deductServiceProductsFromStock(
 }
 
 /**
- * Checks if all required products for a package template are available in stock.
- * Returns { available: boolean; missing: { name: string; needed: number; available: number }[] }
+ * Resolves all product requirements for a package template,
+ * combining direct package products and products consumed by bundled services.
+ */
+async function getPackageConsolidatedProducts(
+  tenantId: Types.ObjectId | string,
+  templateId: Types.ObjectId | string,
+  packageQuantity: number,
+  session?: ClientSession,
+): Promise<{ productId?: Types.ObjectId; name: string; quantity: number }[]> {
+  const template = await PackageTemplate.findOne({
+    _id: templateId,
+    tenantId,
+  }).session(session || null);
+  if (!template) return [];
+
+  const map = new Map<string, { productId?: Types.ObjectId; name: string; quantity: number }>();
+
+  // 1. Direct products in template
+  if (template.products && template.products.length > 0) {
+    for (const pItem of template.products) {
+      const key = (pItem.productId?.toString() || pItem.name).trim().toLowerCase();
+      const needed = packageQuantity * (pItem.quantity || 1);
+      const existing = map.get(key);
+      if (existing) {
+        existing.quantity += needed;
+      } else {
+        map.set(key, {
+          productId: pItem.productId,
+          name: pItem.name,
+          quantity: needed,
+        });
+      }
+    }
+  }
+
+  // 2. Products used inside bundled services
+  if (template.services && template.services.length > 0) {
+    for (const sItem of template.services) {
+      const srv = await Service.findOne({
+        _id: sItem.serviceId,
+        tenantId,
+      }).session(session || null);
+      if (srv && srv.products && srv.products.length > 0) {
+        for (const spItem of srv.products) {
+          const key = (spItem.productId?.toString() || spItem.name).trim().toLowerCase();
+          const needed = packageQuantity * (spItem.quantity || 1);
+          const existing = map.get(key);
+          if (existing) {
+            existing.quantity += needed;
+          } else {
+            map.set(key, {
+              productId: spItem.productId,
+              name: spItem.name,
+              quantity: needed,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/**
+ * Checks if all required products for a package template (both direct and via bundled services)
+ * are available in stock.
+ * Checks in-use stock first; checks sell stock if allowSellStockUsage is enabled.
  */
 async function checkPackageProductsAvailability(
   tenantId: Types.ObjectId | string,
   templateId: Types.ObjectId | string,
   packageQuantity: number,
   session?: ClientSession,
+  allowSellStockUsage: boolean = false,
 ): Promise<{
   available: boolean;
-  missing: { name: string; needed: number; available: number }[];
+  needsSellStock: boolean;
+  missing: {
+    name: string;
+    needed: number;
+    available: number;
+    useAvailable: number;
+    sellAvailable: number;
+  }[];
 }> {
-  const template = await PackageTemplate.findOne({
-    _id: templateId,
+  const consolidated = await getPackageConsolidatedProducts(
     tenantId,
-  }).session(session || null);
-  if (!template) {
-    return { available: true, missing: [] };
+    templateId,
+    packageQuantity,
+    session,
+  );
+  if (consolidated.length === 0) {
+    return { available: true, needsSellStock: false, missing: [] };
   }
 
-  const missing: { name: string; needed: number; available: number }[] = [];
+  const missing: {
+    name: string;
+    needed: number;
+    available: number;
+    useAvailable: number;
+    sellAvailable: number;
+  }[] = [];
+  let needsSellStock = false;
 
-  if (template.products && template.products.length > 0) {
-    for (const pItem of template.products) {
-      const needed = packageQuantity * pItem.quantity;
-      const batches = await getProductBatchesForInternalUse(
-        tenantId,
-        pItem.productId,
-        pItem.name,
-        session,
-      );
-      const totalAvailable = batches.reduce(
-        (sum, b) => sum + Math.max(0, b.useStock) + Math.max(0, b.sellStock),
-        0,
-      );
-      if (totalAvailable < needed) {
-        missing.push({
-          name: pItem.name,
-          needed,
-          available: totalAvailable,
-        });
-      }
+  for (const pItem of consolidated) {
+    const needed = pItem.quantity;
+    const batches = await getProductBatchesForInternalUse(
+      tenantId,
+      pItem.productId,
+      pItem.name,
+      session,
+    );
+    const useStockTotal = batches.reduce(
+      (sum, b) => sum + Math.max(0, b.useStock),
+      0,
+    );
+    const sellStockTotal = batches.reduce(
+      (sum, b) => sum + Math.max(0, b.sellStock),
+      0,
+    );
+    const totalAvailable = allowSellStockUsage
+      ? useStockTotal + sellStockTotal
+      : useStockTotal;
+
+    if (useStockTotal < needed && useStockTotal + sellStockTotal >= needed) {
+      needsSellStock = true;
     }
-  }
 
-  if (template.services && template.services.length > 0) {
-    for (const sItem of template.services) {
-      const srvCheck = await checkServiceProductsAvailability(
-        tenantId,
-        sItem.serviceId,
-        packageQuantity,
-        session,
-      );
-      if (!srvCheck.available) {
-        missing.push(...srvCheck.missing);
-      }
+    if (totalAvailable < needed) {
+      missing.push({
+        name: pItem.name,
+        needed,
+        available: totalAvailable,
+        useAvailable: useStockTotal,
+        sellAvailable: sellStockTotal,
+      });
     }
   }
 
   return {
     available: missing.length === 0,
+    needsSellStock,
     missing,
   };
 }
 
 /**
- * Deducts package product requirements strictly from internal useStock (or sellStock):
- * - Prioritizes the lower profit margin batch for in-salon consumption
+ * Deducts all product requirements for a package (both direct and via bundled services):
+ * - Prioritizes internal useStock first
+ * - Seamlessly draws from sellStock if allowSellStockUsage is confirmed by user
+ * - Creates internal consumption Expense for the salon's purchase cost
  */
 async function deductPackageProductsFromStock(
   tenantId: Types.ObjectId | string,
@@ -404,86 +513,80 @@ async function deductPackageProductsFromStock(
   session?: ClientSession,
   orderId?: Types.ObjectId,
   orderNumber?: string,
+  allowSellStockUsage: boolean = false,
 ): Promise<void> {
   const template = await PackageTemplate.findOne({
     _id: templateId,
     tenantId,
   }).session(session || null);
-  if (!template) return;
+  const consolidated = await getPackageConsolidatedProducts(
+    tenantId,
+    templateId,
+    packageQuantity,
+    session,
+  );
+  if (consolidated.length === 0) return;
 
-  if (template.products && template.products.length > 0) {
-    for (const pItem of template.products) {
-      let remaining = packageQuantity * pItem.quantity;
-      const batches = await getProductBatchesForInternalUse(
-        tenantId,
-        pItem.productId,
-        pItem.name,
-        session,
-      );
-      for (const batch of batches) {
-        if (remaining <= 0) break;
-        let takeUnits = 0;
+  const templateName = template?.name || "Package Deal";
 
-        if (batch.useStock > 0) {
-          const takeUse = Math.min(batch.useStock, remaining);
-          batch.useStock -= takeUse;
-          remaining -= takeUse;
-          takeUnits += takeUse;
-        }
+  for (const pItem of consolidated) {
+    let remaining = pItem.quantity;
+    const batches = await getProductBatchesForInternalUse(
+      tenantId,
+      pItem.productId,
+      pItem.name,
+      session,
+    );
+    for (const batch of batches) {
+      if (remaining <= 0) break;
+      let takeUnits = 0;
 
-        if (remaining > 0 && batch.sellStock > 0) {
-          const takeSell = Math.min(batch.sellStock, remaining);
-          batch.sellStock -= takeSell;
-          remaining -= takeSell;
-          takeUnits += takeSell;
-        }
-
-        if (takeUnits > 0) {
-          await batch.save(session ? { session } : undefined);
-
-          const unitCost =
-            typeof batch.purchaseCost === "number" && !isNaN(batch.purchaseCost)
-              ? batch.purchaseCost
-              : 0;
-          const consumptionCost = unitCost * takeUnits;
-
-          if (consumptionCost > 0) {
-            await Expense.create(
-              [
-                {
-                  tenantId: new Types.ObjectId(tenantId),
-                  expenseDate: new Date(),
-                  title: `Package usage: ${takeUnits}x ${batch.name} (${template.name})`,
-                  category: "other",
-                  amount: consumptionCost,
-                  paymentMode: "internal_transfer",
-                  linkedProductId: batch._id,
-                  linkedQuantity: takeUnits,
-                  linkedOrderId: orderId,
-                  notes: `Automatically deducted ${takeUnits} units from salon stock during package "${template.name}" fulfillment${orderNumber ? ` in order ${orderNumber}` : ""}.`,
-                },
-              ],
-              session ? { session } : undefined,
-            );
-          }
-        }
+      if (batch.useStock > 0) {
+        const takeUse = Math.min(batch.useStock, remaining);
+        batch.useStock -= takeUse;
+        remaining -= takeUse;
+        takeUnits += takeUse;
       }
-      if (batches.length > 0) {
-        await cleanupProductBatchNames(tenantId, batches[0].name, session);
+
+      if (remaining > 0 && allowSellStockUsage && batch.sellStock > 0) {
+        const takeSell = Math.min(batch.sellStock, remaining);
+        batch.sellStock -= takeSell;
+        remaining -= takeSell;
+        takeUnits += takeSell;
+      }
+
+      if (takeUnits > 0) {
+        await batch.save(session ? { session } : undefined);
+
+        const unitCost =
+          typeof batch.purchaseCost === "number" && !isNaN(batch.purchaseCost)
+            ? batch.purchaseCost
+            : 0;
+        const consumptionCost = unitCost * takeUnits;
+
+        if (consumptionCost > 0) {
+          await Expense.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                expenseDate: new Date(),
+                title: `Package usage: ${takeUnits}x ${batch.name} (${templateName})`,
+                category: "other",
+                amount: consumptionCost,
+                paymentMode: "internal_transfer",
+                linkedProductId: batch._id,
+                linkedQuantity: takeUnits,
+                linkedOrderId: orderId,
+                notes: `Automatically deducted ${takeUnits} units from salon stock during package "${templateName}" fulfillment${orderNumber ? ` in order ${orderNumber}` : ""}.`,
+              },
+            ],
+            session ? { session } : undefined,
+          );
+        }
       }
     }
-  }
-
-  if (template.services && template.services.length > 0) {
-    for (const sItem of template.services) {
-      await deductServiceProductsFromStock(
-        tenantId,
-        sItem.serviceId,
-        packageQuantity,
-        session,
-        orderId,
-        orderNumber,
-      );
+    if (batches.length > 0) {
+      await cleanupProductBatchNames(tenantId, batches[0].name, session);
     }
   }
 }
@@ -703,6 +806,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             item.itemId,
             item.quantity || 1,
             dbSession,
+            input.allowSellStockUsage === true,
           );
 
           if (!stockCheck.available || isAdvancePreOrder) {
@@ -718,15 +822,16 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               dbSession,
               undefined,
               orderNumber,
+              input.allowSellStockUsage === true,
             );
-            const pkgTpl = await PackageTemplate.findOne({
-              _id: item.itemId,
+            const consolidated = await getPackageConsolidatedProducts(
               tenantId,
-            }).session(dbSession);
-            if (pkgTpl && pkgTpl.products) {
-              for (const pr of pkgTpl.products) {
-                affectedProductNames.add(pr.name);
-              }
+              item.itemId,
+              item.quantity || 1,
+              dbSession,
+            );
+            for (const pr of consolidated) {
+              affectedProductNames.add(pr.name);
             }
           }
         } else if (
@@ -739,6 +844,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             item.itemId,
             item.quantity || 1,
             dbSession,
+            input.allowSellStockUsage === true,
           );
 
           if (!stockCheck.available || isAdvancePreOrder) {
@@ -755,6 +861,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               dbSession,
               undefined,
               orderNumber,
+              input.allowSellStockUsage === true,
             );
             const srv = await Service.findOne({
               _id: item.itemId,
@@ -1161,7 +1268,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { orderId, remainingAmount, paymentMode, notes } = parseResult.data;
+    const { orderId, remainingAmount, paymentMode, notes, allowSellStockUsage } = parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -1201,17 +1308,19 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
               tenantId,
               item.itemId,
               item.quantity || 1,
+              undefined,
+              allowSellStockUsage === true,
             );
             if (!stockCheck.available) {
               const missingDesc = stockCheck.missing
                 .map(
                   (m) =>
-                    `"${m.name}" (${m.available} available, ${m.needed} needed)`,
+                    `"${m.name}" (${m.available} available in ${allowSellStockUsage ? "in-use & retail" : "in-use"}, ${m.needed} needed)`,
                 )
                 .join(", ");
               return {
                 success: false,
-                error: `Cannot complete delivery: Package "${item.name}" requires out of stock products: ${missingDesc}. Please stock in first before completing delivery.`,
+                error: `Cannot complete delivery: Package "${item.name}" requires products: ${missingDesc}. Please stock in first${stockCheck.needsSellStock ? " or confirm using retail shelf stock" : ""}.`,
               };
             }
           } else if (
@@ -1222,17 +1331,19 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
               tenantId,
               item.itemId,
               item.quantity || 1,
+              undefined,
+              allowSellStockUsage === true,
             );
             if (!stockCheck.available) {
               const missingDesc = stockCheck.missing
                 .map(
                   (m) =>
-                    `"${m.name}" (${m.available} available, ${m.needed} needed)`,
+                    `"${m.name}" (${m.available} available in ${allowSellStockUsage ? "in-use & retail" : "in-use"}, ${m.needed} needed)`,
                 )
                 .join(", ");
               return {
                 success: false,
-                error: `Cannot complete service: Service "${item.name}" requires out of stock products: ${missingDesc}. Please stock in first before completing service.`,
+                error: `Cannot complete service: Service "${item.name}" requires products: ${missingDesc}. Please stock in first${stockCheck.needsSellStock ? " or confirm using retail shelf stock" : ""}.`,
               };
             }
           }
@@ -1349,15 +1460,15 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
               undefined,
               order._id,
               order.orderNumber,
+              allowSellStockUsage === true,
             );
-            const pkgTpl = await PackageTemplate.findOne({
-              _id: item.itemId,
+            const consolidated = await getPackageConsolidatedProducts(
               tenantId,
-            });
-            if (pkgTpl && pkgTpl.products) {
-              for (const pr of pkgTpl.products) {
-                affectedProductNames.add(pr.name);
-              }
+              item.itemId,
+              item.quantity || 1,
+            );
+            for (const pr of consolidated) {
+              affectedProductNames.add(pr.name);
             }
           } else if (
             item.itemType === "service" &&
@@ -1370,6 +1481,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
               undefined,
               order._id,
               order.orderNumber,
+              allowSellStockUsage === true,
             );
             const srv = await Service.findOne({
               _id: item.itemId,
