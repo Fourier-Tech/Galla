@@ -77,6 +77,8 @@ export interface IOrderItemReturn {
   quantity: number;
   unitPrice: number;
   refundAmount: number;
+  dueDeduction?: number;
+  cashRefund?: number;
   returnCondition: "restocked" | "defective_dealer_claim";
   customerResolution: "refund" | "replacement";
   refundMode?: "cash" | "upi" | "card" | "reduce_due";
@@ -267,6 +269,8 @@ const OrderItemReturnSchema = new Schema<IOrderItemReturn>(
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true, min: 0 },
     refundAmount: { type: Number, required: true, min: 0 },
+    dueDeduction: { type: Number, min: 0, default: 0 },
+    cashRefund: { type: Number, min: 0, default: 0 },
     returnCondition: {
       type: String,
       enum: ["restocked", "defective_dealer_claim"],

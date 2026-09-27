@@ -174,13 +174,21 @@ export async function GET(request: Request) {
         let rawTodayPaid = 0;
         if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
           rawTodayPaid = o.payments
-            .filter((p: any) => p.recordedAt && checkIsToday(p.recordedAt) && p.type !== "refund" && p.amount > 0)
+            .filter((p: any) => {
+              if (!p.recordedAt || !checkIsToday(p.recordedAt)) return false;
+              if (checkIsToday(o.createdAt)) return true;
+              return p.type !== "refund" && p.amount > 0;
+            })
             .reduce((sum: number, p: any) => sum + (typeof p.amount === "number" && !isNaN(p.amount) ? p.amount : 0), 0);
         } else {
           rawTodayPaid = checkIsToday(o.createdAt) ? (typeof o.amountPaid === "number" && !isNaN(o.amountPaid) ? o.amountPaid : 0) : 0;
         }
 
-        const netRetained = typeof o.amountPaid === "number" ? Math.max(0, o.amountPaid) : 0;
+        const totalCashRefunds = o.returns && Array.isArray(o.returns)
+          ? o.returns.reduce((sum: number, r: any) => sum + (r.cashRefund || (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0)), 0)
+          : (o.refundDetails?.refundAmount || 0);
+
+        const netRetained = Math.max(0, (o.amountPaid || 0) - (o.status === "cancelled_refunded" ? (o.refundDetails?.refundAmount || o.amountPaid || 0) : totalCashRefunds));
         return Math.max(0, Math.min(rawTodayPaid, netRetained));
       })();
 
@@ -314,6 +322,8 @@ export async function GET(request: Request) {
           quantity: r.quantity,
           unitPrice: r.unitPrice,
           refundAmount: r.refundAmount,
+          dueDeduction: typeof r.dueDeduction === "number" ? r.dueDeduction : (r.refundMode === "reduce_due" ? r.refundAmount || 0 : 0),
+          cashRefund: typeof r.cashRefund === "number" ? r.cashRefund : (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0),
           returnCondition: r.returnCondition,
           customerResolution: r.customerResolution,
           refundMode: r.refundMode,

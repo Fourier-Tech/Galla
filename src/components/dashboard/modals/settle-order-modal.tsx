@@ -44,7 +44,11 @@ function SettleOrderModalContent({
 }) {
   const isReplacement =
     order.status === "replacement_pending" || order.status === "replacement";
-  const defaultDue = isReplacement ? 0 : Math.max(0, order.amount - order.paid);
+  const totalDueDeduction = (order.returns || []).reduce((sum, r) => {
+    if (typeof r.dueDeduction === "number") return sum + r.dueDeduction;
+    return sum + (r.refundMode === "reduce_due" ? (r.refundAmount || 0) : 0);
+  }, 0);
+  const defaultDue = isReplacement ? 0 : Math.max(0, order.amount - order.paid - totalDueDeduction);
 
   const [remainingAmount, setRemainingAmount] = useState(String(defaultDue));
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");

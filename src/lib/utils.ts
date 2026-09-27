@@ -7,14 +7,20 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatRupee(amount: number): string {
   const safe = typeof amount === "number" && !isNaN(amount) ? amount : 0;
+  const floored = Math.floor(Math.abs(safe));
   if (safe < 0) {
-    return "-₹" + Math.abs(safe).toLocaleString("en-IN");
+    return "-₹" + floored.toLocaleString("en-IN");
   }
-  return "₹" + safe.toLocaleString("en-IN");
+  return "₹" + floored.toLocaleString("en-IN");
 }
 
 export function calculatePendingAmount(
-  orders: { status: string; amount?: number; paid?: number }[]
+  orders: {
+    status: string;
+    amount?: number;
+    paid?: number;
+    returns?: { refundAmount?: number; dueDeduction?: number; customerResolution?: string }[];
+  }[]
 ): number {
   return orders
     .filter(
@@ -25,7 +31,10 @@ export function calculatePendingAmount(
     .reduce((sum, o) => {
       const amt = typeof o.amount === "number" && !isNaN(o.amount) ? o.amount : 0;
       const paid = typeof o.paid === "number" && !isNaN(o.paid) ? o.paid : 0;
-      return sum + Math.max(0, amt - paid);
+      const dueDeductions = o.returns && Array.isArray(o.returns)
+        ? o.returns.reduce((dSum, r) => dSum + (r.dueDeduction || 0), 0)
+        : 0;
+      return sum + Math.max(0, amt - paid - dueDeductions);
     }, 0);
 }
 

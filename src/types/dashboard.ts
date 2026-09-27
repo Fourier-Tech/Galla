@@ -50,6 +50,8 @@ export interface DashboardOrderReturn {
   quantity: number;
   unitPrice: number;
   refundAmount: number;
+  dueDeduction?: number;
+  cashRefund?: number;
   returnCondition: "restocked" | "defective_dealer_claim";
   customerResolution: "refund" | "replacement";
   refundMode?: "cash" | "upi" | "card" | "reduce_due";

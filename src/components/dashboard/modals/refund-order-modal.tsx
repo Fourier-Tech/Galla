@@ -32,16 +32,51 @@ export function RefundOrderModal({
   onClose,
   onRefundSuccess,
 }: RefundOrderModalProps) {
-  const [refundAmount, setRefundAmount] = useState(order ? String(order.paid) : "");
+  if (!isOpen || !order) return null;
+
+  return (
+    <RefundOrderModalContent
+      order={order}
+      onClose={onClose}
+      onRefundSuccess={onRefundSuccess}
+    />
+  );
+}
+
+function RefundOrderModalContent({
+  order,
+  onClose,
+  onRefundSuccess,
+}: {
+  order: DashboardOrder;
+  onClose: () => void;
+  onRefundSuccess: (
+    updatedOrder: DashboardOrder,
+    newExpense?: DashboardExpense,
+    updatedProducts?: DashboardProduct[]
+  ) => void;
+}) {
+  const totalPaid =
+    (order.payments || [])
+      .filter((p) => p.amount > 0 && p.type !== "refund")
+      .reduce((sum, p) => sum + p.amount, 0) || (order.paid || 0);
+
+  const totalCashRefunds = (order.returns || []).reduce((sum, r) => {
+    const explicit = r.cashRefund;
+    if (typeof explicit === "number") return sum + explicit;
+    return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? (r.refundAmount || 0) : 0);
+  }, 0);
+
+  const remainingRefundable = Math.max(0, Math.floor(totalPaid - totalCashRefunds));
+
+  const [refundAmount, setRefundAmount] = useState(String(remainingRefundable));
   const [refundMode, setRefundMode] = useState<"cash" | "upi" | "card">(
-    (order?.paymentMode === "card" || order?.paymentMode === "upi") ? order.paymentMode : "cash"
+    (order.paymentMode === "card" || order.paymentMode === "upi") ? order.paymentMode : "cash"
   );
   const [refundReason, setRefundReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  if (!isOpen || !order) return null;
 
   const isProductOrder =
     order.type === "Product sale" ||
@@ -52,7 +87,7 @@ export function RefundOrderModal({
   );
 
   const totalUnreturnedProductQty = productItems.reduce(
-    (sum, item) => sum + ((item.quantity || 1) - (item.returnedQuantity || 0)),
+    (sum, item) => sum + Math.max(0, (item.quantity || 1) - (item.returnedQuantity || 0)),
     0
   );
 
@@ -155,8 +190,20 @@ export function RefundOrderModal({
               </div>
               <div className="flex justify-between text-galla-ink-soft">
                 <span>Collected from Customer:</span>
-                <span className="tabular-nums font-semibold text-galla-ink">{formatRupee(order.paid)}</span>
+                <span className="tabular-nums font-semibold text-galla-ink">{formatRupee(totalPaid)}</span>
               </div>
+              {totalCashRefunds > 0 && (
+                <div className="flex justify-between text-rose-700">
+                  <span>Already Refunded:</span>
+                  <span className="tabular-nums font-medium font-mono">- {formatRupee(totalCashRefunds)}</span>
+                </div>
+              )}
+              {totalCashRefunds > 0 && (
+                <div className="flex justify-between text-galla-ink font-semibold border-t border-galla-line/60 pt-1">
+                  <span>Remaining Refundable:</span>
+                  <span className="tabular-nums font-mono text-emerald-700">{formatRupee(remainingRefundable)}</span>
+                </div>
+              )}
             </div>
 
             {/* List of Products in this Order */}
@@ -170,26 +217,39 @@ export function RefundOrderModal({
 
               <div className="max-h-28 overflow-y-auto space-y-1 pr-0.5">
                 {productItems.map((item, idx) => {
-                  const unreturned = (item.quantity || 1) - (item.returnedQuantity || 0);
+                  const unreturned = Math.max(0, (item.quantity || 1) - (item.returnedQuantity || 0));
+                  const isFullyReturned = unreturned === 0;
                   return (
                     <div
                       key={idx}
-                      className="p-2 rounded-[4px] bg-galla-surface border border-galla-line flex items-center justify-between gap-2 text-[12px]"
+                      className={`p-2 rounded-[4px] border flex items-center justify-between gap-2 text-[12px] ${
+                        isFullyReturned
+                          ? "bg-galla-paper/30 border-galla-line/40 opacity-60"
+                          : "bg-galla-surface border-galla-line"
+                      }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <Package className="h-3.5 w-3.5 text-galla-teal shrink-0" />
+                        <Package className={`h-3.5 w-3.5 shrink-0 ${isFullyReturned ? "text-galla-ink-soft" : "text-galla-teal"}`} />
                         <span className="font-medium text-galla-ink truncate leading-tight">
                           {item.name}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="px-1.5 py-0.2 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono text-[10.5px] font-semibold">
-                          +{unreturned} pcs
-                        </span>
-                        <span className="text-galla-ink font-semibold tabular-nums text-[11.5px]">
-                          {formatRupee(item.finalPrice)}
-                        </span>
+                        {isFullyReturned ? (
+                          <span className="px-1.5 py-0.2 rounded bg-galla-paper border border-galla-line text-galla-ink-soft font-mono text-[10.5px]">
+                            Already Returned
+                          </span>
+                        ) : (
+                          <>
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono text-[10.5px] font-semibold">
+                              +{unreturned} pcs
+                            </span>
+                            <span className="text-galla-ink font-semibold tabular-nums text-[11.5px]">
+                              {formatRupee(item.unitPrice * unreturned)}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -201,7 +261,7 @@ export function RefundOrderModal({
             <div className="p-2 bg-galla-paper/60 border border-galla-line rounded-[5px] text-[11px] space-y-1">
               <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
                 <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span>All items in this order will be restocked to shop inventory.</span>
+                <span>All unreturned items in this order will be restocked to shop inventory.</span>
               </div>
               <div className="flex items-center gap-1.5 text-amber-800">
                 <Info className="h-3.5 w-3.5 text-amber-600 shrink-0" />
@@ -217,31 +277,31 @@ export function RefundOrderModal({
                 </label>
                 <button
                   type="button"
-                  onClick={() => setRefundAmount(String(order.paid))}
+                  onClick={() => setRefundAmount(String(remainingRefundable))}
                   className="text-[11px] font-sans text-galla-teal hover:underline cursor-pointer font-medium"
                 >
-                  Full Amount ({formatRupee(order.paid)})
+                  Full Amount ({formatRupee(remainingRefundable)})
                 </button>
               </div>
               <input
                 type="text"
                 value={refundAmount}
                 onChange={(e) => setRefundAmount(e.target.value.replace(/\D/g, ""))}
-                placeholder={String(order.paid)}
+                placeholder={String(remainingRefundable)}
                 className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[14px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all tabular-nums"
               />
 
               {/* Live breakdown of refund vs shop retained fee */}
               <div className="flex items-center justify-between text-[11px] text-galla-ink-soft mt-1">
-                <span>Collected: {formatRupee(order.paid)}</span>
+                <span>Refundable: {formatRupee(remainingRefundable)}</span>
                 {parsedAmount > 0 && (
-                  parsedAmount < order.paid ? (
+                  parsedAmount < remainingRefundable ? (
                     <span className="text-emerald-700 font-semibold">
-                      Shop keeps (Charge/Fee): +{formatRupee(order.paid - parsedAmount)}
+                      Shop keeps (Charge/Fee): +{formatRupee(remainingRefundable - parsedAmount)}
                     </span>
-                  ) : parsedAmount > order.paid ? (
+                  ) : parsedAmount > remainingRefundable ? (
                     <span className="text-amber-700 font-medium">
-                      Extra compensation: +{formatRupee(parsedAmount - order.paid)}
+                      Extra compensation: +{formatRupee(parsedAmount - remainingRefundable)}
                     </span>
                   ) : (
                     <span className="text-galla-ink-soft font-medium">Full refund (Shop keeps: ₹0)</span>
@@ -295,7 +355,7 @@ export function RefundOrderModal({
                 ) : (
                   <span>
                     Confirm Refund ({formatRupee(parsedAmount)})
-                    {parsedAmount < order.paid && ` • Keeps ${formatRupee(order.paid - parsedAmount)}`}
+                    {parsedAmount < remainingRefundable && ` • Keeps ${formatRupee(remainingRefundable - parsedAmount)}`}
                   </span>
                 )}
               </button>
@@ -314,12 +374,24 @@ export function RefundOrderModal({
               </div>
               <div className="flex justify-between text-galla-teal font-medium">
                 <span>Collected So Far:</span>
-                <span className="tabular-nums">{formatRupee(order.paid)}</span>
+                <span className="tabular-nums">{formatRupee(totalPaid)}</span>
               </div>
-              {order.paid < order.amount && (
+              {totalCashRefunds > 0 && (
+                <div className="flex justify-between text-rose-700">
+                  <span>Already Refunded:</span>
+                  <span className="tabular-nums font-medium font-mono">- {formatRupee(totalCashRefunds)}</span>
+                </div>
+              )}
+              {totalCashRefunds > 0 && (
+                <div className="flex justify-between text-galla-ink font-semibold border-t border-galla-line/60 pt-1">
+                  <span>Remaining Refundable:</span>
+                  <span className="tabular-nums font-mono text-emerald-700">{formatRupee(remainingRefundable)}</span>
+                </div>
+              )}
+              {totalPaid < order.amount && (
                 <div className="flex justify-between text-galla-brass">
                   <span>Pending Dues:</span>
-                  <span className="tabular-nums">{formatRupee(order.amount - order.paid)}</span>
+                  <span className="tabular-nums">{formatRupee(order.amount - totalPaid)}</span>
                 </div>
               )}
             </div>
@@ -331,10 +403,10 @@ export function RefundOrderModal({
                 </label>
                 <button
                   type="button"
-                  onClick={() => setRefundAmount(String(order.paid))}
+                  onClick={() => setRefundAmount(String(remainingRefundable))}
                   className="text-[11px] font-sans text-galla-teal hover:underline cursor-pointer font-medium"
                 >
-                  Set Full ({formatRupee(order.paid)})
+                  Set Full ({formatRupee(remainingRefundable)})
                 </button>
               </div>
               <input
@@ -343,19 +415,19 @@ export function RefundOrderModal({
                 required
                 value={refundAmount}
                 onChange={(e) => setRefundAmount(e.target.value.replace(/\D/g, ""))}
-                placeholder="Enter amount to refund"
+                placeholder={String(remainingRefundable)}
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
               />
               <div className="flex items-center justify-between text-[11px] text-galla-ink-soft mt-1">
-                <span>Collected: {formatRupee(order.paid)}</span>
+                <span>Refundable: {formatRupee(remainingRefundable)}</span>
                 {parsedAmount > 0 && (
-                  parsedAmount < order.paid ? (
+                  parsedAmount < remainingRefundable ? (
                     <span className="text-galla-teal font-medium">
-                      Shop keeps: {formatRupee(order.paid - parsedAmount)}
+                      Shop keeps: {formatRupee(remainingRefundable - parsedAmount)}
                     </span>
-                  ) : parsedAmount > order.paid ? (
+                  ) : parsedAmount > remainingRefundable ? (
                     <span className="text-amber-700 font-medium">
-                      Extra compensation: +{formatRupee(parsedAmount - order.paid)}
+                      Extra compensation: +{formatRupee(parsedAmount - remainingRefundable)}
                     </span>
                   ) : (
                     <span className="text-galla-ink-soft font-medium">Shop keeps: ₹0</span>
@@ -370,22 +442,22 @@ export function RefundOrderModal({
                     <span>Cash Outflow (Given to Customer):</span>
                     <span className="tabular-nums">−{formatRupee(parsedAmount)}</span>
                   </div>
-                  {parsedAmount < order.paid && (
+                  {parsedAmount < remainingRefundable && (
                     <div className="flex justify-between text-galla-teal font-medium">
                       <span>Retained by Salon (Shop Keeps):</span>
-                      <span className="tabular-nums">+{formatRupee(order.paid - parsedAmount)}</span>
+                      <span className="tabular-nums">+{formatRupee(remainingRefundable - parsedAmount)}</span>
                     </div>
                   )}
-                  {parsedAmount > order.paid && (
+                  {parsedAmount > remainingRefundable && (
                     <div className="flex justify-between text-amber-700 font-medium">
                       <span>Extra Compensation (Above Paid):</span>
-                      <span className="tabular-nums">+{formatRupee(parsedAmount - order.paid)}</span>
+                      <span className="tabular-nums">+{formatRupee(parsedAmount - remainingRefundable)}</span>
                     </div>
                   )}
-                  {order.paid < order.amount && (
+                  {totalPaid < order.amount && (
                     <div className="flex justify-between text-galla-brass font-medium">
                       <span>Pending Debt Cleared:</span>
-                      <span className="tabular-nums">−{formatRupee(order.amount - order.paid)}</span>
+                      <span className="tabular-nums">−{formatRupee(order.amount - totalPaid)}</span>
                     </div>
                   )}
                 </div>
@@ -445,9 +517,9 @@ export function RefundOrderModal({
               <strong className="font-semibold text-galla-ink">{refundMode.toUpperCase()}</strong> for Order{" "}
               <strong className="font-semibold text-galla-ink">{formatDisplayNumber(order.id)}</strong> (
               <strong className="font-semibold text-galla-ink">&ldquo;{order.customer}&rdquo;</strong>)?
-              {parsedAmount > order.paid && (
+              {parsedAmount > remainingRefundable && (
                 <span className="block mt-2 text-amber-700 font-medium">
-                  Note: Includes {formatRupee(parsedAmount - order.paid)} extra compensation above collected amount.
+                  Note: Includes {formatRupee(parsedAmount - remainingRefundable)} extra compensation above refundable amount.
                 </span>
               )}
               {" "}This will update the order status and record a refund expense.

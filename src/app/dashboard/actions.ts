@@ -1036,8 +1036,12 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       }
     }
 
-    // Default remaining balance from current total and paid
-    const defaultRemaining = Math.max(0, order.totalAmount - order.amountPaid);
+    // Default remaining balance from current total, paid, and return due deductions
+    const totalDueDeduction = (order.returns || []).reduce((sum: number, r: any) => {
+      if (typeof r.dueDeduction === "number") return sum + r.dueDeduction;
+      return sum + (r.refundMode === "reduce_due" ? (r.refundAmount || 0) : 0);
+    }, 0);
+    const defaultRemaining = Math.max(0, order.totalAmount - order.amountPaid - totalDueDeduction);
     const amountToCollect =
       remainingAmount !== undefined ? remainingAmount : defaultRemaining;
 
@@ -1428,12 +1432,21 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       refundedBy: session.user.role === "staff" ? "staff" : "owner",
     };
 
-    const prevAmountPaid = order.amountPaid;
-    const wasAdvance = prevAmountPaid < order.totalAmount;
-    const advancePaidAmount = wasAdvance ? prevAmountPaid : undefined;
+    const totalPaid = (order.payments || [])
+      .filter((p: any) => p.amount > 0 && p.type !== "refund")
+      .reduce((sum: number, p: any) => sum + p.amount, 0) || order.amountPaid;
 
-    // Deduct refunded amount from order.amountPaid so it reflects the net retained amount
-    order.amountPaid = Math.max(0, order.amountPaid - refundAmount);
+    const priorCashRefunds = (order.returns || []).reduce((sum: number, r: any) => {
+      if (typeof r.cashRefund === "number") return sum + r.cashRefund;
+      return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? (r.refundAmount || 0) : 0);
+    }, 0);
+
+    const remainingPaid = Math.max(0, totalPaid - priorCashRefunds);
+    const wasAdvance = totalPaid < order.totalAmount;
+    const advancePaidAmount = wasAdvance ? totalPaid : undefined;
+
+    // ponytail: order.amountPaid is kept untouched as permanent record of original checkout.
+    // Refund amounts are recorded in order.refundDetails and order.payments.
 
     let newExpense: DashboardExpense | undefined = undefined;
 
@@ -1473,9 +1486,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
           ? new Date(expenseDoc.expenseDate).toISOString()
           : new Date().toISOString(),
       };
-    } else if (refundAmount > prevAmountPaid) {
+    } else if (refundAmount > remainingPaid) {
       // Same-day refund where refund exceeds collected amount: record the excess compensation as an expense
-      const excessAmount = refundAmount - prevAmountPaid;
+      const excessAmount = refundAmount - remainingPaid;
       const { fullNumber: expenseNumber } = await Counter.getNextSequence({
         tenantId,
         type: "expense",
@@ -1555,7 +1568,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
               productName: item.name,
               quantity: unreturnedQty,
               unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : 0,
-              refundAmount: (item.finalPrice / (item.quantity || 1)) * unreturnedQty,
+              refundAmount: Math.floor((item.unitPrice || 0) * unreturnedQty),
+              dueDeduction: 0,
+              cashRefund: Math.floor((item.unitPrice || 0) * unreturnedQty),
               returnCondition: "restocked",
               customerResolution: "refund",
               refundMode: refundMode,
@@ -1605,7 +1620,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         },
         {
           $inc: {
-            "stats.totalSpend": -Math.min(prevAmountPaid, refundAmount),
+            "stats.totalSpend": -Math.min(remainingPaid, refundAmount),
             "stats.outstandingBalance": -prevPending,
           },
         },
@@ -5700,11 +5715,12 @@ export async function returnCustomerOrderItemAction(
         throw new Error("Invalid return quantity");
       }
 
-      const unitFinalPrice = item.finalPrice / item.quantity;
-      const refundAmount =
+      const unitFinalPrice = Math.floor(item.finalPrice / item.quantity);
+      const refundAmount = Math.floor(
         overrideRefundAmount !== undefined && !isNaN(overrideRefundAmount)
           ? overrideRefundAmount
-          : unitFinalPrice * quantityToReturn;
+          : (item.finalPrice / item.quantity) * quantityToReturn
+      );
 
       const isSameDay = checkIsToday(order.createdAt);
       let customerReplacementId: Types.ObjectId | undefined = undefined;
@@ -5733,15 +5749,17 @@ export async function returnCustomerOrderItemAction(
       }
 
       if (customerResolution === "refund") {
-        const currentPending = Math.max(0, order.amountPending || 0);
+        const originalPending = typeof order.amountPending === "number" ? order.amountPending : Math.max(0, (order.totalAmount || 0) - (order.amountPaid || 0));
+        const priorDueDeductions = order.returns ? order.returns.reduce((sum: number, r: any) => sum + (r.dueDeduction || 0), 0) : 0;
+        const settlementsPaid = order.payments ? order.payments.filter((p: any) => p.type === "settlement" && p.amount > 0).reduce((sum: number, p: any) => sum + p.amount, 0) : 0;
+        const currentPending = Math.max(0, originalPending - priorDueDeductions - settlementsPaid);
+
         actualDueDeduction = Math.min(currentPending, refundAmount);
         actualCashRefund = Math.max(0, refundAmount - actualDueDeduction);
 
         if (!order.payments) order.payments = [];
 
         if (actualDueDeduction > 0) {
-          order.amountPending = Math.max(0, order.amountPending - actualDueDeduction);
-
           if (order.customerId) {
             await Customer.updateOne(
               { _id: order.customerId, tenantId },
@@ -5749,24 +5767,12 @@ export async function returnCustomerOrderItemAction(
               { session: dbSession }
             );
           }
-
-          order.payments.push({
-            amount: -actualDueDeduction,
-            mode: "cash",
-            notes: `Return credit (due reduced): ${quantityToReturn}x ${item.name}`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
-            type: "refund",
-            recordedAt: new Date(),
-          });
         }
 
         if (actualCashRefund > 0) {
           const actualMode = refundMode === "reduce_due" ? "cash" : refundMode;
 
-          if (isSameDay) {
-            // Same-day order return: deduct from today's income directly
-            order.amountPaid = Math.max(0, order.amountPaid - actualCashRefund);
-          } else {
+          if (!isSameDay) {
             // Past-day order return: log an Expense of today
             const { fullNumber: expenseNumber } = await Counter.getNextSequence({
               tenantId: new Types.ObjectId(tenantId),
@@ -5808,8 +5814,7 @@ export async function returnCustomerOrderItemAction(
           });
         }
 
-        order.totalAmount = Math.max(0, order.totalAmount - refundAmount);
-        order.subtotal = Math.max(0, order.subtotal - refundAmount);
+        // ponytail: Main order checkout fields (totalAmount, subtotal, amountPaid, amountPending) are kept untouched as permanent record. All bill calculations are performed event-wise at display time.
 
         if (returnCondition === "defective_dealer_claim" && product) {
           await product.save({ session: dbSession });
@@ -6035,6 +6040,8 @@ export async function returnCustomerOrderItemAction(
         quantity: quantityToReturn,
         unitPrice: unitFinalPrice,
         refundAmount: customerResolution === "refund" ? refundAmount : 0,
+        dueDeduction: customerResolution === "refund" ? actualDueDeduction : 0,
+        cashRefund: customerResolution === "refund" ? actualCashRefund : 0,
         returnCondition,
         customerResolution,
         refundMode:

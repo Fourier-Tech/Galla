@@ -83,9 +83,13 @@ export function ReturnCustomerOrderItemModal({
 
   const unitPrice =
     lineItem.quantity > 0
-      ? Math.round((lineItem.finalPrice / lineItem.quantity) * 100) / 100
-      : lineItem.unitPrice;
-  const pendingAmount = Math.max(0, order.amount - order.paid);
+      ? Math.floor(lineItem.finalPrice / lineItem.quantity)
+      : Math.floor(lineItem.unitPrice);
+  const totalDueDeduction = (order.returns || []).reduce((sum, r) => {
+    if (typeof r.dueDeduction === "number") return sum + r.dueDeduction;
+    return sum + (r.refundMode === "reduce_due" ? (r.refundAmount || 0) : 0);
+  }, 0);
+  const pendingAmount = Math.max(0, order.amount - order.paid - totalDueDeduction);
 
   // Fetch product stock if not provided in props
   useEffect(() => {
@@ -107,7 +111,7 @@ export function ReturnCustomerOrderItemModal({
   useEffect(() => {
     if (isOpen && lineItem) {
       setQuantity("1");
-      setCustomAmountStr(String(Math.round(unitPrice * 100) / 100));
+      setCustomAmountStr(String(Math.floor(unitPrice)));
       setIsGoodCondition(true);
       setRestockLocation("sellStock");
       setDefectiveResolution("replacement");
@@ -123,12 +127,12 @@ export function ReturnCustomerOrderItemModal({
 
   const parsedQty = parseInt(quantity || "0", 10);
   const isValidQty = !isNaN(parsedQty) && parsedQty > 0 && parsedQty <= availableToReturn;
-  const defaultReturnTotal = isNaN(parsedQty) ? 0 : Math.round(parsedQty * unitPrice * 100) / 100;
+  const defaultReturnTotal = isNaN(parsedQty) ? 0 : Math.floor(parsedQty * unitPrice);
   const finalReturnAmount =
-    customAmountStr !== "" ? parseFloat(customAmountStr) || 0 : defaultReturnTotal;
+    customAmountStr !== "" ? Math.floor(parseFloat(customAmountStr) || 0) : defaultReturnTotal;
 
-  const dueDeduction = Math.min(pendingAmount, finalReturnAmount);
-  const cashRefund = Math.max(0, Math.round((finalReturnAmount - dueDeduction) * 100) / 100);
+  const dueDeduction = Math.floor(Math.min(pendingAmount, finalReturnAmount));
+  const cashRefund = Math.max(0, Math.floor(finalReturnAmount - dueDeduction));
 
   const shelfStock = matchedProduct ? matchedProduct.sell : 0;
 

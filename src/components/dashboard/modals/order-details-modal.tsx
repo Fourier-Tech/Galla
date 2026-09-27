@@ -69,7 +69,67 @@ export function OrderDetailsModal({
 
   if (!isOpen || !order) return null;
 
-  const dueAmount = Math.max(0, order.amount - order.paid);
+  // Event-wise Returns Aggregation
+  const returnEvents = Array.isArray(order.returns) ? order.returns : [];
+  const hasReturns = returnEvents.length > 0;
+
+  const totalReturnRefundAmount = returnEvents
+    .filter((r) => r.customerResolution === "refund")
+    .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+
+  const totalDueDeduction = returnEvents.reduce((sum, r) => {
+    const explicit = r.dueDeduction;
+    if (typeof explicit === "number") return sum + explicit;
+    return sum + (r.refundMode === "reduce_due" ? r.refundAmount || 0 : 0);
+  }, 0);
+
+  const totalCashRefund = returnEvents.reduce((sum, r) => {
+    const explicit = r.cashRefund;
+    if (typeof explicit === "number") return sum + explicit;
+    return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0);
+  }, 0);
+
+  // Original Checkout Values (untouched permanent record)
+  const originalSubtotal =
+    order.lineItems && order.lineItems.length > 0
+      ? order.lineItems.reduce(
+          (sum, item) => sum + item.unitPrice * (item.quantity || 1),
+          0
+        )
+      : typeof order.subtotal === "number"
+      ? order.subtotal
+      : order.amount;
+
+  const originalDiscountAmount = order.discountAmount || 0;
+
+  const originalBillAmount =
+    order.lineItems && order.lineItems.length > 0
+      ? Math.max(
+          order.lineItems.reduce(
+            (sum, item) =>
+              sum +
+              (typeof item.finalPrice === "number"
+                ? item.finalPrice
+                : item.unitPrice * (item.quantity || 1)),
+            0
+          ),
+          order.amount
+        )
+      : order.amount;
+
+  const positivePayments = (order.payments || [])
+    .filter((p) => p.amount > 0 && p.type !== "refund")
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const originalAmountPaid =
+    positivePayments > 0 ? positivePayments : (order.paid || 0) + totalCashRefund;
+
+  // Net Computed Values after Return Events
+  const netBillAmount = Math.max(0, originalBillAmount - totalReturnRefundAmount);
+  const netAmountPaid = Math.max(0, originalAmountPaid - totalCashRefund);
+  const balanceDue = Math.max(0, netBillAmount - netAmountPaid);
+
+  const dueAmount = balanceDue;
   const isDue = dueAmount > 0 && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted";
   const isAdvance = order.status === "advance_paid";
   const isCompleted = order.status === "completed" || order.status === "replacement_completed";
@@ -134,32 +194,23 @@ export function OrderDetailsModal({
     }
   };
 
-  const itemsSubtotal =
-    typeof order.subtotal === "number" && order.subtotal > 0
-      ? order.subtotal
-      : order.lineItems && order.lineItems.length > 0
-      ? order.lineItems.reduce(
-          (sum, item) => sum + (item.finalPrice || item.unitPrice * (item.quantity || 1)),
-          0
-        )
-      : order.amount;
-
-  const expectedNet = Math.max(0, itemsSubtotal - (order.discountAmount || 0));
-  const extraOnBill = order.amount > expectedNet ? order.amount - expectedNet : 0;
-  const overpaid = order.paid > order.amount ? order.paid - order.amount : 0;
+  const expectedNet = Math.max(0, originalSubtotal - originalDiscountAmount);
+  const extraOnBill = originalBillAmount > expectedNet ? originalBillAmount - expectedNet : 0;
+  const overpaid = netAmountPaid > netBillAmount ? netAmountPaid - netBillAmount : 0;
   const totalExtra = extraOnBill + overpaid;
 
   const combinedPayments = (() => {
     const list = [...(order.payments || [])];
-    // If order is cancelled_refunded, order.payments already contains the complete order-level refund.
-    // We only synthesize missing refund payments for item returns if not cancelled_refunded.
-    if (!isRefunded && order.returns && Array.isArray(order.returns)) {
-      for (const ret of order.returns) {
-        if (ret.customerResolution === "refund" && ret.refundAmount > 0) {
+    // If order is not cancelled_refunded, synthesize missing refund payments for item returns if any
+    if (!isRefunded && returnEvents.length > 0) {
+      for (const ret of returnEvents) {
+        if (ret.customerResolution === "refund" && (ret.cashRefund || ret.refundAmount) > 0) {
+          const cashAmt = typeof ret.cashRefund === "number" ? ret.cashRefund : (ret.refundMode !== "reduce_due" ? ret.refundAmount : 0);
+          if (cashAmt <= 0) continue;
           const alreadyInPayments = list.some(
             (p) =>
               (p.type === "refund" || p.amount < 0) &&
-              Math.abs(Math.abs(p.amount) - ret.refundAmount) < 0.01 &&
+              Math.abs(Math.abs(p.amount) - cashAmt) < 0.01 &&
               (p.notes?.includes(ret.productName) ||
                 (ret.returnedAt &&
                   p.recordedAt &&
@@ -167,12 +218,12 @@ export function OrderDetailsModal({
           );
           if (!alreadyInPayments) {
             list.push({
-              amount: -ret.refundAmount,
+              amount: -cashAmt,
               mode: (ret.refundMode === "reduce_due" ? "cash" : ret.refundMode || "cash") as any,
               recordedAt: ret.returnedAt || new Date().toISOString(),
               recordedBy: ret.recordedBy,
               type: "refund",
-              notes: `Return refund: ${ret.quantity}x ${ret.productName}${ret.refundMode === "reduce_due" ? " (Due reduced)" : ""}${ret.notes ? ` - ${ret.notes}` : ""}`,
+              notes: `Return refund: ${ret.quantity}x ${ret.productName}${ret.notes ? ` - ${ret.notes}` : ""}`,
             });
           }
         }
@@ -181,18 +232,11 @@ export function OrderDetailsModal({
     return list;
   })();
 
-  const totalCollected =
-    order.payments && order.payments.length > 0 && order.payments.some((p) => p.amount > 0)
-      ? order.payments.filter((p) => p.amount > 0).reduce((sum, p) => sum + p.amount, 0)
-      : order.paid + (order.refundAmount || 0);
+  const totalCollected = originalAmountPaid;
 
   const totalRefunded = isRefunded
     ? (order.refundAmount ?? Math.abs(order.payments?.filter((p) => p.amount < 0).reduce((sum, p) => sum + p.amount, 0) || 0) ?? order.paid)
-    : Math.abs(
-        combinedPayments
-          .filter((p) => p.type === "refund" || p.amount < 0)
-          .reduce((sum, p) => sum + p.amount, 0)
-      );
+    : totalReturnRefundAmount;
 
   const retainedByShop = Math.max(0, totalCollected - totalRefunded);
 
@@ -536,7 +580,7 @@ export function OrderDetailsModal({
 
                       <div className="text-right shrink-0">
                         <div className="font-heading font-semibold text-[14px] text-galla-ink tabular-nums">
-                          {formatRupee(item.finalPrice)}
+                          {formatRupee(item.unitPrice * (item.quantity || 1))}
                         </div>
                         <div className="text-[11.5px] text-galla-ink-soft font-mono">
                           {item.quantity} &times; {formatRupee(item.unitPrice)}
@@ -564,139 +608,147 @@ export function OrderDetailsModal({
 
           {/* Billing & Financial Breakdown */}
           <div className="p-4 bg-galla-paper/40 border border-galla-line rounded-[8px] space-y-2">
-                <span className="block font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
-                  Payment &amp; Financial Summary
+            <span className="block font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
+              Payment &amp; Financial Summary
+            </span>
+
+            {(typeof originalSubtotal === "number" || (order.lineItems && order.lineItems.length > 0)) &&
+              (originalSubtotal !== originalBillAmount || extraOnBill > 0) && (
+                <div className="flex justify-between text-[13px] text-galla-ink-soft">
+                  <span>Subtotal:</span>
+                  <span className="tabular-nums font-mono">{formatRupee(originalSubtotal)}</span>
+                </div>
+              )}
+
+            {originalDiscountAmount > 0 ? (
+              <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
+                <span>
+                  Discount {order.discountType === "percentage" ? `(${order.discountValue}%)` : ""}:
                 </span>
+                <span className="tabular-nums font-mono">- {formatRupee(originalDiscountAmount)}</span>
+              </div>
+            ) : null}
 
-                {(typeof order.subtotal === "number" || (order.lineItems && order.lineItems.length > 0)) &&
-                  (itemsSubtotal !== order.amount || extraOnBill > 0) && (
-                    <div className="flex justify-between text-[13px] text-galla-ink-soft">
-                      <span>Subtotal:</span>
-                      <span className="tabular-nums font-mono">{formatRupee(itemsSubtotal)}</span>
-                    </div>
-                  )}
+            {extraOnBill > 0 && (
+              <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
+                <span className="inline-flex items-center gap-1.5">
+                  <span>Extra Paid:</span>
+                </span>
+                <span className="tabular-nums font-mono">+{formatRupee(extraOnBill)}</span>
+              </div>
+            )}
 
-                {order.discountAmount && order.discountAmount > 0 ? (
-                  <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
-                    <span>
-                      Discount {order.discountType === "percentage" ? `(${order.discountValue}%)` : ""}:
-                    </span>
-                    <span className="tabular-nums font-mono">- {formatRupee(order.discountAmount)}</span>
-                  </div>
-                ) : null}
+            <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
+              <span>Total Bill Amount:</span>
+              <span className="tabular-nums text-[16px]">{formatRupee(originalBillAmount)}</span>
+            </div>
 
-                {extraOnBill > 0 && (
-                  <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span>Extra Paid:</span>
-                    </span>
-                    <span className="tabular-nums font-mono">+{formatRupee(extraOnBill)}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
-                  <span>Total Bill Amount:</span>
-                  <span className="tabular-nums text-[16px]">{formatRupee(order.amount)}</span>
+            {isRefunded ? (
+              <>
+                <div className="flex justify-between text-[13.5px] text-galla-ink font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5 text-galla-ink-soft" />
+                    <span>Amount Collected:</span>
+                  </span>
+                  <span className="tabular-nums font-mono">
+                    {formatRupee(totalCollected)}
+                  </span>
                 </div>
 
-                {isRefunded ? (
-                  <>
-                    <div className="flex justify-between text-[13.5px] text-galla-ink font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Wallet className="h-3.5 w-3.5 text-galla-ink-soft" />
-                        <span>Amount Collected:</span>
-                      </span>
-                      <span className="tabular-nums font-mono">
-                        {formatRupee(totalCollected)}
-                      </span>
-                    </div>
+                <div className="flex justify-between text-[13px] text-rose-700 font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Undo2 className="h-3.5 w-3.5" />
+                    <span>Total Refunded:</span>
+                  </span>
+                  <span className="tabular-nums font-mono">
+                    - {formatRupee(totalRefunded)}
+                  </span>
+                </div>
 
-                    <div className="flex justify-between text-[13px] text-rose-700 font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Undo2 className="h-3.5 w-3.5" />
-                        <span>Total Refunded:</span>
-                      </span>
-                      <span className="tabular-nums font-mono">
-                        - {formatRupee(totalRefunded)}
-                      </span>
-                    </div>
-
-                    {retainedByShop > 0 && (
-                      <div className="flex justify-between text-[13px] text-emerald-800 font-semibold bg-emerald-50/70 p-2 rounded border border-emerald-200/80">
-                        <span className="inline-flex items-center gap-1.5">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>Retained by Shop (Charge / Fee):</span>
-                        </span>
-                        <span className="tabular-nums font-mono text-[14px]">+{formatRupee(retainedByShop)}</span>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Wallet className="h-3.5 w-3.5" />
-                        <span>Amount Paid:</span>
-                      </span>
-                      <span className="tabular-nums font-mono">{formatRupee(order.paid)}</span>
-                    </div>
-
-                    {combinedPayments.some((p) => p.type === "refund" || p.amount < 0) && (
-                      <div className="flex justify-between text-[13px] text-rose-700 font-medium">
-                        <span className="inline-flex items-center gap-1.5">
-                          <Undo2 className="h-3.5 w-3.5" />
-                          <span>Total Refunded:</span>
-                        </span>
-                        <span className="tabular-nums font-mono">
-                          - {formatRupee(
-                            combinedPayments
-                              .filter((p) => p.type === "refund" || p.amount < 0)
-                              .reduce((sum, p) => sum + Math.abs(p.amount), 0)
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {overpaid > 0 && (
-                  <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
+                {retainedByShop > 0 && (
+                  <div className="flex justify-between text-[13px] text-emerald-800 font-semibold bg-emerald-50/70 p-2 rounded border border-emerald-200/80">
                     <span className="inline-flex items-center gap-1.5">
-                      <span>Overpaid Extra:</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                        +{formatRupee(overpaid)}
-                      </span>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Retained by Shop (Charge / Fee):</span>
                     </span>
-                    <span className="tabular-nums font-mono">+{formatRupee(overpaid)}</span>
+                    <span className="tabular-nums font-mono text-[14px]">+{formatRupee(retainedByShop)}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span>Amount Paid:</span>
+                  </span>
+                  <span className="tabular-nums font-mono">{formatRupee(originalAmountPaid)}</span>
+                </div>
+
+                {totalCashRefund > 0 && (
+                  <div className="flex justify-between text-[13px] text-rose-700 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Undo2 className="h-3.5 w-3.5" />
+                      <span>Refunded Amount:</span>
+                    </span>
+                    <span className="tabular-nums font-mono">
+                      - {formatRupee(totalCashRefund)}
+                    </span>
                   </div>
                 )}
 
-                {isDue ? (
-                  <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
-                    <span className="inline-flex items-center gap-1">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      <span>Pending Due Balance:</span>
+                {totalDueDeduction > 0 && (
+                  <div className="flex justify-between text-[13px] text-rose-700 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Due Reduced (Return):</span>
                     </span>
-                    <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
-                  </div>
-                ) : isCompleted ? (
-                  <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
-                    <span className="inline-flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Balance:</span>
+                    <span className="tabular-nums font-mono">
+                      - {formatRupee(totalDueDeduction)}
                     </span>
-                    {totalExtra > 0 ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span>Fully Settled</span>
-                        <span className="text-[10.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                          +{formatRupee(totalExtra)} Extra Paid
-                        </span>
-                      </span>
-                    ) : (
-                      <span>Fully Settled (₹0 Due)</span>
-                    )}
                   </div>
-                ) : null}
+                )}
+              </>
+            )}
+
+            {overpaid > 0 && (
+              <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
+                <span className="inline-flex items-center gap-1.5">
+                  <span>Overpaid Extra:</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                    +{formatRupee(overpaid)}
+                  </span>
+                </span>
+                <span className="tabular-nums font-mono">+{formatRupee(overpaid)}</span>
+              </div>
+            )}
+
+            {isDue ? (
+              <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
+                <span className="inline-flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>Pending Due Balance:</span>
+                </span>
+                <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
+              </div>
+            ) : isCompleted || balanceDue <= 0 ? (
+              <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
+                <span className="inline-flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Balance:</span>
+                </span>
+                {totalExtra > 0 ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Fully Settled</span>
+                    <span className="text-[10.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                      +{formatRupee(totalExtra)} Extra Paid
+                    </span>
+                  </span>
+                ) : (
+                  <span>Fully Settled (₹0 Due)</span>
+                )}
+              </div>
+            ) : null}
 
             {/* Payment History Log */}
             {combinedPayments.length > 0 && (() => {
@@ -836,7 +888,17 @@ export function OrderDetailsModal({
                             ? ret.expectedPickupDate
                               ? `Replacement Scheduled (Expected: ${formatBookingDate(ret.expectedPickupDate)})`
                               : "Replacement Handed Over"
-                            : `Refunded ${formatRupee(ret.refundAmount)} via ${(ret.refundMode || "cash").toUpperCase()}`}
+                            : (() => {
+                                const hasDueDed = (ret.dueDeduction || 0) > 0;
+                                const hasCash = (ret.cashRefund || 0) > 0;
+                                if (hasDueDed && hasCash) {
+                                  return `Deducted ${formatRupee(ret.dueDeduction || 0)} due & Refunded ${formatRupee(ret.cashRefund || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
+                                }
+                                if (hasDueDed) {
+                                  return `Deducted ${formatRupee(ret.dueDeduction || ret.refundAmount || 0)} from pending due`;
+                                }
+                                return `Refunded ${formatRupee(ret.cashRefund || ret.refundAmount || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
+                              })()}
                         </strong>
                       </span>
                       {ret.restockLocation && (
@@ -976,7 +1038,7 @@ export function OrderDetailsModal({
               </button>
             )}
 
-            {isCompleted && order.paid > 0 && onOpenRefund && (
+            {isCompleted && netAmountPaid > 0 && onOpenRefund && (
               <button
                 type="button"
                 onClick={() => {
