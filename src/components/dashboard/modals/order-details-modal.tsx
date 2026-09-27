@@ -623,6 +623,20 @@ export function OrderDetailsModal({
                             )}
                           </div>
                         )}
+
+                        {item.itemType === "service" && (
+                          <div className="pl-5 text-[11px]">
+                            {item.fulfilled ? (
+                              <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> Service Rendered
+                              </span>
+                            ) : (
+                              <span className="text-purple-700 font-medium inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Advance Booking &bull; Consumed products deducted on completion
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="text-right shrink-0">

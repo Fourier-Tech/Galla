@@ -611,6 +611,12 @@ export default async function DashboardPage() {
         price: s.price,
         description: s.description || "",
         isActive: s.isActive,
+        products: (s.products || []).map((p: any) => ({
+          productId: p.productId.toString(),
+          name: p.name,
+          quantity: p.quantity,
+          unitCost: p.unitCost,
+        })),
       }));
 
       initialPackages = rawPackages.map((pkg) => ({

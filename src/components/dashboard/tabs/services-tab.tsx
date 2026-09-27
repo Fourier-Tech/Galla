@@ -411,6 +411,17 @@ export function ServicesTab({
                             {service.description}
                           </div>
                         )}
+                        {service.products && service.products.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
+                              <ShoppingBag className="h-3 w-3 shrink-0" />
+                              <span>
+                                {service.products.length} product{service.products.length > 1 ? "s" : ""} consumed (
+                                {service.products.map((pr) => `${pr.quantity}x ${pr.name}`).join(", ")})
+                              </span>
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Category */}
@@ -682,6 +693,7 @@ export function ServicesTab({
         onClose={() => setIsServiceModalOpen(false)}
         serviceToEdit={serviceToEdit}
         existingCategories={existingCategories}
+        availableProducts={products}
         onSaveService={(saved) => {
           if (serviceToEdit) {
             onUpdateService(saved);

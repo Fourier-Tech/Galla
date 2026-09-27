@@ -1130,6 +1130,11 @@ export function NewOrderModal({
                                   {s.category}
                                 </span>
                               )}
+                              {s.products && s.products.length > 0 && (
+                                <span className="text-galla-teal font-medium flex items-center gap-1">
+                                  &bull; Consumes: {s.products.map((p) => `${p.quantity}x ${p.name}`).join(", ")}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>

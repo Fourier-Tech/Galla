@@ -175,6 +175,13 @@ export interface DashboardSalonProfile {
   ownerName: string;
 }
 
+export interface DashboardServiceProductItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitCost?: number;
+}
+
 export interface DashboardService {
   id: string;
   name: string;
@@ -182,6 +189,7 @@ export interface DashboardService {
   price: number;
   description?: string;
   isActive: boolean;
+  products?: DashboardServiceProductItem[];
 }
 
 export interface DashboardPackageServiceItem {

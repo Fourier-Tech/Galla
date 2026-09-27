@@ -191,11 +191,21 @@ export const updateSalonProfileSchema = z.object({
 
 export type UpdateSalonProfileInput = z.infer<typeof updateSalonProfileSchema>;
 
+export const serviceProductItemSchema = z.object({
+  productId: z.string().min(1, "Product ID is required"),
+  name: z.string().min(1, "Product name is required"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1").default(1),
+  unitCost: z.number().min(0).optional(),
+});
+
+export type ServiceProductItemInput = z.infer<typeof serviceProductItemSchema>;
+
 export const createServiceSchema = z.object({
   name: z.string().min(1, "Service name is required").trim(),
   category: z.string().min(1, "Category is required").trim().default("General"),
   price: z.number().min(0, "Price cannot be negative"),
   description: z.string().optional(),
+  products: z.array(serviceProductItemSchema).optional(),
 });
 
 export type CreateServiceInput = z.infer<typeof createServiceSchema>;
@@ -207,6 +217,7 @@ export const updateServiceSchema = z.object({
   price: z.number().min(0, "Price cannot be negative"),
   description: z.string().optional(),
   isActive: z.boolean().optional(),
+  products: z.array(serviceProductItemSchema).optional(),
 });
 
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;

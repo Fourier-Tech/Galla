@@ -1,15 +1,54 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
 
+export interface IServiceProductItem {
+  productId: Types.ObjectId;
+  name: string;
+  quantity: number;
+  unitCost?: number;
+}
+
 export interface IService extends Document {
   tenantId: Types.ObjectId;
   name: string;
   category: string;
   price: number;
   description?: string;
+  products?: IServiceProductItem[];
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const ServiceProductItemSchema = new Schema<IServiceProductItem>(
+  {
+    productId: {
+      type: Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+      validate: {
+        validator: Number.isInteger,
+        message: "Product quantity must be an integer",
+      },
+    },
+    unitCost: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+  },
+  { _id: false }
+);
 
 const ServiceSchema = new Schema<IService>(
   {
@@ -41,6 +80,10 @@ const ServiceSchema = new Schema<IService>(
       type: String,
       trim: true,
     },
+    products: {
+      type: [ServiceProductItemSchema],
+      default: [],
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -55,6 +98,10 @@ const ServiceSchema = new Schema<IService>(
 ServiceSchema.index({ tenantId: 1, name: 1 });
 ServiceSchema.index({ tenantId: 1, category: 1 });
 ServiceSchema.index({ tenantId: 1, isActive: 1 });
+
+if (process.env.NODE_ENV !== "production") {
+  delete mongoose.models.Service;
+}
 
 export const Service: Model<IService> =
   mongoose.models.Service || mongoose.model<IService>("Service", ServiceSchema);
