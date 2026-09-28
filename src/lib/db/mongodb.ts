@@ -29,7 +29,8 @@ if (!cached) {
  * Prevents multiple simultaneous connections on serverless cold starts (Vercel).
  */
 export async function connectToDatabase(): Promise<typeof mongoose> {
-  if (!MONGODB_URI) {
+  const uri = process.env.MONGODB_URI || MONGODB_URI;
+  if (!uri) {
     throw new Error(
       "Please define the MONGODB_URI environment variable inside .env.local or production environment."
     );
@@ -45,7 +46,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
       dbName: "galla",
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
+    cached.promise = mongoose.connect(uri, opts).then((mongooseInstance) => {
       return mongooseInstance;
     });
   }

@@ -293,6 +293,6 @@ export async function syncRollupForPeriod(
         expiresAt,
       },
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
 }

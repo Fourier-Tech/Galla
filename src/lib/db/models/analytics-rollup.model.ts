@@ -120,7 +120,6 @@ const AnalyticsRollupSchema = new Schema<IAnalyticsRollup>(
     expiresAt: {
       type: Date,
       default: null,
-      index: true,
     },
   },
   {
