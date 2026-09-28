@@ -621,6 +621,7 @@ export function PurchaseOrdersView({
                 paginatedOrders.map((po) => {
                   const billStatus = getBillStatus(po);
                   const isCompleted = billStatus.statusKey === "completed";
+                  const isPendingBill = billStatus.statusKey === "pending";
                   const isPendingPayment = !isCompleted && po.amountPending > 0;
                   const hasPendingDelivery = !isCompleted && po.stockAllocated === false;
 
@@ -840,7 +841,7 @@ export function PurchaseOrdersView({
                                       </span>
                                     </button>
                                   )
-                                ) : (
+                                ) : isPendingBill ? (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -856,7 +857,7 @@ export function PurchaseOrdersView({
                                       + Add
                                     </span>
                                   </button>
-                                )
+                                ) : null
                               )}
                             </div>
 

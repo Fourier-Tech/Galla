@@ -623,6 +623,7 @@ export function SupplierDetailsView({
 
                 const billStatus = getBillStatus(bill);
                 const isBillCompleted = billStatus.statusKey === "completed";
+                const isPendingBill = billStatus.statusKey === "pending";
                 const hasPendingDelivery = !isBillCompleted && bill.stockAllocated === false;
                 const isPendingPayment = !isBillCompleted && pendingBalance > 0;
 
@@ -791,7 +792,7 @@ export function SupplierDetailsView({
                                     </span>
                                   </button>
                                 )
-                              ) : (
+                              ) : isPendingBill ? (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -807,7 +808,7 @@ export function SupplierDetailsView({
                                     + Add
                                   </span>
                                 </button>
-                              )
+                              ) : null
                             )}
                             {billWaUrl && (
                               <a

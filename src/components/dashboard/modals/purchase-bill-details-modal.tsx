@@ -751,7 +751,7 @@ export function PurchaseBillDetailsModal({
                             </button>
                           )}
                         </div>
-                      ) : onOpenReschedule ? (
+                      ) : (onOpenReschedule && getBillStatus(bill).statusKey === "pending") ? (
                         <button
                           type="button"
                           onClick={() => onOpenReschedule(bill, "due_date")}
