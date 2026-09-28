@@ -164,6 +164,13 @@ export function StockInModal({
     return Array.from(cats).sort();
   }, [products]);
 
+  // Alphabetically sorted products for dropdown selection
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    );
+  }, [products]);
+
   // Click outside listener for suggestions dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -1100,9 +1107,9 @@ export function StockInModal({
                               : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
                           }`}
                         >
-                          {products.length > 0 && (
+                          {sortedProducts.length > 0 && (
                             <optgroup label="Catalog Products">
-                              {products.map((p) => {
+                              {sortedProducts.map((p) => {
                                 const isSelectedElsewhere = items.some(
                                   (other, otherIdx) =>
                                     otherIdx !== idx &&

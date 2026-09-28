@@ -5037,20 +5037,22 @@ export async function getLiveProductsAction(): Promise<{
       .sort({ name: 1 })
       .lean();
 
-    const products: DashboardProduct[] = rawProducts.map((p) => ({
-      id: p._id.toString(),
-      name: p.name,
-      category: p.category,
-      sell: p.sellStock,
-      use: p.useStock,
+    const products: DashboardProduct[] = rawProducts
+      .map((p) => ({
+        id: p._id.toString(),
+        name: p.name,
+        category: p.category,
+        sell: p.sellStock,
+        use: p.useStock,
         defectiveStock: p.defectiveStock || 0,
-      price: p.expectedSellPrice,
-      purchaseCost: p.purchaseCost,
-      lowStockThreshold: p.lowStockThreshold,
-      description: p.description,
-      barcode: p.barcode,
-      isActive: p.isActive,
-    }));
+        price: p.expectedSellPrice,
+        purchaseCost: p.purchaseCost,
+        lowStockThreshold: p.lowStockThreshold,
+        description: p.description,
+        barcode: p.barcode,
+        isActive: p.isActive,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
     return { success: true, products };
   } catch (error) {

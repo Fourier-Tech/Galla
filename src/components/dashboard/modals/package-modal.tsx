@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   X,
   Package,
@@ -83,6 +83,13 @@ export function PackageModal({
     standaloneTotal > 0 && savingsAmount > 0
       ? Math.round((savingsAmount / standaloneTotal) * 100)
       : 0;
+
+  // Alphabetically sorted products for selection dropdown
+  const sortedAvailableProducts = useMemo<DashboardProduct[]>(() => {
+    return [...(availableProducts || [])].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    );
+  }, [availableProducts]);
 
   if (!isOpen) return null;
 
@@ -408,7 +415,7 @@ export function PackageModal({
                 className="flex-1 bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
               >
                 <option value="">-- Choose an inventory product to bundle (optional) --</option>
-                {availableProducts.map((p) => (
+                {sortedAvailableProducts.map((p) => (
                   <option key={String(p.id)} value={String(p.id)}>
                     {p.name} — {formatRupee(p.price)} (In-Use: {p.use || 0} pcs, Retail: {p.sell || 0} pcs)
                   </option>

@@ -443,13 +443,16 @@ export function NewOrderModal({
 
   const filteredProducts = useMemo(() => {
     const q = catalogSearch.trim().toLowerCase();
-    return liveProducts.filter((p) => {
+    const matched = liveProducts.filter((p) => {
       if (!q) return true;
       return (
         p.name.toLowerCase().includes(q) ||
         (p.category && p.category.toLowerCase().includes(q))
       );
     });
+    return matched.sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    );
   }, [liveProducts, catalogSearch]);
 
   // Identify products with higher profit among old/new batches or price variants

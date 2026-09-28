@@ -40,6 +40,13 @@ export function ServiceModal({
     return Array.from(new Set((existingCategories || []).filter(Boolean))).sort();
   }, [existingCategories]);
 
+  // Alphabetically sorted products for selection dropdown
+  const sortedAvailableProducts = useMemo(() => {
+    return [...(availableProducts || [])].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    );
+  }, [availableProducts]);
+
   const initialCategoryIsCustom =
     Boolean(serviceToEdit)
       ? !allCategories.includes(serviceToEdit?.category || "")
@@ -341,7 +348,7 @@ export function ServiceModal({
                 className="flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
               >
                 <option value="">-- Choose an inventory product consumed in this service --</option>
-                {availableProducts.map((p) => (
+                {sortedAvailableProducts.map((p) => (
                   <option key={String(p.id)} value={String(p.id)}>
                     {p.name} (In-Use: {p.use || 0} pcs, Retail: {p.sell || 0} pcs, Cost: {formatRupee(p.purchaseCost || 0)})
                   </option>

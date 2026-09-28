@@ -633,8 +633,7 @@ export function PurchaseOrdersView({
 
                   // Delivery Date & Urgency (Only if delivery is pending)
                   const targetDeliveryDate = hasPendingDelivery
-                    ? po.expectedDeliveryDate ||
-                      (isAdvancePurchase ? po.dueDate || po.invoiceDate : undefined)
+                    ? po.expectedDeliveryDate
                     : undefined;
 
                   const deliveryUrgency = targetDeliveryDate ? getBookingUrgency(targetDeliveryDate) : null;
@@ -659,7 +658,7 @@ export function PurchaseOrdersView({
                     : `Expected: ${fullDeliverySlot}`;
 
                   // Payment Due Date & Urgency
-                  const targetDueDate = isPendingPayment ? po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined) : undefined;
+                  const targetDueDate = isPendingPayment ? po.dueDate : undefined;
                   const dueUrgency = (isPendingPayment && targetDueDate) ? getBookingUrgency(targetDueDate) : null;
                   const isPaymentDueToday = isPendingPayment && dueUrgency?.tone === "today";
                   const isPaymentOverdue = isPendingPayment && dueUrgency?.tone === "overdue";
@@ -784,7 +783,7 @@ export function PurchaseOrdersView({
                         )}
 
                         {/* Advance / Delivery Schedule & Due Urgency */}
-                        {!isCompleted && (isAdvancePurchase || targetDeliveryDate || isPendingPayment || targetDueDate) && (
+                        {!isCompleted && (hasPendingDelivery || targetDeliveryDate || isPendingPayment || targetDueDate) && (
                           <div className="mt-1.5 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-1.5">
                               {targetDeliveryDate ? (
@@ -803,7 +802,7 @@ export function PurchaseOrdersView({
                                     Reschedule
                                   </span>
                                 </button>
-                              ) : isAdvancePurchase ? (
+                              ) : hasPendingDelivery ? (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -821,23 +820,43 @@ export function PurchaseOrdersView({
                                 </button>
                               ) : null}
 
-                              {/* Payment Due Date badge only if explicit due date is set and differs from delivery date */}
-                              {isPendingPayment && po.dueDate && targetDueDate !== targetDeliveryDate && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenReschedule(po, "due_date");
-                                  }}
-                                  className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${dueBadgeStyle}`}
-                                  title="Click to reschedule payment due date"
-                                >
-                                  <Clock className="h-3 w-3 shrink-0" />
-                                  <span>{dueBadgeLabel}</span>
-                                  <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                                    Reschedule
-                                  </span>
-                                </button>
+                              {/* Payment Due Date badge */}
+                              {isPendingPayment && (
+                                po.dueDate ? (
+                                  targetDueDate !== targetDeliveryDate && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenReschedule(po, "due_date");
+                                      }}
+                                      className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${dueBadgeStyle}`}
+                                      title="Click to reschedule payment due date"
+                                    >
+                                      <Clock className="h-3 w-3 shrink-0" />
+                                      <span>{dueBadgeLabel}</span>
+                                      <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                        Reschedule
+                                      </span>
+                                    </button>
+                                  )
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenReschedule(po, "due_date");
+                                    }}
+                                    className="inline-flex items-center gap-1 font-sans text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
+                                    title="Click to set payment due date"
+                                  >
+                                    <Clock className="h-3 w-3 text-amber-700 shrink-0" />
+                                    <span>Set Due Date</span>
+                                    <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                      + Add
+                                    </span>
+                                  </button>
+                                )
                               )}
                             </div>
 
@@ -1047,6 +1066,9 @@ export function PurchaseOrdersView({
         onOpenPayNow={(bill) => {
           setSelectedBillForDetails(null);
           handleOpenPayNow(bill);
+        }}
+        onOpenReschedule={(bill, mode) => {
+          handleOpenReschedule(bill, mode);
         }}
       />
 

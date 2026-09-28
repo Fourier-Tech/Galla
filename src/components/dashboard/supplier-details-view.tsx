@@ -613,7 +613,7 @@ export function SupplierDetailsView({
                     Boolean(bill.expectedDeliveryDate) ||
                     Boolean(bill.notes && /advance/i.test(bill.notes)));
                 const targetDelivery = hasPendingDelivery
-                  ? bill.expectedDeliveryDate || (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
+                  ? bill.expectedDeliveryDate
                   : undefined;
                 const dUrgency = targetDelivery ? getBookingUrgency(targetDelivery) : null;
                 const isDelivToday = hasPendingDelivery && dUrgency?.tone === "today";
@@ -637,7 +637,7 @@ export function SupplierDetailsView({
 
                 // Payment Due Date & Urgency
                 const targetDueDate = isPendingPayment
-                  ? bill.dueDate || (bill.paymentMode === "credit" ? bill.invoiceDate : undefined)
+                  ? bill.dueDate
                   : undefined;
                 const dueUrgency = (isPendingPayment && targetDueDate) ? getBookingUrgency(targetDueDate) : null;
                 const isDueToday = isPendingPayment && dueUrgency?.tone === "today";
@@ -717,9 +717,9 @@ export function SupplierDetailsView({
                         )}
 
                         {/* Delivery Schedule & Due Urgency */}
-                        {!isBillCompleted && (targetDelivery || (pendingBalance > 0 && targetDueDate)) && (
+                        {!isBillCompleted && (hasPendingDelivery || targetDelivery || isPendingPayment || targetDueDate || billWaUrl) && (
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            {targetDelivery && (
+                            {targetDelivery ? (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -735,23 +735,60 @@ export function SupplierDetailsView({
                                   Reschedule
                                 </span>
                               </button>
-                            )}
-                            {pendingBalance > 0 && targetDueDate && targetDueDate !== targetDelivery && (
+                            ) : hasPendingDelivery ? (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleOpenReschedule(bill, "due_date");
+                                  handleOpenReschedule(bill, "delivery");
                                 }}
-                                className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-[4px] border shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${dueBadgeStyle}`}
-                                title="Click to reschedule payment due date"
+                                className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
+                                title="Click to set expected delivery date"
                               >
-                                <Clock className="h-3 w-3 shrink-0" />
-                                <span>{dueBadgeLabel}</span>
+                                <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                                <span>Set Delivery Date</span>
                                 <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                                  Reschedule
+                                  + Add
                                 </span>
                               </button>
+                            ) : null}
+
+                            {isPendingPayment && (
+                              bill.dueDate ? (
+                                targetDueDate !== targetDelivery && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenReschedule(bill, "due_date");
+                                    }}
+                                    className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-[4px] border shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${dueBadgeStyle}`}
+                                    title="Click to reschedule payment due date"
+                                  >
+                                    <Clock className="h-3 w-3 shrink-0" />
+                                    <span>{dueBadgeLabel}</span>
+                                    <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                      Reschedule
+                                    </span>
+                                  </button>
+                                )
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenReschedule(bill, "due_date");
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer group"
+                                  title="Click to set payment due date"
+                                >
+                                  <Clock className="h-3 w-3 text-amber-700 shrink-0" />
+                                  <span>Set Due Date</span>
+                                  <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                    + Add
+                                  </span>
+                                </button>
+                              )
                             )}
                             {billWaUrl && (
                               <a
@@ -852,6 +889,9 @@ export function SupplierDetailsView({
         onOpenPayNow={(bill) => {
           setSelectedBill(null);
           handleOpenPayNow(bill);
+        }}
+        onOpenReschedule={(bill, mode) => {
+          handleOpenReschedule(bill, mode);
         }}
       />
 

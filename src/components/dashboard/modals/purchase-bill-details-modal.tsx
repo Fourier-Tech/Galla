@@ -57,6 +57,7 @@ interface PurchaseBillDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPayNow?: (bill: DashboardPurchaseOrder) => void;
+  onOpenReschedule?: (bill: DashboardPurchaseOrder, mode: "delivery" | "due_date") => void;
   salonName?: string;
 }
 
@@ -65,6 +66,7 @@ export function PurchaseBillDetailsModal({
   isOpen,
   onClose,
   onOpenPayNow,
+  onOpenReschedule,
   salonName,
 }: PurchaseBillDetailsModalProps) {
     React.useEffect(() => {
@@ -638,8 +640,7 @@ export function PurchaseBillDetailsModal({
                   Boolean(bill.notes && /advance/i.test(bill.notes)));
 
               const deliveryTarget = hasPendingDelivery
-                ? bill.expectedDeliveryDate ||
-                  (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
+                ? bill.expectedDeliveryDate
                 : undefined;
               const deliveryUrgency = deliveryTarget
                 ? getBookingUrgency(deliveryTarget)
@@ -704,20 +705,74 @@ export function PurchaseBillDetailsModal({
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap">
-                    {hasPendingDue && bill.dueDate && (
-                      <div className="text-rose-700 font-medium font-sans">
-                        Payment Due:{" "}
-                        <strong>{formatBookingDate(bill.dueDate)}</strong>
-                      </div>
+                    {hasPendingDue && (
+                      bill.dueDate ? (
+                        <div className="text-rose-700 font-medium font-sans flex items-center gap-1.5">
+                          <span>
+                            Payment Due:{" "}
+                            <strong>{formatBookingDate(bill.dueDate)}</strong>
+                          </span>
+                          {onOpenReschedule && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenReschedule(bill, "due_date")}
+                              className="text-[11px] text-rose-800 underline hover:text-rose-950 cursor-pointer ml-0.5"
+                              title="Click to reschedule payment due date"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      ) : onOpenReschedule ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenReschedule(bill, "due_date")}
+                          className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer"
+                          title="Click to set payment due date"
+                        >
+                          <Clock className="h-3 w-3 text-amber-700 shrink-0" />
+                          <span>Set Due Date</span>
+                          <span className="text-[10px] opacity-75 underline ml-0.5 font-normal">
+                            + Add
+                          </span>
+                        </button>
+                      ) : null
                     )}
-                    {hasPendingDelivery && deliveryTarget && (
-                      <div className="text-galla-teal font-medium font-sans">
-                        Expected Arrival:{" "}
-                        <strong>{formatBookingDate(deliveryTarget)}</strong>
-                        {bill.deliveryTime
-                          ? ` at ${formatAppointmentTime(bill.deliveryTime)}`
-                          : ""}
-                      </div>
+                    {hasPendingDelivery && (
+                      deliveryTarget ? (
+                        <div className="text-galla-teal font-medium font-sans flex items-center gap-1.5">
+                          <span>
+                            Expected Arrival:{" "}
+                            <strong>{formatBookingDate(deliveryTarget)}</strong>
+                            {bill.deliveryTime
+                              ? ` at ${formatAppointmentTime(bill.deliveryTime)}`
+                              : ""}
+                          </span>
+                          {onOpenReschedule && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenReschedule(bill, "delivery")}
+                              className="text-[11px] text-teal-800 underline hover:text-teal-950 cursor-pointer ml-0.5"
+                              title="Click to reschedule delivery slot"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      ) : onOpenReschedule ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenReschedule(bill, "delivery")}
+                          className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer"
+                          title="Click to set expected delivery date"
+                        >
+                          <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                          <span>Set Delivery Date</span>
+                          <span className="text-[10px] opacity-75 underline ml-0.5 font-normal">
+                            + Add
+                          </span>
+                        </button>
+                      ) : null
                     )}
                   </div>
                 </div>

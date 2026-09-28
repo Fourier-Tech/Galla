@@ -125,11 +125,11 @@ export function InventoryTab({
         if (!aLow && bLow) return 1;
 
         if (aLow && bLow) {
-          if (a.sell !== b.sell) return a.sell - b.sell;
-          return a.name.localeCompare(b.name);
+          if (a.sell !== b.sell) return (a.sell ?? 0) - (b.sell ?? 0);
+          return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
         }
 
-        return a.name.localeCompare(b.name);
+        return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
       });
     },
     [products]

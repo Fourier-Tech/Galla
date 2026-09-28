@@ -111,7 +111,7 @@ function BaseRescheduleModalContent({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
       <div className="bg-galla-surface border border-galla-line rounded-[8px] shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-galla-line bg-galla-paper/40">
@@ -153,8 +153,9 @@ function BaseRescheduleModalContent({
             <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[5px] text-[12.5px] font-sans flex items-center justify-between text-galla-ink-soft">
               <span>{currentSlotLabel}</span>
               <strong className="text-galla-ink font-medium">
-                {formatBookingDate(currentDate || undefined) || "Not set"}
-                {currentTime ? ` at ${formatAppointmentTime(currentTime)}` : showTimePicker ? " (Time not set)" : ""}
+                {currentDate
+                  ? `${formatBookingDate(currentDate)}${currentTime ? ` at ${formatAppointmentTime(currentTime)}` : showTimePicker ? " (Time not set)" : ""}`
+                  : "Not set"}
               </strong>
             </div>
 
@@ -287,7 +288,8 @@ function BaseRescheduleModalContent({
           title={confirmDialogTitle || `Confirm ${title}`}
           description={
             <span>
-              Are you sure you want to reschedule {referenceText} for{" "}
+              Are you sure you want to {currentDate ? "reschedule" : "set schedule for"}{" "}
+              {referenceText} for{" "}
               <strong className="font-semibold text-galla-ink">&ldquo;{entityName}&rdquo;</strong> to{" "}
               <strong className="font-semibold text-galla-ink">{formatBookingDate(newDate)}</strong>
               {newTime ? (

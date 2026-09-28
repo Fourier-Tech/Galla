@@ -432,20 +432,22 @@ export default async function DashboardPage() {
         return timeB - timeA;
       });
 
-      initialProducts = rawProducts.map((p) => ({
-        id: p._id.toString(),
-        name: p.name,
-        category: p.category || "General Supplies",
-        sell: p.sellStock,
-        use: p.useStock,
-        defectiveStock: p.defectiveStock || 0,
-        price: p.expectedSellPrice,
-        purchaseCost: p.purchaseCost,
-        lowStockThreshold: p.lowStockThreshold,
-        description: p.description,
-        barcode: p.barcode,
-        isActive: p.isActive !== false,
-      }));
+      initialProducts = rawProducts
+        .map((p) => ({
+          id: p._id.toString(),
+          name: p.name,
+          category: p.category || "General Supplies",
+          sell: p.sellStock,
+          use: p.useStock,
+          defectiveStock: p.defectiveStock || 0,
+          price: p.expectedSellPrice,
+          purchaseCost: p.purchaseCost,
+          lowStockThreshold: p.lowStockThreshold,
+          description: p.description,
+          barcode: p.barcode,
+          isActive: p.isActive !== false,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
       initialCustomers = rawCustomers.map((c) => ({
         id: c._id.toString(),

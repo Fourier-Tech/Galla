@@ -179,7 +179,11 @@ export function ReturnCustomerOrderItemModal({
 
   // Batches available at a different price / new MRP
   const newMRPProducts = useMemo(() => {
-    return inStockProducts.filter((p) => p.price !== unitPrice);
+    return inStockProducts
+      .filter((p) => p.price !== unitPrice)
+      .sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+      );
   }, [inStockProducts, unitPrice]);
 
   // Has new MRP available when old price stock is not enough (or 0)

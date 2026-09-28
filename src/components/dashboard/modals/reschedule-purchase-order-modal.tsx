@@ -47,7 +47,9 @@ function ReschedulePurchaseOrderModalContent({
   onClose: () => void;
   onRescheduleSuccess: (updatedPO: DashboardPurchaseOrder) => void;
 }) {
-  const canDoDelivery = Boolean(po.expectedDeliveryDate || po.settlementMode === "advance");
+  const canDoDelivery = Boolean(
+    po.expectedDeliveryDate || po.settlementMode === "advance" || po.stockAllocated === false
+  );
   const canDoDueDate = po.amountPending > 0 || Boolean(po.dueDate) || po.paymentMode === "credit";
 
   const resolvedInitialMode: "delivery" | "due_date" =
@@ -57,7 +59,7 @@ function ReschedulePurchaseOrderModalContent({
   const isDueMode = activeMode === "due_date";
 
   const currentScheduledDate = isDueMode
-    ? po.dueDate || (po.paymentMode === "credit" ? po.invoiceDate : undefined)
+    ? po.dueDate
     : po.expectedDeliveryDate;
   const currentTime = isDueMode ? undefined : po.deliveryTime;
 
@@ -67,10 +69,12 @@ function ReschedulePurchaseOrderModalContent({
     ? currentScheduledDate
       ? "Reschedule Due Date"
       : "Set Payment Due Date"
-    : "Reschedule & Set Time";
+    : currentScheduledDate
+    ? "Reschedule & Set Time"
+    : "Set Delivery Date & Time";
 
   const currentSlotLabel = isDueMode ? "Current Due Date:" : "Current Booking:";
-  const dateLabel = isDueMode ? "Payment Due Date" : "Booking Date";
+  const dateLabel = isDueMode ? "Payment Due Date" : "Expected Delivery Date";
   const submitButtonLabel = isDueMode ? "Confirm Due Date" : "Confirm Booking Slot";
 
   const extraHeaderControl =
@@ -116,7 +120,7 @@ function ReschedulePurchaseOrderModalContent({
       dateLabel={dateLabel}
       initialDate={currentScheduledDate}
       initialTime={currentTime}
-      showTimePicker={true}
+      showTimePicker={!isDueMode}
       submitButtonLabel={submitButtonLabel}
       extraHeaderControl={extraHeaderControl}
       onSave={async ({ newDate, newTime }) => {
