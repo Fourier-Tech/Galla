@@ -1,315 +1,223 @@
 "use client";
 
-import React, { useMemo } from "react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
-import { StatBlock } from "@/components/dashboard/stat-block";
-import { formatRupee } from "@/lib/utils";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { AnalyticsRangePreset, AnalyticsResponseData } from "@/types/analytics";
 import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
+import { AnalyticsHeader } from "@/components/dashboard/analytics/analytics-header";
+import { ExecutiveMetricsGrid } from "@/components/dashboard/analytics/executive-metrics-grid";
+import { CashflowTrendsCard } from "@/components/dashboard/analytics/cashflow-trends-card";
+import { RevenueMixCard } from "@/components/dashboard/analytics/revenue-mix-card";
+import { TenderSplitCard } from "@/components/dashboard/analytics/tender-split-card";
+import { ServiceIntelligenceCard } from "@/components/dashboard/analytics/service-intelligence-card";
+import { ParlourHeatmapCard } from "@/components/dashboard/analytics/parlour-heatmap-card";
+import { InventoryIntelligenceCard } from "@/components/dashboard/analytics/inventory-intelligence-card";
+import { ClientRetentionCard } from "@/components/dashboard/analytics/client-retention-card";
+import { ProcurementHealthCard } from "@/components/dashboard/analytics/procurement-health-card";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface AnalyticsTabProps {
   orders?: DashboardOrder[];
   expenses?: DashboardExpense[];
-  pendingAmount: number;
+  pendingAmount?: number;
 }
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export function AnalyticsTab({}: AnalyticsTabProps) {
+  const [range, setRange] = useState<AnalyticsRangePreset>("30d");
+  const [customStart, setCustomStart] = useState<string>("");
+  const [customEnd, setCustomEnd] = useState<string>("");
+  const [data, setData] = useState<AnalyticsResponseData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-export function AnalyticsTab({
-  orders = [],
-  expenses = [],
-  pendingAmount,
-}: AnalyticsTabProps) {
-  // ponytail: Client-side 7-day aggregation operates on loaded orders/expenses. Upgrade path: dedicated GET /api/analytics/weekly endpoint using MongoDB date aggregation if weekly volume exceeds 10,000 transactions.
-  // Compute 7-day chronological stats based on live data
-  const {
-    weekData,
-    weekRevenue,
-    weekExpense,
-    netMargin,
-    marginPercent,
-    serviceRevenue,
-    productRevenue,
-    servicePercent,
-    productPercent,
-    revenueDeltaText,
-    expenseDeltaText,
-  } = useMemo(() => {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-    // Last 7 days: [today - 6 days, today]
-    const sevenDaysAgo = new Date(startOfToday);
-    sevenDaysAgo.setDate(startOfToday.getDate() - 6);
-
-    // Prior 7 days: [today - 13 days, today - 7 days] for delta comparison
-    const fourteenDaysAgo = new Date(startOfToday);
-    fourteenDaysAgo.setDate(startOfToday.getDate() - 13);
-
-    // Filter current 7-day window
-    const currentOrders = orders.filter((o) => {
-      if (!o.createdAt) return false;
-      const d = new Date(o.createdAt);
-      return !isNaN(d.getTime()) && d >= sevenDaysAgo;
-    });
-
-    const currentExpenses = expenses.filter((e) => {
-      if (!e.createdAt) return false;
-      const d = new Date(e.createdAt);
-      return !isNaN(d.getTime()) && d >= sevenDaysAgo;
-    });
-
-    // Filter prior 7-day window
-    const priorOrders = orders.filter((o) => {
-      if (!o.createdAt) return false;
-      const d = new Date(o.createdAt);
-      return !isNaN(d.getTime()) && d >= fourteenDaysAgo && d < sevenDaysAgo;
-    });
-
-    const priorExpenses = expenses.filter((e) => {
-      if (!e.createdAt) return false;
-      const d = new Date(e.createdAt);
-      return !isNaN(d.getTime()) && d >= fourteenDaysAgo && d < sevenDaysAgo;
-    });
-
-    const rev = currentOrders.reduce((sum, o) => sum + (o.paid || 0), 0);
-    const exp = currentExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const margin = rev - exp;
-    const marginPct = rev > 0 ? Math.round((margin / rev) * 100) : 0;
-
-    const priorRev = priorOrders.reduce((sum, o) => sum + (o.paid || 0), 0);
-    const priorExp = priorExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-
-    const revDeltaText =
-      priorRev > 0
-        ? `${rev >= priorRev ? "+" : ""}${Math.round(((rev - priorRev) / priorRev) * 100)}% vs prev 7d`
-        : undefined;
-
-    const expDeltaText =
-      priorExp > 0
-        ? `${exp >= priorExp ? "+" : ""}${Math.round(((exp - priorExp) / priorExp) * 100)}% vs prev 7d`
-        : undefined;
-
-    const servRev = currentOrders
-      .filter((o) => o.type === "Service booking" || o.type === "Package sale")
-      .reduce((sum, o) => sum + (o.paid || 0), 0);
-
-    const prodRev = currentOrders
-      .filter((o) => o.type === "Product sale")
-      .reduce((sum, o) => sum + (o.paid || 0), 0);
-
-    const totalSplit = servRev + prodRev;
-    const servPct = totalSplit > 0 ? Math.round((servRev / totalSplit) * 100) : 0;
-    const prodPct = totalSplit > 0 ? 100 - servPct : 0;
-
-    // Daily breakdown for the last 7 calendar days
-    const dailyData: { day: string; Product: number; Service: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const targetDate = new Date(startOfToday);
-      targetDate.setDate(startOfToday.getDate() - i);
-      const dayLabel = DAYS[targetDate.getDay()];
-      const y = targetDate.getFullYear();
-      const m = targetDate.getMonth();
-      const dt = targetDate.getDate();
-
-      const dayOrders = orders.filter((o) => {
-        if (!o.createdAt) return false;
-        const d = new Date(o.createdAt);
-        return d.getFullYear() === y && d.getMonth() === m && d.getDate() === dt;
-      });
-
-      const dayProd = dayOrders
-        .filter((o) => o.type === "Product sale")
-        .reduce((sum, o) => sum + (o.paid || 0), 0);
-
-      const dayServ = dayOrders
-        .filter((o) => o.type === "Service booking" || o.type === "Package sale")
-        .reduce((sum, o) => sum + (o.paid || 0), 0);
-
-      dailyData.push({
-        day: dayLabel,
-        Product: dayProd,
-        Service: dayServ,
-      });
+  const fetchAnalytics = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
-    return {
-      weekData: dailyData,
-      weekRevenue: rev,
-      weekExpense: exp,
-      netMargin: margin,
-      marginPercent: marginPct,
-      serviceRevenue: servRev,
-      productRevenue: prodRev,
-      servicePercent: servPct,
-      productPercent: prodPct,
-      revenueDeltaText: revDeltaText,
-      expenseDeltaText: expDeltaText,
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams({ range });
+      if (range === "custom" && customStart && customEnd) {
+        params.set("startDate", customStart);
+        params.set("endDate", customEnd);
+      }
+
+      const res = await fetch(`/api/analytics?${params.toString()}`, {
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `HTTP ${res.status}: Failed to fetch analytics`);
+      }
+
+      const json = await res.json();
+      if (json.success && json.data) {
+        setData(json.data);
+      } else {
+        throw new Error(json.error || "Malformed analytics payload");
+      }
+    } catch (err: any) {
+      if (err.name === "AbortError") return;
+      console.error("[AnalyticsTab Fetch Error]:", err);
+      setError(err.message || "Failed to load analytics");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [range, customStart, customEnd]);
+
+  useEffect(() => {
+    fetchAnalytics();
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
-  }, [orders, expenses]);
+  }, [fetchAnalytics]);
+
+  const rangeLabels: Record<AnalyticsRangePreset, string> = {
+    today: "Today",
+    "7d": "Last 7 Days",
+    this_month: "This Month",
+    "30d": "Last 30 Days",
+    custom: "Custom Range",
+  };
 
   return (
-    <div className="space-y-6 w-full">
-      {/* Header */}
-      <div>
-        <div className="inline-flex items-center gap-2 px-[10px] py-[3px] rounded-[3px] bg-galla-teal-soft text-galla-teal text-[11px] font-heading font-semibold uppercase tracking-wider mb-2">
-          Owner-Gated Intelligence
-        </div>
-        <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
-          Weekly Financial Performance &amp; Margins
-        </h2>
-        <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
-          Live 7-day revenue split, expense tracking &amp; operating yield
-        </p>
-      </div>
+    <div className="space-y-6 w-full pb-12">
+      {/* 1. Header & Range Controls */}
+      <AnalyticsHeader
+        range={range}
+        onRangeChange={(newRange) => {
+          setRange(newRange);
+          if (newRange === "custom" && !customStart) {
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            setCustomStart(thirtyDaysAgo.toISOString().split("T")[0]);
+            setCustomEnd(today.toISOString().split("T")[0]);
+          }
+        }}
+        customStartDate={customStart}
+        customEndDate={customEnd}
+        onCustomDateChange={(start, end) => {
+          setCustomStart(start);
+          setCustomEnd(end);
+        }}
+        onRefresh={fetchAnalytics}
+        isLoading={isLoading}
+      />
 
-      {/* KPI Stat Cards (Divided Grid) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-galla-line border border-galla-line rounded-[5px] overflow-hidden">
-        <div className="bg-galla-surface">
-          <StatBlock
-            label="This Week's Revenue"
-            value={formatRupee(weekRevenue)}
-            delta={revenueDeltaText}
-            tone="sage"
-          />
-        </div>
-        <div className="bg-galla-surface">
-          <StatBlock
-            label="This Week's Expense"
-            value={formatRupee(weekExpense)}
-            delta={expenseDeltaText}
-            tone="brick"
-          />
-        </div>
-        <div className="bg-galla-surface">
-          <StatBlock
-            label="Pending Across All Orders"
-            value={formatRupee(pendingAmount)}
-            tone="ink"
-          />
-        </div>
-      </div>
-
-      {/* Golden Section Split: Chart (1.618fr) vs Margin Summary (1fr) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.618fr_1fr] gap-[21px]">
-        {/* Recharts BarChart Card */}
-        <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[21px]">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading font-semibold text-[16px] text-galla-ink">
-              Product vs Service Revenue &mdash; Last 7 Days
-            </h3>
-            <div className="flex items-center gap-3 text-[11px] font-sans">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs bg-[#B86A28]" />
-                <span className="text-galla-ink-soft">Product</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs bg-[#B83A5D]" />
-                <span className="text-galla-ink-soft">Service</span>
-              </span>
-            </div>
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 rounded-[5px] bg-red-50 border border-red-200 text-red-900 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 font-sans text-[13px]">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{error}</span>
           </div>
+          <button
+            type="button"
+            onClick={fetchAnalytics}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-[4px] bg-white border border-red-200 text-red-800 text-[12px] font-sans font-medium hover:bg-red-100 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Retry
+          </button>
+        </div>
+      )}
 
-          <div className="h-[233px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weekData} barGap={4} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke="#EFE5E9" strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 12, fill: "#7A666E" }}
-                  axisLine={{ stroke: "#EFE5E9" }}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#7A666E" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `₹${v}`}
-                />
-                <Tooltip
-                  formatter={(value: unknown) => [formatRupee(Number(value) || 0), ""]}
-                  contentStyle={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "#EFE5E9",
-                    borderRadius: 5,
-                    fontFamily: "var(--font-inter)",
-                    fontSize: 13,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                  }}
-                />
-                <Bar dataKey="Product" fill="#B86A28" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="Service" fill="#B83A5D" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Loading Skeleton */}
+      {isLoading && !data && (
+        <div className="space-y-6 animate-pulse">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-px bg-galla-line border border-galla-line rounded-[5px] overflow-hidden">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-24 bg-galla-surface p-4 space-y-2">
+                <div className="h-3 w-16 bg-galla-paper rounded" />
+                <div className="h-6 w-24 bg-galla-paper rounded" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[1.618fr_1fr] gap-[21px]">
+            <div className="h-72 bg-galla-surface border border-galla-line rounded-[5px]" />
+            <div className="h-72 bg-galla-surface border border-galla-line rounded-[5px]" />
           </div>
         </div>
+      )}
 
-        {/* Operating Margin Summary Card */}
-        <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[21px] flex flex-col justify-between">
-          <div>
-            <h3 className="font-heading font-semibold text-[16px] text-galla-ink mb-1">
-              Net Operating Margin
-            </h3>
-            <p className="font-sans text-[12px] text-galla-ink-soft">
-              Gross collections minus all operational expenses
-            </p>
+      {/* Content View */}
+      {data && (
+        <div className="space-y-6">
+          {/* Section 1: Executive Metric Cards */}
+          <section>
+            <ExecutiveMetricsGrid
+              metrics={data.executive}
+              rangeLabel={rangeLabels[range]}
+            />
+          </section>
 
-            <div className="mt-4 pt-4 border-t border-galla-line">
-              <div
-                className={`font-heading font-semibold text-[26px] tracking-tight leading-none ${
-                  netMargin >= 0 ? "text-galla-sage" : "text-galla-brick"
-                }`}
-              >
-                {netMargin >= 0 ? `+${formatRupee(netMargin)}` : `-${formatRupee(Math.abs(netMargin))}`}
-              </div>
-              <div className="font-sans text-[12px] text-galla-ink-soft mt-1">
-                {weekRevenue > 0
-                  ? `${marginPercent}% weekly operating profit yield`
-                  : "No revenue recorded for the current week"}
-              </div>
-            </div>
-          </div>
+          {/* Section 2: Cashflow Trends & Revenue Mix (Golden Ratio Split: 1.618fr vs 1fr) */}
+          <section className="grid grid-cols-1 lg:grid-cols-[1.618fr_1fr] gap-[21px]">
+            <CashflowTrendsCard
+              timeline={data.cashflow.timeline}
+              rangeLabel={rangeLabels[range]}
+            />
+            <RevenueMixCard mix={data.cashflow.revenueMix} />
+          </section>
 
-          <div className="space-y-3 pt-4 border-t border-galla-line">
-            <div>
-              <div className="flex justify-between text-[12px] font-sans mb-1">
-                <span className="text-galla-ink-soft">Service Treatments</span>
-                <span className="font-medium text-galla-ink">
-                  {servicePercent}% &bull; {formatRupee(serviceRevenue)}
-                </span>
-              </div>
-              <div className="w-full bg-galla-paper h-1.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-galla-teal h-full transition-all"
-                  style={{ width: `${servicePercent}%` }}
-                />
-              </div>
-            </div>
+          {/* Tender / Payment Mode Split */}
+          <section>
+            <TenderSplitCard split={data.cashflow.tenderSplit} />
+          </section>
 
-            <div>
-              <div className="flex justify-between text-[12px] font-sans mb-1">
-                <span className="text-galla-ink-soft">Retail Product Sales</span>
-                <span className="font-medium text-galla-ink">
-                  {productPercent}% &bull; {formatRupee(productRevenue)}
-                </span>
-              </div>
-              <div className="w-full bg-galla-paper h-1.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-galla-brass h-full transition-all"
-                  style={{ width: `${productPercent}%` }}
-                />
-              </div>
-            </div>
-          </div>
+          {/* Section 3: Service & Treatment Intelligence */}
+          <section>
+            <ServiceIntelligenceCard
+              topServices={data.services.topServices}
+              categoryContribution={data.services.categoryContribution}
+            />
+          </section>
+
+          {/* Parlour Traffic & Peak Hours Heatmap */}
+          <section>
+            <ParlourHeatmapCard
+              hourly={data.services.hourlyDistribution}
+              weekday={data.services.weekdayDistribution}
+            />
+          </section>
+
+          {/* Section 4: Inventory & Retail Product Intelligence */}
+          <section>
+            <InventoryIntelligenceCard
+              topRetail={data.inventory.topRetailProducts}
+              highMargin={data.inventory.highestMarginProducts}
+              internalConsumption={data.inventory.internalConsumption}
+              slowMoving={data.inventory.slowMovingStock}
+            />
+          </section>
+
+          {/* Section 5: Client Retention & Visit Intelligence */}
+          <section>
+            <ClientRetentionCard
+              retention={data.clients.retention}
+              vipClients={data.clients.vipClients}
+            />
+          </section>
+
+          {/* Section 6: Procurement & Supplier Health */}
+          <section>
+            <ProcurementHealthCard
+              procurement={data.procurement}
+              rangeLabel={rangeLabels[range]}
+            />
+          </section>
         </div>
-      </div>
+      )}
     </div>
   );
 }
