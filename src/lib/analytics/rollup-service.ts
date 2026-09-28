@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-import { AnalyticsRollup, AnalyticsPeriodType } from "@/lib/db/models/analytics-rollup.model";
+import { AnalyticsRollup, AnalyticsPeriodType, IAnalyticsRollup } from "@/lib/db/models/analytics-rollup.model";
 import { Order } from "@/lib/db/models/order.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { Customer } from "@/lib/db/models/customer.model";
@@ -98,11 +98,12 @@ export async function syncRollupForPeriod(
   tenantId: Types.ObjectId,
   periodType: AnalyticsPeriodType,
   date: Date
-) {
+): Promise<IAnalyticsRollup | null> {
   const { periodKey, startDate, endDate } = getPeriodKey(date, periodType);
 
   const [ordersSummary, expensesSummary, internalExpense, duesSummary, newCustomersCount] =
     await Promise.all([
+      // 1. Order metrics: Use $facet so lineItems unwinding never multiplies total amountPaid
       Order.aggregate([
         {
           $match: {
@@ -111,57 +112,55 @@ export async function syncRollupForPeriod(
             status: { $nin: ["cancelled_refunded", "cancelled_converted"] },
           },
         },
-        { $unwind: { path: "$lineItems", preserveNullAndEmptyArrays: true } },
         {
-          $group: {
-            _id: null,
-            totalRevenue: { $sum: "$amountPaid" },
-            totalOrders: { $addToSet: "$_id" },
-            completedOrders: {
-              $sum: {
-                $cond: [{ $in: ["$status", ["completed", "paid_full"]] }, 1, 0],
+          $facet: {
+            orderLevel: [
+              {
+                $group: {
+                  _id: null,
+                  totalRevenue: { $sum: "$amountPaid" },
+                  totalOrders: { $sum: 1 },
+                  completedOrders: {
+                    $sum: {
+                      $cond: [{ $in: ["$status", ["completed", "paid_full"]] }, 1, 0],
+                    },
+                  },
+                  cash: {
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "cash"] }, "$amountPaid", 0] },
+                  },
+                  upi: {
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "upi"] }, "$amountPaid", 0] },
+                  },
+                  card: {
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "card"] }, "$amountPaid", 0] },
+                  },
+                  split: {
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "split"] }, "$amountPaid", 0] },
+                  },
+                },
               },
-            },
-            serviceRev: {
-              $sum: {
-                $cond: [
-                  { $eq: ["$lineItems.itemType", "service"] },
-                  { $multiply: [{ $ifNull: ["$lineItems.unitPrice", 0] }, { $ifNull: ["$lineItems.quantity", 1] }] },
-                  0,
-                ],
+            ],
+            lineItemLevel: [
+              { $unwind: "$lineItems" },
+              {
+                $group: {
+                  _id: "$lineItems.itemType",
+                  amount: {
+                    $sum: {
+                      $multiply: [
+                        { $ifNull: ["$lineItems.unitPrice", 0] },
+                        { $ifNull: ["$lineItems.quantity", 1] },
+                      ],
+                    },
+                  },
+                },
               },
-            },
-            productRev: {
-              $sum: {
-                $cond: [
-                  { $eq: ["$lineItems.itemType", "product"] },
-                  { $multiply: [{ $ifNull: ["$lineItems.unitPrice", 0] }, { $ifNull: ["$lineItems.quantity", 1] }] },
-                  0,
-                ],
-              },
-            },
-            packageRev: {
-              $sum: {
-                $cond: [
-                  { $eq: ["$lineItems.itemType", "package"] },
-                  { $multiply: [{ $ifNull: ["$lineItems.unitPrice", 0] }, { $ifNull: ["$lineItems.quantity", 1] }] },
-                  0,
-                ],
-              },
-            },
-            cash: {
-              $sum: { $cond: [{ $eq: ["$paymentMode", "cash"] }, "$amountPaid", 0] },
-            },
-            upi: {
-              $sum: { $cond: [{ $eq: ["$paymentMode", "upi"] }, "$amountPaid", 0] },
-            },
-            card: {
-              $sum: { $cond: [{ $eq: ["$paymentMode", "card"] }, "$amountPaid", 0] },
-            },
+            ],
           },
         },
       ]),
 
+      // 2. Expenses Summary
       Expense.aggregate([
         {
           $match: {
@@ -203,6 +202,7 @@ export async function syncRollupForPeriod(
         },
       ]),
 
+      // 3. Internal Consumables
       Expense.aggregate([
         {
           $match: {
@@ -219,10 +219,12 @@ export async function syncRollupForPeriod(
         },
       ]),
 
+      // 4. Uncollected Dues in Window
       Order.aggregate([
         {
           $match: {
             tenantId,
+            createdAt: { $gte: startDate, $lte: endDate },
             amountPending: { $gt: 0 },
             status: { $nin: ["cancelled_refunded", "cancelled_converted", "completed"] },
           },
@@ -235,25 +237,37 @@ export async function syncRollupForPeriod(
         },
       ]),
 
+      // 5. New Customers
       Customer.countDocuments({
         tenantId,
         createdAt: { $gte: startDate, $lte: endDate },
       }),
     ]);
 
-  const ord = ordersSummary[0] || {};
+  const ordMeta = ordersSummary[0]?.orderLevel?.[0] || {};
+  const lineItemsList = ordersSummary[0]?.lineItemLevel || [];
   const exp = expensesSummary[0] || {};
 
-  const totalRev = ord.totalRevenue || 0;
+  let serviceRev = 0;
+  let productRev = 0;
+  let packageRev = 0;
+
+  for (const item of lineItemsList) {
+    if (item._id === "service") serviceRev = item.amount || 0;
+    else if (item._id === "product") productRev = item.amount || 0;
+    else if (item._id === "package") packageRev = item.amount || 0;
+  }
+
+  const totalRev = ordMeta.totalRevenue || 0;
   const totalExp = exp.totalExpense || 0;
   const netProfit = totalRev - totalExp;
-  const totalOrders = ord.totalOrders?.length || 0;
-  const completedOrders = ord.completedOrders || 0;
+  const totalOrders = ordMeta.totalOrders || 0;
+  const completedOrders = ordMeta.completedOrders || 0;
   const atv = completedOrders > 0 ? Math.round(totalRev / completedOrders) : 0;
 
   const expiresAt = getRollupExpirationDate(periodType, endDate);
 
-  await AnalyticsRollup.findOneAndUpdate(
+  const rollup = await AnalyticsRollup.findOneAndUpdate(
     { tenantId, periodType, periodKey },
     {
       $set: {
@@ -262,9 +276,9 @@ export async function syncRollupForPeriod(
         metrics: {
           revenue: {
             total: totalRev,
-            product: ord.productRev || 0,
-            service: ord.serviceRev || 0,
-            package: ord.packageRev || 0,
+            product: productRev,
+            service: serviceRev,
+            package: packageRev,
           },
           expenses: {
             total: totalExp,
@@ -284,10 +298,10 @@ export async function syncRollupForPeriod(
           newCustomersCount,
           returningCustomersCount: Math.max(0, totalOrders - newCustomersCount),
           paymentModes: {
-            cash: ord.cash || 0,
-            upi: ord.upi || 0,
-            card: ord.card || 0,
-            split: 0,
+            cash: ordMeta.cash || 0,
+            upi: ordMeta.upi || 0,
+            card: ordMeta.card || 0,
+            split: ordMeta.split || 0,
           },
         },
         expiresAt,
@@ -295,4 +309,74 @@ export async function syncRollupForPeriod(
     },
     { upsert: true, returnDocument: "after" }
   );
+
+  return rollup;
+}
+
+// Ensure all daily rollups in a given date range exist and are populated
+// Automatically backfills missing historical daily rollups and refreshes today's rollup
+export async function ensureDailyRollupsForRange(
+  tenantId: Types.ObjectId,
+  startDate: Date,
+  endDate: Date
+): Promise<IAnalyticsRollup[]> {
+  const targetKeys: { periodKey: string; date: Date }[] = [];
+  const now = new Date();
+  const todayKey = getPeriodKey(now, "daily").periodKey;
+
+  // Generate day-by-day cursor from startDate to endDate
+  const dateCursor = new Date(startDate.getTime());
+  while (dateCursor.getTime() <= endDate.getTime()) {
+    const { periodKey } = getPeriodKey(dateCursor, "daily");
+    if (!targetKeys.some((k) => k.periodKey === periodKey)) {
+      targetKeys.push({ periodKey, date: new Date(dateCursor.getTime()) });
+    }
+    dateCursor.setTime(dateCursor.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  // Ensure endDate's key is included
+  const endKeyInfo = getPeriodKey(endDate, "daily");
+  if (!targetKeys.some((k) => k.periodKey === endKeyInfo.periodKey)) {
+    targetKeys.push({ periodKey: endKeyInfo.periodKey, date: new Date(endDate.getTime()) });
+  }
+
+  // Find existing rollups in DB
+  const existingDocs = await AnalyticsRollup.find({
+    tenantId,
+    periodType: "daily",
+    periodKey: { $in: targetKeys.map((k) => k.periodKey) },
+  }).lean();
+
+  const existingMap = new Map<string, any>();
+  for (const doc of existingDocs) {
+    existingMap.set(doc.periodKey, doc);
+  }
+
+  // Determine what needs syncing:
+  // 1. Missing historical dates
+  // 2. Today's date (always refreshed live for real-time order tracking)
+  const toSync = targetKeys.filter(
+    (k) => !existingMap.has(k.periodKey) || k.periodKey === todayKey
+  );
+
+  if (toSync.length > 0) {
+    const batchSize = 5;
+    for (let i = 0; i < toSync.length; i += batchSize) {
+      const batch = toSync.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map((item) => syncRollupForPeriod(tenantId, "daily", item.date))
+      );
+    }
+  }
+
+  // Return all rollups in range sorted chronologically
+  const finalDocs = await AnalyticsRollup.find({
+    tenantId,
+    periodType: "daily",
+    periodKey: { $in: targetKeys.map((k) => k.periodKey) },
+  })
+    .sort({ periodKey: 1 })
+    .lean();
+
+  return finalDocs as unknown as IAnalyticsRollup[];
 }

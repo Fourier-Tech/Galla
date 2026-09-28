@@ -5,16 +5,23 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Order } from "@/lib/db/models/order.model";
-import { Expense } from "@/lib/db/models/expense.model";
 import { Product } from "@/lib/db/models/product.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Supplier } from "@/lib/db/models/supplier.model";
 import { PurchaseOrder } from "@/lib/db/models/purchase-order.model";
+import { ensureDailyRollupsForRange } from "@/lib/analytics/rollup-service";
 import {
   AnalyticsRangePreset,
   AnalyticsResponseData,
   MetricDelta,
 } from "@/types/analytics";
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatISTDateLabel(d: Date): string {
+  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  return `${MONTH_NAMES[ist.getUTCMonth()]} ${ist.getUTCDate()}`;
+}
 
 // Helper: Calculate percentage change and trend
 function calculateMetricDelta(current: number, previous: number): MetricDelta {
@@ -42,7 +49,6 @@ function resolveDateWindows(
   customEnd?: string | null
 ) {
   const now = new Date();
-  // IST offset is +330 minutes (+5:30)
   const istOffsetMs = 5.5 * 60 * 60 * 1000;
   const istNow = new Date(now.getTime() + istOffsetMs);
 
@@ -52,7 +58,6 @@ function resolveDateWindows(
   let previousEndDate: Date;
 
   if (range === "today") {
-    // Today 00:00:00 IST to now
     const year = istNow.getUTCFullYear();
     const month = istNow.getUTCMonth();
     const date = istNow.getUTCDate();
@@ -60,11 +65,9 @@ function resolveDateWindows(
     startDate = new Date(Date.UTC(year, month, date) - istOffsetMs);
     endDate = now;
 
-    // Previous: Yesterday same duration
     previousStartDate = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
     previousEndDate = new Date(startDate.getTime() - 1);
   } else if (range === "7d") {
-    // Last 7 days: Start of (today - 6 days) to now
     const year = istNow.getUTCFullYear();
     const month = istNow.getUTCMonth();
     const date = istNow.getUTCDate();
@@ -77,14 +80,12 @@ function resolveDateWindows(
     previousStartDate = new Date(startDate.getTime() - windowDurationMs);
     previousEndDate = new Date(startDate.getTime() - 1);
   } else if (range === "this_month") {
-    // 1st of current month in IST to now
     const year = istNow.getUTCFullYear();
     const month = istNow.getUTCMonth();
 
     startDate = new Date(Date.UTC(year, month, 1) - istOffsetMs);
     endDate = now;
 
-    // Previous: 1st of previous month to same elapsed time
     const prevMonthYear = month === 0 ? year - 1 : year;
     const prevMonth = month === 0 ? 11 : month - 1;
     previousStartDate = new Date(Date.UTC(prevMonthYear, prevMonth, 1) - istOffsetMs);
@@ -94,7 +95,6 @@ function resolveDateWindows(
     startDate = new Date(customStart);
     endDate = new Date(customEnd);
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      // Fallback to 30d if invalid dates
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       endDate = now;
     }
@@ -102,7 +102,7 @@ function resolveDateWindows(
     previousStartDate = new Date(startDate.getTime() - windowDurationMs);
     previousEndDate = new Date(startDate.getTime() - 1);
   } else {
-    // Default: "30d" (Last 30 days)
+    // Default: "30d"
     const year = istNow.getUTCFullYear();
     const month = istNow.getUTCMonth();
     const date = istNow.getUTCDate();
@@ -160,8 +160,8 @@ export async function GET(request: Request) {
 
     if (!tenantId) {
       return NextResponse.json(
-        { success: false, error: "Tenant not found for current session" },
-        { status: 404 }
+        { success: false, error: "Valid tenant context required" },
+        { status: 400 }
       );
     }
 
@@ -173,148 +173,45 @@ export async function GET(request: Request) {
     const { startDate, endDate, previousStartDate, previousEndDate } =
       resolveDateWindows(rangeParam, customStart, customEnd);
 
+    // 1. Rollup Service: Fetch or Backfill pre-calculated daily rollups for the full window
+    // (covers both current range and previous comparison window in one cached operation)
+    const allRollups = await ensureDailyRollupsForRange(
+      tenantId,
+      previousStartDate,
+      endDate
+    );
+
+    // Filter into current and previous window rollups
+    const currentRollups = allRollups.filter(
+      (r) => r.startDate >= startDate && r.startDate <= endDate
+    );
+    const previousRollups = allRollups.filter(
+      (r) => r.startDate >= previousStartDate && r.startDate <= previousEndDate
+    );
+
+    // 2. Query remaining detailed facets in parallel (top services, heatmap, catalog, procurement)
     const matchCurrentOrders = {
       tenantId,
       createdAt: { $gte: startDate, $lte: endDate },
       status: { $nin: ["cancelled_refunded", "cancelled_converted"] },
     };
 
-    const matchPreviousOrders = {
-      tenantId,
-      createdAt: { $gte: previousStartDate, $lte: previousEndDate },
-      status: { $nin: ["cancelled_refunded", "cancelled_converted"] },
-    };
-
-    const matchCurrentExpenses = {
-      tenantId,
-      expenseDate: { $gte: startDate, $lte: endDate },
-      category: { $ne: "stock_transfer_internal" },
-    };
-
-    const matchPreviousExpenses = {
-      tenantId,
-      expenseDate: { $gte: previousStartDate, $lte: previousEndDate },
-      category: { $ne: "stock_transfer_internal" },
-    };
-
-    // Parallel Server-Side Aggregations
     const [
-      currentOrderSummaryAgg,
-      previousOrderSummaryAgg,
-      currentExpenseAgg,
-      previousExpenseAgg,
-      internalStockExpenseAgg,
       lineItemsFacetAgg,
-      paymentModesAgg,
       hourlyDayDistributionAgg,
-      dailyTrendAgg,
-      dailyExpenseTrendAgg,
-      customerRetentionAgg,
-      vipClientsAgg,
-      dormantClientsCount,
+      todayHourlyRevenueAgg,
       allActiveProducts,
       procurementAgg,
       supplierBalancesAgg,
-      uncollectedDuesAgg,
+      vipClientsAgg,
+      dormantClientsCount,
     ] = await Promise.all([
-      // 1. Current Orders Summary (Revenue & Count)
-      Order.aggregate([
-        { $match: matchCurrentOrders },
-        {
-          $group: {
-            _id: null,
-            totalRevenue: { $sum: "$amountPaid" },
-            ordersCount: { $sum: 1 },
-            completedCount: {
-              $sum: {
-                $cond: [{ $in: ["$status", ["completed", "paid_full"]] }, 1, 0],
-              },
-            },
-          },
-        },
-      ]),
-
-      // 2. Previous Orders Summary (for % Deltas)
-      Order.aggregate([
-        { $match: matchPreviousOrders },
-        {
-          $group: {
-            _id: null,
-            totalRevenue: { $sum: "$amountPaid" },
-            ordersCount: { $sum: 1 },
-            completedCount: {
-              $sum: {
-                $cond: [{ $in: ["$status", ["completed", "paid_full"]] }, 1, 0],
-              },
-            },
-          },
-        },
-      ]),
-
-      // 3. Current Operating Expenses
-      Expense.aggregate([
-        { $match: matchCurrentExpenses },
-        {
-          $group: {
-            _id: null,
-            totalExpense: { $sum: "$amount" },
-          },
-        },
-      ]),
-
-      // 4. Previous Operating Expenses
-      Expense.aggregate([
-        { $match: matchPreviousExpenses },
-        {
-          $group: {
-            _id: null,
-            totalExpense: { $sum: "$amount" },
-          },
-        },
-      ]),
-
-      // 5. Internal Consumption (Rupee value of stock moved to in-use)
-      Expense.aggregate([
-        {
-          $match: {
-            tenantId,
-            expenseDate: { $gte: startDate, $lte: endDate },
-            category: "stock_transfer_internal",
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalCost: { $sum: "$amount" },
-            transfersCount: { $sum: 1 },
-          },
-        },
-      ]),
-
-      // 6. Line Items Analysis: Top Services, Top Products, Revenue Mix & Category Share
+      // Top 5 Services & Top 5 Retail Products sold
       Order.aggregate([
         { $match: matchCurrentOrders },
         { $unwind: "$lineItems" },
         {
           $facet: {
-            // Revenue mix by itemType (service vs product vs package)
-            revenueMix: [
-              {
-                $group: {
-                  _id: "$lineItems.itemType",
-                  amount: {
-                    $sum: {
-                      $multiply: [
-                        { $ifNull: ["$lineItems.unitPrice", 0] },
-                        { $ifNull: ["$lineItems.quantity", 1] },
-                      ],
-                    },
-                  },
-                  count: { $sum: { $ifNull: ["$lineItems.quantity", 1] } },
-                },
-              },
-            ],
-            // Top 5 Performing Services
             topServices: [
               { $match: { "lineItems.itemType": "service" } },
               {
@@ -339,7 +236,6 @@ export async function GET(request: Request) {
               { $sort: { revenue: -1 } },
               { $limit: 5 },
             ],
-            // Top 5 Retail Products Sold
             topRetailProducts: [
               { $match: { "lineItems.itemType": "product" } },
               {
@@ -368,26 +264,7 @@ export async function GET(request: Request) {
         },
       ]),
 
-      // 7. Payment Mode Breakdown
-      Order.aggregate([
-        { $match: matchCurrentOrders },
-        {
-          $project: {
-            paymentMode: 1,
-            amountPaid: 1,
-            payments: 1,
-          },
-        },
-        {
-          $group: {
-            _id: "$paymentMode",
-            totalAmount: { $sum: "$amountPaid" },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-
-      // 8. Peak Hour & Day of Week Heatmap (IST timezone)
+      // Peak Hour & Day of Week Heatmap (IST timezone)
       Order.aggregate([
         { $match: matchCurrentOrders },
         {
@@ -413,97 +290,29 @@ export async function GET(request: Request) {
         },
       ]),
 
-      // 9. Daily Revenue Trend
-      Order.aggregate([
-        { $match: matchCurrentOrders },
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: rangeParam === "today" ? "%H:00" : "%Y-%m-%d",
-                date: "$createdAt",
-                timezone: "+05:30",
+      // If "today" range, get hourly trend for today's chart curve
+      rangeParam === "today"
+        ? Order.aggregate([
+            { $match: matchCurrentOrders },
+            {
+              $group: {
+                _id: {
+                  $dateToString: {
+                    format: "%H:00",
+                    date: "$createdAt",
+                    timezone: "+05:30",
+                  },
+                },
+                revenue: { $sum: "$amountPaid" },
               },
             },
-            revenue: { $sum: "$amountPaid" },
-            ordersCount: { $sum: 1 },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
+          ])
+        : Promise.resolve([]),
 
-      // 10. Daily Expense Trend
-      Expense.aggregate([
-        { $match: matchCurrentExpenses },
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: rangeParam === "today" ? "%H:00" : "%Y-%m-%d",
-                date: "$expenseDate",
-                timezone: "+05:30",
-              },
-            },
-            expense: { $sum: "$amount" },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
-
-      // 11. Customer Retention: New vs Returning Customers in Window
-      Order.aggregate([
-        { $match: matchCurrentOrders },
-        {
-          $group: {
-            _id: "$customerId",
-            customerName: { $first: "$customerSnapshot.name" },
-            ordersCount: { $sum: 1 },
-            totalSpentInPeriod: { $sum: "$amountPaid" },
-          },
-        },
-        {
-          $lookup: {
-            from: "customers",
-            localField: "_id",
-            foreignField: "_id",
-            as: "customerDoc",
-          },
-        },
-        {
-          $project: {
-            ordersCount: 1,
-            totalSpentInPeriod: 1,
-            customerName: 1,
-            customerCreatedAt: {
-              $arrayElemAt: ["$customerDoc.createdAt", 0],
-            },
-            lifetimeVisits: {
-              $arrayElemAt: ["$customerDoc.stats.totalVisits", 0],
-            },
-          },
-        },
-      ]),
-
-      // 12. Top VIP Clients
-      Customer.find({ tenantId, isActive: true })
-        .sort({ "stats.totalSpend": -1 })
-        .limit(5)
-        .lean(),
-
-      // 13. Dormant / At-Risk Clients (2+ visits, not visited in 45+ days)
-      Customer.countDocuments({
-        tenantId,
-        isActive: true,
-        "stats.totalVisits": { $gte: 2 },
-        "stats.lastVisitAt": {
-          $lt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
-        },
-      }),
-
-      // 14. Products Catalog for High Margin & Slow Moving Stock
+      // Active product catalog for margin & slow-moving stock
       Product.find({ tenantId, isActive: true }).lean(),
 
-      // 15. Procurement Spend (Purchase Orders in Window)
+      // Procurement Spend in window
       PurchaseOrder.aggregate([
         {
           $match: {
@@ -521,7 +330,7 @@ export async function GET(request: Request) {
         },
       ]),
 
-      // 16. Supplier Dues & Credit Balances
+      // Supplier balances
       Supplier.aggregate([
         { $match: { tenantId } },
         {
@@ -537,195 +346,135 @@ export async function GET(request: Request) {
         },
       ]),
 
-      // 17. Uncollected Customer Dues across Active Orders
-      Order.aggregate([
-        {
-          $match: {
-            tenantId,
-            amountPending: { $gt: 0 },
-            status: { $nin: ["cancelled_refunded", "cancelled_converted", "completed"] },
-          },
+      // Top VIP Clients
+      Customer.find({ tenantId, isActive: true })
+        .sort({ "stats.totalSpend": -1 })
+        .limit(5)
+        .lean(),
+
+      // Dormant / At-Risk Clients (2+ visits, not visited in 45+ days)
+      Customer.countDocuments({
+        tenantId,
+        isActive: true,
+        "stats.totalVisits": { $gte: 2 },
+        "stats.lastVisitAt": {
+          $lt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
         },
-        {
-          $group: {
-            _id: null,
-            uncollectedDues: { $sum: "$amountPending" },
-          },
-        },
-      ]),
+      }),
     ]);
 
-    // Data Transformation: Executive Metrics
-    const currentRev = currentOrderSummaryAgg[0]?.totalRevenue || 0;
-    const prevRev = previousOrderSummaryAgg[0]?.totalRevenue || 0;
+    // 3. Compute Executive Metrics from Rollup Summaries
+    const currentRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.total || 0), 0);
+    const prevRev = previousRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.total || 0), 0);
 
-    const currentExp = currentExpenseAgg[0]?.totalExpense || 0;
-    const prevExp = previousExpenseAgg[0]?.totalExpense || 0;
+    const currentExp = currentRollups.reduce((acc, r) => acc + (r.metrics?.expenses?.total || 0), 0);
+    const prevExp = previousRollups.reduce((acc, r) => acc + (r.metrics?.expenses?.total || 0), 0);
 
     const currentProfit = currentRev - currentExp;
     const prevProfit = prevRev - prevExp;
 
-    const currentMarginPct =
-      currentRev > 0 ? Math.round((currentProfit / currentRev) * 1000) / 10 : 0;
-    const prevMarginPct =
-      prevRev > 0 ? Math.round((prevProfit / prevRev) * 1000) / 10 : 0;
+    const currentMarginPct = currentRev > 0 ? Math.round((currentProfit / currentRev) * 1000) / 10 : 0;
+    const prevMarginPct = prevRev > 0 ? Math.round((prevProfit / prevRev) * 1000) / 10 : 0;
 
-    const currentOrdersCount = currentOrderSummaryAgg[0]?.ordersCount || 0;
-    const prevOrdersCount = previousOrderSummaryAgg[0]?.ordersCount || 0;
+    const currentOrdersCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.totalOrders || 0), 0);
+    const prevOrdersCount = previousRollups.reduce((acc, r) => acc + (r.metrics?.totalOrders || 0), 0);
 
-    const currentCompletedCount = currentOrderSummaryAgg[0]?.completedCount || 0;
-    const prevCompletedCount = previousOrderSummaryAgg[0]?.completedCount || 0;
+    const currentCompletedCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.completedOrders || 0), 0);
+    const prevCompletedCount = previousRollups.reduce((acc, r) => acc + (r.metrics?.completedOrders || 0), 0);
 
-    const currentAtv =
-      currentCompletedCount > 0 ? Math.round(currentRev / currentCompletedCount) : 0;
-    const prevAtv =
-      prevCompletedCount > 0 ? Math.round(prevRev / prevCompletedCount) : 0;
+    const currentAtv = currentCompletedCount > 0 ? Math.round(currentRev / currentCompletedCount) : 0;
+    const prevAtv = prevCompletedCount > 0 ? Math.round(prevRev / prevCompletedCount) : 0;
 
-    const uncollectedDues = uncollectedDuesAgg[0]?.uncollectedDues || 0;
+    const latestRollup = currentRollups[currentRollups.length - 1];
+    const uncollectedDues = latestRollup?.metrics?.uncollectedDues || 0;
 
-    // Timeline Aggregation (Merging revenue and expense by date/hour)
-    const revenueByTimeMap = new Map<string, number>();
-    (dailyTrendAgg || []).forEach((item: { _id: string; revenue: number }) => {
-      revenueByTimeMap.set(item._id, item.revenue || 0);
-    });
-
-    const expenseByTimeMap = new Map<string, number>();
-    (dailyExpenseTrendAgg || []).forEach((item: { _id: string; expense: number }) => {
-      expenseByTimeMap.set(item._id, item.expense || 0);
-    });
-
-    // Generate chronological timeline points
+    // 4. Cashflow Timeline
     const timeline: AnalyticsResponseData["cashflow"]["timeline"] = [];
     if (rangeParam === "today") {
-      // 10 AM to 9 PM hours
+      const todayHourlyMap = new Map<string, number>();
+      (todayHourlyRevenueAgg || []).forEach((item: { _id: string; revenue: number }) => {
+        todayHourlyMap.set(item._id, item.revenue || 0);
+      });
+
       for (let h = 9; h <= 21; h++) {
         const hourStr = `${h.toString().padStart(2, "0")}:00`;
         const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
-        const rev = revenueByTimeMap.get(hourStr) || 0;
-        const exp = expenseByTimeMap.get(hourStr) || 0;
+        const rev = todayHourlyMap.get(hourStr) || 0;
         timeline.push({
           date: hourStr,
           label,
           revenue: rev,
-          expense: exp,
-          net: rev - exp,
+          expense: 0,
+          net: rev,
         });
       }
     } else {
-      // Daily calendar timeline points
-      const startMs = startDate.getTime();
-      const endMs = endDate.getTime();
-      const oneDayMs = 24 * 60 * 60 * 1000;
-      for (let cur = startMs; cur <= endMs; cur += oneDayMs) {
-        const d = new Date(cur);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const dt = String(d.getDate()).padStart(2, "0");
-        const dateKey = `${y}-${m}-${dt}`;
-        const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        const rev = revenueByTimeMap.get(dateKey) || 0;
-        const exp = expenseByTimeMap.get(dateKey) || 0;
+      currentRollups.forEach((r) => {
+        const rev = r.metrics?.revenue?.total || 0;
+        const exp = r.metrics?.expenses?.total || 0;
         timeline.push({
-          date: dateKey,
-          label,
+          date: r.periodKey,
+          label: formatISTDateLabel(r.startDate),
           revenue: rev,
           expense: exp,
           net: rev - exp,
         });
-      }
+      });
     }
 
-    // Revenue Mix: Services vs Products vs Packages
-    const rawMix = lineItemsFacetAgg[0]?.revenueMix || [];
-    let serviceRev = 0;
-    let serviceCount = 0;
-    let productRev = 0;
-    let productCount = 0;
-    let packageRev = 0;
-    let packageCount = 0;
+    // 5. Revenue Mix from Rollup Summaries
+    const totalServiceRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.service || 0), 0);
+    const totalProductRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.product || 0), 0);
+    const totalPackageRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.package || 0), 0);
+    const totalMixRevenue = totalServiceRev + totalProductRev + totalPackageRev || currentRev;
 
-    rawMix.forEach((item: { _id: string; amount: number; count: number }) => {
-      if (item._id === "service") {
-        serviceRev = item.amount || 0;
-        serviceCount = item.count || 0;
-      } else if (item._id === "product") {
-        productRev = item.amount || 0;
-        productCount = item.count || 0;
-      } else if (item._id === "package") {
-        packageRev = item.amount || 0;
-        packageCount = item.count || 0;
-      }
-    });
-
-    const totalMixRevenue = serviceRev + productRev + packageRev;
     const revenueMix: AnalyticsResponseData["cashflow"]["revenueMix"] = {
       services: {
-        amount: serviceRev,
-        percent: totalMixRevenue > 0 ? Math.round((serviceRev / totalMixRevenue) * 100) : 0,
-        count: serviceCount,
+        amount: totalServiceRev,
+        percent: totalMixRevenue > 0 ? Math.round((totalServiceRev / totalMixRevenue) * 100) : 0,
+        count: currentCompletedCount,
       },
       products: {
-        amount: productRev,
-        percent: totalMixRevenue > 0 ? Math.round((productRev / totalMixRevenue) * 100) : 0,
-        count: productCount,
+        amount: totalProductRev,
+        percent: totalMixRevenue > 0 ? Math.round((totalProductRev / totalMixRevenue) * 100) : 0,
+        count: 0,
       },
       packages: {
-        amount: packageRev,
-        percent: totalMixRevenue > 0 ? Math.round((packageRev / totalMixRevenue) * 100) : 0,
-        count: packageCount,
+        amount: totalPackageRev,
+        percent: totalMixRevenue > 0 ? Math.round((totalPackageRev / totalMixRevenue) * 100) : 0,
+        count: 0,
       },
       total: totalMixRevenue,
     };
 
-    // Tender Split (Payment Modes)
-    const rawPaymentModes = paymentModesAgg || [];
-    let cashTotal = 0;
-    let upiTotal = 0;
-    let cardTotal = 0;
-    let splitTotal = 0;
-    let cashCount = 0;
-    let upiCount = 0;
-    let cardCount = 0;
-    let splitCount = 0;
+    // 6. Tender Split from Rollup Summaries
+    const cashTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.cash || 0), 0);
+    const upiTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.upi || 0), 0);
+    const cardTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.card || 0), 0);
+    const splitTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.split || 0), 0);
+    const totalTender = cashTotal + upiTotal + cardTotal + splitTotal || currentRev;
 
-    rawPaymentModes.forEach((p: { _id: string; totalAmount: number; count: number }) => {
-      if (p._id === "cash") {
-        cashTotal += p.totalAmount || 0;
-        cashCount += p.count || 0;
-      } else if (p._id === "upi") {
-        upiTotal += p.totalAmount || 0;
-        upiCount += p.count || 0;
-      } else if (p._id === "card") {
-        cardTotal += p.totalAmount || 0;
-        cardCount += p.count || 0;
-      } else {
-        splitTotal += p.totalAmount || 0;
-        splitCount += p.count || 0;
-      }
-    });
-
-    const totalTender = cashTotal + upiTotal + cardTotal + splitTotal;
     const tenderSplit: AnalyticsResponseData["cashflow"]["tenderSplit"] = [
       {
         mode: "upi",
         label: "UPI / QR",
         amount: upiTotal,
         percent: totalTender > 0 ? Math.round((upiTotal / totalTender) * 100) : 0,
-        count: upiCount,
+        count: 0,
       },
       {
         mode: "cash",
         label: "Cash",
         amount: cashTotal,
         percent: totalTender > 0 ? Math.round((cashTotal / totalTender) * 100) : 0,
-        count: cashCount,
+        count: 0,
       },
       {
         mode: "card",
         label: "Card / POS",
         amount: cardTotal,
         percent: totalTender > 0 ? Math.round((cardTotal / totalTender) * 100) : 0,
-        count: cardCount,
+        count: 0,
       },
     ];
     if (splitTotal > 0) {
@@ -734,11 +483,11 @@ export async function GET(request: Request) {
         label: "Split / Other",
         amount: splitTotal,
         percent: totalTender > 0 ? Math.round((splitTotal / totalTender) * 100) : 0,
-        count: splitCount,
+        count: 0,
       });
     }
 
-    // Top Services & Top Products
+    // 7. Top Services & Top Products
     const topServices: AnalyticsResponseData["services"]["topServices"] = (
       lineItemsFacetAgg[0]?.topServices || []
     ).map(
@@ -752,12 +501,10 @@ export async function GET(request: Request) {
         category: "Treatment",
         revenue: s.revenue || 0,
         bookingsCount: s.bookingsCount || 0,
-        avgPrice:
-          s.bookingsCount > 0 ? Math.round(s.revenue / s.bookingsCount) : 0,
+        avgPrice: s.bookingsCount > 0 ? Math.round(s.revenue / s.bookingsCount) : 0,
       })
     );
 
-    // Products sold lookup to calculate sold item map
     const soldProductIds = new Set<string>();
     const topRetailProducts: AnalyticsResponseData["inventory"]["topRetailProducts"] = (
       lineItemsFacetAgg[0]?.topRetailProducts || []
@@ -783,35 +530,35 @@ export async function GET(request: Request) {
       }
     );
 
-    // Category Contribution (Service Departments)
+    // 8. Category Contribution
     const categoryContribution: AnalyticsResponseData["services"]["categoryContribution"] = [
       {
         category: "Hair Treatments",
-        revenue: Math.round(serviceRev * 0.45),
+        revenue: Math.round(totalServiceRev * 0.45),
         percent: 45,
-        bookingsCount: Math.round(serviceCount * 0.45),
+        bookingsCount: Math.round(currentCompletedCount * 0.45),
       },
       {
         category: "Skin & Facials",
-        revenue: Math.round(serviceRev * 0.3),
+        revenue: Math.round(totalServiceRev * 0.3),
         percent: 30,
-        bookingsCount: Math.round(serviceCount * 0.3),
+        bookingsCount: Math.round(currentCompletedCount * 0.3),
       },
       {
         category: "Nails & Manicure",
-        revenue: Math.round(serviceRev * 0.15),
+        revenue: Math.round(totalServiceRev * 0.15),
         percent: 15,
-        bookingsCount: Math.round(serviceCount * 0.15),
+        bookingsCount: Math.round(currentCompletedCount * 0.15),
       },
       {
         category: "Spa & Body",
-        revenue: Math.max(0, serviceRev - Math.round(serviceRev * 0.9)),
+        revenue: Math.max(0, totalServiceRev - Math.round(totalServiceRev * 0.9)),
         percent: 10,
-        bookingsCount: Math.max(1, serviceCount - Math.round(serviceCount * 0.9)),
+        bookingsCount: Math.max(1, currentCompletedCount - Math.round(currentCompletedCount * 0.9)),
       },
     ];
 
-    // Heatmap: Hourly (10 AM to 9 PM)
+    // 9. Heatmap: Hourly & Weekday
     const hourlyMap = new Map<number, { count: number; revenue: number }>();
     (hourlyDayDistributionAgg || []).forEach(
       (item: { _id: { hour: number; dayOfWeek: number }; count: number; revenue: number }) => {
@@ -836,12 +583,11 @@ export async function GET(request: Request) {
       });
     }
 
-    // Heatmap: Weekday (Monday - Sunday)
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weekdayMap = new Map<number, { count: number; revenue: number }>();
     (hourlyDayDistributionAgg || []).forEach(
       (item: { _id: { hour: number; dayOfWeek: number }; count: number; revenue: number }) => {
-        const dow = item._id.dayOfWeek - 1; // 1 = Sun -> 0, 7 = Sat -> 6
+        const dow = item._id.dayOfWeek - 1;
         const cur = weekdayMap.get(dow) || { count: 0, revenue: 0 };
         weekdayMap.set(dow, {
           count: cur.count + item.count,
@@ -851,7 +597,7 @@ export async function GET(request: Request) {
     );
 
     const weekdayDistribution: AnalyticsResponseData["services"]["weekdayDistribution"] = [
-      1, 2, 3, 4, 5, 6, 0, // Mon, Tue, Wed, Thu, Fri, Sat, Sun
+      1, 2, 3, 4, 5, 6, 0,
     ].map((dIndex) => {
       const data = weekdayMap.get(dIndex) || { count: 0, revenue: 0 };
       return {
@@ -862,7 +608,7 @@ export async function GET(request: Request) {
       };
     });
 
-    // High Margin Retail Products
+    // 10. High Margin Products & Slow Moving Stock
     const highestMarginProducts: AnalyticsResponseData["inventory"]["highestMarginProducts"] = (
       allActiveProducts || []
     )
@@ -870,8 +616,7 @@ export async function GET(request: Request) {
         const sellPrice = p.expectedSellPrice || 0;
         const cost = p.purchaseCost || 0;
         const marginRupees = sellPrice - cost;
-        const marginPercent =
-          sellPrice > 0 ? Math.round((marginRupees / sellPrice) * 100) : 0;
+        const marginPercent = sellPrice > 0 ? Math.round((marginRupees / sellPrice) * 100) : 0;
         return {
           id: p._id.toString(),
           name: p.name,
@@ -887,7 +632,6 @@ export async function GET(request: Request) {
       .sort((a, b) => b.marginPercent - a.marginPercent)
       .slice(0, 5);
 
-    // Slow-Moving / Dead Stock (Active products with stock > 0, but 0 sales in period)
     const slowMovingStock: AnalyticsResponseData["inventory"]["slowMovingStock"] = (
       allActiveProducts || []
     )
@@ -908,28 +652,16 @@ export async function GET(request: Request) {
       .sort((a, b) => b.lockedCapital - a.lockedCapital)
       .slice(0, 5);
 
-    // Client Retention: New vs Returning
-    let newClientsCount = 0;
-    let returningClientsCount = 0;
-    (customerRetentionAgg || []).forEach(
-      (c: { customerCreatedAt?: Date; lifetimeVisits?: number }) => {
-        const isNew =
-          c.customerCreatedAt &&
-          new Date(c.customerCreatedAt).getTime() >= startDate.getTime();
-        if (isNew || (c.lifetimeVisits || 1) <= 1) {
-          newClientsCount++;
-        } else {
-          returningClientsCount++;
-        }
-      }
-    );
+    // 11. Client Retention from Rollup Summaries
+    const newClientsCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.newCustomersCount || 0), 0);
+    const returningClientsCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.returningCustomersCount || 0), 0);
     const totalClientsServed = newClientsCount + returningClientsCount;
     const repeatRatePercent =
       totalClientsServed > 0
         ? Math.round((returningClientsCount / totalClientsServed) * 100)
         : 0;
 
-    // Top VIP Clients
+    // 12. VIP Clients
     const vipClients: AnalyticsResponseData["clients"]["vipClients"] = (
       vipClientsAgg || []
     ).map((c: any) => ({
@@ -944,7 +676,12 @@ export async function GET(request: Request) {
         : undefined,
     }));
 
-    // Procurement Health
+    // 13. Procurement & Internal Consumables
+    const internalStockCost = currentRollups.reduce(
+      (acc, r) => acc + (r.metrics?.expenses?.internalStockConsumables || 0),
+      0
+    );
+
     const poSpend = procurementAgg[0]?.totalSpend || 0;
     const poCount = procurementAgg[0]?.count || 0;
     const pendingDealerDues = supplierBalancesAgg[0]?.pendingDues || 0;
@@ -980,8 +717,8 @@ export async function GET(request: Request) {
         topRetailProducts,
         highestMarginProducts,
         internalConsumption: {
-          totalCost: internalStockExpenseAgg[0]?.totalCost || 0,
-          transfersCount: internalStockExpenseAgg[0]?.transfersCount || 0,
+          totalCost: internalStockCost,
+          transfersCount: 0,
         },
         slowMovingStock,
       },
