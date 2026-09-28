@@ -34,9 +34,16 @@ interface InventoryTabProps {
     newExpense?: DashboardExpense,
     updatedSupplier?: DashboardSupplier
   ) => void;
-  onTransferSuccess?: (updatedProduct: DashboardProduct, newExpense?: DashboardExpense) => void;
+  onTransferSuccess?: (
+    updatedProduct: DashboardProduct,
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
+  ) => void;
   onAddProduct?: (newProduct: DashboardProduct) => void;
-  onUpdateProduct?: (updatedProduct: DashboardProduct) => void;
+  onUpdateProduct?: (
+    updatedProduct: DashboardProduct,
+    updatedSupplier?: DashboardSupplier
+  ) => void;
   onDeleteProduct?: (productId: string | number) => void;
 }
 
@@ -377,13 +384,14 @@ export function InventoryTab({
 
   const handleTransferComplete = (
     updatedProduct: DashboardProduct,
-    newExpense?: DashboardExpense
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
   ) => {
     setDisplayedProducts((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
     );
     if (onTransferSuccess) {
-      onTransferSuccess(updatedProduct, newExpense);
+      onTransferSuccess(updatedProduct, newExpense, updatedSupplier);
     } else if (onMoveStock) {
       onMoveStock(updatedProduct.id);
     }
@@ -799,8 +807,8 @@ export function InventoryTab({
         product={settleTargetProduct}
         isOpen={Boolean(settleTargetProduct)}
         onClose={() => setSettleTargetProduct(null)}
-        onSuccess={(updatedProduct) => {
-          onUpdateProduct?.(updatedProduct);
+        onSuccess={(updatedProduct, updatedSupplier) => {
+          onUpdateProduct?.(updatedProduct, updatedSupplier);
           setSettleTargetProduct(null);
         }}
       />

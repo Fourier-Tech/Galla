@@ -151,22 +151,46 @@ export function PurchaseBillDetailsModal({
     }
 
     returnEvents.forEach((ret) => {
-      if (ret.amountDeductedFromDue && ret.amountDeductedFromDue > 0) {
+      const dueDed = ret.amountDeductedFromDue || 0;
+      const totalAmt = ret.totalRefundAmount || (ret.quantity * (ret.unitCost || 0));
+      const creditAmt = ret.refundMode === "reduce_due" ? Math.max(0, totalAmt - dueDed) : 0;
+
+      if (dueDed > 0) {
         const alreadyInPayments = payments.some(
           (p) =>
             (p.type === "return_due_deduction" ||
               p.paymentMode === "reduce_due") &&
-            Math.abs(p.amount) === ret.amountDeductedFromDue,
+            Math.abs(p.amount) === dueDed,
         );
         if (!alreadyInPayments) {
           payments.push({
-            amount: -ret.amountDeductedFromDue,
+            amount: -dueDed,
             paymentMode: "reduce_due",
             notes:
               ret.notes ||
-              `[Return Due Deduction] Deducted ${formatRupee(ret.amountDeductedFromDue)} for ${ret.quantity}x ${ret.productName}`,
+              `[Return Due Deduction] Deducted ${formatRupee(dueDed)} for ${ret.quantity}x ${ret.productName}`,
             recordedBy: ret.recordedBy || "owner",
             type: "return_due_deduction",
+            recordedAt: ret.returnedAt || bill.createdAt,
+          });
+        }
+      }
+
+      if (creditAmt > 0) {
+        const alreadyInPayments = payments.some(
+          (p) =>
+            p.type === "supplier_credit" &&
+            Math.abs(p.amount) === creditAmt,
+        );
+        if (!alreadyInPayments) {
+          payments.push({
+            amount: -creditAmt,
+            paymentMode: "reduce_due",
+            notes:
+              ret.notes ||
+              `[Supplier Credit] ₹${creditAmt} credited to supplier balance for ${ret.quantity}x ${ret.productName}`,
+            recordedBy: ret.recordedBy || "owner",
+            type: "supplier_credit",
             recordedAt: ret.returnedAt || bill.createdAt,
           });
         }
@@ -247,6 +271,13 @@ export function PurchaseBillDetailsModal({
     0,
   );
 
+  const totalSupplierCredits = returnEvents.reduce((sum, r) => {
+    if (r.refundMode !== "reduce_due") return sum;
+    const due = r.amountDeductedFromDue || 0;
+    const total = r.totalRefundAmount || (r.quantity * (r.unitCost || 0));
+    return sum + Math.max(0, total - due);
+  }, 0);
+
   const totalDirectRefunds = returnEvents.reduce(
     (sum, r) =>
       sum +
@@ -307,6 +338,12 @@ export function PurchaseBillDetailsModal({
     idx: number,
     total: number,
   ) => {
+    if (p.type === "supplier_credit") {
+      return {
+        label: "Return (Supplier Credit)",
+        style: "bg-emerald-50 text-emerald-800 border-emerald-200/90",
+      };
+    }
     if (p.type === "return_due_deduction" || p.paymentMode === "reduce_due") {
       return {
         label: "Return (Due Deducted)",
@@ -425,18 +462,9 @@ export function PurchaseBillDetailsModal({
                         : "Unpaid"}
                   </span>
                 </span>
-                {totalDueDeductions > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 text-[12px] font-sans px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200 font-semibold shadow-2xs">
-                    <span>{formatRupee(netBillAmount)}</span>
-                    <span className="line-through text-rose-400 font-normal text-[10.5px]">
-                      {formatRupee(originalBillAmount)}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="font-sans font-semibold text-[13px] text-galla-ink-soft">
-                    {formatRupee(originalBillAmount)}
-                  </span>
-                )}
+                <span className="font-sans font-semibold text-[13px] text-galla-ink-soft">
+                  {formatRupee(originalBillAmount)}
+                </span>
               </div>
               <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
                 Purchase Bill &bull;{" "}
@@ -961,7 +989,7 @@ export function PurchaseBillDetailsModal({
                 )}
               </span>
               <span className="tabular-nums font-mono">
-                {formatRupee(originalAmountPaid || (totalDueDeductions > 0 ? netBillAmount : originalBillAmount))}
+                {formatRupee(originalAmountPaid || bill.amountPaid)}
               </span>
             </div>
 
@@ -981,27 +1009,6 @@ export function PurchaseBillDetailsModal({
                   {formatRupee(Math.abs(bill.ledgerAdjustment!))}
                 </span>
               </div>
-            )}
-
-            {totalDueDeductions > 0 && (
-              <>
-                <div className="flex justify-between text-[13.5px] text-rose-700 font-medium pt-1 border-t border-dashed border-galla-line/60">
-                  <span className="inline-flex items-center gap-1.5">
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    <span>Returned Items Deduction:</span>
-                  </span>
-                  <span className="tabular-nums font-mono font-semibold">
-                    - {formatRupee(totalDueDeductions)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1">
-                  <span>Reduced Bill Amount (New Bill Price):</span>
-                  <span className="tabular-nums font-mono text-[15px]">
-                    {formatRupee(netBillAmount)}
-                  </span>
-                </div>
-              </>
             )}
 
             {isDue ? (
@@ -1037,9 +1044,10 @@ export function PurchaseBillDetailsModal({
                       pIdx,
                       resolvedPayments.length,
                     );
+                    const isSupplierCredit = p.type === "supplier_credit";
                     const isDueDeduction =
                       p.type === "return_due_deduction" ||
-                      p.paymentMode === "reduce_due";
+                      (!isSupplierCredit && p.paymentMode === "reduce_due");
                     const isNegative =
                       (p.amount != null && p.amount < 0) || p.type === "refund";
                     return (
@@ -1057,18 +1065,26 @@ export function PurchaseBillDetailsModal({
                             <span>
                               <strong
                                 className={
-                                  isDueDeduction
+                                  isSupplierCredit
+                                    ? "text-emerald-700 font-semibold"
+                                    : isDueDeduction
                                     ? "text-purple-700 font-semibold"
                                     : isNegative
                                       ? "text-rose-700 font-semibold"
                                       : "text-galla-ink font-semibold"
                                 }
                               >
-                                {isDueDeduction
+                                {isSupplierCredit
+                                  ? `+${formatRupee(Math.abs(p.amount))}`
+                                  : isDueDeduction
                                   ? `-${formatRupee(Math.abs(p.amount))}`
                                   : formatRupee(p.amount)}
                               </strong>{" "}
-                              {isDueDeduction ? (
+                              {isSupplierCredit ? (
+                                <span className="text-emerald-700 font-medium">
+                                  credited to supplier balance
+                                </span>
+                              ) : isDueDeduction ? (
                                 <span className="text-galla-ink-soft font-medium">
                                   adjusted in bill due
                                 </span>
@@ -1109,11 +1125,18 @@ export function PurchaseBillDetailsModal({
                   <RotateCcw className="h-4 w-4 text-rose-700" />
                   <span>Item Returns &amp; Replacements ({returnEvents.length})</span>
                 </span>
-                {totalDueDeductions > 0 && (
-                  <span className="text-[11.5px] font-sans font-semibold text-purple-800 bg-purple-100/70 border border-purple-200 px-2 py-0.5 rounded">
-                    Due Adjusted: -{formatRupee(totalDueDeductions)}
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {totalDueDeductions > 0 && (
+                    <span className="text-[11.5px] font-sans font-semibold text-purple-800 bg-purple-100/70 border border-purple-200 px-2 py-0.5 rounded">
+                      Due Adjusted: -{formatRupee(totalDueDeductions)}
+                    </span>
+                  )}
+                  {totalSupplierCredits > 0 && (
+                    <span className="text-[11.5px] font-sans font-semibold text-emerald-800 bg-emerald-100/70 border border-emerald-200 px-2 py-0.5 rounded">
+                      Supplier Credit: +{formatRupee(totalSupplierCredits)}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 {returnEvents.map((ret, rIdx) => {
@@ -1144,7 +1167,9 @@ export function PurchaseBillDetailsModal({
 
                   const isPendingReplacement =
                     ret.refundMode === "replacement_pending" ||
-                    ret.replacementStatus === "pending";
+                    (ret.refundMode !== "reduce_due" &&
+                      !["cash", "upi", "card", "bank_transfer"].includes(ret.refundMode) &&
+                      ret.replacementStatus === "pending");
 
                   return (
                     <div
@@ -1178,9 +1203,19 @@ export function PurchaseBillDetailsModal({
                           <strong className="text-galla-ink font-medium">
                             {isPendingReplacement
                               ? "Waiting for Replacement from Supplier"
-                              : ret.refundMode === "reduce_due" ||
-                                  (ret.amountDeductedFromDue || 0) > 0
-                                ? `Deducted ${formatRupee(ret.amountDeductedFromDue || ret.totalRefundAmount)} from pending due`
+                              : ret.refundMode === "reduce_due"
+                                ? (() => {
+                                    const due = ret.amountDeductedFromDue || 0;
+                                    const total = ret.totalRefundAmount || (ret.quantity * (ret.unitCost || 0));
+                                    const credit = Math.max(0, total - due);
+                                    if (due > 0 && credit > 0) {
+                                      return `Deducted ${formatRupee(due)} from due + ${formatRupee(credit)} credited to supplier balance`;
+                                    }
+                                    if (due > 0) {
+                                      return `Deducted ${formatRupee(due)} from pending due`;
+                                    }
+                                    return `Credited ${formatRupee(total)} to supplier balance (Bill was fully paid)`;
+                                  })()
                                 : `Refunded ${formatRupee(ret.totalRefundAmount)} via ${(ret.refundMode || "cash").toUpperCase()}`}
                           </strong>
                         </span>

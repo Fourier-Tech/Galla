@@ -446,7 +446,8 @@ export function DashboardClient({
 
   const handleTransferSuccess = (
     updatedProduct: DashboardProduct,
-    newExpense?: DashboardExpense
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
   ) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
@@ -455,6 +456,11 @@ export function DashboardClient({
       setExpenses((prev) => [newExpense, ...prev]);
       setTotalExpensesCount((prev) => prev + 1);
       setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+    }
+    if (updatedSupplier) {
+      setSuppliers((prev) =>
+        prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+      );
     }
     router.refresh();
   };
@@ -578,10 +584,18 @@ export function DashboardClient({
     router.refresh();
   };
 
-  const handleUpdateProduct = (updatedProduct: DashboardProduct) => {
+  const handleUpdateProduct = (
+    updatedProduct: DashboardProduct,
+    updatedSupplier?: DashboardSupplier
+  ) => {
     setProducts((prev) =>
       prev.map((p) => (String(p.id) === String(updatedProduct.id) ? updatedProduct : p))
     );
+    if (updatedSupplier) {
+      setSuppliers((prev) =>
+        prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+      );
+    }
     router.refresh();
   };
 

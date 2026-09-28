@@ -460,7 +460,7 @@ export function OverviewTab({
             subtext={
               totalDealerDues > 0
                 ? totalDealerCredit > 0
-                  ? `Owed to suppliers (₹${totalDealerCredit.toLocaleString("en-IN")} credit available)`
+                  ? `Dues: ${formatRupee(totalDealerDues)} • Credit: ${formatRupee(totalDealerCredit)}`
                   : "Owed to suppliers"
                 : totalDealerCredit > 0
                 ? "Credit from returns (Owed to you)"

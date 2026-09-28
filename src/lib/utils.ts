@@ -634,16 +634,19 @@ export function resolvePurchaseOrderItems(items: any[], returns?: any[]) {
         .filter(
           (r: any) =>
             r.refundMode === "replacement_pending" ||
-            r.replacementStatus === "pending" ||
-            r.replacementStatus === "fulfilled"
+            (r.refundMode !== "reduce_due" &&
+              !["cash", "upi", "card", "bank_transfer"].includes(r.refundMode) &&
+              (r.replacementStatus === "pending" || r.replacementStatus === "fulfilled"))
         )
         .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
       returnedQuantity = itemReturns
         .filter(
           (r: any) =>
-            r.refundMode !== "replacement_pending" &&
-            r.replacementStatus !== "pending" &&
-            r.replacementStatus !== "fulfilled"
+            r.refundMode === "reduce_due" ||
+            ["cash", "upi", "card", "bank_transfer"].includes(r.refundMode) ||
+            (r.refundMode !== "replacement_pending" &&
+              r.replacementStatus !== "pending" &&
+              r.replacementStatus !== "fulfilled")
         )
         .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
     }

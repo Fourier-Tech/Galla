@@ -10,7 +10,7 @@ import {
   Check,
   Undo2,
 } from "lucide-react";
-import { DashboardProduct, DashboardExpense } from "@/types/dashboard";
+import { DashboardProduct, DashboardExpense, DashboardSupplier } from "@/types/dashboard";
 import {
   transferStockAction,
   consumeUseStockAction,
@@ -25,7 +25,11 @@ interface TransferStockModalProps {
   allProducts?: DashboardProduct[];
   isOpen: boolean;
   onClose: () => void;
-  onTransferSuccess: (updatedProduct: DashboardProduct, newExpense?: DashboardExpense) => void;
+  onTransferSuccess: (
+    updatedProduct: DashboardProduct,
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
+  ) => void;
 }
 
 export function TransferStockModal({
@@ -61,7 +65,11 @@ function TransferStockModalContent({
   product: DashboardProduct;
   allProducts?: DashboardProduct[];
   onClose: () => void;
-  onTransferSuccess: (updatedProduct: DashboardProduct, newExpense?: DashboardExpense) => void;
+  onTransferSuccess: (
+    updatedProduct: DashboardProduct,
+    newExpense?: DashboardExpense,
+    updatedSupplier?: DashboardSupplier
+  ) => void;
 }) {
   const [mode, setMode] = useState<ModalMode>("transfer");
   const [direction, setDirection] = useState<TransferDirection>(
@@ -302,7 +310,7 @@ function TransferStockModalContent({
                   : 0)
             ),
           };
-          onTransferSuccess(updated);
+          onTransferSuccess(updated, undefined, res.updatedSupplier);
           onClose();
         } else {
           setErrorMsg(res.error || "Failed to process supplier return");
@@ -833,8 +841,16 @@ function TransferStockModalContent({
                                 {po.purchaseOrderNumber}
                               </span>
                             </div>
-                            <div className="text-[11px] text-galla-ink-soft mt-0.5">
-                              Cost: <strong className="font-mono text-galla-ink">{formatRupee(item.purchaseCost)}</strong> &bull; {new Date(po.createdAt).toLocaleDateString()}
+                            <div className="text-[11px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              <span>Cost: <strong className="font-mono text-galla-ink">{formatRupee(item.purchaseCost)}</strong></span>
+                              <span>&bull;</span>
+                              <span>{new Date(po.createdAt).toLocaleDateString()}</span>
+                              <span>&bull;</span>
+                              {po.amountPending && po.amountPending > 0 ? (
+                                <span className="text-amber-700 font-medium">Due: {formatRupee(po.amountPending)}</span>
+                              ) : (
+                                <span className="text-emerald-700 font-medium">Fully Paid</span>
+                              )}
                             </div>
                           </div>
 
@@ -1103,7 +1119,11 @@ function TransferStockModalContent({
                   </div>
                   <p className="text-[11px] text-rose-800/80">
                     {supplierRefundMode === "reduce_due"
-                      ? `Will deduct from stock and reduce ${formatRupee(estReturnCost)} from ${selectedPO.supplierName}'s pending dues on this bill.`
+                      ? (selectedPO.amountPending || 0) <= 0
+                        ? `Bill is fully paid (₹0 due). Full return value of ${formatRupee(estReturnCost)} will be credited as Supplier Credit to ${selectedPO.supplierName}'s balance.`
+                        : selectedPO.amountPending < estReturnCost
+                        ? `Will deduct ${formatRupee(selectedPO.amountPending)} from bill due, and remaining ${formatRupee(estReturnCost - selectedPO.amountPending)} will be credited as Supplier Credit to ${selectedPO.supplierName}.`
+                        : `Will deduct from stock and reduce ${formatRupee(estReturnCost)} from ${selectedPO.supplierName}'s pending dues on this bill.`
                       : `Will remove items from active stock to pending replacement. Supplier will provide replacement units later.`}
                   </p>
                 </div>
@@ -1192,7 +1212,14 @@ function TransferStockModalContent({
                     ].filter(Boolean).join(" + ") || "None"}</strong> &bull; Total Value: <strong className="font-mono text-galla-ink">{formatRupee(estReturnCost)}</strong>
                   </span>
                   <span className="block mt-1 text-[12px] text-rose-800 font-medium">
-                    Settlement: {supplierRefundMode === "reduce_due" ? "Deducts from supplier pending due balance" : "Wait for replacement stock from supplier"}
+                    Settlement:{" "}
+                    {supplierRefundMode === "reduce_due"
+                      ? selectedPO?.amountPending && selectedPO.amountPending > 0
+                        ? selectedPO.amountPending < estReturnCost
+                          ? `Deducts ${formatRupee(selectedPO.amountPending)} from bill due + ${formatRupee(estReturnCost - selectedPO.amountPending)} added as supplier credit`
+                          : "Deducts from supplier pending due balance"
+                        : "Bill is fully paid: full return value added as supplier credit"
+                      : "Wait for replacement stock from supplier"}
                   </span>
                 </>
               ) : direction === "sell_to_use" ? (

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { X, Loader2, CheckCircle2, RotateCcw, Package, AlertCircle } from "lucide-react";
-import { DashboardProduct } from "@/types/dashboard";
+import { DashboardProduct, DashboardSupplier } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
 import { settleSupplierReplacementAction, getPurchaseOrdersForProductAction } from "@/app/dashboard/actions";
 import { PaymentModeSelect } from "../payment-mode-select";
@@ -11,7 +11,7 @@ interface SettleReplacementModalProps {
   isOpen: boolean;
   onClose: () => void;
   product: DashboardProduct | null;
-  onSuccess: (updatedProduct: DashboardProduct) => void;
+  onSuccess: (updatedProduct: DashboardProduct, updatedSupplier?: DashboardSupplier) => void;
 }
 
 export function SettleReplacementModal({
@@ -95,7 +95,7 @@ export function SettleReplacementModal({
       );
 
       if (res.success && res.updatedProduct) {
-        onSuccess(res.updatedProduct);
+        onSuccess(res.updatedProduct, res.updatedSupplier);
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to settle replacement");

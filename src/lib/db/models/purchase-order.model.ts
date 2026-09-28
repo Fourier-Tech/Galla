@@ -199,7 +199,6 @@ const PurchaseOrderReturnSchema = new Schema<IPurchaseOrderReturn>(
     replacementStatus: {
       type: String,
       enum: ["pending", "fulfilled"],
-      default: "pending",
     },
     notes: { type: String, trim: true },
     recordedBy: { type: String, enum: ["owner", "staff"], default: "owner" },

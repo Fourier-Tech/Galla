@@ -22,6 +22,7 @@ import {
 import { DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import {
   getPurchaseOrdersAction,
+  getSuppliersAction,
 } from "@/app/dashboard/actions";
 import {
   formatRupee,
@@ -108,6 +109,17 @@ export function SupplierDetailsView({
       .catch(() => {
         if (!ignore) setIsLoading(false);
       });
+
+    getSuppliersAction()
+      .then((sRes) => {
+        if (!ignore && sRes.success && sRes.suppliers) {
+          const fresh = sRes.suppliers.find((s) => s.id === supplier.id);
+          if (fresh && onSupplierUpdated) {
+            onSupplierUpdated(fresh);
+          }
+        }
+      })
+      .catch(() => {});
 
     return () => {
       ignore = true;
@@ -265,12 +277,13 @@ export function SupplierDetailsView({
       setSelectedBill(updatedPO);
     }
     if (onSupplierUpdated) {
-      const remainingDues = bills
-        .map((b) => (b.id === updatedPO.id ? updatedPO : b))
-        .reduce((sum, b) => sum + (b.amountPending || 0), 0);
+      const prevBillPending = selectedPOForPayment?.amountPending || 0;
+      const newBillPending = updatedPO.amountPending || 0;
+      const paidDiff = Math.max(0, prevBillPending - newBillPending);
+      const newTotalPending = (supplier.totalPending || 0) - paidDiff;
       onSupplierUpdated({
         ...supplier,
-        totalPending: remainingDues,
+        totalPending: newTotalPending,
       });
     }
     setSelectedPOForPayment(null);
@@ -309,6 +322,12 @@ export function SupplierDetailsView({
                 <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 font-medium">
                   <AlertCircle className="h-3 w-3" />
                   <span>Due: {formatRupee(metrics.totalPending)}</span>
+                </span>
+              )}
+              {metrics.totalPending < 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                  <CheckCircle2 className="h-3 w-3" />
+                  <span>Credit: {formatRupee(Math.abs(metrics.totalPending))}</span>
                 </span>
               )}
             </div>
