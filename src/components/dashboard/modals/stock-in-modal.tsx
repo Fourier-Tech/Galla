@@ -17,10 +17,6 @@ import {
   Building2,
   Check,
   Calendar,
-  Banknote,
-  QrCode,
-  CreditCard,
-  Landmark,
   Sparkles,
 } from "lucide-react";
 import {
@@ -240,7 +236,7 @@ export function StockInModal({
       returnedAt: string;
     }>
   >([]);
-  const [isLoadingReplacements, setIsLoadingReplacements] = useState(false);
+  const [_isLoadingReplacements, setIsLoadingReplacements] = useState(false);
 
   // Fetch pending dealer replacements when supplier is identified
   useEffect(() => {
@@ -796,10 +792,10 @@ export function StockInModal({
             </div>
             <div>
               <h3 className="text-[15px] font-bold text-galla-ink">
-                Stock In (Purchase Order Entry)
+                Stock In
               </h3>
               <p className="text-[12px] text-galla-ink-soft">
-                Add inventory batch from dealer with atomic stock allocation
+                Record incoming supplier purchase and stock allocation
               </p>
             </div>
           </div>
@@ -1683,7 +1679,7 @@ export function StockInModal({
           </div>
 
           {/* 5. Ledger Balance & Financial Summary */}
-          <div className="p-3 bg-galla-surface border border-galla-line rounded-[5px] space-y-2.5">
+          <div className="pt-3 border-t border-galla-line/80 space-y-2.5">
             {matchedSupplier && supplierPending !== 0 && isLedgerBalanceApplicable && (
               <div className="pb-2.5 border-b border-galla-line/60">
                 <label className="flex items-start gap-2.5 cursor-pointer">
@@ -1740,25 +1736,25 @@ export function StockInModal({
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-[12px] pt-2 border-t border-galla-line/60">
+            <div className="flex items-center justify-between text-[12px] pt-1.5 border-t border-galla-line/60">
               <div className="flex items-center gap-1.5">
-                <span className="text-galla-ink-soft">Status:</span>
+                <span className="text-galla-ink-soft text-[11.5px]">Payment Status:</span>
                 {amountPending <= 0 ? (
                   <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded text-[11px] font-medium">
-                    Paid in Full (₹0 pending)
+                    Paid in Full
                   </span>
                 ) : currentAmountPaid > 0 ? (
                   <span className="bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded text-[11px] font-medium">
-                    Partial ({formatRupee(amountPending)} pending)
+                    Partial Payment
                   </span>
                 ) : (
                   <span className="bg-rose-50 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded text-[11px] font-medium">
-                    Payment Due ({formatRupee(amountPending)} pending)
+                    Payment Due
                   </span>
                 )}
               </div>
 
-              <div className="font-sans font-medium text-galla-ink tabular-nums">
+              <div className="font-sans font-medium text-galla-ink tabular-nums text-[12px]">
                 Pending:{" "}
                 <span
                   className={

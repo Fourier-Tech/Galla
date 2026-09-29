@@ -70,9 +70,6 @@ export function ExpenseDetailsModal({
       })
     : expense.time;
 
-  const paymentModeLabel = expense.paymentMode
-    ? expense.paymentMode.toUpperCase()
-    : "CASH";
 
   return (
     <div

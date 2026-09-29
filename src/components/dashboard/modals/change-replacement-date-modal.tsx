@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { DashboardCustomerReplacement } from "@/types/dashboard";
 import { updateCustomerReplacementDateAction } from "@/app/dashboard/actions";
 import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
-import { getLocalDateString } from "@/lib/utils";
+import { getLocalDateString, formatDisplayNumber } from "@/lib/utils";
 
 interface ChangeReplacementDateModalProps {
   replacement: DashboardCustomerReplacement | null;
@@ -107,7 +107,7 @@ function ChangeReplacementDateModalContent({
                 Change Expected Pickup Date
               </h3>
               <p className="font-sans text-[11px] text-galla-ink-soft">
-                Order #<span className="tabular-nums">{replacement.orderNumber}</span> &bull; {replacement.customerName}
+                Order #{formatDisplayNumber(replacement.orderNumber)} &bull; {replacement.customerName}
               </p>
             </div>
           </div>

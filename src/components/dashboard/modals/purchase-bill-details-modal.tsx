@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   X,
   Receipt,
@@ -16,7 +16,6 @@ import {
   Calendar,
   Clock,
   PackageCheck,
-  Undo2,
   RotateCcw,
 } from "lucide-react";
 import {
@@ -278,28 +277,6 @@ export function PurchaseBillDetailsModal({
     return sum + Math.max(0, total - due);
   }, 0);
 
-  const totalDirectRefunds = returnEvents.reduce(
-    (sum, r) =>
-      sum +
-      (r.refundMode !== "reduce_due" && r.refundMode !== "replacement_pending"
-        ? r.totalRefundAmount || 0
-        : 0),
-    0,
-  );
-
-  const totalRefunded = resolvedPayments
-    ? resolvedPayments
-        .filter(
-          (p) =>
-            p.type === "refund" ||
-            (p.amount != null &&
-              p.amount < 0 &&
-              p.type !== "return_due_deduction" &&
-              p.paymentMode !== "reduce_due"),
-        )
-        .reduce((sum, p) => sum + Math.abs(p.amount), 0)
-    : totalDirectRefunds;
-
   const originalAmountPaid =
     resolvedPayments && resolvedPayments.length > 0
       ? resolvedPayments
@@ -322,7 +299,6 @@ export function PurchaseBillDetailsModal({
       : bill.totalAmount;
 
   const originalBillAmount = Math.max(bill.totalAmount, itemsTotalCost);
-  const netBillAmount = Math.max(0, originalBillAmount - totalDueDeductions);
 
   const initials = bill.supplierName
     ? bill.supplierName

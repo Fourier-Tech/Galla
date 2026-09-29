@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Loader2, CheckCircle2, RotateCcw, Package, AlertCircle } from "lucide-react";
+import { X, Loader2, CheckCircle2, RotateCcw, AlertCircle } from "lucide-react";
 import { DashboardProduct, DashboardSupplier } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
 import { settleSupplierReplacementAction, getPurchaseOrdersForProductAction } from "@/app/dashboard/actions";
@@ -127,7 +127,8 @@ export function SettleReplacementModal({
                 Settle Dealer Replacement
               </h2>
               <p className="font-sans text-[11px] text-galla-ink-soft truncate">
-                {product.name} &bull; <span className="tabular-nums">{maxDefective}</span> defective unit{maxDefective !== 1 ? "s" : ""} pending
+                {product.name} &bull; <span className="tabular-nums">{maxDefective}</span> defective pending
+                {product.purchaseCost ? ` • Cost: ${formatRupee(product.purchaseCost)}/pc` : ""}
               </p>
             </div>
           </div>
@@ -142,28 +143,6 @@ export function SettleReplacementModal({
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-3.5 space-y-3.5 custom-scrollbar">
-          {/* Summary Strip */}
-          <div className="flex items-center justify-between px-3 py-2 bg-galla-paper/50 border border-galla-line/70 rounded-[5px]">
-            <div className="flex items-center gap-2 min-w-0">
-              <Package className="h-4 w-4 text-galla-teal shrink-0" />
-              <div className="min-w-0">
-                <div className="font-sans text-[12.5px] font-medium text-galla-ink truncate">{product.name}</div>
-                <div className="font-sans text-[10.5px] text-galla-ink-soft">
-                  Retail: <span className="font-sans tabular-nums text-galla-ink font-medium">{product.sell}</span> &bull; Salon Use: <span className="font-sans tabular-nums text-galla-ink font-medium">{product.use}</span>
-                </div>
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className="inline-flex items-center gap-1 bg-rose-50 text-rose-800 border border-rose-200 text-[11px] font-semibold px-2 py-0.5 rounded-[4px]">
-                <span className="tabular-nums">{maxDefective}</span> Defective
-              </div>
-              {product.purchaseCost !== undefined && product.purchaseCost > 0 && (
-                <div className="font-sans tabular-nums text-[10.5px] text-galla-ink-soft mt-0.5">
-                  Cost: {formatRupee(product.purchaseCost)}/pc
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Quantity Section */}
           <div>
@@ -246,7 +225,7 @@ export function SettleReplacementModal({
 
           {/* Conditional Options: Replace Stock */}
           {resolutionType === "replace_stock" ? (
-            <div className="p-3 bg-galla-paper/40 border border-galla-line/80 rounded-[5px] space-y-2">
+            <div className="space-y-2 pt-1 border-t border-galla-line/60">
               <label className="block text-[12px] font-medium text-galla-ink">
                 Add Replacement Items Into
               </label>
@@ -283,7 +262,7 @@ export function SettleReplacementModal({
               </div>
             </div>
           ) : (
-            <div className="p-3 bg-galla-paper/40 border border-galla-line/80 rounded-[5px]">
+            <div className="pt-1 border-t border-galla-line/60">
               {/* Conditional Options: Credit / Refund */}
               <PaymentModeSelect
                 label="Credit / Refund Mode"

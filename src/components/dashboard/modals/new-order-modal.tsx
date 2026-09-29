@@ -4,21 +4,15 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   X,
   AlertCircle,
-  Scissors,
-  Package,
   Search,
   Check,
   Trash2,
-  ArrowRight,
   ArrowLeft,
-  Banknote,
-  QrCode,
-  CreditCard,
-  Plus,
   Calendar,
   ShoppingBag,
+  CheckCircle2,
+  Clock,
   ChevronDown,
-  TrendingUp,
 } from "lucide-react";
 import {
   DashboardCustomer,
@@ -28,7 +22,14 @@ import {
   DashboardProduct,
 } from "@/types/dashboard";
 import { createOrderAction, getLiveProductsAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, formatCustomerName, formatRupee, formatBookingDate, formatAppointmentTime, getLocalDateString, formatDisplayNumber, getPhoneDigits } from "@/lib/utils";
+import {
+  formatPhoneNumber,
+  formatCustomerName,
+  formatRupee,
+  getLocalDateString,
+  formatDisplayNumber,
+  getPhoneDigits,
+} from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 import { OrderDetailsModal } from "./order-details-modal";
 import { PaymentModeSelect } from "../payment-mode-select";
@@ -252,6 +253,183 @@ export interface SelectedOrderItem {
   quantity: number;
 }
 
+const SETTLEMENT_MODE_OPTIONS = [
+  {
+    value: "completed",
+    label: "Paid in full now",
+    sublabel: "Fulfill & collect payment immediately",
+    icon: CheckCircle2,
+    badge: "Instant",
+  },
+  {
+    value: "pay_later",
+    label: "Pay Later / Due",
+    sublabel: "Deliver now, collect balance later",
+    icon: Clock,
+    badge: "Credit",
+  },
+  {
+    value: "advance",
+    label: "Advance Booking / Pre-order",
+    sublabel: "Partial deposit now, fulfillment later",
+    icon: Calendar,
+    badge: "Deposit",
+  },
+  {
+    value: "paid_full",
+    label: "Paid in Full (Advance / Pre-order)",
+    sublabel: "100% upfront payment, fulfillment later",
+    icon: ShoppingBag,
+    badge: "Prepaid",
+  },
+] as const;
+
+function SettlementModeSelect({
+  value,
+  onChange,
+  hasOutOfStockItems,
+}: {
+  value: "completed" | "pay_later" | "advance" | "paid_full";
+  onChange: (val: "completed" | "pay_later" | "advance" | "paid_full") => void;
+  hasOutOfStockItems: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption =
+    SETTLEMENT_MODE_OPTIONS.find((opt) => opt.value === value) ||
+    SETTLEMENT_MODE_OPTIONS[0];
+  const SelectedIcon = selectedOption.icon;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsOpen(false);
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="space-y-1.5 w-full relative" ref={containerRef}>
+      <label className="block text-[12px] font-medium text-galla-ink">
+        Settlement Mode <span className="text-red-500">*</span>
+      </label>
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-sans flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs select-none ${
+            isOpen
+              ? "border-galla-teal ring-1 ring-galla-teal"
+              : "border-galla-line hover:border-galla-ink-soft/40"
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-6 w-6 rounded-[4px] bg-galla-teal-soft/80 border border-galla-teal/20 text-galla-teal flex items-center justify-center shrink-0">
+              <SelectedIcon className="h-3.5 w-3.5" />
+            </div>
+            <div className="flex items-center gap-2 truncate text-left">
+              <span className="font-semibold text-galla-ink text-[13px] truncate">
+                {selectedOption.label}
+              </span>
+              <span className="text-[11.5px] text-galla-ink-soft hidden sm:inline truncate">
+                &bull; {selectedOption.sublabel}
+              </span>
+            </div>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-galla-ink-soft shrink-0 transition-transform duration-200 ${
+              isOpen ? "rotate-180 text-galla-teal" : ""
+            }`}
+          />
+        </button>
+
+        {isOpen && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-lg shadow-xl z-30 overflow-hidden divide-y divide-galla-line/40 animate-in fade-in-50 zoom-in-95 duration-100">
+            {SETTLEMENT_MODE_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              const isSelected = opt.value === value;
+              const isDisabled =
+                hasOutOfStockItems &&
+                (opt.value === "completed" || opt.value === "pay_later");
+
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    if (!isDisabled) {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                    }
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 text-[12.5px] transition-colors ${
+                    isDisabled
+                      ? "opacity-50 cursor-not-allowed bg-galla-paper/40"
+                      : isSelected
+                      ? "bg-galla-teal/10 cursor-pointer"
+                      : "hover:bg-galla-paper/70 cursor-pointer"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-6 w-6 rounded-[4px] flex items-center justify-center shrink-0 ${
+                        isSelected
+                          ? "bg-galla-teal text-white"
+                          : "bg-galla-paper text-galla-ink-soft border border-galla-line"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-semibold text-[13px] ${
+                            isSelected ? "text-galla-teal" : "text-galla-ink"
+                          }`}
+                        >
+                          {opt.label}
+                        </span>
+                        <span className="text-[10.5px] px-1.5 py-0.2 rounded font-medium bg-galla-paper border border-galla-line text-galla-ink-soft">
+                          {opt.badge}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-galla-ink-soft truncate">
+                        {isDisabled
+                          ? "Disabled (some items out of stock)"
+                          : opt.sublabel}
+                      </div>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <Check className="h-4 w-4 text-galla-teal shrink-0 stroke-[2.5]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface NewOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -278,22 +456,17 @@ export function NewOrderModal({
   initialProducts = [],
   orders = [],
 }: NewOrderModalProps) {
-  // Step 1: Customer & Order Type, Step 2: Catalog Selection, Step 3: Review & Checkout
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  // Step 1 State
+  // Customer State
   const [customer, setCustomer] = useState("");
   const [phone, setPhone] = useState("");
-  const [orderType, setOrderType] = useState<"Service booking" | "Product sale">("Service booking");
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Step 2 State
+  // Catalog State
   const [catalogTab, setCatalogTab] = useState<"services" | "packages" | "products">("services");
-  const activeCatalogTab = orderType === "Product sale" ? "products" : (catalogTab === "products" ? "services" : catalogTab);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>([]);
   const [liveProducts, setLiveProducts] = useState<DashboardProduct[]>(initialProducts);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [, setIsLoadingProducts] = useState(false);
 
   useEffect(() => {
     if (initialProducts && initialProducts.length > 0) {
@@ -301,7 +474,7 @@ export function NewOrderModal({
     }
   }, [initialProducts]);
 
-  // Fetch live products on open and dropdown interaction to bypass stale cache
+  // Fetch live products on open to ensure live stock accurate
   const fetchLiveProducts = React.useCallback(async () => {
     setIsLoadingProducts(true);
     try {
@@ -322,10 +495,9 @@ export function NewOrderModal({
     }
   }, [isOpen, fetchLiveProducts]);
 
-  // Step 3 State
+  // Pricing & Settlement State
   const [discount, setDiscount] = useState("");
   const [discountType, setDiscountType] = useState<"percentage" | "flat">("percentage");
-  const [isDiscountDropdownOpen, setIsDiscountDropdownOpen] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
   const [settlementMode, setSettlementMode] = useState<"completed" | "pay_later" | "advance" | "paid_full">("completed");
   const [payLaterPaid, setPayLaterPaid] = useState("");
@@ -341,356 +513,95 @@ export function NewOrderModal({
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<DashboardOrder | null>(null);
+  const [createdOrderResult, setCreatedOrderResult] = useState<DashboardOrder | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const discountDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filter customers by name query
-  const filteredCustomers = useMemo(() => {
-    const query = customer.trim().toLowerCase();
-    if (!query || !customers || customers.length === 0) return [];
-
-    return customers
-      .filter((c) => c && c.name && c.name.toLowerCase().includes(query))
-      .slice(0, 5);
-  }, [customer, customers]);
-
-  // Check if phone matches an existing customer with a different name
-  const phoneConflictCustomer = useMemo(() => {
-    const digits = getPhoneDigits(phone);
-    if (digits.length !== 10 || !customers || customers.length === 0) return null;
-
-    const match = customers.find((c) => getPhoneDigits(c.phone) === digits);
-    if (!match) return null;
-
-    const currentName = customer.trim().toLowerCase();
-    const registeredName = (match.name || "").trim().toLowerCase();
-
-    if (currentName && registeredName && currentName !== registeredName) {
-      return match;
-    }
-    return null;
-  }, [phone, customer, customers]);
-
-  // Outside click listener for customer autocomplete
+  // Close customer suggestions dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        nameInputRef.current &&
-        !nameInputRef.current.contains(event.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Outside click listener for discount type dropdown
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        discountDropdownRef.current &&
-        !discountDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsDiscountDropdownOpen(false);
-      }
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsDiscountDropdownOpen(false);
-      }
-    }
-    if (isDiscountDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isDiscountDropdownOpen]);
+  // Filter customers by name query
+  const filteredCustomers = useMemo(() => {
+    if (!customer.trim()) return [];
+    const query = customer.toLowerCase();
+    return customers
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          getPhoneDigits(c.phone).includes(query)
+      )
+      .slice(0, 5);
+  }, [customer, customers]);
 
-  // Filter active catalog items
-  const filteredServices = useMemo(() => {
-    const q = catalogSearch.trim().toLowerCase();
-    return services.filter((s) => {
-      if (s.isActive === false) return false;
-      if (!q) return true;
-      return (
-        s.name.toLowerCase().includes(q) ||
-        (s.category && s.category.toLowerCase().includes(q))
-      );
-    });
-  }, [services, catalogSearch]);
-
-  const filteredPackages = useMemo(() => {
-    const q = catalogSearch.trim().toLowerCase();
-    return packages.filter((p) => {
-      if (p.isActive === false) return false;
-      if (!q) return true;
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.services.some((s) => s.name.toLowerCase().includes(q))
-      );
-    });
-  }, [packages, catalogSearch]);
-
-  const filteredProducts = useMemo(() => {
-    const q = catalogSearch.trim().toLowerCase();
-    const matched = liveProducts.filter((p) => {
-      if (!q) return true;
-      return (
-        p.name.toLowerCase().includes(q) ||
-        (p.category && p.category.toLowerCase().includes(q))
-      );
-    });
-    return matched.sort((a, b) =>
-      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+  // Check phone conflicts
+  const phoneConflictCustomer = useMemo(() => {
+    const cleanPhone = getPhoneDigits(phone);
+    if (cleanPhone.length < 10) return null;
+    return (
+      customers.find(
+        (c) =>
+          getPhoneDigits(c.phone) === cleanPhone &&
+          c.name.toLowerCase() !== customer.trim().toLowerCase()
+      ) || null
     );
-  }, [liveProducts, catalogSearch]);
+  }, [phone, customer, customers]);
 
-  // Identify products with higher profit among old/new batches or price variants
-  const higherProfitProductIds = useMemo(() => {
-    // ponytail: Regex grouping assumes standard salon batch naming conventions (Old/New/Batch #). Upgrade path: explicit parentProductId or productFamilyId field in schema for multi-batch tracking.
-    const groups: Record<string, DashboardProduct[]> = {};
-
-    for (const p of liveProducts) {
-      if (!p.name) continue;
-      const baseName = p.name
-        .replace(/\s*\((?:old|new)(?:\s+batch)?\)$/i, "")
-        .replace(/\s*\(batch[^\)]*\)$/i, "")
-        .trim()
-        .toLowerCase();
-
-      if (!groups[baseName]) {
-        groups[baseName] = [];
-      }
-      groups[baseName].push(p);
-    }
-
-    const bestIds = new Set<string>();
-
-    for (const group of Object.values(groups)) {
-      if (group.length < 2) continue;
-
-      const variants = group
-        .filter((p) => typeof p.price === "number")
-        .map((p) => {
-          const profit =
-            typeof p.purchaseCost === "number"
-              ? p.price - p.purchaseCost
-              : p.price;
-          return {
-            id: String(p.id),
-            profit,
-          };
-        });
-
-      if (variants.length < 2) continue;
-
-      const profits = variants.map((v) => v.profit);
-      const maxProfit = Math.max(...profits);
-      const minProfit = Math.min(...profits);
-
-      if (maxProfit > minProfit) {
-        for (const v of variants) {
-          if (v.profit === maxProfit) {
-            bestIds.add(v.id);
-          }
-        }
-      }
-    }
-
-    return bestIds;
-  }, [liveProducts]);
-
-  // Customer previous due orders detection
+  // Previous due orders calculation
   const customerDueOrders = useMemo(() => {
-    const trimmedName = customer.trim().toLowerCase();
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
-    if (!trimmedName && !cleanPhone) return [];
-
+    if (!customer.trim() && !phone.trim()) return [];
+    const cleanPhone = getPhoneDigits(phone);
     return orders.filter((o) => {
-      const isDue =
-        o.status === "created" ||
-        (o.paid < o.amount &&
-          o.status !== "advance_paid" &&
-          o.status !== "paid_full" &&
-          o.status !== "cancelled_refunded" &&
-          o.status !== "cancelled_converted");
-      if (!isDue) return false;
-
-      const orderPhone = o.customerPhone ? o.customerPhone.replace(/\D/g, "").slice(-10) : "";
-      const phoneMatch = Boolean(cleanPhone && orderPhone && cleanPhone === orderPhone);
-      const nameMatch = Boolean(trimmedName && o.customer.trim().toLowerCase() === trimmedName);
-
-      return phoneMatch || nameMatch;
+      if (o.status !== "created" && o.status !== "advance_paid") return false;
+      const orderPending = (o.amount || 0) - (o.paid || 0);
+      if (orderPending <= 0) return false;
+      if (cleanPhone && o.customerPhone && getPhoneDigits(o.customerPhone) === cleanPhone) {
+        return true;
+      }
+      if (customer.trim() && o.customer.toLowerCase() === customer.trim().toLowerCase()) {
+        return true;
+      }
+      return false;
     });
-  }, [orders, customer, phone]);
+  }, [customer, phone, orders]);
 
   const totalPreviousDue = useMemo(() => {
-    return customerDueOrders.reduce((sum, o) => sum + Math.max(0, o.amount - o.paid), 0);
+    return customerDueOrders.reduce((sum, o) => {
+      const orderPending = Math.max(0, (o.amount || 0) - (o.paid || 0));
+      return sum + orderPending;
+    }, 0);
   }, [customerDueOrders]);
 
-  // Track all products across selected services and packages that need retail shelf stock
-  const orderSellStockItems = useMemo(() => {
-    const map = new Map<
-      string,
-      { name: string; neededFromSell: number; sellAvailable: number; useAvailable: number }
-    >();
-
-    for (const item of selectedItems) {
-      if (item.type === "package") {
-        const pkg = packages.find((p) => p.id === item.id);
-        if (pkg) {
-          const info = getPackageStockInfo(pkg, liveProducts, services, item.quantity || 1);
-          for (const sItem of info.itemsNeedingSellStock) {
-            const key = sItem.name.trim().toLowerCase();
-            const existing = map.get(key);
-            if (existing) {
-              existing.neededFromSell += sItem.neededFromSell;
-            } else {
-              map.set(key, { ...sItem });
-            }
-          }
-        }
-      } else if (item.type === "service") {
-        const srv = services.find((s) => s.id === item.id);
-        if (srv) {
-          const info = getServiceStockInfo(srv, liveProducts, item.quantity || 1);
-          for (const sItem of info.itemsNeedingSellStock) {
-            const key = sItem.name.trim().toLowerCase();
-            const existing = map.get(key);
-            if (existing) {
-              existing.neededFromSell += sItem.neededFromSell;
-            } else {
-              map.set(key, { ...sItem });
-            }
-          }
-        }
-      }
-    }
-
-    return Array.from(map.values());
-  }, [selectedItems, liveProducts, packages, services]);
-
-  // Out of stock items tracking (products with low retail stock, or packages/services with missing stock or unconfirmed sell stock)
-  const outOfStockItems = useMemo(() => {
-    const list: { name: string; type: "product" | "package" | "service"; missing?: string[] }[] = [];
-    for (const item of selectedItems) {
-      if (item.type === "product") {
-        const prod = liveProducts.find((p) => p.id === item.id);
-        if (prod && prod.sell < (item.quantity || 1)) {
-          list.push({ name: item.name, type: "product" });
-        }
-      } else if (item.type === "package") {
-        const pkg = packages.find((p) => p.id === item.id);
-        if (pkg) {
-          const info = getPackageStockInfo(pkg, liveProducts, services, item.quantity || 1);
-          if (info.isOutOfStock) {
-            list.push({ name: item.name, type: "package", missing: info.missingNames });
-          } else if (info.needsSellStock && !allowSellStockUsage) {
-            list.push({
-              name: item.name,
-              type: "package",
-              missing: info.itemsNeedingSellStock.map((i) => i.name),
-            });
-          }
-        }
-      } else if (item.type === "service") {
-        const srv = services.find((s) => s.id === item.id);
-        if (srv) {
-          const info = getServiceStockInfo(srv, liveProducts, item.quantity || 1);
-          if (info.isOutOfStock) {
-            list.push({ name: item.name, type: "service", missing: info.missingNames });
-          } else if (info.needsSellStock && !allowSellStockUsage) {
-            list.push({
-              name: item.name,
-              type: "service",
-              missing: info.itemsNeedingSellStock.map((i) => i.name),
-            });
-          }
-        }
-      }
-    }
-    return list;
-  }, [selectedItems, liveProducts, packages, services, allowSellStockUsage]);
-
-  const hasOutOfStockItems = outOfStockItems.length > 0;
-
-  // If items are out of stock and settlementMode is immediate, switch to advance/pre-order
-  useEffect(() => {
-    if (hasOutOfStockItems && (settlementMode === "completed" || settlementMode === "pay_later")) {
-      setSettlementMode("paid_full");
-    }
-  }, [hasOutOfStockItems, settlementMode]);
-
-  // When settlement mode is pay later / due, do not include previous due
-  useEffect(() => {
-    if (settlementMode === "pay_later" && includePreviousDue) {
-      setIncludePreviousDue(false);
-    }
-  }, [settlementMode, includePreviousDue]);
-
-  // Pricing calculations
+  // Financial calculations
   const calculatedSubtotal = useMemo(() => {
-    return selectedItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+    return selectedItems.reduce((acc, it) => acc + (it.price * (it.quantity || 1)), 0);
   }, [selectedItems]);
 
-  const basePrice = calculatedSubtotal;
-
-  const discountValue = useMemo(() => {
-    if (discount !== "" && !isNaN(Number(discount))) {
-      const num = Number(discount);
-      if (discountType === "percentage") {
-        return Math.min(100, Math.max(0, num));
-      }
-      return Math.min(basePrice, Math.max(0, num));
-    }
-    return 0;
-  }, [discount, discountType, basePrice]);
-
+  const discountValue = Number(discount) || 0;
   const calculatedDiscountAmount = useMemo(() => {
+    if (discountValue <= 0) return 0;
     if (discountType === "percentage") {
-      return Math.round((basePrice * discountValue) / 100);
+      const pct = Math.min(100, discountValue);
+      return Math.round((calculatedSubtotal * pct) / 100);
     }
-    return Math.min(basePrice, discountValue);
-  }, [basePrice, discountType, discountValue]);
-
-  const discountPercent = useMemo(() => {
-    if (discountType === "percentage") {
-      return discountValue;
-    }
-    return basePrice > 0 ? Math.round((calculatedDiscountAmount / basePrice) * 100) : 0;
-  }, [discountType, discountValue, calculatedDiscountAmount, basePrice]);
+    return Math.min(calculatedSubtotal, discountValue);
+  }, [calculatedSubtotal, discountValue, discountType]);
 
   const finalTotal = useMemo(() => {
-    return Math.max(0, basePrice - calculatedDiscountAmount);
-  }, [basePrice, calculatedDiscountAmount]);
+    const base = Math.max(0, calculatedSubtotal - calculatedDiscountAmount);
+    return includePreviousDue ? base + totalPreviousDue : base;
+  }, [calculatedSubtotal, calculatedDiscountAmount, includePreviousDue, totalPreviousDue]);
 
-  const totalWithDue = useMemo(() => {
-    return finalTotal + (includePreviousDue ? totalPreviousDue : 0);
-  }, [finalTotal, includePreviousDue, totalPreviousDue]);
-
-  const enteredAdvance = useMemo(() => {
-    if (advance !== "" && !isNaN(Number(advance))) {
-      return Math.max(0, Number(advance));
-    }
-    return 0;
-  }, [advance]);
-
-  const enteredPayLaterPaid = useMemo(() => {
-    if (payLaterPaid !== "" && !isNaN(Number(payLaterPaid))) {
-      return Math.max(0, Number(payLaterPaid));
-    }
-    return 0;
-  }, [payLaterPaid]);
+  const enteredPayLaterPaid = Number(payLaterPaid) || 0;
+  const enteredAdvance = Number(advance) || 0;
 
   const paidAmount = useMemo(() => {
     if (settlementMode === "completed" || settlementMode === "paid_full") {
@@ -706,17 +617,91 @@ export function NewOrderModal({
     return Math.max(0, finalTotal - paidAmount);
   }, [finalTotal, paidAmount]);
 
+  // Stock evaluation for selected items
+  const hasOutOfStockItems = useMemo(() => {
+    for (const item of selectedItems) {
+      if (item.type === "product") {
+        const p = liveProducts.find((prod) => String(prod.id) === item.id);
+        if (!p || (p.sell || 0) < (item.quantity || 1)) return true;
+      } else if (item.type === "service") {
+        const s = services.find((srv) => srv.id === item.id);
+        if (s) {
+          const res = getServiceStockInfo(s, liveProducts, item.quantity || 1);
+          if (res.isOutOfStock) return true;
+        }
+      } else if (item.type === "package") {
+        const pkg = packages.find((p) => p.id === item.id);
+        if (pkg) {
+          const res = getPackageStockInfo(pkg, liveProducts, services, item.quantity || 1);
+          if (res.isOutOfStock) return true;
+        }
+      }
+    }
+    return false;
+  }, [selectedItems, liveProducts, services, packages]);
+
+  const orderSellStockItems = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of selectedItems) {
+      if (item.type === "service") {
+        const s = services.find((srv) => srv.id === item.id);
+        if (s) {
+          const res = getServiceStockInfo(s, liveProducts, item.quantity || 1);
+          if (res.needsSellStock) {
+            for (const it of res.itemsNeedingSellStock) {
+              map.set(it.name, (map.get(it.name) || 0) + it.neededFromSell);
+            }
+          }
+        }
+      } else if (item.type === "package") {
+        const pkg = packages.find((p) => p.id === item.id);
+        if (pkg) {
+          const res = getPackageStockInfo(pkg, liveProducts, services, item.quantity || 1);
+          if (res.needsSellStock) {
+            for (const it of res.itemsNeedingSellStock) {
+              map.set(it.name, (map.get(it.name) || 0) + it.neededFromSell);
+            }
+          }
+        }
+      }
+    }
+    return Array.from(map.entries()).map(([name, neededFromSell]) => ({ name, neededFromSell }));
+  }, [selectedItems, services, packages, liveProducts]);
+
+  // Adjust settlement mode automatically if out of stock items chosen
+  useEffect(() => {
+    if (hasOutOfStockItems) {
+      if (settlementMode === "completed" || settlementMode === "pay_later") {
+        setSettlementMode("advance");
+      }
+    }
+  }, [hasOutOfStockItems, settlementMode]);
+
+  // Filter catalog items
+  const filteredServices = useMemo(() => {
+    const q = catalogSearch.toLowerCase().trim();
+    return services.filter((s) => (s.name + " " + (s.category || "")).toLowerCase().includes(q));
+  }, [services, catalogSearch]);
+
+  const filteredPackages = useMemo(() => {
+    const q = catalogSearch.toLowerCase().trim();
+    return packages.filter((p) => p.name.toLowerCase().includes(q));
+  }, [packages, catalogSearch]);
+
+  const filteredProducts = useMemo(() => {
+    const q = catalogSearch.toLowerCase().trim();
+    return liveProducts.filter((p) => (p.name + " " + (p.category || "")).toLowerCase().includes(q));
+  }, [liveProducts, catalogSearch]);
+
   if (!isOpen) return null;
 
   const handleReset = () => {
-    setStep(1);
     setCustomer("");
     setPhone("");
-    setOrderType("Service booking");
+    setCatalogTab("services");
     setSelectedItems([]);
     setDiscount("");
     setDiscountType("percentage");
-    setIsDiscountDropdownOpen(false);
     setPaymentMode("cash");
     setSettlementMode("completed");
     setPayLaterPaid("");
@@ -731,6 +716,7 @@ export function NewOrderModal({
     setErrorMsg(null);
     setShowSuggestions(false);
     setInspectingOrder(null);
+    setCreatedOrderResult(null);
   };
 
   const handleClose = () => {
@@ -740,7 +726,7 @@ export function NewOrderModal({
     }
   };
 
-  // Toggle service/package/product selection in Step 2
+  // Toggle item in catalog
   const handleToggleItem = (item: {
     id: string;
     type: "service" | "package" | "product";
@@ -785,43 +771,30 @@ export function NewOrderModal({
     });
   };
 
-  // Step 1 -> Step 2 validation
-  const handleNextFromStep1 = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle final submission check
+  const handleFinalSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMsg(null);
-    const formatted = formatCustomerName(customer);
-    if (!formatted) {
+
+    const formattedName = formatCustomerName(customer);
+    if (!formattedName) {
       setErrorMsg("Please enter customer name");
       return;
     }
-    setCustomer(formatted);
-    if (orderType === "Product sale") {
-      setCatalogTab("products");
-      fetchLiveProducts();
-    } else {
-      setCatalogTab("services");
-    }
-    setStep(2);
-  };
 
-  // Step 2 -> Step 3 validation
-  const handleNextFromStep2 = () => {
-    setErrorMsg(null);
-    if (selectedItems.length === 0) {
-      setErrorMsg("Please select at least one item to continue.");
+    const phoneDigits = getPhoneDigits(phone);
+    if (!phoneDigits) {
+      setErrorMsg("Please enter customer mobile number");
       return;
     }
-    // Move to Step 3
-    setStep(3);
-  };
 
-  // Final submit in Step 3
-  const handleFinalSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
+    if (phoneDigits.length < 10) {
+      setErrorMsg("Please enter a valid 10-digit mobile number");
+      return;
+    }
 
     if (selectedItems.length === 0) {
-      setErrorMsg("Please select at least one item.");
+      setErrorMsg("Please select at least one item to create the order.");
       return;
     }
 
@@ -843,8 +816,8 @@ export function NewOrderModal({
       }
     }
 
-    if (orderType !== "Product sale" && (settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
-      setErrorMsg("Please select the appointment / booking date for this advance booking");
+    if ((settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
+      setErrorMsg("Please select the appointment / delivery date for this booking");
       return;
     }
 
@@ -870,10 +843,12 @@ export function NewOrderModal({
         ? "created"
         : "advance_paid";
 
+      const hasProductsOnly = selectedItems.length > 0 && selectedItems.every((i) => i.type === "product");
+      const hasPackages = selectedItems.some((i) => i.type === "package");
       const resolvedOrderType: "Product sale" | "Service booking" | "Package sale" =
-        orderType === "Product sale"
+        hasProductsOnly
           ? "Product sale"
-          : selectedItems.some((i) => i.type === "package")
+          : hasPackages
             ? "Package sale"
             : "Service booking";
 
@@ -921,7 +896,7 @@ export function NewOrderModal({
           finalPrice: itemFinalPrice,
         };
       });
-      // Use the customer name entered by the user; fallback to existing customer name or Walk-in Guest
+
       const resolvedCustomerName = formatCustomerName(customer) || phoneConflictCustomer?.name || "Walk-in Guest";
 
       const res = await createOrderAction({
@@ -947,8 +922,7 @@ export function NewOrderModal({
 
       if (res.success && res.order) {
         onAddOrder(res.order, formattedPhone, res.clearedDueOrderIds, res.updatedProducts);
-        handleReset();
-        onClose();
+        setCreatedOrderResult(res.order);
       } else {
         setErrorMsg(res.error || "Failed to save order");
       }
@@ -961,288 +935,548 @@ export function NewOrderModal({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+      role="region"
+      aria-label="New Order"
+      className="fixed inset-0 z-50 bg-galla-paper flex flex-col overflow-y-auto"
     >
-      <div className="w-full max-w-[540px] bg-galla-surface border border-galla-line rounded-[8px] p-6 shadow-2xl transition-all max-h-[90vh] flex flex-col">
-        {/* Header with Title and Step Dots */}
-        <div className="flex items-center justify-between pb-3 border-b border-galla-line/60 shrink-0">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-[15px] font-bold text-galla-ink">
-                New Order
-              </h3>
-              <span className="text-[11px] font-sans font-medium px-2 py-0.5 rounded-full bg-galla-teal-soft text-galla-teal">
-                Step {step} of 3
-              </span>
+      {/* ======================================================== */}
+      {/* SUCCESS SCREEN OVERLAY                                   */}
+      {/* ======================================================== */}
+      {createdOrderResult && (
+        <div className="fixed inset-0 z-50 bg-galla-paper flex items-center justify-center p-4">
+          <div className="bg-galla-surface border border-galla-line rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-5">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-bold shadow-2xs">
+              ✓
             </div>
-            <p className="text-[12px] font-sans text-galla-ink-soft mt-0.5">
-              {step === 1 && "Customer details and order category"}
-              {step === 2 && (orderType === "Product sale" ? "Select retail products from inventory" : "Select services and bundled packages")}
-              {step === 3 && "Review items, custom pricing & settlement"}
-            </p>
-          </div>
+            <div>
+              <h2 className="text-xl font-bold text-galla-ink">Order Created Successfully</h2>
+              <p className="text-[13px] text-galla-ink-soft mt-1">
+                Order has been confirmed and saved to your register.
+              </p>
+            </div>
 
+            <div className="text-[13.5px] text-galla-ink bg-galla-paper/70 p-4 rounded-xl border border-galla-line/60 space-y-1.5 text-left">
+              <div className="flex justify-between items-center pb-1.5 border-b border-galla-line/50">
+                <span className="text-galla-ink-soft text-[12.5px]">Order ID</span>
+                <span className="font-semibold text-galla-ink">
+                  {formatDisplayNumber(createdOrderResult.id)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-galla-ink-soft text-[12.5px]">Customer</span>
+                <span className="font-medium text-galla-ink">
+                  {createdOrderResult.customer}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-galla-ink-soft text-[12.5px]">Total Amount</span>
+                <span className="font-bold text-galla-teal">
+                  {formatRupee(createdOrderResult.amount)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-galla-ink-soft text-[12.5px]">Settlement</span>
+                <span className="font-medium text-galla-ink">
+                  {createdOrderResult.status === "completed"
+                    ? "Paid in full"
+                    : createdOrderResult.status === "advance_paid"
+                    ? `Advance: ${formatRupee(createdOrderResult.paid)}`
+                    : `Due: ${formatRupee((createdOrderResult.amount || 0) - (createdOrderResult.paid || 0))}`}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleClose}
+              className="w-full py-3 rounded-xl bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] transition-all cursor-pointer shadow-sm"
+            >
+              Back to counter
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TOP HEADER (Sticky, covers sidebar, cancel button)       */}
+      {/* ======================================================== */}
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
+        <div className="flex items-center gap-3">
           <button
-            onClick={handleClose}
             type="button"
+            onClick={handleClose}
             disabled={isSubmitting}
-            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-galla-line text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/70 text-[13px] font-medium transition-colors cursor-pointer disabled:opacity-50"
           >
-            <X className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to counter</span>
           </button>
+          <div className="h-4 w-px bg-galla-line hidden sm:block" />
+          <h1 className="text-[16px] font-bold text-galla-ink">New Order</h1>
         </div>
 
-        {/* Global Error Banner */}
-        {errorMsg && (
-          <div className="mt-3 p-2.5 bg-red-50 border border-red-200 text-red-700 text-[12px] rounded-[4px] flex items-center gap-2 shrink-0">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            <span>{errorMsg}</span>
+        <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft">
+          <span>{selectedItems.length} {selectedItems.length === 1 ? "item" : "items"}</span>
+          <span className="text-galla-line">&bull;</span>
+          <span className="font-bold text-galla-ink tabular-nums">{formatRupee(finalTotal)}</span>
+        </div>
+      </header>
+
+      {/* Global Error Banner */}
+      {errorMsg && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="text-red-600 hover:text-red-800 p-0.5 cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ======================================================== */}
-        {/* STEP 1: CUSTOMER & ORDER TYPE                             */}
-        {/* ======================================================== */}
-        {step === 1 && (
-          <form onSubmit={handleNextFromStep1} className="space-y-4 pt-4 overflow-y-auto flex-1">
-            {/* Customer Name with Autocomplete */}
-            <div className="relative">
-              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Customer Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                ref={nameInputRef}
-                type="text"
-                autoFocus
-                required
-                value={customer}
-                onChange={(e) => {
-                  setCustomer(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => {
-                  if (customer.trim().length > 0) setShowSuggestions(true);
-                }}
-                onBlur={() => {
-                  if (customer.trim()) {
-                    setCustomer(formatCustomerName(customer));
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setShowSuggestions(false);
-                }}
-                autoComplete="off"
-                placeholder="Enter customer name"
-                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-              />
-
-              {showSuggestions && filteredCustomers.length > 0 && (
-                <div
-                  ref={dropdownRef}
-                  className="absolute left-0 right-0 top-full mt-1 z-30 bg-galla-surface border border-galla-line rounded-[5px] shadow-lg overflow-hidden py-1 max-h-48 overflow-y-auto"
-                >
-                  {filteredCustomers.map((c, index) => (
-                    <button
-                      key={`${c.phone || c.name}-${index}`}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setCustomer(c.name);
-                        if (c.phone) setPhone(c.phone);
-                        setShowSuggestions(false);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-galla-paper/80 transition-colors flex items-center justify-between group cursor-pointer border-b border-galla-line/40 last:border-b-0"
-                    >
-                      <span className="text-[13px] font-medium text-galla-ink group-hover:text-galla-teal transition-colors">
-                        {c.name}
-                      </span>
-                      <span className="tabular-nums text-[12px] text-galla-ink-soft">
-                        {c.phone || "No phone"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+      {/* ======================================================== */}
+      {/* MAIN TWO-COLUMN LAYOUT:                                  */}
+      {/* LEFT: Customer, Catalog Selection, Payment              */}
+      {/* RIGHT: Bill Summary (Cart, Discount, Total, Create Button)*/}
+      {/* ======================================================== */}
+      <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start flex-1">
+        
+        {/* ====================================================== */}
+        {/* RIGHT COLUMN: BILL                                     */}
+        {/* ====================================================== */}
+        <aside className="bg-galla-surface border border-galla-line rounded-xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
+          {/* Bill Header */}
+          <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-bold text-galla-ink">Bill</h2>
+              {selectedItems.length > 0 && (
+                <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-galla-teal-soft text-galla-teal">
+                  {selectedItems.length} {selectedItems.length === 1 ? "item" : "items"}
+                </span>
               )}
             </div>
+            {selectedItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedItems([])}
+                className="text-[12px] text-galla-ink-soft hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
 
-            {/* Customer Phone */}
-            <div>
-              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Customer Mobile (Optional)
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                onBlur={() => {
-                  if (phone.trim()) setPhone(formatPhoneNumber(phone));
-                }}
-                placeholder="Enter mobile number"
-                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
-              />
+          {/* Selected Items List */}
+          <div className="flex-1 overflow-y-auto p-3 divide-y divide-galla-line/40 min-h-[140px] max-h-[300px] lg:max-h-[360px]">
+            {selectedItems.length === 0 ? (
+              <div className="py-12 text-center text-galla-ink-soft border border-dashed border-galla-line rounded-lg bg-galla-paper/30">
+                <p className="text-[13px] font-medium">No items added yet</p>
+                <p className="text-[11.5px] mt-0.5">Select services, packages, or products from the catalog on the left</p>
+              </div>
+            ) : (
+              selectedItems.map((item) => {
+                const itemTotal = item.price * (item.quantity || 1);
+                return (
+                  <div key={`${item.type}-${item.id}`} className="py-2.5 flex items-center gap-2.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-medium text-galla-ink truncate">{item.name}</div>
+                      <div className="text-[11px] text-galla-ink-soft tabular-nums">
+                        {formatRupee(item.price)} each
+                      </div>
+                    </div>
 
-              {phoneConflictCustomer && (
-                <div className="mt-1.5 flex items-start gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-[4px] p-2">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="leading-tight">
-                    <span>This mobile number is registered with </span>
-                    <span className="font-semibold">{phoneConflictCustomer.name}</span>.
-                    <span> Creating this order will update the customer name to </span>
-                    <span className="font-semibold">{customer.trim() || phoneConflictCustomer.name}</span>
-                    <span> permanently.</span>
+                    {/* Stepper */}
+                    <div className="flex items-center border border-galla-line rounded-md bg-galla-paper/40 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.id, item.type, -1)}
+                        className="w-7 h-7 flex items-center justify-center text-galla-ink-soft hover:text-galla-ink cursor-pointer hover:bg-galla-paper rounded-l-md transition-colors"
+                      >
+                        -
+                      </button>
+                      <span className="w-7 text-center text-[12px] font-semibold text-galla-ink tabular-nums">
+                        {item.quantity || 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.id, item.type, 1)}
+                        className="w-7 h-7 flex items-center justify-center text-galla-ink-soft hover:text-galla-ink cursor-pointer hover:bg-galla-paper rounded-r-md transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Total for item */}
+                    <div className="text-[13px] font-semibold text-galla-ink tabular-nums text-right min-w-[56px] shrink-0">
+                      {formatRupee(itemTotal)}
+                    </div>
+
+                    {/* Remove */}
                     <button
                       type="button"
-                      onClick={() => setCustomer(phoneConflictCustomer.name)}
-                      className="ml-1.5 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
+                      onClick={() => handleRemoveItem(item.id, item.type)}
+                      className="text-galla-ink-soft/60 hover:text-rose-600 p-1 cursor-pointer transition-colors shrink-0"
+                      title="Remove item"
                     >
-                      Keep {phoneConflictCustomer.name}
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Bill Footer & Financials */}
+          <div className="p-4 border-t border-galla-line/60 bg-galla-surface space-y-3 shrink-0">
+            {/* Previous Due Alert & Opt-in */}
+            {customerDueOrders.length > 0 && settlementMode !== "pay_later" && (
+              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-lg text-[12px] space-y-1.5">
+                <div className="text-amber-900 font-medium">
+                  Previous unpaid due: <strong className="text-rose-700">{formatRupee(totalPreviousDue)}</strong>
+                </div>
+                <label className="flex items-center gap-2 font-medium text-galla-ink cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={includePreviousDue}
+                    onChange={(e) => setIncludePreviousDue(e.target.checked)}
+                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
+                  />
+                  <span>Add previous due to this bill</span>
+                </label>
+              </div>
+            )}
+
+            {/* Discount Row */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[12px]">
+                <label className="font-medium text-galla-ink">Discount</label>
+                <span className="text-galla-ink-soft text-[11px]">
+                  {discountType === "percentage" ? "Percentage (%)" : "Flat (₹)"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value.replace(/\D/g, ""))}
+                  placeholder={discountType === "percentage" ? "e.g. 10%" : "e.g. 100"}
+                  className="flex-1 bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink tabular-nums focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                />
+                <div className="inline-flex border border-galla-line rounded-lg p-0.5 bg-galla-paper/60 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType("percentage")}
+                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      discountType === "percentage"
+                        ? "bg-galla-teal text-white shadow-2xs"
+                        : "text-galla-ink-soft hover:text-galla-ink"
+                    }`}
+                  >
+                    %
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType("flat")}
+                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      discountType === "flat"
+                        ? "bg-galla-teal text-white shadow-2xs"
+                        : "text-galla-ink-soft hover:text-galla-ink"
+                    }`}
+                  >
+                    ₹
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Calculations Breakdown */}
+            <div className="pt-2 border-t border-galla-line/50 space-y-1 text-[12.5px]">
+              <div className="flex justify-between text-galla-ink-soft">
+                <span>Subtotal</span>
+                <span className="tabular-nums font-medium text-galla-ink">{formatRupee(calculatedSubtotal)}</span>
+              </div>
+
+              {calculatedDiscountAmount > 0 && (
+                <div className="flex justify-between text-emerald-700">
+                  <span>Discount</span>
+                  <span className="tabular-nums font-medium">&minus; {formatRupee(calculatedDiscountAmount)}</span>
+                </div>
+              )}
+
+              {includePreviousDue && totalPreviousDue > 0 && (
+                <div className="flex justify-between text-amber-800">
+                  <span>Previous Dues Added</span>
+                  <span className="tabular-nums font-medium">+ {formatRupee(totalPreviousDue)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-baseline pt-2 border-t border-galla-line text-[16px] font-bold text-galla-ink">
+                <span>Total</span>
+                <span className="text-xl tabular-nums text-galla-teal">{formatRupee(finalTotal)}</span>
+              </div>
+
+              {/* Settlement specifics */}
+              {settlementMode === "advance" && (
+                <div className="pt-1.5 text-[11.5px] space-y-0.5">
+                  <div className="flex justify-between text-teal-800 font-medium">
+                    <span>Advance Paid Now</span>
+                    <span className="tabular-nums">{formatRupee(paidAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 font-semibold">
+                    <span>Balance Due Later</span>
+                    <span className="tabular-nums">{formatRupee(amountPending)}</span>
+                  </div>
+                </div>
+              )}
+
+              {settlementMode === "pay_later" && (
+                <div className="pt-1.5 text-[11.5px] space-y-0.5">
+                  <div className="flex justify-between text-galla-ink font-medium">
+                    <span>Paid Upfront</span>
+                    <span className="tabular-nums">{formatRupee(paidAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 font-semibold">
+                    <span>Pending Due</span>
+                    <span className="tabular-nums">{formatRupee(amountPending)}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Order Type Selection (Only Product sale & Service booking) */}
-            <div>
-              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Order Type <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
+            {/* Create Order Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleFinalSubmit()}
+                disabled={
+                  isSubmitting ||
+                  selectedItems.length === 0 ||
+                  !customer.trim() ||
+                  getPhoneDigits(phone).length < 10
+                }
+                className="w-full py-3 rounded-xl bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] shadow-sm disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 transition-all"
+              >
+                {isSubmitting ? (
+                  <span>Creating order...</span>
+                ) : (
+                  <span>
+                    Create order {selectedItems.length > 0 && finalTotal > 0 ? `(${formatRupee(finalTotal)})` : ""}
+                  </span>
+                )}
+              </button>
+
+              {!customer.trim() && selectedItems.length > 0 && (
+                <p className="text-[11.5px] text-galla-ink-soft text-center mt-1.5">
+                  Enter customer name on the left to complete order
+                </p>
+              )}
+              {customer.trim() && getPhoneDigits(phone).length < 10 && selectedItems.length > 0 && (
+                <p className="text-[11.5px] text-galla-ink-soft text-center mt-1.5">
+                  Enter a valid 10-digit mobile number to complete order
+                </p>
+              )}
+              {selectedItems.length === 0 && (
+                <p className="text-[11.5px] text-galla-ink-soft text-center mt-1.5">
+                  Select at least one item from the catalog
+                </p>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        {/* ====================================================== */}
+        {/* LEFT COLUMN: CUSTOMER, CATALOG & PAYMENT               */}
+        {/* ====================================================== */}
+        <main className="space-y-5 min-w-0 order-1">
+          
+          {/* Card 1: Customer Details */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+              1. Customer
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Customer Name with Autocomplete */}
+              <div className="relative" ref={dropdownRef}>
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                  Customer Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={customer}
+                  onChange={(e) => {
+                    setCustomer(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  placeholder="e.g. John Doe"
+                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                />
+
+                {/* Autocomplete Suggestions */}
+                {showSuggestions && filteredCustomers.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-lg shadow-lg z-20 overflow-hidden divide-y divide-galla-line/40">
+                    {filteredCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCustomer(c.name);
+                          if (c.phone) setPhone(formatPhoneNumber(c.phone));
+                          setShowSuggestions(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 hover:bg-galla-paper/70 flex items-center justify-between text-[12.5px] cursor-pointer transition-colors"
+                      >
+                        <span className="font-semibold text-galla-ink">{c.name}</span>
+                        <span className="text-galla-ink-soft font-mono text-[11px]">{c.phone ? formatPhoneNumber(c.phone) : "No phone"}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Customer Phone */}
+              <div>
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                  Mobile Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const digits = getPhoneDigits(raw);
+                    if (!raw.trim() || !digits) {
+                      setPhone("");
+                      return;
+                    }
+                    const formatted = formatPhoneNumber(digits);
+                    setPhone(formatted);
+                    if (digits.length === 10) {
+                      const matched = customers.find(
+                        (c) => getPhoneDigits(c.phone) === digits
+                      );
+                      if (matched && !customer.trim()) {
+                        setCustomer(matched.name);
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    if (phone.trim()) {
+                      setPhone(formatPhoneNumber(phone));
+                    }
+                  }}
+                  placeholder="+91 98765 43210"
+                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Phone conflict banner */}
+            {phoneConflictCustomer && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-[12px] flex items-center justify-between">
+                <span>
+                  Phone belongs to existing customer: <strong>{phoneConflictCustomer.name}</strong>
+                </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setOrderType("Service booking");
-                    setCatalogTab("services");
-                  }}
-                  className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                    orderType === "Service booking"
-                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  onClick={() => setCustomer(phoneConflictCustomer.name)}
+                  className="text-galla-teal font-semibold hover:underline cursor-pointer ml-2"
+                >
+                  Use {phoneConflictCustomer.name}
+                </button>
+              </div>
+            )}
+          </section>
+
+          {/* Card 2: Catalog Selection */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                2. Catalog Selection
+              </h2>
+
+              {/* All 3 Catalog Tabs */}
+              <div className="inline-flex border border-galla-line rounded-lg p-0.5 bg-galla-paper/60 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setCatalogTab("services")}
+                  className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                    catalogTab === "services"
+                      ? "bg-galla-surface text-galla-ink shadow-2xs font-bold"
+                      : "text-galla-ink-soft hover:text-galla-ink"
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-medium text-[13.5px]">
-                    <Scissors className="h-4 w-4" />
-                    <span>Service booking</span>
-                  </div>
-                  <div className="text-[11.5px] text-galla-ink-soft mt-1 leading-snug">
-                    Salon treatments &amp; package deals
-                  </div>
+                  Services ({services.length})
                 </button>
-
+                <button
+                  type="button"
+                  onClick={() => setCatalogTab("packages")}
+                  className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                    catalogTab === "packages"
+                      ? "bg-galla-surface text-galla-ink shadow-2xs font-bold"
+                      : "text-galla-ink-soft hover:text-galla-ink"
+                  }`}
+                >
+                  Packages ({packages.length})
+                </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setOrderType("Product sale");
                     setCatalogTab("products");
                     fetchLiveProducts();
                   }}
-                  className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                    orderType === "Product sale"
-                      ? "bg-galla-teal-soft border-galla-teal text-galla-teal shadow-2xs"
-                      : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
+                  className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                    catalogTab === "products"
+                      ? "bg-galla-surface text-galla-ink shadow-2xs font-bold"
+                      : "text-galla-ink-soft hover:text-galla-ink"
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-medium text-[13.5px]">
-                    <Package className="h-4 w-4" />
-                    <span>Product sale</span>
-                  </div>
-                  <div className="text-[11.5px] text-galla-ink-soft mt-1 leading-snug">
-                    Retail shampoo, serums &amp; retail products
-                  </div>
+                  Products ({liveProducts.length})
                 </button>
               </div>
             </div>
 
-            {/* Step 1 Actions */}
-            <div className="pt-3 flex justify-end">
-              <button
-                type="submit"
-                disabled={!customer.trim()}
-                className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13.5px] font-medium px-5 py-2 rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
-              >
-                <span>Next</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-galla-ink-soft/70" />
+              <input
+                type="search"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder={
+                  catalogTab === "products"
+                    ? "Search products by name or category..."
+                    : catalogTab === "packages"
+                    ? "Search bundled packages..."
+                    : "Search services by name or category..."
+                }
+                className="w-full bg-galla-surface border border-galla-line rounded-lg pl-9 pr-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+              />
             </div>
-          </form>
-        )}
 
-        {/* ======================================================== */}
-        {/* STEP 2: CATALOG SELECTION (SERVICES, PACKAGES & PRODUCTS) */}
-        {/* ======================================================== */}
-        {step === 2 && (
-          <div className="pt-3 flex-1 flex flex-col overflow-hidden space-y-3">
-              {/* Switcher & Search Bar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
-                {/* Service vs Package vs Product Toggle */}
-                {orderType === "Product sale" ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-galla-teal text-white text-[12px] font-sans font-medium shadow-xs">
-                    <ShoppingBag className="h-3.5 w-3.5" />
-                    <span>Products ({filteredProducts.length})</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center p-0.5 bg-galla-paper/60 border border-galla-line rounded-[6px]">
-                    <button
-                      type="button"
-                      onClick={() => setCatalogTab("services")}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] transition-all cursor-pointer ${
-                        activeCatalogTab === "services"
-                          ? "bg-galla-teal text-white font-semibold shadow-xs"
-                          : "text-galla-ink-soft hover:text-galla-ink font-normal"
-                      }`}
-                    >
-                      <Scissors className="h-3.5 w-3.5" />
-                      <span>Services ({filteredServices.length})</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setCatalogTab("packages")}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] transition-all cursor-pointer ${
-                        activeCatalogTab === "packages"
-                          ? "bg-galla-teal text-white font-semibold shadow-xs"
-                          : "text-galla-ink-soft hover:text-galla-ink font-normal"
-                      }`}
-                    >
-                      <Package className="h-3.5 w-3.5" />
-                      <span>Packages ({filteredPackages.length})</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Search Bar */}
-                <div className="relative flex-1 sm:max-w-xs">
-                  <Search className="h-3.5 w-3.5 text-galla-ink-soft/60 absolute left-2.5 top-2.5" />
-                  <input
-                    type="text"
-                    autoFocus
-                    value={catalogSearch}
-                    onChange={(e) => setCatalogSearch(e.target.value)}
-                    placeholder={
-                      activeCatalogTab === "services"
-                        ? "Search services or category..."
-                        : activeCatalogTab === "packages"
-                        ? "Search package bundles..."
-                        : "Search retail products..."
-                    }
-                    className="w-full bg-galla-paper/40 border border-galla-line rounded-[5px] pl-8 pr-2.5 py-1.5 text-[12px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Catalog Items List */}
-              <div className="flex-1 overflow-y-auto border border-galla-line rounded-[6px] divide-y divide-galla-line/40 max-h-[320px] bg-galla-paper/20">
-                {activeCatalogTab === "products" ? (
+            {/* Catalog Items List */}
+            <div className="border border-galla-line rounded-xl overflow-hidden divide-y divide-galla-line/40 max-h-[420px] overflow-y-auto bg-galla-paper/10">
+              {/* Product Sale View */}
+              {catalogTab === "products" && (
                 filteredProducts.length === 0 ? (
                   <div className="p-8 text-center text-[13px] text-galla-ink-soft">
-                    {isLoadingProducts ? "Loading live products..." : "No active retail products found matching your search."}
+                    No products found matching your search.
                   </div>
                 ) : (
                   filteredProducts.map((p) => {
                     const isSelected = selectedItems.some((i) => i.id === String(p.id) && i.type === "product");
-                    const isOutOfStock = p.sell <= 0;
+                    const price = p.price || 0;
+                    const isOutOfStock = (p.sell || 0) <= 0;
+
                     return (
                       <div
                         key={p.id}
@@ -1251,18 +1485,18 @@ export function NewOrderModal({
                             id: String(p.id),
                             type: "product",
                             name: p.name,
-                            price: p.price,
+                            price: price,
                           })
                         }
-                        className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
                           isSelected
-                            ? "bg-galla-teal/5 hover:bg-galla-teal/10"
+                            ? "bg-galla-teal/8 hover:bg-galla-teal/12"
                             : "hover:bg-galla-paper/60"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all ${
+                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
                               isSelected
                                 ? "bg-galla-teal border-galla-teal text-white"
                                 : "border-galla-line bg-galla-surface"
@@ -1270,56 +1504,47 @@ export function NewOrderModal({
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-[13.5px] text-galla-ink">
+                              <span className="font-semibold text-[13.5px] text-galla-ink truncate">
                                 {p.name}
                               </span>
-                              {higherProfitProductIds.has(String(p.id)) && (
-                                <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
-                                  title="This product variant yields higher profit for the salon"
-                                >
-                                  <TrendingUp className="h-3 w-3 text-emerald-600 shrink-0" />
-                                  <span>More Profit &bull; Best to Sell</span>
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
                               {isOutOfStock ? (
-                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10.5px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                                  Out of stock (Backorder allowed)
+                                <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
+                                  Out of Stock &bull; Pre-order only
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10.5px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
                                   {p.sell} in stock
                                 </span>
                               )}
-                              {p.category && (
-                                <span className="bg-galla-paper px-1.5 py-0.5 rounded border border-galla-line/60">
-                                  {p.category}
-                                </span>
-                              )}
+                            </div>
+                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5">
+                              {p.category || "Retail"}
                             </div>
                           </div>
                         </div>
 
-                        <div className="font-semibold text-[13.5px] text-galla-ink tabular-nums">
-                          {formatRupee(p.price)}
+                        <div className="font-bold text-[14px] text-galla-ink tabular-nums shrink-0 ml-3">
+                          {formatRupee(price)}
                         </div>
                       </div>
                     );
                   })
                 )
-              ) : activeCatalogTab === "services" ? (
+              )}
+
+              {/* Service Booking: Services View */}
+              {catalogTab === "services" && (
                 filteredServices.length === 0 ? (
                   <div className="p-8 text-center text-[13px] text-galla-ink-soft">
-                    No active services found matching your search.
+                    No services found matching your search.
                   </div>
                 ) : (
                   filteredServices.map((s) => {
                     const isSelected = selectedItems.some((i) => i.id === s.id && i.type === "service");
                     const stockInfo = getServiceStockInfo(s, liveProducts);
+
                     return (
                       <div
                         key={s.id}
@@ -1331,15 +1556,15 @@ export function NewOrderModal({
                             price: s.price,
                           })
                         }
-                        className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
                           isSelected
-                            ? "bg-galla-teal/5 hover:bg-galla-teal/10"
+                            ? "bg-galla-teal/8 hover:bg-galla-teal/12"
                             : "hover:bg-galla-paper/60"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all ${
+                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
                               isSelected
                                 ? "bg-galla-teal border-galla-teal text-white"
                                 : "border-galla-line bg-galla-surface"
@@ -1347,23 +1572,23 @@ export function NewOrderModal({
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-[13.5px] text-galla-ink">
+                              <span className="font-semibold text-[13.5px] text-galla-ink truncate">
                                 {s.name}
                               </span>
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
-                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
-                                    Advance Only &bull; Out of Stock
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
+                                    Out of stock: {stockInfo.missingNames.join(", ")}
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
-                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
-                                    In-Use Short &bull; Shelf Available
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                    In-use short ({stockInfo.itemsNeedingSellStock.map((it) => `${it.neededFromSell}x ${it.name}`).join(", ")}) &bull; shelf available
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                    Products In Stock
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    In Stock
                                   </span>
                                 )
                               )}
@@ -1375,62 +1600,55 @@ export function NewOrderModal({
                                 </span>
                               )}
                               {s.products && s.products.length > 0 && (
-                                <span className="text-galla-teal font-medium flex items-center gap-1">
+                                <span className="text-galla-teal font-medium">
                                   &bull; Consumes: {s.products.map((p) => `${p.quantity}x ${p.name}`).join(", ")}
                                 </span>
                               )}
                             </div>
-                            {stockInfo.hasProducts && (
-                              stockInfo.isOutOfStock ? (
-                                <div className="text-[11px] text-rose-700 font-medium mt-0.5">
-                                  ⚠️ Missing stock: {stockInfo.missingNames.join(", ")}
-                                </div>
-                              ) : stockInfo.needsSellStock ? (
-                                <div className="text-[11px] text-amber-700 font-medium mt-0.5">
-                                  ⚠️ In-use stock short: {stockInfo.itemsNeedingSellStock.map((it) => `${it.neededFromSell}x ${it.name} (${it.sellAvailable} on shelf)`).join(", ")}
-                                </div>
-                              ) : null
-                            )}
                           </div>
                         </div>
 
-                        <div className="font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                        <div className="font-bold text-[14px] text-galla-ink tabular-nums shrink-0 ml-3">
                           {formatRupee(s.price)}
                         </div>
                       </div>
                     );
                   })
                 )
-              ) : (
+              )}
+
+              {/* Service Booking: Packages View */}
+              {catalogTab === "packages" && (
                 filteredPackages.length === 0 ? (
                   <div className="p-8 text-center text-[13px] text-galla-ink-soft">
-                    No active packages found matching your search.
+                    No packages found matching your search.
                   </div>
                 ) : (
-                  filteredPackages.map((p) => {
-                    const isSelected = selectedItems.some((i) => i.id === p.id && i.type === "package");
-                    const price = p.packagePrice || 0;
-                    const stockInfo = getPackageStockInfo(p, liveProducts, services);
+                  filteredPackages.map((pkg) => {
+                    const isSelected = selectedItems.some((i) => i.id === pkg.id && i.type === "package");
+                    const price = pkg.packagePrice || 0;
+                    const stockInfo = getPackageStockInfo(pkg, liveProducts, services);
+
                     return (
                       <div
-                        key={p.id}
+                        key={pkg.id}
                         onClick={() =>
                           handleToggleItem({
-                            id: p.id,
+                            id: pkg.id,
                             type: "package",
-                            name: p.name,
+                            name: pkg.name,
                             price: price,
                           })
                         }
-                        className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
                           isSelected
-                            ? "bg-galla-teal/5 hover:bg-galla-teal/10"
+                            ? "bg-galla-teal/8 hover:bg-galla-teal/12"
                             : "hover:bg-galla-paper/60"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all ${
+                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
                               isSelected
                                 ? "bg-galla-teal border-galla-teal text-white"
                                 : "border-galla-line bg-galla-surface"
@@ -1438,53 +1656,34 @@ export function NewOrderModal({
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-[13.5px] text-galla-ink">
-                                {p.name}
+                              <span className="font-semibold text-[13.5px] text-galla-ink truncate">
+                                {pkg.name}
                               </span>
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
-                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
-                                    Advance Only &bull; Out of Stock
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
+                                    Out of stock: {stockInfo.missingNames.join(", ")}
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
-                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
-                                    In-Use Short &bull; Shelf Available
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                    In-use short &bull; shelf available
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                    Products In Stock
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    In Stock
                                   </span>
                                 )
                               )}
                             </div>
-                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5 max-w-md line-clamp-2">
-                              {p.services.length} services ({p.services.map((s) => s.name).join(", ")})
-                              {p.products && p.products.length > 0 && (
-                                <> &bull; {p.products.length} direct products ({p.products.map((pr) => pr.name).join(", ")})</>
-                              )}
-                              {stockInfo.allRequiredProducts.length > 0 && (
-                                <div className="text-[10.5px] text-galla-ink-soft/80 mt-0.5">
-                                  Total required: {stockInfo.allRequiredProducts.map((pr) => `${pr.needed}x ${pr.name}`).join(", ")}
-                                </div>
-                              )}
+                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5">
+                              {pkg.services.length} services ({pkg.services.map((s) => s.name).join(", ")})
                             </div>
-                            {stockInfo.hasProducts && (
-                              stockInfo.isOutOfStock ? (
-                                <div className="text-[11px] text-rose-700 font-medium mt-0.5">
-                                  ⚠️ Missing stock: {stockInfo.missingNames.join(", ")}
-                                </div>
-                              ) : stockInfo.needsSellStock ? (
-                                <div className="text-[11px] text-amber-700 font-medium mt-0.5">
-                                  ⚠️ In-use stock short: {stockInfo.itemsNeedingSellStock.map((it) => `${it.neededFromSell}x ${it.name} (${it.sellAvailable} on shelf)`).join(", ")}
-                                </div>
-                              ) : null
-                            )}
                           </div>
                         </div>
 
-                        <div className="font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                        <div className="font-bold text-[14px] text-galla-ink tabular-nums shrink-0 ml-3">
                           {formatRupee(price)}
                         </div>
                       </div>
@@ -1493,796 +1692,179 @@ export function NewOrderModal({
                 )
               )}
             </div>
+          </section>
 
-            {/* Selection Summary Bar & Navigation */}
-            <div className="pt-2 border-t border-galla-line/60 flex items-center justify-between shrink-0">
-              <div className="text-[12.5px] font-sans text-galla-ink">
-                <span className="font-semibold text-galla-teal">{selectedItems.length}</span> item
-                {selectedItems.length === 1 ? "" : "s"} selected{" "}
-                <span className="text-galla-ink-soft">
-                  ({formatRupee(calculatedSubtotal)})
-                </span>
-              </div>
+          {/* Card 3: Payment & Settlement */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+              3. Payment &amp; Settlement
+            </h2>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[5px] text-[12.5px] font-sans text-galla-ink-soft hover:text-galla-ink border border-galla-line transition-all cursor-pointer"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>Back</span>
-                </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Settlement Mode Dropdown */}
+              <SettlementModeSelect
+                value={settlementMode}
+                onChange={setSettlementMode}
+                hasOutOfStockItems={hasOutOfStockItems}
+              />
 
-                <button
-                  type="button"
-                  onClick={handleNextFromStep2}
-                  disabled={selectedItems.length === 0}
-                  className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[12.5px] font-medium px-4 py-1.5 rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
-                >
-                  <span>Review &amp; Price</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* STEP 3: REVIEW, EDITABLE PRICE, DISCOUNT & SETTLEMENT     */}
-        {/* ======================================================== */}
-        {step === 3 && (
-          <form onSubmit={handleFinalSubmit} className="pt-3 flex-1 flex flex-col overflow-y-auto space-y-4">
-            {/* Customer Snapshot Pill */}
-            <div className="p-2.5 bg-galla-paper/50 border border-galla-line rounded-[5px] flex items-center justify-between text-[12.5px]">
-              <div>
-                <span className="text-galla-ink-soft">Customer: </span>
-                <span className="font-semibold text-galla-ink">{customer}</span>
-                {phone && (
-                  <span className="tabular-nums text-galla-ink-soft text-[12px] ml-1.5">
-                    ({phone})
-                  </span>
-                )}
-              </div>
-              <span className="text-[11px] font-medium bg-galla-teal-soft text-galla-teal px-1.5 py-0.5 rounded">
-                {orderType === "Product sale" ? "Product Sale" : "Service Booking"}
-              </span>
+              {/* Payment Mode Dropdown */}
+              <PaymentModeSelect
+                label="Payment Mode"
+                value={paymentMode}
+                onChange={(val) => setPaymentMode(val as "cash" | "upi" | "card")}
+                allowedModes={["cash", "upi", "card"]}
+              />
             </div>
 
-            {/* Selected Items List (Editable / Deletable) */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                  Selected Items ({selectedItems.length})
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium text-galla-teal hover:underline cursor-pointer"
-                >
-                  <Plus className="h-3 w-3" />
-                  <span>Add more items</span>
-                </button>
-              </div>
-
-              <div className="border border-galla-line rounded-[5px] divide-y divide-galla-line/40 max-h-36 overflow-y-auto bg-galla-paper/20">
-                {selectedItems.length === 0 ? (
-                  <div className="p-4 text-center text-[12px] text-galla-ink-soft">
-                    No items selected.{" "}
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="text-galla-teal font-medium hover:underline cursor-pointer ml-1"
-                    >
-                      Add items from catalog
-                    </button>
-                  </div>
-                ) : (
-                  selectedItems.map((item) => (
-                    <div
-                      key={`${item.type}-${item.id}`}
-                      className="px-3 py-2 flex items-center justify-between text-[12.5px] hover:bg-galla-paper/40 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span
-                          className={`text-[11px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
-                            item.type === "package"
-                              ? "bg-galla-brass-soft text-galla-brass border border-galla-brass/30"
-                              : item.type === "product"
-                              ? "bg-amber-100 text-amber-800 border border-amber-300"
-                              : "bg-galla-teal-soft text-galla-teal border border-galla-teal/30"
-                          }`}
-                        >
-                          {item.type}
-                        </span>
-                        <span className="font-medium text-galla-ink truncate">
-                          {item.name}
-                        </span>
-                        {item.type === "product" && higherProfitProductIds.has(String(item.id)) && (
-                          <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0"
-                            title="This product variant yields higher profit for the salon"
-                          >
-                            <TrendingUp className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
-                            <span>More Profit &bull; Best to Sell</span>
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        {/* Quantity Controls */}
-                        <div className="flex items-center border border-galla-line rounded bg-galla-surface text-[11px]">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuantity(item.id, item.type, -1)}
-                            className="px-1.5 py-0.5 text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer font-bold"
-                            title="Decrease quantity"
-                          >
-                            -
-                          </button>
-                          <span className="px-1.5 py-0.5 font-semibold text-galla-ink tabular-nums min-w-[16px] text-center">
-                            {item.quantity || 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuantity(item.id, item.type, 1)}
-                            className="px-1.5 py-0.5 text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer font-bold"
-                            title="Increase quantity"
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        <span className="font-semibold text-galla-ink tabular-nums min-w-[55px] text-right">
-                          {formatRupee(item.price * (item.quantity || 1))}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(item.id, item.type)}
-                          className="text-galla-ink-soft hover:text-red-600 p-0.5 rounded transition-colors cursor-pointer"
-                          title="Remove item"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Option to Allow Using Retail Shelf Stock (Sell Stock) */}
-            {orderSellStockItems.length > 0 && (
-              <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-[6px] text-amber-950 space-y-2 animate-in fade-in duration-150">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-sans font-semibold text-[12.5px] text-amber-950">
-                      In-Use Stock Shortage ({orderSellStockItems.length} product{orderSellStockItems.length > 1 ? "s" : ""})
-                    </span>
-                    <p className="font-sans text-[11.5px] text-amber-800 mt-0.5 leading-snug">
-                      Salon in-use stock is insufficient for service/package fulfillment, but available on the retail shelf:
-                    </p>
-                    <ul className="mt-1 space-y-0.5 text-[11px] text-amber-900 font-medium">
-                      {orderSellStockItems.map((it) => (
-                        <li key={it.name} className="flex items-center gap-1.5">
-                          <span>&bull;</span>
-                          <span>
-                            <strong>{it.name}</strong>: need {it.neededFromSell} pcs from retail shelf ({it.sellAvailable} pcs available on shelf)
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <label className="flex items-center gap-2 mt-2 pt-2 border-t border-amber-200 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={allowSellStockUsage}
-                        onChange={(e) => setAllowSellStockUsage(e.target.checked)}
-                        className="rounded border-amber-400 text-galla-teal focus:ring-galla-teal h-3.5 w-3.5"
-                      />
-                      <span className="text-[12px] font-medium text-amber-950">
-                        Allow drawing required products from retail shelf (sell stock)
-                      </span>
-                    </label>
-                    {!allowSellStockUsage ? (
-                      <p className="text-[10.5px] text-amber-700 italic mt-0.5">
-                        If unchecked, this order will be saved as an advance booking pending in-use stock replenishment.
-                      </p>
-                    ) : (
-                      <p className="text-[10.5px] text-emerald-800 font-medium mt-0.5">
-                        ✓ Retail shelf stock will be transferred for fulfillment upon confirmation.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Out of Stock Notice Banner */}
-            {hasOutOfStockItems && (
-              <div className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-[6px] text-amber-950 space-y-0.5 animate-in fade-in duration-150">
-                <div className="flex items-center gap-1.5 font-semibold text-[12px]">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                  <span>Delivery Pending &bull; Out of Stock</span>
-                </div>
-                <p className="text-[11px] text-amber-800 leading-snug">
-                  Includes out-of-stock items ({outOfStockItems.map((it) => it.name).join(", ")}). Collect payment or advance now; deliver upon stock arrival.
-                </p>
-              </div>
-            )}
-
-            {/* Previous Due Alert & Inclusion Checkbox */}
-            {customerDueOrders.length > 0 && totalPreviousDue > 0 && (
-              <div className="p-3 bg-amber-50/75 border border-amber-300 rounded-[6px] space-y-2 animate-in fade-in duration-150">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+            {/* Dynamic Settlement Fields */}
+            {settlementMode === "advance" && (
+              <div className="p-4 bg-teal-50/40 border border-teal-200/80 rounded-xl space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <span className="font-sans font-semibold text-[13px] text-amber-950">
-                      Previous Outstanding Due: {formatRupee(totalPreviousDue)}
-                    </span>
-                    <p className="font-sans text-[11.5px] text-amber-800 mt-0.5">
-                      {customer} has pending payment due from{" "}
-                      {customerDueOrders.map((o, idx) => (
-                        <React.Fragment key={o.id}>
-                          {idx > 0 && ", "}
-                          <button
-                            type="button"
-                            onClick={() => setInspectingOrder(o)}
-                            className="font-semibold underline hover:text-amber-950 transition-colors cursor-pointer"
-                            title={`Click to view details for order ${formatDisplayNumber(o.id)}`}
-                          >
-                            {formatDisplayNumber(o.id)}
-                          </button>
-                        </React.Fragment>
-                      ))}.
-                    </p>
-                  </div>
-                </div>
-
-                {settlementMode !== "pay_later" && (
-                  <label className="flex items-center gap-2 text-[12px] font-medium text-galla-ink cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={includePreviousDue}
-                      onChange={(e) => setIncludePreviousDue(e.target.checked)}
-                      className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
-                    />
-                    <span>Add previous due ({formatRupee(totalPreviousDue)}) to this bill</span>
-                  </label>
-                )}
-              </div>
-            )}
-
-            {/* Pricing & Direct Discount Section */}
-            <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                {/* Non-editable Base Subtotal */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[12px] font-medium text-galla-ink">
-                      Subtotal
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                      Advance Deposit Amount (₹) <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-[11px] font-medium text-galla-ink-soft/70">
-                      Fixed
-                    </span>
-                  </div>
-                  <div className="w-full bg-galla-paper/60 border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold tabular-nums text-galla-ink select-none flex items-center justify-between shadow-2xs">
-                    <span>{formatRupee(calculatedSubtotal)}</span>
-                    <span className="text-[10.5px] font-sans font-normal text-galla-ink-soft">
-                      {selectedItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} {selectedItems.reduce((acc, it) => acc + (it.quantity || 1), 0) === 1 ? "item" : "items"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Discount with % and ₹ Dropdown Toggle */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[12px] font-medium text-galla-ink">
-                      Discount
-                    </label>
-                    <span className="text-[10.5px] font-sans text-galla-ink-soft">
-                      {discountType === "percentage" ? "Percent (%)" : "Flat (₹)"}
-                    </span>
-                  </div>
-                  <div className="relative" ref={discountDropdownRef}>
                     <input
                       type="text"
-                      id="new-order-discount-input"
-                      value={discount}
-                      onChange={(e) => {
-                        const cleaned = e.target.value.replace(/[^0-9.]/g, "");
-                        if ((cleaned.match(/\./g) || []).length > 1) return;
-                        const num = Number(cleaned);
-                        if (discountType === "percentage") {
-                          if (!isNaN(num) && num > 100) {
-                            setDiscount("100");
-                          } else {
-                            setDiscount(cleaned);
-                          }
-                        } else {
-                          if (!isNaN(num) && num > calculatedSubtotal) {
-                            setDiscount(String(calculatedSubtotal));
-                          } else {
-                            setDiscount(cleaned);
-                          }
-                        }
-                      }}
-                      placeholder={discountType === "percentage" ? "e.g. 10" : "e.g. 150"}
-                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-2.5 pr-14 py-1.5 text-[13.5px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
+                      value={advance}
+                      onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
+                      placeholder="e.g. 500"
+                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink tabular-nums font-semibold focus:outline-none focus:border-galla-teal"
                     />
-
-                    {/* Interactive Dropdown / Toggle Button inside the input */}
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => setIsDiscountDropdownOpen((prev) => !prev)}
-                        className="h-6 px-1.5 rounded-[4px] bg-galla-paper hover:bg-galla-line/80 border border-galla-line text-galla-ink font-semibold text-[11.5px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs select-none"
-                        title={`Current: ${discountType === "percentage" ? "Percentage %" : "Flat Rupees ₹"}. Click to switch.`}
-                        aria-haspopup="listbox"
-                        aria-expanded={isDiscountDropdownOpen}
-                      >
-                        <span className="text-galla-teal font-extrabold">{discountType === "percentage" ? "%" : "₹"}</span>
-                        <ChevronDown
-                          className={`h-3 w-3 text-galla-ink-soft transition-transform duration-150 ${
-                            isDiscountDropdownOpen ? "rotate-180 text-galla-teal" : ""
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Dropdown Menu Panel */}
-                    {isDiscountDropdownOpen && (
-                      <div
-                        role="listbox"
-                        className="absolute right-0 top-full mt-1 z-30 w-36 bg-galla-surface border border-galla-line rounded-[5px] shadow-lg py-1 animate-in fade-in-50 zoom-in-95 duration-100 divide-y divide-galla-line/40"
-                      >
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={discountType === "percentage"}
-                          onClick={() => {
-                            setDiscountType("percentage");
-                            setIsDiscountDropdownOpen(false);
-                            if (Number(discount) > 100) {
-                              setDiscount("100");
-                            }
-                          }}
-                          className={`w-full px-2.5 py-1.5 text-left text-[12px] flex items-center justify-between cursor-pointer transition-colors ${
-                            discountType === "percentage"
-                              ? "bg-galla-teal-soft text-galla-teal font-semibold"
-                              : "hover:bg-galla-paper text-galla-ink font-medium"
-                          }`}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <span className="font-bold text-[13px]">%</span>
-                            <span>Percent (%)</span>
-                          </span>
-                          {discountType === "percentage" && <Check className="h-3.5 w-3.5 text-galla-teal" />}
-                        </button>
-
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={discountType === "flat"}
-                          onClick={() => {
-                            setDiscountType("flat");
-                            setIsDiscountDropdownOpen(false);
-                            if (Number(discount) > calculatedSubtotal) {
-                              setDiscount(String(calculatedSubtotal));
-                            }
-                          }}
-                          className={`w-full px-2.5 py-1.5 text-left text-[12px] flex items-center justify-between cursor-pointer transition-colors ${
-                            discountType === "flat"
-                              ? "bg-galla-teal-soft text-galla-teal font-semibold"
-                              : "hover:bg-galla-paper text-galla-ink font-medium"
-                          }`}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <span className="font-bold text-[13px]">₹</span>
-                            <span>Flat Rupee (₹)</span>
-                          </span>
-                          {discountType === "flat" && <Check className="h-3.5 w-3.5 text-galla-teal" />}
-                        </button>
-                      </div>
-                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                      Appointment / Delivery Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={bookingDate}
+                      onChange={(e) => setBookingDate(e.target.value)}
+                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                    />
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* Real-time Final Total Calculation */}
-              <div className="space-y-1.5 pt-2 border-t border-galla-line/60">
-                {calculatedDiscountAmount > 0 && (
-                  <div className="flex items-center justify-between text-[11.5px] text-galla-ink-soft">
-                    <span>
-                      Discount {discountType === "percentage" ? `(${discountValue}%)` : `(Flat ${formatRupee(calculatedDiscountAmount)})`}
-                    </span>
-                    <span className="font-semibold text-emerald-600 tabular-nums">
-                      - {formatRupee(calculatedDiscountAmount)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px] font-semibold text-galla-ink-soft">
-                    {includePreviousDue && totalPreviousDue > 0 ? "Today's Order Amount" : "Order Total"}
-                  </span>
-                  <span className="text-[17px] font-bold text-galla-ink tabular-nums">
-                    {formatRupee(finalTotal)}
-                  </span>
-                </div>
-
-                {includePreviousDue && totalPreviousDue > 0 && (
-                  <div className="pt-2 border-t border-galla-line/60 space-y-2 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between text-[13px] text-amber-950 bg-amber-50/80 px-3 py-2 rounded-[5px] border border-amber-200">
-                      <span className="font-semibold">Previous Due to Settle</span>
-                      <span className="text-[14px] font-bold text-rose-700 tabular-nums">
-                        + {formatRupee(totalPreviousDue)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1 border-t border-galla-line/60">
-                      <div>
-                        <span className="text-[13.5px] font-bold text-galla-ink block">
-                          Total Price
-                        </span>
-                        <span className="text-[11px] text-galla-ink-soft">
-                          (Today&apos;s Order + Due Amount)
-                        </span>
-                      </div>
-                      <span className="text-[20px] font-bold text-galla-teal tabular-nums">
-                        {formatRupee(totalWithDue)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Settlement Mode Dropdown */}
-            <div>
-              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Settlement Mode <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={settlementMode}
-                onChange={(e) => setSettlementMode(e.target.value as "completed" | "pay_later" | "advance" | "paid_full")}
-                className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs"
-              >
-                <option value="completed" disabled={hasOutOfStockItems}>
-                  Completed (Paid in full now{hasOutOfStockItems ? " — Unavailable: items out of stock" : ""})
-                </option>
-                <option value="pay_later" disabled={hasOutOfStockItems}>
-                  Pay Later / Due (Delivery now, payment later{hasOutOfStockItems ? " — Unavailable: items out of stock" : ""})
-                </option>
-                <option value="advance">
-                  {orderType === "Product sale" || hasOutOfStockItems
-                    ? "Advance / Pre-order (Partial deposit, delivery upon stock arrival)"
-                    : "Advance Booking (Partial deposit, appointment later)"}
-                </option>
-                <option value="paid_full">
-                  {orderType === "Product sale" || hasOutOfStockItems
-                    ? "Pre-order (Paid in full, delivery upon stock arrival)"
-                    : "Advance Booking (Paid in full, appointment later)"}
-                </option>
-              </select>
-            </div>
-
-            {/* Pay Later / Due Card */}
             {settlementMode === "pay_later" && (
-              <div className="p-3 rounded-[6px] space-y-2.5 border bg-amber-50/40 border-amber-300/50">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
+              <div className="p-4 bg-amber-50/40 border border-amber-200/80 rounded-xl space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
                     <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                       Amount Paid Now (₹) <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
-                    <span className="text-[11.5px] font-sans text-galla-ink-soft">
-                      Pending Due: <strong className="text-rose-700 font-semibold">{formatRupee(amountPending)}</strong>
-                    </span>
+                    <input
+                      type="text"
+                      value={payLaterPaid}
+                      onChange={(e) => setPayLaterPaid(e.target.value.replace(/\D/g, ""))}
+                      placeholder={`0 (Full ${formatRupee(finalTotal)} due later)`}
+                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink tabular-nums font-semibold focus:outline-none focus:border-galla-teal"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={payLaterPaid}
-                    onChange={(e) => setPayLaterPaid(e.target.value.replace(/\D/g, ""))}
-                    placeholder={`0 (Full ${formatRupee(finalTotal)} due later)`}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all"
-                  />
-                </div>
-
-                {/* Optional Expected Due Date */}
-                <div className="space-y-1 pt-0.5">
-                  <div className="flex items-center justify-between">
+                  <div>
                     <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                      Expected Payment Due Date <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                      Payment Due Date <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
-                    {dueDate && (
-                      <button
-                        type="button"
-                        onClick={() => setDueDate("")}
-                        className="text-[10.5px] text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
-                      >
-                        Clear date
-                      </button>
-                    )}
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                    />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {settlementMode === "paid_full" && (
+              <div className="p-4 bg-indigo-50/40 border border-indigo-200/80 rounded-xl space-y-3">
+                <div>
+                  <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                    Appointment / Delivery Date <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="date"
-                    value={dueDate}
-                    min={getLocalDateString()}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none focus:border-amber-500 transition-all cursor-pointer"
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
                   />
                 </div>
-
-                <div className="text-[11.5px] text-galla-ink-soft pt-1 leading-snug">
-                  ℹ️ Order will be recorded as <strong className="text-amber-800 font-semibold">Payment Due</strong> and product/service delivered immediately. You can settle the remaining balance anytime in the Orders tab.
-                </div>
               </div>
             )}
 
-            {/* Advance Booking Details (Date & Deposit) */}
-            {(settlementMode === "advance" || settlementMode === "paid_full") && (
-              <div
-                className={`p-3 rounded-[6px] space-y-2.5 border ${
-                  settlementMode === "advance"
-                    ? "bg-galla-brass-soft/40 border-galla-brass/30"
-                    : "bg-galla-teal-soft/40 border-galla-teal/30"
-                }`}
-              >
-                <div className="space-y-2.5">
-                  {/* Advance Amount (only for partial deposit) */}
-                  {settlementMode === "advance" && (
-                    <div className="space-y-1">
-                      <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                        Advance Paid (₹)
-                      </label>
-                      <input
-                        type="text"
-                        value={advance}
-                        onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
-                        placeholder="e.g. 500"
-                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
-                      />
-                    </div>
-                  )}
-
-                  {/* Booking Date & Time Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {/* Booking Date */}
-                    <div className="space-y-1">
-                      <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                        {orderType === "Product sale" ? "Expected Pickup / Arrival Date" : "Appointment Date"}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={bookingDate}
-                        min={getLocalDateString()}
-                        onChange={(e) => setBookingDate(e.target.value)}
-                        className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
-                          settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"
-                        }`}
-                      />
-                    </div>
-
-                    {/* Booking Time (Optional) */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                          Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
-                        </label>
-                        {bookingTime && (
-                          <button
-                            type="button"
-                            onClick={() => setBookingTime("")}
-                            className="text-[10px] text-galla-ink-soft hover:text-red-600 transition-colors"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                      <input
-                        type="time"
-                        value={bookingTime}
-                        onChange={(e) => setBookingTime(e.target.value)}
-                        className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
-                          settlementMode === "advance" ? "focus:border-galla-brass" : "focus:border-galla-teal"
-                        }`}
-                      />
-                    </div>
-                  </div>
+            {/* Retail Shelf Stock Transfer Opt-in (if services/packages need shelf backup) */}
+            {orderSellStockItems.length > 0 && (
+              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl text-[12px] space-y-2">
+                <div className="font-semibold text-amber-900 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
+                  <span>Transfer Shelf Stock to In-Use?</span>
                 </div>
-
-                <div
-                  className={`flex items-center justify-between text-[11.5px] pt-1.5 border-t text-galla-ink-soft ${
-                    settlementMode === "advance" ? "border-galla-brass/25" : "border-galla-teal/20"
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <Calendar
-                      className={`h-3 w-3 shrink-0 ${
-                        settlementMode === "advance" ? "text-galla-brass" : "text-galla-teal"
-                      }`}
-                    />
-                    <span>
-                      {orderType === "Product sale" ? "Expected pickup: " : "Booked for: "}
-                      <strong className="text-galla-ink">
-                        {formatBookingDate(bookingDate) || "Not set"}
-                        {bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : " (Time not set)"}
-                      </strong>
+                <p className="text-amber-900 leading-snug">
+                  Some services require products that are low in operational stock, but available on your retail shelf:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {orderSellStockItems.map((it) => (
+                    <span key={it.name} className="px-2 py-0.5 bg-amber-100/90 text-amber-950 font-medium rounded border border-amber-300/80">
+                      {it.neededFromSell}x {it.name}
                     </span>
-                  </span>
-                  {settlementMode === "advance" ? (
-                    advance.trim() !== "" && Number(advance) > 0 ? (
-                      <span>
-                        Pending: <strong className="text-red-700">{formatRupee(amountPending)}</strong>
-                      </span>
-                    ) : null
-                  ) : (
-                    <span className="text-galla-teal font-medium">
-                      Paid in Full ({formatRupee(finalTotal)})
-                    </span>
-                  )}
+                  ))}
                 </div>
+                <label className="flex items-center gap-2 pt-1 font-semibold text-amber-950 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={allowSellStockUsage}
+                    onChange={(e) => setAllowSellStockUsage(e.target.checked)}
+                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
+                  />
+                  <span>Confirm transfer from retail shelf inventory for this order</span>
+                </label>
               </div>
             )}
 
-            {/* Mode of Payment (Shown when not pay_later or when paying partial upfront in pay_later) */}
-            {(settlementMode !== "pay_later" || enteredPayLaterPaid > 0) && (
-              <PaymentModeSelect
-                label={
-                  settlementMode === "pay_later"
-                    ? `Mode of Upfront Payment (${formatRupee(enteredPayLaterPaid)})`
-                    : settlementMode === "advance"
-                    ? "Mode of Advance Payment"
-                    : "Mode of Payment"
-                }
-                value={paymentMode}
-                onChange={setPaymentMode}
-                allowedModes={["cash", "upi", "card"]}
-              />
-            )}
-
-            {/* Order Notes / Special Instructions (Optional) */}
-            <div className="space-y-1">
+            {/* Notes */}
+            <div>
               <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Order Notes / Instructions <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                Notes <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
               </label>
               <textarea
-                rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Client requested herbal wash, delivery notes, payment memo..."
-                className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal resize-none"
+                rows={2}
+                placeholder="e.g. Client requested herbal wash, allergic to chemical dye"
+                className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
               />
             </div>
-
-            {/* Step 3 Actions */}
-            <div className="pt-2 flex items-center justify-between shrink-0">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="inline-flex items-center gap-1 px-3 py-2 rounded-[5px] text-[13px] font-sans text-galla-ink-soft hover:text-galla-ink border border-galla-line transition-all cursor-pointer"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Back</span>
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSubmitting || selectedItems.length === 0}
-                className="bg-galla-teal hover:opacity-95 text-white font-sans text-[13.5px] font-medium px-5 py-2 rounded-[5px] shadow-sm transition-opacity cursor-pointer disabled:opacity-50"
-              >
-                {isSubmitting
-                  ? "Creating Order..."
-                  : settlementMode === "pay_later"
-                  ? (enteredPayLaterPaid > 0
-                      ? `Create Order (Paid: ${formatRupee(enteredPayLaterPaid)}, Due: ${formatRupee(amountPending)})`
-                      : `Create Pay Later Order (Due: ${formatRupee(finalTotal)})`)
-                  : settlementMode === "advance" && enteredAdvance > 0
-                  ? `Create Order (Advance: ${formatRupee(enteredAdvance)})`
-                  : includePreviousDue && totalPreviousDue > 0
-                  ? `Create Order & Settle Due (Total: ${formatRupee(totalWithDue)})`
-                  : `Create Order (${formatRupee(finalTotal)})`}
-              </button>
-            </div>
-          </form>
-        )}
+          </section>
+        </main>
       </div>
 
+      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={showConfirm}
-        title={
-          settlementMode === "pay_later"
-            ? "Confirm Pay Later Order"
-            : settlementMode === "advance" || settlementMode === "paid_full"
-            ? "Confirm Advance Booking"
-            : "Confirm New Order"
-        }
+        title="Confirm New Order"
         description={
-          <div>
-            {settlementMode === "pay_later" ? (
-              <span>
-                Create Pay Later order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
-                <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
-                <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>:{" "}
-                {enteredPayLaterPaid > 0 ? (
-                  <>
-                    <strong className="font-semibold text-galla-ink">{formatRupee(enteredPayLaterPaid)}</strong> paid upfront via{" "}
-                    <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>, with{" "}
-                    <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> pending due later
-                  </>
-                ) : (
-                  <>
-                    <strong className="font-semibold text-rose-700">{formatRupee(amountPending)}</strong> marked as pending due to be paid later
-                  </>
-                )}
-                {dueDate && (
-                  <>
-                    , with expected payment due by{" "}
-                    <strong className="font-semibold text-galla-ink">
-                      {formatBookingDate(dueDate)}
-                    </strong>
-                  </>
-                )}
-                ?
-              </span>
-            ) : settlementMode === "advance" ? (
-              <span>
-                Create advance booking for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
-                <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong>:{" "}
-                <strong className="font-semibold text-galla-ink">{formatRupee(enteredAdvance)}</strong> advance paid (
-                <strong className="font-semibold text-amber-800">{formatRupee(Math.max(0, finalTotal - enteredAdvance))}</strong> pending) via{" "}
-                <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>
-                {bookingDate && (
-                  <>
-                    {" "}scheduled for{" "}
-                    <strong className="font-semibold text-galla-ink">
-                      {formatBookingDate(bookingDate)}{bookingTime ? ` at ${formatAppointmentTime(bookingTime)}` : ""}
-                    </strong>
-                  </>
-                )}
-                ?
-              </span>
-            ) : (
-              <span>
-                Create order for <strong className="font-semibold text-galla-ink">&ldquo;{customer.trim()}&rdquo;</strong> with{" "}
-                <strong className="font-semibold text-galla-ink">{selectedItems.length} item(s)</strong> totalling{" "}
-                <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>
-                {includePreviousDue && totalPreviousDue > 0 ? (
-                  <>, plus settle previous due of <strong className="font-semibold text-rose-700">{formatRupee(totalPreviousDue)}</strong> (Total: <strong className="font-semibold text-galla-teal">{formatRupee(totalWithDue)}</strong>)</>
-                ) : null} via{" "}
-                <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>?
-              </span>
-            )}
+          <div className="space-y-2 text-left">
+            <span>
+              Create order for <strong className="font-semibold text-galla-ink">{formatCustomerName(customer)}</strong>
+              {phone.trim() ? <> (<strong className="font-mono">{formatPhoneNumber(phone)}</strong>)</> : null} for{" "}
+              <strong className="font-semibold text-galla-ink">{formatRupee(finalTotal)}</strong>
+              {includePreviousDue && totalPreviousDue > 0 ? (
+                <>, including previous due of <strong className="font-semibold text-rose-700">{formatRupee(totalPreviousDue)}</strong></>
+              ) : null} via <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>?
+            </span>
 
             {allowSellStockUsage && orderSellStockItems.length > 0 && (
-              <div className="mt-3 p-2.5 bg-amber-50 border border-amber-300 rounded-[5px] text-[12px] text-amber-950 text-left">
-                <div className="font-semibold flex items-center gap-1.5 text-amber-900 mb-1">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                  <span>Confirmation: Use Retail Shelf Stock</span>
-                </div>
-                <p className="text-[11.5px] text-amber-900 leading-snug">
-                  You are confirming the transfer of the following products from the retail shelf (sell stock) to fulfill services/packages:
-                </p>
-                <ul className="mt-1 space-y-0.5 font-medium text-[11px] text-amber-950">
+              <div className="mt-2 p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-[12px] text-amber-950">
+                <strong>Retail Shelf Stock Transfer:</strong>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
                   {orderSellStockItems.map((it) => (
                     <li key={it.name}>
-                      &bull; <strong>{it.neededFromSell}x {it.name}</strong> from retail shelf
+                      {it.neededFromSell}x {it.name}
                     </li>
                   ))}
                 </ul>
-                <p className="text-[10.5px] text-amber-800 mt-1">
-                  This will deduct from retail shelf inventory and record the salon purchase cost as an internal expense.
-                </p>
-              </div>
-            )}
-            {!allowSellStockUsage && orderSellStockItems.length > 0 && (
-              <div className="mt-3 p-2.5 bg-amber-50/70 border border-amber-200 rounded-[5px] text-[11.5px] text-amber-900 text-left">
-                <div className="font-semibold flex items-center gap-1.5 text-amber-900 mb-0.5">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                  <span>Advance Booking Notice</span>
-                </div>
-                In-use stock is insufficient and retail stock usage was not enabled. This order will be saved as an advance booking pending in-use stock arrival.
               </div>
             )}
           </div>
@@ -2293,7 +1875,7 @@ export function NewOrderModal({
         onClose={() => setShowConfirm(false)}
       />
 
-      {/* Inspect Past Order Details Modal without closing New Order Modal */}
+      {/* Inspect Past Order Details Modal */}
       {inspectingOrder && (
         <OrderDetailsModal
           order={inspectingOrder}

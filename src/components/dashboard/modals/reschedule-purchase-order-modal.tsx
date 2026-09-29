@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { DashboardPurchaseOrder } from "@/types/dashboard";
 import { reschedulePurchaseOrderAction } from "@/app/dashboard/actions";
+import { formatDisplayNumber } from "@/lib/utils";
 import { BaseRescheduleModal } from "./base-reschedule-modal";
 
 interface ReschedulePurchaseOrderModalProps {
@@ -63,8 +64,6 @@ function ReschedulePurchaseOrderModalContent({
     : po.expectedDeliveryDate;
   const currentTime = isDueMode ? undefined : po.deliveryTime;
 
-  const displayOrderRef = po.dealerInvoiceNumber || po.purchaseOrderNumber;
-
   const title = isDueMode
     ? currentScheduledDate
       ? "Reschedule Due Date"
@@ -110,7 +109,7 @@ function ReschedulePurchaseOrderModalContent({
       isOpen={isOpen}
       onClose={onClose}
       title={title}
-      referenceText={`Order #${displayOrderRef}`}
+      referenceText={po.dealerInvoiceNumber ? `Invoice #${po.dealerInvoiceNumber}` : `Bill #${formatDisplayNumber(po.purchaseOrderNumber)}`}
       entityName={po.supplierName}
       dueAmount={po.amountPending > 0 ? po.amountPending : undefined}
       dueAmountLabel="Due"

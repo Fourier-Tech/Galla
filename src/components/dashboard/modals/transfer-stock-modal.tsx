@@ -607,15 +607,14 @@ function TransferStockModalContent({
 
               {/* Informational notices */}
               {direction === "sell_to_use" && isValidQty && (
-                <div className="p-2 bg-galla-paper/70 border border-galla-line rounded-[4px] text-[11.5px] font-sans text-galla-ink-soft">
+                <div className="text-[11.5px] font-sans text-galla-ink-soft pt-1">
                   Moving {numQty} pcs from retail shelf to salon internal use.
                 </div>
               )}
 
               {direction === "use_to_sell" && isValidQty && (
-                <div className="p-2 bg-emerald-50/80 border border-emerald-200/80 rounded-[4px] text-[11.5px] font-sans text-emerald-950">
-                  Returning {numQty} pcs to the retail shelf. They will be available for customer sales at{" "}
-                  <strong>{formatRupee(product.price)}</strong>.
+                <div className="text-[11.5px] font-sans text-emerald-800 pt-1">
+                  Returning {numQty} pcs to retail shelf (customer price: <strong>{formatRupee(product.price)}</strong>).
                 </div>
               )}
             </div>
@@ -716,16 +715,13 @@ function TransferStockModalContent({
               </div>
 
               {isValidQty && (
-                <div className="p-2 bg-amber-50/80 border border-amber-200/80 rounded-[4px] text-[11.5px] font-sans text-amber-950">
-                  <div className="flex items-center justify-between">
-                    <span>Auto-logged internal expense:</span>
-                    <span className="font-semibold tabular-nums text-amber-900">
-                      {formatRupee(estTotalCost)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-amber-800/80 mt-0.5">
-                    Valued at purchase cost ({formatRupee(estUnitCost)}/pc). Deducting {numQty} pcs will leave {product.use - numQty} pcs in salon use.
-                  </p>
+                <div className="flex items-center justify-between text-[11.5px] font-sans pt-1 border-t border-galla-line/60">
+                  <span className="text-galla-ink-soft">
+                    Auto-logged expense: <strong className="text-galla-ink font-semibold tabular-nums">{formatRupee(estTotalCost)}</strong> ({formatRupee(estUnitCost)}/pc)
+                  </span>
+                  <span className="text-amber-850 font-medium">
+                    Remaining in salon: {product.use - numQty} pcs
+                  </span>
                 </div>
               )}
             </div>
@@ -875,7 +871,7 @@ function TransferStockModalContent({
               </div>
 
               {/* Row 3: Per-Location Return Allocation */}
-              <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[6px] space-y-2">
+              <div className="space-y-2 pt-2 border-t border-galla-line/60">
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-[12px] font-medium text-galla-ink block">

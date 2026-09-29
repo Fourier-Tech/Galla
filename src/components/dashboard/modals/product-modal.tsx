@@ -377,7 +377,7 @@ export function ProductModal({
 
           {/* Stock Section: Protected in Edit Mode */}
           {isEditMode ? (
-            <div className="p-3 bg-galla-paper/40 rounded-[5px] border border-galla-line space-y-2.5">
+            <div className="pt-3 border-t border-galla-line/80 space-y-2.5">
               <div className="flex items-center justify-between text-galla-ink text-[12px] font-semibold">
                 <div className="flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 text-galla-teal" />
@@ -389,13 +389,13 @@ export function ProductModal({
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-0.5">
-                <div className="p-2 rounded bg-galla-surface border border-galla-line">
+                <div className="p-2 rounded bg-galla-paper/40 border border-galla-line">
                   <div className="text-[11px] font-sans text-galla-ink-soft">Retail Sell Stock</div>
                   <div className="text-[15px] font-semibold text-galla-ink mt-0.5 tabular-nums">
                     {productToEdit?.sell ?? 0} pcs
                   </div>
                 </div>
-                <div className="p-2 rounded bg-galla-surface border border-galla-line">
+                <div className="p-2 rounded bg-galla-paper/40 border border-galla-line">
                   <div className="text-[11px] font-sans text-galla-ink-soft">Internal Use Stock</div>
                   <div className="text-[15px] font-semibold text-galla-ink mt-0.5 tabular-nums">
                     {productToEdit?.use ?? 0} pcs
@@ -428,7 +428,7 @@ export function ProductModal({
               </div>
             </div>
           ) : (
-            <div className="p-3 bg-galla-paper/40 rounded-[5px] border border-galla-line space-y-3">
+            <div className="pt-3 border-t border-galla-line/80 space-y-3">
               <div className="flex items-center gap-1.5 text-galla-ink text-[12px] font-semibold">
                 <Layers className="h-3.5 w-3.5 text-galla-teal" />
                 <span>Initial Stock Split</span>

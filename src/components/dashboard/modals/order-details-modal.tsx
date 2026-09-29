@@ -78,12 +78,6 @@ export function OrderDetailsModal({
     .filter((r) => r.customerResolution === "refund")
     .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
 
-  const totalDueDeduction = returnEvents.reduce((sum, r) => {
-    const explicit = r.dueDeduction;
-    if (typeof explicit === "number") return sum + explicit;
-    return sum + (r.refundMode === "reduce_due" ? r.refundAmount || 0 : 0);
-  }, 0);
-
   const totalCashRefund = returnEvents.reduce((sum, r) => {
     const explicit = r.cashRefund;
     if (typeof explicit === "number") return sum + explicit;
@@ -202,8 +196,6 @@ export function OrderDetailsModal({
 
   const expectedNet = Math.max(0, originalSubtotal - originalDiscountAmount);
   const extraOnBill = originalBillAmount > expectedNet ? originalBillAmount - expectedNet : 0;
-  const overpaid = netAmountPaid > netBillAmount ? netAmountPaid - netBillAmount : 0;
-  const totalExtra = extraOnBill + overpaid;
 
   const combinedPayments = (() => {
     const list = [...(order.payments || [])];

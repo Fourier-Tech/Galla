@@ -464,7 +464,7 @@ export function ReturnCustomerOrderItemModal({
                 Customer Return &amp; Replacement
               </h2>
               <p className="font-sans text-[11px] text-galla-ink-soft truncate">
-                Order #{formatDisplayNumber(order.id)} &bull; {order.customer}
+                {formatDisplayNumber(order.id)} &bull; {order.customer}
               </p>
             </div>
           </div>
@@ -647,7 +647,7 @@ export function ReturnCustomerOrderItemModal({
 
           {/* Condition Flow A: Good Condition -> Where to Restock & Refund */}
           {isGoodCondition ? (
-            <div className="space-y-3 p-3 bg-galla-paper/40 border border-galla-line/80 rounded-[5px]">
+            <div className="space-y-3 pt-2 border-t border-galla-line/60">
               <div>
                 <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   Restock Destination
@@ -688,7 +688,7 @@ export function ReturnCustomerOrderItemModal({
             </div>
           ) : (
             /* Condition Flow B: Defective -> Ask Resolution (Refund vs Replace) */
-            <div className="space-y-3 p-3 bg-rose-50/40 border border-rose-200/80 rounded-[5px]">
+            <div className="space-y-3 pt-2 border-t border-rose-200/60">
               <div>
                 <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   3. What does the client want?

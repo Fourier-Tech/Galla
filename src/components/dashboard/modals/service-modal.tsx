@@ -8,7 +8,6 @@ import {
   Tag,
   AlignLeft,
   AlertCircle,
-  ShoppingBag,
   Plus,
   Trash2,
   Info,

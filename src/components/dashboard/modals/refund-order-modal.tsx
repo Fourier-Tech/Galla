@@ -6,12 +6,11 @@ import {
   AlertCircle,
   Package,
   Check,
-  Info,
   Loader2,
 } from "lucide-react";
 import { DashboardOrder, DashboardExpense, DashboardProduct } from "@/types/dashboard";
 import { refundOrderAction } from "@/app/dashboard/actions";
-import { formatRupee, formatBookingDate, formatDisplayNumber } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 import { PaymentModeSelect } from "../payment-mode-select";
 
@@ -195,34 +194,27 @@ function RefundOrderModalContent({
           /* PRODUCT ORDER DEDICATED REFUND & RESTOCK CONFIRMATION     */
           /* ======================================================== */
           <form onSubmit={handleFormSubmit} className="space-y-3">
-            {/* Order Details Summary */}
-            <div className="p-2.5 bg-galla-paper/50 border border-galla-line rounded-[5px] space-y-1 text-[12px] font-sans">
-              <div className="flex justify-between text-galla-ink-soft">
-                <span>Total Order Value:</span>
-                <span className="font-medium text-galla-ink tabular-nums">
-                  {formatRupee(isReplacementOrder && order.amount === 0 ? unreturnedCatalogValue : order.amount)}
-                </span>
-              </div>
-              <div className="flex justify-between text-galla-ink-soft">
-                <span>Collected from Customer:</span>
-                <span className="tabular-nums font-semibold text-galla-ink">{formatRupee(totalPaid)}</span>
-              </div>
-              {isReplacementOrder && totalPaid === 0 && (
-                <div className="flex justify-between text-emerald-700 font-medium">
-                  <span>Replacement Product Value:</span>
-                  <span className="tabular-nums">{formatRupee(unreturnedCatalogValue)}</span>
+            {/* Order Details Snapshot */}
+            <div className="p-3 bg-galla-paper/50 border border-galla-line/70 rounded-[5px] text-[12px] font-sans">
+              <div className="grid grid-cols-3 gap-2 text-center divide-x divide-galla-line/60">
+                <div>
+                  <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Total Value</div>
+                  <div className="text-[13px] font-semibold text-galla-ink tabular-nums mt-0.5">
+                    {formatRupee(isReplacementOrder && order.amount === 0 ? unreturnedCatalogValue : order.amount)}
+                  </div>
                 </div>
-              )}
+                <div className="pl-2">
+                  <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Collected</div>
+                  <div className="text-[13px] font-semibold text-galla-teal tabular-nums mt-0.5">{formatRupee(totalPaid)}</div>
+                </div>
+                <div className="pl-2">
+                  <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Refundable</div>
+                  <div className="text-[13px] font-semibold text-emerald-700 tabular-nums mt-0.5">{formatRupee(remainingRefundable)}</div>
+                </div>
+              </div>
               {totalCashRefunds > 0 && (
-                <div className="flex justify-between text-rose-700">
-                  <span>Already Refunded:</span>
-                  <span className="tabular-nums font-medium">- {formatRupee(totalCashRefunds)}</span>
-                </div>
-              )}
-              {(totalCashRefunds > 0 || (isReplacementOrder && totalPaid === 0)) && (
-                <div className="flex justify-between text-galla-ink font-semibold border-t border-galla-line/60 pt-1">
-                  <span>Remaining Refundable:</span>
-                  <span className="tabular-nums text-emerald-700">{formatRupee(remainingRefundable)}</span>
+                <div className="text-center text-[10.5px] text-rose-700 font-medium pt-1.5 mt-1.5 border-t border-galla-line/50">
+                  Already refunded: -{formatRupee(totalCashRefunds)}
                 </div>
               )}
             </div>
@@ -278,16 +270,10 @@ function RefundOrderModalContent({
               </div>
             </div>
 
-            {/* Compact Short Instructions */}
-            <div className="p-2 bg-galla-paper/60 border border-galla-line rounded-[5px] text-[11px] space-y-1">
-              <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
-                <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span>All unreturned items in this order will be restocked to shop inventory.</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-amber-800">
-                <Info className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                <span>For partial/individual item returns, use &ldquo;Return / Replace&rdquo; in Order Details.</span>
-              </div>
+            {/* Instructions */}
+            <div className="flex items-center gap-1.5 text-[11px] text-galla-ink-soft">
+              <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              <span>Unreturned items will be restocked to shop inventory.</span>
             </div>
 
             {/* Editable Refund Amount */}
@@ -387,32 +373,25 @@ function RefundOrderModalContent({
           /* SERVICE BOOKING REFUND FORM                              */
           /* ======================================================== */
           <form onSubmit={handleFormSubmit} className="space-y-4">
-            {/* Order Payment Summary Card */}
-            <div className="p-3 bg-galla-paper/70 border border-galla-line rounded-[5px] space-y-1.5 text-[12.5px] font-sans">
-              <div className="flex justify-between text-galla-ink-soft">
-                <span>Total Bill:</span>
-                <span className="font-medium text-galla-ink tabular-nums">{formatRupee(order.amount)}</span>
-              </div>
-              <div className="flex justify-between text-galla-teal font-medium">
-                <span>Collected So Far:</span>
-                <span className="tabular-nums">{formatRupee(totalPaid)}</span>
+            {/* Order Payment Snapshot */}
+            <div className="p-3 bg-galla-paper/50 border border-galla-line/70 rounded-[5px] text-[12px] font-sans">
+              <div className="grid grid-cols-3 gap-2 text-center divide-x divide-galla-line/60">
+                <div>
+                  <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Total Bill</div>
+                  <div className="text-[13px] font-semibold text-galla-ink tabular-nums mt-0.5">{formatRupee(order.amount)}</div>
+                </div>
+                <div className="pl-2">
+                  <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Collected</div>
+                  <div className="text-[13px] font-semibold text-galla-teal tabular-nums mt-0.5">{formatRupee(totalPaid)}</div>
+                </div>
+                <div className="pl-2">
+                  <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Refundable</div>
+                  <div className="text-[13px] font-semibold text-emerald-700 tabular-nums mt-0.5">{formatRupee(remainingRefundable)}</div>
+                </div>
               </div>
               {totalCashRefunds > 0 && (
-                <div className="flex justify-between text-rose-700">
-                  <span>Already Refunded:</span>
-                  <span className="tabular-nums font-medium">- {formatRupee(totalCashRefunds)}</span>
-                </div>
-              )}
-              {totalCashRefunds > 0 && (
-                <div className="flex justify-between text-galla-ink font-semibold border-t border-galla-line/60 pt-1">
-                  <span>Remaining Refundable:</span>
-                  <span className="tabular-nums text-emerald-700">{formatRupee(remainingRefundable)}</span>
-                </div>
-              )}
-              {totalPaid < order.amount && (
-                <div className="flex justify-between text-galla-brass">
-                  <span>Pending Dues:</span>
-                  <span className="tabular-nums">{formatRupee(order.amount - totalPaid)}</span>
+                <div className="text-center text-[10.5px] text-rose-700 font-medium pt-1.5 mt-1.5 border-t border-galla-line/50">
+                  Already refunded: -{formatRupee(totalCashRefunds)}
                 </div>
               )}
             </div>
@@ -439,50 +418,28 @@ function RefundOrderModalContent({
                 placeholder={String(remainingRefundable)}
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
               />
-              <div className="flex items-center justify-between text-[11px] text-galla-ink-soft mt-1">
-                <span>Refundable: {formatRupee(remainingRefundable)}</span>
-                {parsedAmount > 0 && (
-                  parsedAmount < remainingRefundable ? (
-                    <span className="text-galla-teal font-medium">
-                      Shop keeps: {formatRupee(remainingRefundable - parsedAmount)}
-                    </span>
-                  ) : parsedAmount > remainingRefundable ? (
-                    <span className="text-amber-700 font-medium">
-                      Extra compensation: +{formatRupee(parsedAmount - remainingRefundable)}
-                    </span>
-                  ) : (
-                    <span className="text-galla-ink-soft font-medium">Shop keeps: ₹0</span>
-                  )
-                )}
-              </div>
 
-              {/* Live Accounting Deduction Preview */}
-              {parsedAmount > 0 && (
-                <div className="mt-2.5 p-2.5 bg-galla-paper border border-galla-line rounded-[4px] text-[11.5px] font-sans space-y-1">
-                  <div className="flex justify-between text-red-700 font-medium">
-                    <span>Cash Outflow (Given to Customer):</span>
-                    <span className="tabular-nums">−{formatRupee(parsedAmount)}</span>
-                  </div>
+              {/* Inline Accounting Status */}
+              <div className="flex items-center justify-between text-[11px] text-galla-ink-soft mt-1.5">
+                <span>
+                  Refunding <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(parsedAmount)}</strong>
                   {parsedAmount < remainingRefundable && (
-                    <div className="flex justify-between text-galla-teal font-medium">
-                      <span>Retained by Salon (Shop Keeps):</span>
-                      <span className="tabular-nums">+{formatRupee(remainingRefundable - parsedAmount)}</span>
-                    </div>
+                    <span className="text-emerald-700 ml-1">
+                      (Shop keeps: {formatRupee(remainingRefundable - parsedAmount)})
+                    </span>
                   )}
                   {parsedAmount > remainingRefundable && (
-                    <div className="flex justify-between text-amber-700 font-medium">
-                      <span>Extra Compensation (Above Paid):</span>
-                      <span className="tabular-nums">+{formatRupee(parsedAmount - remainingRefundable)}</span>
-                    </div>
+                    <span className="text-amber-800 ml-1">
+                      (Extra: +{formatRupee(parsedAmount - remainingRefundable)})
+                    </span>
                   )}
-                  {totalPaid < order.amount && (
-                    <div className="flex justify-between text-galla-brass font-medium">
-                      <span>Pending Debt Cleared:</span>
-                      <span className="tabular-nums">−{formatRupee(order.amount - totalPaid)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+                </span>
+                {totalPaid < order.amount && (
+                  <span className="text-galla-brass font-medium">
+                    Debt cleared: {formatRupee(order.amount - totalPaid)}
+                  </span>
+                )}
+              </div>
             </div>
 
             <PaymentModeSelect

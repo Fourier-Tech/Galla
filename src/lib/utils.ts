@@ -38,40 +38,38 @@ export function calculatePendingAmount(
     }, 0);
 }
 
-/**
- * Normalizes and formats mobile numbers into the standard format: +91 00000 00000
- * Handles raw 10 digits, +91 prefixes, leading zeros, dashes, and spaces.
- */
-export function formatPhoneNumber(phone?: string | null): string {
+export function getPhoneDigits(phone?: string | null): string {
   if (!phone) return "";
   const cleaned = phone.trim();
   if (!cleaned) return "";
 
-  const digits = cleaned.replace(/\D/g, "");
-  if (!digits) return cleaned;
-
-  let standardDigits = digits;
-  if (standardDigits.length === 12 && standardDigits.startsWith("91")) {
-    standardDigits = standardDigits.slice(2);
-  } else if (standardDigits.length === 11 && standardDigits.startsWith("0")) {
-    standardDigits = standardDigits.slice(1);
-  } else if (standardDigits.length > 10) {
-    standardDigits = standardDigits.slice(-10);
+  let s = cleaned;
+  if (s.startsWith("+91") || s.startsWith("+ 91")) {
+    s = s.replace(/^\+\s*91[\s-]*/, "");
   }
 
-  if (standardDigits.length === 10) {
-    return `+91 ${standardDigits.slice(0, 5)} ${standardDigits.slice(5)}`;
+  const digits = s.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return digits.slice(2, 12);
+  } else if (digits.length === 11 && digits.startsWith("0")) {
+    return digits.slice(1, 11);
+  } else if (digits.length > 10) {
+    return digits.slice(-10);
   }
 
-  if (digits.length <= 5) {
-    return `+91 ${digits}`;
-  }
-  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  return digits.slice(0, 10);
 }
 
-export function getPhoneDigits(phone?: string | null): string {
-  if (!phone) return "";
-  return phone.replace(/\D/g, "").slice(-10);
+/**
+ * Normalizes and formats mobile numbers into standard format: +91 00000 00000
+ * Handles raw 10 digits, +91 prefixes, leading zeros, dashes, and spaces.
+ */
+export function formatPhoneNumber(phone?: string | null): string {
+  // ponytail: Standard Indian +91 10-digit mobile number format. Upgrade path: international dial code parser (e.g. libphonenumber-js) if supporting non-Indian phone numbers.
+  const digits = getPhoneDigits(phone);
+  if (!digits) return "";
+  if (digits.length <= 5) return `+91 ${digits}`;
+  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }
 
 /**
@@ -338,11 +336,12 @@ export function getWhatsAppReminderUrl(options: {
  */
 export function formatDisplayNumber(num?: string | null): string {
   if (!num) return "";
-  const match = num.match(/^\d{4}-([A-Z]+-\d{4}-\d{4})$/);
+  const clean = num.startsWith("#") ? num.slice(1) : num;
+  const match = clean.match(/^\d{4}-([A-Z]+-\d{4}-\d{4}(?:-\d+)?)$/);
   if (match) {
     return match[1];
   }
-  return num;
+  return clean;
 }
 
 export function getSupplierWhatsAppReminderUrl(options: {

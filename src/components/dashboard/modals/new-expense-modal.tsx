@@ -18,7 +18,6 @@ type ExpenseCategoryType = "Day-to-day" | "Salary" | "Rent";
 type ExpensePaymentMode = "cash" | "upi" | "card";
 
 const CATEGORIES: ExpenseCategoryType[] = ["Day-to-day", "Salary", "Rent"];
-const PAYMENT_MODES: ExpensePaymentMode[] = ["cash", "upi", "card"];
 
 export function NewExpenseModal({
   isOpen,

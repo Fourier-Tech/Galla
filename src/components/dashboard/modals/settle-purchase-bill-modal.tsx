@@ -171,36 +171,35 @@ function SettlePurchaseBillModalContent({
           </button>
         </div>
 
-        {/* Bill Payment Summary Card */}
-        <div className="mb-4 p-3.5 bg-galla-paper/70 border border-galla-line rounded-[6px] space-y-1.5 text-[12.5px] font-sans">
-          <div className="flex justify-between text-galla-ink-soft">
-            <span>Original Total Bill:</span>
-            <span className="font-medium text-galla-ink tabular-nums">{formatRupee(bill.totalAmount)}</span>
-          </div>
-
-          <div className={`flex justify-between ${bill.amountPaid > 0 ? "text-galla-teal font-medium" : "text-galla-ink-soft"}`}>
-            <span>Paid Previously:</span>
-            <span className="tabular-nums font-medium">
-              {formatRupee(bill.amountPaid)}
-              {bill.amountPaid > 0 && bill.paymentMode ? (
-                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 ml-1.5">
-                  {bill.paymentMode}
-                </span>
-              ) : null}
-            </span>
-          </div>
-
-          <div className="flex justify-between pt-1 border-t border-galla-line/50">
-            <span className={isZeroDue ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}>
-              Current Outstanding Due:
-            </span>
-            <span className={`tabular-nums font-semibold ${isZeroDue ? "text-emerald-700" : "text-rose-700"}`}>
-              {isZeroDue ? "₹0 (Fully Paid Upfront)" : formatRupee(defaultDue)}
-            </span>
-          </div>
+        {/* Bill Payment Snapshot */}
+        <div className="mb-4 p-3 bg-galla-paper/50 border border-galla-line/70 rounded-[5px] text-[12px] font-sans">
+          {isZeroDue ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-galla-ink-soft">Bill Total: </span>
+                <span className="font-medium text-galla-ink tabular-nums">{formatRupee(bill.totalAmount)}</span>
+              </div>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                Fully Paid Upfront (₹0 Due)
+              </span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 text-center divide-x divide-galla-line/60">
+              <div>
+                <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Total Bill</div>
+                <div className="text-[13px] font-semibold text-galla-ink tabular-nums mt-0.5">{formatRupee(bill.totalAmount)}</div>
+              </div>
+              <div className="pl-2">
+                <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Paid Previously</div>
+                <div className="text-[13px] font-semibold text-galla-teal tabular-nums mt-0.5">{formatRupee(bill.amountPaid)}</div>
+              </div>
+              <div className="pl-2">
+                <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Balance Due</div>
+                <div className="text-[13px] font-semibold text-rose-700 tabular-nums mt-0.5">{formatRupee(defaultDue)}</div>
+              </div>
+            </div>
+          )}
         </div>
-
-
 
         {errorMsg && (
           <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-red-700 text-[12px] rounded-[4px] flex items-center gap-1.5">
@@ -210,56 +209,49 @@ function SettlePurchaseBillModalContent({
         )}
 
         <form onSubmit={handleFormSubmit} className="space-y-4">
-          {/* Editable Payment Amount Input */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                    Payment to Record Now (₹)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPayAmount(String(defaultDue))}
-                      className="text-[11px] font-sans text-galla-teal hover:underline cursor-pointer font-medium"
-                    >
-                      Reset ({formatRupee(defaultDue)})
-                    </button>
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  autoFocus
-                  required
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Enter amount to pay"
-                  className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] font-medium text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
-                />
-
-                {/* Live Financial Breakdown */}
-                <div className="mt-2.5 p-2.5 bg-galla-paper border border-galla-line rounded-[5px] text-[11.5px] font-sans space-y-1">
-                  <div className="flex justify-between text-emerald-800 font-medium">
-                    <span>Paying to Vendor Now:</span>
-                    <span className="tabular-nums">+{formatRupee(enteredNum)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-galla-ink-soft">
-                    <span>Remaining Balance After Payment:</span>
-                    <span className={`tabular-nums font-medium ${remainingAfterPayment > 0 ? "text-amber-800" : "text-emerald-700 font-semibold"}`}>
-                      {remainingAfterPayment > 0 ? formatRupee(remainingAfterPayment) : "Fully Settled (₹0 Due)"}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-galla-ink font-semibold pt-1 border-t border-galla-line/60">
-                    <span>Total Paid to Vendor:</span>
-                    <span className="tabular-nums">
-                      {formatRupee(totalPaidAfterThis)} / {formatRupee(bill.totalAmount)}
-                    </span>
-                  </div>
-                </div>
-
-
+          {/* Payment Amount Input */}
+          {!isZeroDue && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                  Payment to Record Now (₹)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setPayAmount(String(defaultDue))}
+                  className="text-[11px] font-sans text-galla-teal hover:underline cursor-pointer font-medium"
+                >
+                  Reset ({formatRupee(defaultDue)})
+                </button>
               </div>
+              <input
+                type="text"
+                autoFocus
+                required
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter amount to pay"
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] font-medium text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
+              />
+
+              {/* Inline Financial Status */}
+              <div className="mt-1.5 text-[11px] font-sans flex items-center justify-between text-galla-ink-soft">
+                <span>
+                  Paying <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(enteredNum)}</strong>
+                  {remainingAfterPayment > 0 ? (
+                    <span className="text-amber-800 ml-1">
+                      ({formatRupee(remainingAfterPayment)} will remain)
+                    </span>
+                  ) : (
+                    <span className="text-emerald-700 ml-1">(Fully settled)</span>
+                  )}
+                </span>
+                <span>
+                  Total Paid: <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(totalPaidAfterThis)}</strong>
+                </span>
+              </div>
+            </div>
+          )}
 
               {/* Payment Mode Selection */}
               <PaymentModeSelect

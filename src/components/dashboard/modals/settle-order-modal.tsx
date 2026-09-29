@@ -128,47 +128,35 @@ function SettleOrderModalContent({
           </button>
         </div>
 
-        {/* Order Payment Summary Card */}
-        <div className="mb-4 p-3 bg-galla-paper/70 border border-galla-line rounded-[5px] space-y-1.5 text-[12.5px] font-sans">
+        {/* Order Payment Snapshot */}
+        <div className="mb-4 p-3 bg-galla-paper/50 border border-galla-line/70 rounded-[5px] text-[12px] font-sans">
           {isReplacement ? (
-            <>
-              <div className="flex justify-between text-galla-ink-soft">
-                <span>Replacement Item:</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-galla-ink-soft">Replacement: </span>
                 <span className="font-medium text-galla-ink">{order.itemsSummary || order.type}</span>
               </div>
-              <div className="flex justify-between text-emerald-700 font-medium">
-                <span>Order Status:</span>
-                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                  Zero balance (free swap)
-                </span>
-              </div>
-              <div className="flex justify-between text-galla-ink font-medium pt-1 border-t border-galla-line/50">
-                <span>Balance to Collect:</span>
-                <span className="tabular-nums font-semibold text-emerald-700">₹0</span>
-              </div>
-            </>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                Zero balance (Free swap)
+              </span>
+            </div>
           ) : (
-            <>
-              <div className="flex justify-between text-galla-ink-soft">
-                <span>Original Total Bill:</span>
-                <span className="font-medium text-galla-ink tabular-nums">{formatRupee(order.amount)}</span>
+            <div className="grid grid-cols-3 gap-2 text-center divide-x divide-galla-line/60">
+              <div>
+                <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Total Bill</div>
+                <div className="text-[13px] font-semibold text-galla-ink tabular-nums mt-0.5">{formatRupee(order.amount)}</div>
               </div>
-              <div className={`flex justify-between ${order.paid > 0 ? "text-galla-teal font-medium" : "text-galla-ink-soft"}`}>
-                <span>{order.scheduledFor ? "Advance Collected:" : "Paid Upfront:"}</span>
-                <span className="tabular-nums">
-                  {formatRupee(order.paid)}
-                  {order.paid > 0 && order.paymentMode ? (
-                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 ml-1">
-                      {order.paymentMode}
-                    </span>
-                  ) : null}
-                </span>
+              <div className="pl-2">
+                <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Paid So Far</div>
+                <div className="text-[13px] font-semibold text-galla-teal tabular-nums mt-0.5">{formatRupee(order.paid)}</div>
               </div>
-              <div className="flex justify-between text-galla-brass font-medium">
-                <span>Current Due:</span>
-                <span className="tabular-nums">{formatRupee(defaultDue)}</span>
+              <div className="pl-2">
+                <div className="text-[10.5px] text-galla-ink-soft uppercase tracking-wider">Balance Due</div>
+                <div className={`text-[13px] font-semibold tabular-nums mt-0.5 ${defaultDue > 0 ? "text-amber-800" : "text-emerald-700"}`}>
+                  {formatRupee(defaultDue)}
+                </div>
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -217,28 +205,24 @@ function SettleOrderModalContent({
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[14px] font-medium text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors tabular-nums"
             />
 
-            {/* Live Financial Breakdown */}
-            <div className="mt-2.5 p-2.5 bg-galla-paper border border-galla-line rounded-[4px] text-[11.5px] font-sans space-y-1">
-              <div className="flex justify-between text-emerald-800 font-medium">
-                <span>Collecting Now:</span>
-                <span className="tabular-nums">+{formatRupee(enteredNum)}</span>
-              </div>
-              {enteredNum < defaultDue && (
-                <div className="flex justify-between text-amber-800 font-medium">
-                  <span>Concession / Discount:</span>
-                  <span className="tabular-nums">−{formatRupee(defaultDue - enteredNum)}</span>
-                </div>
-              )}
-              {enteredNum > defaultDue && (
-                <div className="flex justify-between text-blue-800 font-medium">
-                  <span>Extra Service / Adjustment:</span>
-                  <span className="tabular-nums">+{formatRupee(enteredNum - defaultDue)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-galla-ink font-semibold pt-1 border-t border-galla-line/60">
-                <span>Final Order Total:</span>
-                <span className="tabular-nums">{formatRupee(finalCalculatedTotal)}</span>
-              </div>
+            {/* Inline Financial Status */}
+            <div className="mt-1.5 text-[11px] font-sans flex items-center justify-between text-galla-ink-soft">
+              <span>
+                Collecting <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(enteredNum)}</strong>
+                {enteredNum < defaultDue && (
+                  <span className="text-amber-800 ml-1">
+                    ({formatRupee(defaultDue - enteredNum)} discount)
+                  </span>
+                )}
+                {enteredNum > defaultDue && (
+                  <span className="text-blue-800 ml-1">
+                    (+{formatRupee(enteredNum - defaultDue)} extra)
+                  </span>
+                )}
+              </span>
+              <span>
+                Final Total: <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(finalCalculatedTotal)}</strong>
+              </span>
             </div>
           </div>
 

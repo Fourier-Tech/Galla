@@ -312,7 +312,7 @@ export function PackageModal({
           </div>
 
           {/* Bundled Services Section */}
-          <div className="p-4 rounded-[6px] bg-galla-paper/40 border border-galla-line space-y-3">
+          <div className="pt-4 border-t border-galla-line/80 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Scissors className="h-4 w-4 text-galla-teal" />
@@ -330,7 +330,7 @@ export function PackageModal({
               <select
                 value={serviceToAdd}
                 onChange={(e) => setServiceToAdd(e.target.value)}
-                className="flex-1 bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
+                className="flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
               >
                 <option value="">-- Choose a service to bundle --</option>
                 {availableServices
@@ -387,14 +387,14 @@ export function PackageModal({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-3 text-[12px] text-galla-ink-soft border border-dashed border-galla-line rounded-[5px]">
+              <div className="text-center py-3 text-[12px] text-galla-ink-soft border border-dashed border-galla-line rounded-[5px] bg-galla-paper/20">
                 No services added yet. Select a service above to bundle.
               </div>
             )}
           </div>
 
           {/* Bundled Retail Products Section */}
-          <div className="p-4 rounded-[6px] bg-galla-paper/40 border border-galla-line space-y-3">
+          <div className="pt-4 border-t border-galla-line/80 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="h-4 w-4 text-galla-brass" />
@@ -412,7 +412,7 @@ export function PackageModal({
               <select
                 value={productToAdd}
                 onChange={(e) => setProductToAdd(e.target.value)}
-                className="flex-1 bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
+                className="flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
               >
                 <option value="">-- Choose an inventory product to bundle (optional) --</option>
                 {sortedAvailableProducts.map((p) => (
@@ -477,14 +477,14 @@ export function PackageModal({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-2.5 text-[12px] text-galla-ink-soft border border-dashed border-galla-line rounded-[5px]">
+              <div className="text-center py-2.5 text-[12px] text-galla-ink-soft border border-dashed border-galla-line rounded-[5px] bg-galla-paper/20">
                 No retail products added (packages can be services-only or combo deals).
               </div>
             )}
           </div>
 
           {/* Pricing Strategy */}
-          <div className="p-4 rounded-[6px] bg-galla-surface border border-galla-line space-y-4">
+          <div className="pt-4 border-t border-galla-line/80 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-[14px] font-semibold text-galla-ink">
                 Package Pricing Model
