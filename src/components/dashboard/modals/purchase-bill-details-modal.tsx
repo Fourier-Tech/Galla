@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import {
   X,
+  ArrowLeft,
   Receipt,
   Truck,
   Building2,
@@ -23,6 +24,7 @@ import {
   DashboardPurchaseOrderPayment,
   DashboardPurchaseOrderReturn,
 } from "@/types/dashboard";
+import { StatusPill } from "@/components/dashboard/status-pill";
 import {
   formatRupee,
   formatPhoneNumber,
@@ -58,6 +60,7 @@ interface PurchaseBillDetailsModalProps {
   onOpenPayNow?: (bill: DashboardPurchaseOrder) => void;
   onOpenReschedule?: (bill: DashboardPurchaseOrder, mode: "delivery" | "due_date") => void;
   salonName?: string;
+  zIndex?: string;
 }
 
 export function PurchaseBillDetailsModal({
@@ -67,8 +70,9 @@ export function PurchaseBillDetailsModal({
   onOpenPayNow,
   onOpenReschedule,
   salonName,
+  zIndex = "z-50",
 }: PurchaseBillDetailsModalProps) {
-    React.useEffect(() => {
+  React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -99,31 +103,30 @@ export function PurchaseBillDetailsModal({
         /\[Defective Credit Settle\]\s*Deducted\s*₹?([0-9,]+(?:\.[0-9]+)?)\s*(?:from due\s*)?for\s*(\d+)x\s*([^.\n]+)/gi;
       let match;
       while ((match = regex1.exec(bill.notes)) !== null) {
-        const amt = parseFloat(match[1].replace(/,/g, ""));
-        const q = parseInt(match[2], 10) || 1;
-        const pName = match[3].trim();
+        const deducted = parseFloat(match[1].replace(/,/g, ""));
+        const qty = parseInt(match[2], 10);
+        const name = match[3].trim();
         if (
           !directReturns.some(
             (r) =>
-              r.productName.toLowerCase().includes(pName.toLowerCase()) ||
-              r.amountDeductedFromDue === amt,
+              r.productName?.toLowerCase() === name.toLowerCase() &&
+              r.quantity === qty,
           )
         ) {
           directReturns.push({
             returnNumber: `RET-${bill.purchaseOrderNumber}`,
             productId: "",
-            productName: pName,
-            quantity: q,
-            stockType: "defective",
-            unitCost: amt / q,
-            totalRefundAmount: amt,
+            productName: name,
+            quantity: qty,
+            unitCost: Math.round(deducted / (qty || 1)),
+            amountDeductedFromDue: deducted,
+            totalRefundAmount: deducted,
             refundMode: "reduce_due",
-            amountDeductedFromDue: amt,
-            notes: `[Defective Credit Settle] Deducted ₹${amt} from due for ${q}x ${pName}`,
-            recordedBy: "owner",
+            stockType: "defective",
+            notes: "Recorded from stock in defective claim notes",
             returnedAt: bill.createdAt
               ? new Date(bill.createdAt).toISOString()
-              : undefined,
+              : new Date().toISOString(),
           });
         }
       }
@@ -133,33 +136,18 @@ export function PurchaseBillDetailsModal({
 
   const resolvedPayments: DashboardPurchaseOrderPayment[] = useMemo(() => {
     if (!bill) return [];
-    let payments: DashboardPurchaseOrderPayment[] = [];
-    if (bill.payments && bill.payments.length > 0) {
-      payments = [...bill.payments];
-    } else if (bill.amountPaid > 0) {
-      payments = [
-        {
-          amount: bill.amountPaid,
-          paymentMode:
-            bill.paymentMode !== "credit" ? (bill.paymentMode as any) : "cash",
-          notes: bill.notes,
-          recordedBy: "owner",
-          type: bill.amountPending <= 0 ? "full_payment" : "initial",
-        },
-      ];
-    }
+    const payments = Array.isArray(bill.payments) ? [...bill.payments] : [];
 
     returnEvents.forEach((ret) => {
       const dueDed = ret.amountDeductedFromDue || 0;
-      const totalAmt = ret.totalRefundAmount || (ret.quantity * (ret.unitCost || 0));
-      const creditAmt = ret.refundMode === "reduce_due" ? Math.max(0, totalAmt - dueDed) : 0;
-
       if (dueDed > 0) {
         const alreadyInPayments = payments.some(
           (p) =>
             (p.type === "return_due_deduction" ||
               p.paymentMode === "reduce_due") &&
-            Math.abs(p.amount) === dueDed,
+            Math.abs(Math.abs(p.amount) - dueDed) < 0.01 &&
+            (p.notes?.includes(ret.productName) ||
+              (p.notes?.includes("due") && p.notes?.includes("Return"))),
         );
         if (!alreadyInPayments) {
           payments.push({
@@ -168,29 +156,31 @@ export function PurchaseBillDetailsModal({
             notes:
               ret.notes ||
               `[Return Due Deduction] Deducted ${formatRupee(dueDed)} for ${ret.quantity}x ${ret.productName}`,
-            recordedBy: ret.recordedBy || "owner",
             type: "return_due_deduction",
             recordedAt: ret.returnedAt || bill.createdAt,
+            recordedBy: (ret.recordedBy as "owner" | "staff") || "owner",
           });
         }
       }
 
-      if (creditAmt > 0) {
-        const alreadyInPayments = payments.some(
+      const totalVal =
+        ret.totalRefundAmount || ret.quantity * (ret.unitCost || 0);
+      const supplierCredit = Math.max(0, totalVal - dueDed);
+      if (supplierCredit > 0 && ret.refundMode === "reduce_due") {
+        const alreadyCredited = payments.some(
           (p) =>
             p.type === "supplier_credit" &&
-            Math.abs(p.amount) === creditAmt,
+            Math.abs(Math.abs(p.amount) - supplierCredit) < 0.01 &&
+            p.notes?.includes(ret.productName),
         );
-        if (!alreadyInPayments) {
+        if (!alreadyCredited) {
           payments.push({
-            amount: -creditAmt,
-            paymentMode: "reduce_due",
-            notes:
-              ret.notes ||
-              `[Supplier Credit] ₹${creditAmt} credited to supplier balance for ${ret.quantity}x ${ret.productName}`,
-            recordedBy: ret.recordedBy || "owner",
+            amount: supplierCredit,
+            paymentMode: "credit",
+            notes: `[Supplier Balance Credit] Credited ${formatRupee(supplierCredit)} from return of ${ret.quantity}x ${ret.productName}`,
             type: "supplier_credit",
             recordedAt: ret.returnedAt || bill.createdAt,
+            recordedBy: (ret.recordedBy as "owner" | "staff") || "owner",
           });
         }
       }
@@ -201,51 +191,44 @@ export function PurchaseBillDetailsModal({
 
   const waUrl = useMemo(() => {
     if (!bill?.supplierPhone) return null;
+    const itemsSummary = (bill.items || [])
+      .map((item) => {
+        const qty = (item.quantityForSell || 0) + (item.quantityForUse || 0);
+        return `${item.productName} (${qty > 0 ? qty : 1} pcs @ ${formatRupee(item.purchaseCost)})`;
+      })
+      .join(", ");
+
     const billStatus = getBillStatus(bill);
     const isCompleted =
       billStatus.statusKey === "completed" ||
       bill.settlementMode === "completed" ||
       (bill.paymentStatus === "paid" && bill.stockAllocated !== false) ||
       (bill.amountPending <= 0 && bill.stockAllocated !== false);
-
     const hasPendingDelivery = !isCompleted && bill.stockAllocated === false;
     const isAdvance =
-      hasPendingDelivery &&
+      !isCompleted &&
       (bill.settlementMode === "advance" ||
         bill.settlementMode === "paid_full" ||
+        bill.stockAllocated === false ||
         Boolean(bill.expectedDeliveryDate) ||
         Boolean(bill.notes && /advance/i.test(bill.notes)));
 
-    const deliveryDate = hasPendingDelivery
-      ? bill.expectedDeliveryDate ||
-        (isAdvance ? bill.dueDate || bill.invoiceDate : undefined)
-      : undefined;
-
-    const itemsSummary =
-      bill.items && bill.items.length > 0
-        ? bill.items
-            .map(
-              (it) =>
-                `${it.productName} (${(it.quantityForSell || 0) + (it.quantityForUse || 0)} pcs)`,
-            )
-            .join(", ")
-        : undefined;
-
-    const reminderMode: "advance" | "payment_due" | "delivery" = isAdvance
-      ? "advance"
-      : bill.amountPending > 0
-        ? "payment_due"
-        : "delivery";
+    let reminderMode: "delivery" | "advance" | "payment_due" | undefined = undefined;
+    if (hasPendingDelivery) {
+      reminderMode = "delivery";
+    } else if (bill.amountPending > 0) {
+      reminderMode = isAdvance ? "advance" : "payment_due";
+    }
 
     return getSupplierWhatsAppReminderUrl({
       phone: bill.supplierPhone,
       supplierName: bill.supplierName,
-      salonName: salonName,
+      salonName: salonName || "our salon",
       poNumber: bill.purchaseOrderNumber,
       dealerInvoiceNumber: bill.dealerInvoiceNumber,
-      deliveryDate,
-      deliveryTime: hasPendingDelivery ? bill.deliveryTime : undefined,
-      dueDate: bill.amountPending > 0 ? bill.dueDate : undefined,
+      deliveryDate: bill.expectedDeliveryDate,
+      deliveryTime: bill.deliveryTime,
+      dueDate: bill.dueDate,
       totalAmount: bill.totalAmount,
       amountPaid: bill.amountPaid,
       amountPending: bill.amountPending,
@@ -309,6 +292,39 @@ export function PurchaseBillDetailsModal({
         .toUpperCase()
     : "S";
 
+  const billStatus = getBillStatus(bill);
+  const isCompleted =
+    billStatus.statusKey === "completed" ||
+    bill.settlementMode === "completed" ||
+    (bill.paymentStatus === "paid" && bill.stockAllocated !== false) ||
+    (dueAmount <= 0 && bill.stockAllocated !== false);
+
+  const hasPendingDelivery = !isCompleted && bill.stockAllocated === false;
+  const isAdvance =
+    !isCompleted &&
+    (bill.settlementMode === "advance" ||
+      bill.settlementMode === "paid_full" ||
+      bill.stockAllocated === false ||
+      Boolean(bill.expectedDeliveryDate) ||
+      Boolean(bill.notes && /advance/i.test(bill.notes)));
+
+  const deliveryTarget = hasPendingDelivery
+    ? bill.expectedDeliveryDate
+    : undefined;
+  const deliveryUrgency = deliveryTarget
+    ? getBookingUrgency(deliveryTarget)
+    : null;
+  const isDeliveryToday =
+    hasPendingDelivery && deliveryUrgency?.tone === "today";
+  const isDeliveryOverdue =
+    hasPendingDelivery && deliveryUrgency?.tone === "overdue";
+
+  const hasPendingDue = !isCompleted && dueAmount > 0;
+  const dueTarget = hasPendingDue ? bill.dueDate : undefined;
+  const dueUrgency = dueTarget ? getBookingUrgency(dueTarget) : null;
+  const isDueToday = hasPendingDue && dueUrgency?.tone === "today";
+  const isDueOverdue = hasPendingDue && dueUrgency?.tone === "overdue";
+
   const getPaymentBadge = (
     p: DashboardPurchaseOrderPayment,
     idx: number,
@@ -350,22 +366,17 @@ export function PurchaseBillDetailsModal({
         style: "bg-emerald-50 text-emerald-800 border-emerald-200/90",
       };
     }
-    if (p.type === "full_payment") {
+
+    if (idx === 0) {
       return {
-        label: "Full Payment",
-        style: "bg-galla-teal/10 text-galla-teal border-galla-teal/20",
+        label: "Advance / Initial",
+        style: "bg-amber-50 text-amber-800 border-amber-200/90",
       };
     }
 
-    if (total > 1) {
-      if (idx === 0) {
-        return {
-          label: "Initial / Stock In",
-          style: "bg-amber-50 text-amber-800 border-amber-200/90",
-        };
-      }
+    if (idx === total - 1 && isPaid) {
       return {
-        label: total > 2 ? `Settlement #${idx}` : "Settlement",
+        label: "Full Settlement",
         style: "bg-emerald-50 text-emerald-800 border-emerald-200/90",
       };
     }
@@ -402,418 +413,345 @@ export function PurchaseBillDetailsModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150"
+      className={`fixed inset-0 ${zIndex} bg-galla-paper flex flex-col overflow-y-auto font-sans text-galla-ink animate-in fade-in duration-200`}
     >
-      <div className="w-full max-w-[620px] bg-galla-surface border border-galla-line rounded-[10px] shadow-2xl transition-all max-h-[92vh] flex flex-col overflow-hidden">
-        {/* Header with Date & Time */}
-        <div className="px-5 py-4 border-b border-galla-line/80 flex items-center justify-between bg-galla-paper/40 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-[6px] bg-galla-teal/10 border border-galla-teal/20 flex items-center justify-center text-galla-teal">
-              <Receipt className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-[15px] font-bold text-galla-ink">
-                  Bill {formatDisplayNumber(bill.purchaseOrderNumber)}
-                </h2>
-                <span
-                  className={`inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-[4px] border font-semibold ${
-                    isPaid
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      : isPartial
-                        ? "bg-amber-50 text-amber-800 border-amber-200"
-                        : "bg-rose-50 text-rose-800 border-rose-200"
-                  }`}
-                >
-                  {isPaid ? (
-                    <CheckCircle2 className="h-3 w-3" />
-                  ) : (
-                    <AlertCircle className="h-3 w-3" />
-                  )}
-                  <span>
-                    {isPaid
-                      ? "Fully Settled"
-                      : isPartial
-                        ? "Partially Paid"
-                        : "Unpaid"}
-                  </span>
-                </span>
-                <span className="font-semibold tabular-nums text-[13px] text-galla-ink-soft">
-                  {formatRupee(originalBillAmount)}
-                </span>
-              </div>
-              <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-                Purchase Bill &bull;{" "}
-                {formatDateTime(bill.createdAt || bill.invoiceDate) ||
-                  "Recorded"}{" "}
-                &bull;{" "}
-                {bill.dealerInvoiceNumber
-                  ? `Dealer Inv: #${bill.dealerInvoiceNumber}`
-                  : "Direct Stock In"}
-              </p>
-            </div>
-          </div>
-
+      {/* ======================================================== */}
+      {/* TOP STICKY HEADER                                        */}
+      {/* ======================================================== */}
+      <header className="sticky top-0 z-20 bg-galla-surface/95 backdrop-blur-md border-b border-galla-line px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shrink-0 shadow-2xs">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onClose}
-            className="text-galla-ink-soft hover:text-galla-ink p-1.5 rounded-[5px] hover:bg-galla-paper border border-transparent hover:border-galla-line transition-all cursor-pointer"
-            title="Close modal"
+            className="p-2 -ml-2 rounded-xl text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper border border-transparent hover:border-galla-line transition-colors cursor-pointer"
+            title="Back to purchase orders"
           >
-            <X className="h-4 w-4" />
+            <ArrowLeft className="h-5 w-5" />
           </button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-[17px] font-bold text-galla-ink tracking-tight">
+                Bill #{formatDisplayNumber(bill.purchaseOrderNumber)}
+              </h1>
+              <StatusPill
+                status={billStatus.pillStatus}
+                customLabel={billStatus.label}
+              />
+            </div>
+            <p className="text-[12px] text-galla-ink-soft truncate">
+              Purchase Bill &bull; {formatDateTime(bill.createdAt || bill.invoiceDate) || "Recorded"} &bull;{" "}
+              {bill.dealerInvoiceNumber ? `Vendor Inv: #${bill.dealerInvoiceNumber}` : "Direct Stock In"}
+            </p>
+          </div>
         </div>
 
-        {/* Scrollable Content Body */}
-        <div className="px-5 py-4 overflow-y-auto space-y-4 font-sans text-galla-ink">
-          {/* Supplier Card */}
-          <div className="p-3.5 bg-galla-paper/50 border border-galla-line rounded-[8px] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-galla-ink font-semibold text-[15px] shrink-0">
-                {initials}
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Truck className="h-3.5 w-3.5 text-galla-ink-soft" />
-                  <span className="font-sans font-semibold text-[15px] text-galla-ink">
-                    {bill.supplierName}
-                  </span>
-                  {bill.supplierCompany && (
-                    <span className="inline-flex items-center gap-1 text-[11.5px] font-sans px-2 py-0.5 rounded bg-galla-surface border border-galla-line text-galla-ink-soft">
-                      <Building2 className="h-3 w-3" />
-                      <span>{bill.supplierCompany}</span>
-                    </span>
-                  )}
-                </div>
-                {bill.supplierPhone ? (
-                  <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5">
-                    {formatPhoneNumber(bill.supplierPhone)}
-                  </div>
-                ) : (
-                  <div className="text-[12px] text-galla-ink-soft/70 italic mt-0.5">
-                    No phone recorded
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {bill.supplierPhone && (
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={`tel:${bill.supplierPhone.replace(/\D/g, "")}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12px] font-sans font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
-                  title={`Call ${bill.supplierName}`}
-                >
-                  <Phone className="h-3.5 w-3.5 text-galla-teal" />
-                  <span>Call</span>
-                </a>
-                {waUrl && (
-                  <a
-                    href={waUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12px] font-sans font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
-                    title="Send inquiry to supplier via WhatsApp"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
-                    <span>WhatsApp Msg</span>
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Date & Time Tracking Grid (Mirrors Order Modal structure with Date & Time) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {/* Stock In / Bill Date */}
-            <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] flex items-start gap-2.5">
-              <Calendar className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <span className="block text-[12px] font-medium text-galla-ink-soft">
-                  Stock In Date &amp; Time
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-galla-paper/70 border border-galla-line/80 text-[12.5px] text-galla-ink-soft">
+            <span>
+              {bill.items?.length || 0} {bill.items?.length === 1 ? "Product" : "Products"} ({totalUnits} {totalUnits === 1 ? "unit" : "units"})
+            </span>
+            <span className="text-galla-line">&bull;</span>
+            {totalDueDeductions > 0 || totalSupplierCredits > 0 ? (
+              <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-rose-800">
+                <span>{formatRupee(Math.max(0, originalBillAmount - totalDueDeductions))}</span>
+                <span className="line-through text-rose-400 font-normal text-[11px]">
+                  {formatRupee(originalBillAmount)}
                 </span>
-                <span className="text-[12.5px] font-medium text-galla-ink mt-0.5 block">
-                  {formatDateTime(bill.createdAt || bill.invoiceDate) ||
-                    "Recorded"}
-                </span>
-                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-galla-ink-soft/80 flex-wrap">
-                  {bill.dealerInvoiceNumber ? (
-                    <span>Vendor Inv #{bill.dealerInvoiceNumber}</span>
-                  ) : (
-                    <span>Direct Stock In</span>
-                  )}
-                  {bill.recordedBy && (
-                    <span className="capitalize">
-                      &bull; Recorded by {bill.recordedBy}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Bill Settlement Status Card with Date & Time */}
-            {isPaid ? (
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200/90 rounded-[6px] flex items-start gap-2.5 text-emerald-950">
-                <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[12px] font-medium text-emerald-900">
-                      Payment Status
-                    </span>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                      Done
-                    </span>
-                  </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block text-emerald-950">
-                    Fully cleared &bull; ₹0 balance due
-                  </span>
-                  {latestPaymentDate && (
-                    <span className="text-[11px] text-emerald-800/80 mt-0.5 block">
-                      Settled: {latestPaymentDate}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ) : isPartial ? (
-              <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-[6px] flex items-start gap-2.5 text-amber-950">
-                <Clock className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[12px] font-medium text-amber-900">
-                      Payment Status
-                    </span>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
-                      Pending
-                    </span>
-                  </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block text-amber-950">
-                    Remaining due: {formatRupee(dueAmount)}
-                  </span>
-                  {latestPaymentDate && (
-                    <span className="text-[11px] text-amber-800/80 mt-0.5 block">
-                      Last payment: {latestPaymentDate}
-                    </span>
-                  )}
-                </div>
-              </div>
+              </span>
             ) : (
-              <div className="p-3 bg-rose-50/50 border border-rose-200/80 rounded-[6px] flex items-start gap-2.5 text-rose-950">
-                <AlertCircle className="h-4 w-4 text-rose-700 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[12px] font-medium text-rose-900">
-                      Payment Status
-                    </span>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
-                      Credit
-                    </span>
-                  </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block text-rose-950">
-                    Full balance pending: {formatRupee(dueAmount)}
-                  </span>
-                  <span className="text-[11px] text-rose-800/80 mt-0.5 block">
-                    Billed: {formatDateTime(bill.createdAt || bill.invoiceDate)}
-                  </span>
-                </div>
-              </div>
+              <span className="font-bold text-galla-ink tabular-nums text-[13px]">
+                {formatRupee(originalBillAmount)}
+              </span>
             )}
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-xl text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper border border-transparent hover:border-galla-line transition-colors cursor-pointer"
+            title="Close modal"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </header>
 
-          {/* Settlement Mode & Dates Banner (If present) */}
-          {(bill.dueDate ||
-            bill.expectedDeliveryDate ||
-            (bill.notes && /advance/i.test(bill.notes)) ||
-            bill.settlementMode) &&
-            (() => {
-              const billStatus = getBillStatus(bill);
-              const isCompleted =
-                billStatus.statusKey === "completed" ||
-                bill.settlementMode === "completed" ||
-                (bill.paymentStatus === "paid" &&
-                  bill.stockAllocated !== false) ||
-                (dueAmount <= 0 && bill.stockAllocated !== false);
+      {/* ======================================================== */}
+      {/* MAIN TWO-COLUMN LAYOUT                                   */}
+      {/* ======================================================== */}
+      <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start flex-1">
+        {/* ====================================================== */}
+        {/* LEFT COLUMN: SUPPLIER, TIMELINE, ITEMS & RETURNS       */}
+        {/* ====================================================== */}
+        <main className="space-y-6 min-w-0 order-1">
+          {/* Card 1: Supplier Details */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-galla-teal" />
+                <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                  Supplier Details
+                </h2>
+              </div>
+              <div className="text-[12px] text-galla-ink-soft">
+                {bill.dealerInvoiceNumber
+                  ? `Vendor Inv: #${bill.dealerInvoiceNumber}`
+                  : "Direct Stock In"}
+              </div>
+            </div>
 
-              const hasPendingDelivery =
-                !isCompleted && bill.stockAllocated === false;
-              const isAdvance =
-                !isCompleted &&
-                (bill.settlementMode === "advance" ||
-                  bill.settlementMode === "paid_full" ||
-                  bill.stockAllocated === false ||
-                  Boolean(bill.expectedDeliveryDate) ||
-                  Boolean(bill.notes && /advance/i.test(bill.notes)));
-
-              const deliveryTarget = hasPendingDelivery
-                ? bill.expectedDeliveryDate
-                : undefined;
-              const deliveryUrgency = deliveryTarget
-                ? getBookingUrgency(deliveryTarget)
-                : null;
-              const isDeliveryToday =
-                hasPendingDelivery && deliveryUrgency?.tone === "today";
-              const isDeliveryOverdue =
-                hasPendingDelivery && deliveryUrgency?.tone === "overdue";
-
-              const hasPendingDue = !isCompleted && dueAmount > 0;
-              const dueTarget = hasPendingDue ? bill.dueDate : undefined;
-              const dueUrgency = dueTarget
-                ? getBookingUrgency(dueTarget)
-                : null;
-              const isDueToday = hasPendingDue && dueUrgency?.tone === "today";
-              const isDueOverdue =
-                hasPendingDue && dueUrgency?.tone === "overdue";
-
-              return (
-                <div className="p-3 bg-galla-paper/40 border border-galla-line rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px]">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[12px] font-medium text-galla-ink-soft">
-                      Settlement Mode:
+            <div className="p-4 bg-galla-paper/40 border border-galla-line/70 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="h-12 w-12 rounded-full bg-galla-teal-soft border border-galla-teal/30 flex items-center justify-center text-galla-teal font-bold text-[16px] shrink-0">
+                  {initials}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-[16px] text-galla-ink">
+                      {bill.supplierName}
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-galla-surface border border-galla-line text-galla-ink">
-                      {isCompleted
-                        ? "Completed"
-                        : bill.settlementMode === "pending"
-                          ? "Pending / Payment Due"
-                          : isAdvance
-                            ? "Advance Order"
-                            : bill.settlementMode === "paid_full"
-                              ? "Paid in Full"
-                              : "Completed"}
-                    </span>
-                    {bill.stockAllocated && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
-                        <PackageCheck className="h-3 w-3 text-emerald-700" />
-                        <span>Stock In Inventory</span>
-                      </span>
-                    )}
-                    {isDeliveryToday && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
-                        🚨 Delivery Expected Today
-                      </span>
-                    )}
-                    {isDeliveryOverdue && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
-                        ⚠️ Delivery Overdue
-                      </span>
-                    )}
-                    {isDueToday && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
-                        🚨 Payment Due Today
-                      </span>
-                    )}
-                    {isDueOverdue && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
-                        ⚠️ Payment Overdue
+                    {bill.supplierCompany && (
+                      <span className="inline-flex items-center gap-1 text-[11.5px] px-2 py-0.5 rounded bg-galla-surface border border-galla-line text-galla-ink-soft">
+                        <Building2 className="h-3 w-3" />
+                        <span>{bill.supplierCompany}</span>
                       </span>
                     )}
                   </div>
+                  {bill.supplierPhone ? (
+                    <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 text-galla-teal" />
+                      <span>{formatPhoneNumber(bill.supplierPhone)}</span>
+                    </div>
+                  ) : (
+                    <div className="text-[12px] text-galla-ink-soft/70 italic mt-0.5">
+                      No phone number recorded
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {hasPendingDue && (
-                      bill.dueDate ? (
-                        <div className="text-rose-700 font-medium font-sans flex items-center gap-1.5">
-                          <span>
-                            Payment Due:{" "}
-                            <strong>{formatBookingDate(bill.dueDate)}</strong>
-                          </span>
-                          {onOpenReschedule && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenReschedule(bill, "due_date")}
-                              className="text-[11px] text-rose-800 underline hover:text-rose-950 cursor-pointer ml-0.5"
-                              title="Click to reschedule payment due date"
-                            >
-                              Edit
-                            </button>
-                          )}
-                        </div>
-                      ) : (onOpenReschedule && getBillStatus(bill).statusKey === "pending") ? (
-                        <button
-                          type="button"
-                          onClick={() => onOpenReschedule(bill, "due_date")}
-                          className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer"
-                          title="Click to set payment due date"
-                        >
-                          <Clock className="h-3 w-3 text-amber-700 shrink-0" />
-                          <span>Set Due Date</span>
-                          <span className="text-[10px] opacity-75 underline ml-0.5 font-normal">
-                            + Add
-                          </span>
-                        </button>
-                      ) : null
-                    )}
-                    {hasPendingDelivery && (
-                      deliveryTarget ? (
-                        <div className="text-galla-teal font-medium font-sans flex items-center gap-1.5">
-                          <span>
-                            Expected Arrival:{" "}
-                            <strong>{formatBookingDate(deliveryTarget)}</strong>
-                            {bill.deliveryTime
-                              ? ` at ${formatAppointmentTime(bill.deliveryTime)}`
-                              : ""}
-                          </span>
-                          {onOpenReschedule && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenReschedule(bill, "delivery")}
-                              className="text-[11px] text-teal-800 underline hover:text-teal-950 cursor-pointer ml-0.5"
-                              title="Click to reschedule delivery slot"
-                            >
-                              Edit
-                            </button>
-                          )}
-                        </div>
-                      ) : onOpenReschedule ? (
+              {bill.supplierPhone && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`tel:${bill.supplierPhone.replace(/\D/g, "")}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
+                    title={`Call ${bill.supplierName}`}
+                  >
+                    <Phone className="h-3.5 w-3.5 text-galla-teal" />
+                    <span>Call</span>
+                  </a>
+                  {waUrl && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
+                      title="Send inquiry to supplier via WhatsApp"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
+                      <span>WhatsApp Msg</span>
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Card 2: Timeline & Status Tracking */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-galla-teal" />
+                <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                  Timeline &amp; Status Tracking
+                </h2>
+              </div>
+              <div className="text-[12px] text-galla-ink-soft font-medium">
+                {isCompleted
+                  ? "Completed"
+                  : bill.settlementMode === "pending"
+                    ? "Pending / Payment Due"
+                    : isAdvance
+                      ? "Advance Order"
+                      : bill.settlementMode === "paid_full"
+                        ? "Paid in Full"
+                        : "Completed"}
+              </div>
+            </div>
+
+            {/* 3 Status/Timeline Blocks */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Block 1: Stock In Date */}
+              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/70 rounded-xl space-y-1">
+                <span className="text-[11.5px] font-medium text-galla-ink-soft flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5 text-galla-teal" />
+                  <span>Stock In Date &amp; Time</span>
+                </span>
+                <div className="text-[13px] font-bold text-galla-ink">
+                  {formatDateTime(bill.createdAt || bill.invoiceDate) || "Recorded"}
+                </div>
+                <div className="text-[11px] text-galla-ink-soft">
+                  {bill.recordedBy ? `Recorded by ${bill.recordedBy}` : "Recorded in system"}
+                </div>
+              </div>
+
+              {/* Block 2: Physical Inventory Status */}
+              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/70 rounded-xl space-y-1">
+                <span className="text-[11.5px] font-medium text-galla-ink-soft flex items-center gap-1">
+                  <PackageCheck className="h-3.5 w-3.5 text-galla-teal" />
+                  <span>Inventory Stock</span>
+                </span>
+                <div>
+                  {bill.stockAllocated ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                      <span>Stock In Inventory</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Clock className="h-3 w-3 text-amber-600" />
+                      <span>Awaiting Delivery</span>
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-galla-ink-soft">
+                  {bill.stockAllocated ? "Products added to inventory" : "Delivery pending from supplier"}
+                </div>
+              </div>
+
+              {/* Block 3: Payment Status */}
+              <div className={`p-3.5 rounded-xl border space-y-1 ${
+                isPaid
+                  ? "bg-emerald-50/50 border-emerald-200/80"
+                  : isPartial
+                    ? "bg-amber-50/50 border-amber-200/80"
+                    : "bg-rose-50/50 border-rose-200/80"
+              }`}>
+                <span className="text-[11.5px] font-medium text-galla-ink-soft flex items-center gap-1">
+                  <Wallet className="h-3.5 w-3.5 text-galla-teal" />
+                  <span>Payment Status</span>
+                </span>
+                <div className="text-[13px] font-bold">
+                  {isPaid ? (
+                    <span className="text-emerald-800">Fully Settled</span>
+                  ) : isPartial ? (
+                    <span className="text-amber-800">Partially Paid ({formatRupee(dueAmount)} due)</span>
+                  ) : (
+                    <span className="text-rose-800">Full Pending ({formatRupee(dueAmount)} due)</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-galla-ink-soft">
+                  {latestPaymentDate ? `Last payment: ${latestPaymentDate}` : `Billed: ${formatDateTime(bill.createdAt || bill.invoiceDate)}`}
+                </div>
+              </div>
+            </div>
+
+            {/* Delivery / Due Date Alerts & Targets */}
+            {(isDeliveryToday || isDeliveryOverdue || isDueToday || isDueOverdue || deliveryTarget || (hasPendingDue && bill.dueDate)) && (
+              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/80 rounded-xl space-y-2">
+                {/* Urgent badges */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isDeliveryToday && (
+                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                      🚨 Delivery Expected Today
+                    </span>
+                  )}
+                  {isDeliveryOverdue && (
+                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
+                      ⚠️ Delivery Overdue
+                    </span>
+                  )}
+                  {isDueToday && (
+                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                      🚨 Payment Due Today
+                    </span>
+                  )}
+                  {isDueOverdue && (
+                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
+                      ⚠️ Payment Overdue
+                    </span>
+                  )}
+                </div>
+
+                {/* Date tracking & edit actions */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[12.5px] pt-1">
+                  {hasPendingDelivery && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-galla-teal shrink-0" />
+                      <span>
+                        Expected Arrival:{" "}
+                        <strong className="text-galla-ink">
+                          {deliveryTarget ? formatBookingDate(deliveryTarget) : "Not set"}
+                        </strong>
+                        {bill.deliveryTime ? ` at ${formatAppointmentTime(bill.deliveryTime)}` : ""}
+                      </span>
+                      {onOpenReschedule && (
                         <button
                           type="button"
                           onClick={() => onOpenReschedule(bill, "delivery")}
-                          className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200 px-2 py-0.5 rounded-[4px] font-medium hover:bg-amber-100 transition-all cursor-pointer"
-                          title="Click to set expected delivery date"
+                          className="text-[11.5px] font-medium text-galla-teal hover:underline cursor-pointer ml-1"
                         >
-                          <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
-                          <span>Set Delivery Date</span>
-                          <span className="text-[10px] opacity-75 underline ml-0.5 font-normal">
-                            + Add
-                          </span>
+                          {deliveryTarget ? "Edit" : "+ Set Date"}
                         </button>
-                      ) : null
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+                      )}
+                    </div>
+                  )}
 
-          {/* Stock In Items Breakdown ("What we buy from supplier with Price, Qty, Total and Final Total") */}
-          <div className="border border-galla-line rounded-[8px] overflow-hidden bg-galla-surface shadow-2xs">
-            <div className="px-4 py-2.5 bg-galla-paper/60 border-b border-galla-line flex items-center justify-between">
-              <span className="text-[12px] font-semibold text-galla-ink-soft">
-                Products Purchased ({bill.items?.length || bill.itemsCount || 1}
-                )
-              </span>
-              <span className="text-[11.5px] text-galla-ink-soft font-sans">
-                Unit Price &bull; Qty &bull; Total
-              </span>
+                  {hasPendingDue && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-amber-700 shrink-0" />
+                      <span>
+                        Payment Due:{" "}
+                        <strong className="text-galla-ink">
+                          {bill.dueDate ? formatBookingDate(bill.dueDate) : "Not set"}
+                        </strong>
+                      </span>
+                      {onOpenReschedule && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenReschedule(bill, "due_date")}
+                          className="text-[11.5px] font-medium text-amber-800 hover:underline cursor-pointer ml-1"
+                        >
+                          {bill.dueDate ? "Edit" : "+ Set Due Date"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Card 3: Stock Items Purchased */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-galla-teal" />
+                <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                  Stock Items Purchased
+                </h2>
+              </div>
+              <div className="text-[12px] text-galla-ink-soft">
+                {bill.items?.length || 0} {bill.items?.length === 1 ? "Product" : "Products"} &bull; {totalUnits} {totalUnits === 1 ? "Unit" : "Units"}
+              </div>
             </div>
 
-            {bill.items && bill.items.length > 0 ? (
-              <div className="divide-y divide-galla-line/70">
-                {bill.items.map((item, idx) => {
-                  const purchasedQty =
-                    (item.quantityForSell || 0) + (item.quantityForUse || 0);
-
+            <div className="space-y-2.5">
+              {bill.items && bill.items.length > 0 ? (
+                bill.items.map((item, idx) => {
+                  const purchasedQty = (item.quantityForSell || 0) + (item.quantityForUse || 0) || 1;
                   const itemReturnRecords = returnEvents.filter(
-                    (r) =>
-                      (r.productId && item.productId && String(r.productId) === String(item.productId)) ||
-                      (r.productName && item.productName && r.productName.trim().toLowerCase() === item.productName.trim().toLowerCase())
+                    (ret) =>
+                      ret.productId === item.productId ||
+                      (ret.productName && ret.productName.toLowerCase() === item.productName.toLowerCase()),
                   );
-
                   const replacedQty = itemReturnRecords.length > 0
                     ? itemReturnRecords
                         .filter(
-                          (r) =>
-                            r.refundMode === "replacement_pending" ||
-                            r.replacementStatus === "pending" ||
-                            r.replacementStatus === "fulfilled"
+                          (ret) =>
+                            ret.refundMode === "replacement_pending" ||
+                            (ret.refundMode !== "reduce_due" &&
+                              !["cash", "upi", "card", "bank_transfer"].includes(ret.refundMode) &&
+                              ret.replacementStatus === "pending"),
                         )
                         .reduce((sum, r) => sum + (r.quantity || 0), 0)
                     : (item.replacedQuantity || 0);
@@ -821,10 +759,10 @@ export function PurchaseBillDetailsModal({
                   const returnedQty = itemReturnRecords.length > 0
                     ? itemReturnRecords
                         .filter(
-                          (r) =>
-                            r.refundMode !== "replacement_pending" &&
-                            r.replacementStatus !== "pending" &&
-                            r.replacementStatus !== "fulfilled"
+                          (ret) =>
+                            ret.refundMode === "reduce_due" ||
+                            ["cash", "upi", "card", "bank_transfer"].includes(ret.refundMode) ||
+                            ret.replacementStatus === "fulfilled",
                         )
                         .reduce((sum, r) => sum + (r.quantity || 0), 0)
                     : (item.returnedQuantity || 0);
@@ -834,287 +772,109 @@ export function PurchaseBillDetailsModal({
                   return (
                     <div
                       key={idx}
-                      className="p-3.5 hover:bg-galla-paper/20 transition-colors"
+                      className="p-4 bg-galla-paper/30 border border-galla-line/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-galla-teal/40 transition-colors"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1.5 min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Package className="h-4 w-4 text-blue-600 shrink-0" />
-                            <span
-                              className={`font-sans font-semibold text-[14px] ${isFullyReturned ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}
-                            >
-                              {item.productName}
-                            </span>
-                            {returnedQty > 0 && (
-                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
-                                {returnedQty} Returned
-                              </span>
-                            )}
-                            {replacedQty > 0 && (
-                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 ml-1">
-                                {replacedQty} Replaced
-                              </span>
-                            )}
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+                            <Package className="h-3.5 w-3.5" />
                           </div>
-
-                          <div className="flex items-center gap-2 text-[12px] text-galla-ink-soft flex-wrap">
-                            <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
-                              <span className="text-galla-ink-soft text-[11px]">
-                                Price:
-                              </span>
-                              <strong className="tabular-nums text-galla-ink">
-                                {formatRupee(item.purchaseCost)}
-                              </strong>
+                          <span
+                            className={`font-semibold text-[14.5px] ${isFullyReturned ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}
+                          >
+                            {item.productName}
+                          </span>
+                          {returnedQty > 0 && (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                              {returnedQty} Returned
                             </span>
-
-                            <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
-                              <span className="text-galla-ink-soft text-[11px]">
-                                Qty:
-                              </span>
-                              <strong className="tabular-nums text-galla-ink">
-                                {purchasedQty} pcs
-                              </strong>
+                          )}
+                          {replacedQty > 0 && (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              {replacedQty} Replaced
                             </span>
-
-                            {item.quantityForSell > 0 &&
-                              item.quantityForUse > 0 && (
-                                <span className="text-[11px] text-galla-ink-soft">
-                                  ({item.quantityForSell} retail +{" "}
-                                  {item.quantityForUse} salon)
-                                </span>
-                              )}
-
-                            
-                          </div>
+                          )}
                         </div>
 
-                        <div className="text-right shrink-0">
-                          <div className="text-[11px] text-galla-ink-soft font-medium">
-                            Total
-                          </div>
-                          <div className="text-[15px] font-semibold text-galla-ink tabular-nums">
-                            {formatRupee(purchasedQty * item.purchaseCost)}
-                          </div>
-                          <div className="text-[11.5px] text-galla-ink-soft tabular-nums">
-                            {purchasedQty} &times;{" "}
-                            {formatRupee(item.purchaseCost)}
-                          </div>
+                        <div className="flex items-center gap-2 text-[12px] text-galla-ink-soft flex-wrap pl-9">
+                          <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
+                            <span className="text-galla-ink-soft text-[11px]">Price:</span>
+                            <strong className="tabular-nums text-galla-ink">{formatRupee(item.purchaseCost)}</strong>
+                          </span>
+
+                          <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
+                            <span className="text-galla-ink-soft text-[11px]">Qty:</span>
+                            <strong className="tabular-nums text-galla-ink">{purchasedQty} pcs</strong>
+                          </span>
+
+                          {item.quantityForSell > 0 && item.quantityForUse > 0 && (
+                            <span className="text-[11.5px] text-galla-ink-soft">
+                              ({item.quantityForSell} retail + {item.quantityForUse} salon)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 pl-9 sm:pl-0">
+                        <div className="text-[11px] text-galla-ink-soft font-medium">Line Total</div>
+                        <div className="text-[16px] font-bold text-galla-ink tabular-nums">
+                          {formatRupee(purchasedQty * item.purchaseCost)}
+                        </div>
+                        <div className="text-[11.5px] text-galla-ink-soft tabular-nums">
+                          {purchasedQty} &times; {formatRupee(item.purchaseCost)}
                         </div>
                       </div>
                     </div>
                   );
-                })}
-
-                {/* Final Total row if there are more than 1 product */}
-                {hasMultipleProducts && (
-                  <div className="px-4 py-3 bg-galla-paper/80 border-t border-galla-line flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-semibold text-galla-ink">
-                        Final Total ({bill.items.length} Products &bull;{" "}
-                        {totalUnits} Units)
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[15px] font-bold text-galla-ink tabular-nums">
-                        {formatRupee(itemsTotalCost || bill.totalAmount)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-4 text-[13px] text-galla-ink-soft flex items-center justify-between">
-                <span>Stock In Products</span>
-                <span className="text-[15px] font-semibold text-galla-ink tabular-nums">
-                  {formatRupee(itemsTotalCost)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Payment & Financial Summary (With Detailed Payment Breakdown) */}
-          <div className="p-4 bg-galla-paper/40 border border-galla-line rounded-[8px] space-y-2">
-            <span className="block text-[12px] font-semibold text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
-              Payment &amp; Financial Summary
-            </span>
-
-            {hasMultipleProducts && (
-              <div className="flex justify-between text-[13px] text-galla-ink-soft">
-                <span>Products Subtotal ({bill.items!.length} items):</span>
-                <span className="tabular-nums font-medium">
-                  {formatRupee(itemsTotalCost)}
-                </span>
-              </div>
-            )}
-
-            <div className="flex justify-between text-[15px] font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
-              <span>Total Bill Amount:</span>
-              <span className="tabular-nums font-bold text-[17px]">
-                {formatRupee(originalBillAmount)}
-              </span>
-            </div>
-
-            <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium pt-1">
-              <span className="inline-flex items-center gap-1.5">
-                <Wallet className="h-3.5 w-3.5" />
-                <span>Amount Paid:</span>
-                {bill.paymentMode && (
-                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                    {bill.paymentMode}
+                })
+              ) : (
+                <div className="p-4 text-[13px] text-galla-ink-soft flex items-center justify-between">
+                  <span>Stock In Products</span>
+                  <span className="text-[15px] font-semibold text-galla-ink tabular-nums">
+                    {formatRupee(itemsTotalCost)}
                   </span>
-                )}
-              </span>
-              <span className="tabular-nums font-semibold">
-                {formatRupee(originalAmountPaid || bill.amountPaid)}
-              </span>
-            </div>
-
-            {Boolean(bill.ledgerAdjustment) && bill.ledgerAdjustment !== 0 && (
-              <div className="flex justify-between text-[13px] text-blue-700 font-medium pt-0.5">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
-                    Ledger Adjustment
-                  </span>
-                  <span>
-                    {bill.ledgerAdjustment! > 0
-                      ? "Credit Applied:"
-                      : "Old Dues Paid:"}
-                  </span>
-                </span>
-                <span className="tabular-nums font-semibold">
-                  {formatRupee(Math.abs(bill.ledgerAdjustment!))}
-                </span>
-              </div>
-            )}
-
-            {isDue ? (
-              <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
-                <span className="inline-flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span>Remaining Price to be Paid:</span>
-                </span>
-                <span className="tabular-nums font-bold text-[15px]">
-                  {formatRupee(dueAmount)}
-                </span>
-              </div>
-            ) : (
-              <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
-                <span className="inline-flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Status:</span>
-                </span>
-                <span>Fully Settled (₹0 Due)</span>
-              </div>
-            )}
-
-            {/* Payment History Log (e.g. half payment done by cash and due done by UPI, with date & time) */}
-            {resolvedPayments.length > 0 && (
-              <div className="pt-2 border-t border-galla-line/60 space-y-1.5">
-                <span className="text-[12px] font-semibold text-galla-ink-soft block">
-                  Payment History ({resolvedPayments.length})
-                </span>
-                <div className="space-y-1">
-                  {resolvedPayments.map((p, pIdx) => {
-                    const badge = getPaymentBadge(
-                      p,
-                      pIdx,
-                      resolvedPayments.length,
-                    );
-                    const isSupplierCredit = p.type === "supplier_credit";
-                    const isDueDeduction =
-                      p.type === "return_due_deduction" ||
-                      (!isSupplierCredit && p.paymentMode === "reduce_due");
-                    const isNegative =
-                      (p.amount != null && p.amount < 0) || p.type === "refund";
-                    return (
-                      <div
-                        key={pIdx}
-                        className="bg-galla-surface rounded border border-galla-line/60 flex flex-col"
-                      >
-                        <div className="flex items-center justify-between text-[11.5px] px-2.5 py-1.5 text-galla-ink-soft">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${badge.style}`}
-                            >
-                              {badge.label}
-                            </span>
-                            <span>
-                              <strong
-                                className={
-                                  isSupplierCredit
-                                    ? "text-emerald-700 font-semibold"
-                                    : isDueDeduction
-                                    ? "text-purple-700 font-semibold"
-                                    : isNegative
-                                      ? "text-rose-700 font-semibold"
-                                      : "text-galla-ink font-semibold"
-                                }
-                              >
-                                {isSupplierCredit
-                                  ? `+${formatRupee(Math.abs(p.amount))}`
-                                  : isDueDeduction
-                                  ? `-${formatRupee(Math.abs(p.amount))}`
-                                  : formatRupee(p.amount)}
-                              </strong>{" "}
-                              {isSupplierCredit ? (
-                                <span className="text-emerald-700 font-medium">
-                                  credited to supplier balance
-                                </span>
-                              ) : isDueDeduction ? (
-                                <span className="text-galla-ink-soft font-medium">
-                                  adjusted in bill due
-                                </span>
-                              ) : (
-                                <>
-                                  via{" "}
-                                  <span className="uppercase font-medium text-galla-ink">
-                                    {p.paymentMode}
-                                  </span>
-                                </>
-                              )}
-                              {p.recordedBy ? ` (${p.recordedBy})` : ""}
-                            </span>
-                          </div>
-                          <span className="tabular-nums text-[11px] text-galla-ink-soft/75">
-                            {formatDateTime(p.recordedAt) ||
-                              formatDateTime(bill.createdAt)}
-                          </span>
-                        </div>
-                        {p.notes && (
-                          <div className="px-2.5 pb-1.5 pt-1 text-[11px] text-galla-ink-soft/80 bg-galla-paper/30">
-                            {p.notes}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          {/* Item Returns & Replacements History Log */}
+              {/* Subtotal Row */}
+              {hasMultipleProducts && (
+                <div className="p-3.5 bg-galla-paper/60 border border-galla-line/80 rounded-xl flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-galla-ink">
+                    Products Subtotal ({bill.items?.length} Products &bull; {totalUnits} Units)
+                  </span>
+                  <span className="text-[16px] font-bold text-galla-ink tabular-nums">
+                    {formatRupee(itemsTotalCost || bill.totalAmount)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Card 4: Item Returns & Replacements History Log */}
           {hasReturns && (
-            <div className="p-3.5 bg-rose-50/50 border border-rose-200/80 rounded-[8px] space-y-2.5">
-              <div className="flex items-center justify-between border-b border-rose-200/60 pb-2">
-                <span className="text-[12px] text-rose-900 font-bold flex items-center gap-1.5">
+            <section className="bg-galla-surface border border-rose-200 rounded-xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                <div className="flex items-center gap-2">
                   <RotateCcw className="h-4 w-4 text-rose-700" />
-                  <span>Item Returns &amp; Replacements ({returnEvents.length})</span>
-                </span>
-                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h2 className="text-[14px] font-bold text-rose-950 uppercase tracking-wider">
+                    Item Returns &amp; Replacements ({returnEvents.length})
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
                   {totalDueDeductions > 0 && (
-                    <span className="text-[11.5px] font-sans font-semibold text-purple-800 bg-purple-100/70 border border-purple-200 px-2 py-0.5 rounded">
+                    <span className="text-[11.5px] font-semibold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
                       Due Adjusted: -{formatRupee(totalDueDeductions)}
                     </span>
                   )}
                   {totalSupplierCredits > 0 && (
-                    <span className="text-[11.5px] font-sans font-semibold text-emerald-800 bg-emerald-100/70 border border-emerald-200 px-2 py-0.5 rounded">
+                    <span className="text-[11.5px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                       Supplier Credit: +{formatRupee(totalSupplierCredits)}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="space-y-2">
+
+              <div className="space-y-2.5">
                 {returnEvents.map((ret, rIdx) => {
                   const stockTypeBadge = (() => {
                     if (ret.stockType === "sell") {
@@ -1150,16 +910,14 @@ export function PurchaseBillDetailsModal({
                   return (
                     <div
                       key={rIdx}
-                      className="p-3 bg-galla-surface rounded-[6px] border border-rose-200/80 text-[12px] space-y-1.5 shadow-2xs"
+                      className="p-3.5 bg-rose-50/30 rounded-xl border border-rose-200/80 text-[12.5px] space-y-2"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-galla-ink text-[13px]">
+                          <span className="font-semibold text-galla-ink text-[13.5px]">
                             {ret.quantity}x {ret.productName}
                           </span>
-                          <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${stockTypeBadge.style}`}
-                          >
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${stockTypeBadge.style}`}>
                             {stockTypeBadge.label}
                           </span>
                           {ret.returnNumber && (
@@ -1168,12 +926,12 @@ export function PurchaseBillDetailsModal({
                             </span>
                           )}
                         </div>
-                        <span className="tabular-nums text-[11px] text-galla-ink-soft shrink-0">
+                        <span className="tabular-nums text-[11.5px] text-galla-ink-soft shrink-0">
                           {ret.returnedAt ? formatDateTime(ret.returnedAt) : ""}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2.5 flex-wrap text-[11.5px] text-galla-ink-soft">
+                      <div className="flex items-center gap-2.5 flex-wrap text-[12px] text-galla-ink-soft">
                         <span>
                           Resolution:{" "}
                           <strong className="text-galla-ink font-medium">
@@ -1198,13 +956,10 @@ export function PurchaseBillDetailsModal({
                         {ret.unitCost > 0 && (
                           <span>
                             &bull; Value:{" "}
-                            <span className="tabular-nums font-medium text-galla-ink">
-                              {formatRupee(
-                                ret.totalRefundAmount ||
-                                  ret.quantity * ret.unitCost,
-                              )}
+                            <span className="tabular-nums font-semibold text-galla-ink">
+                              {formatRupee(ret.totalRefundAmount || ret.quantity * ret.unitCost)}
                             </span>{" "}
-                            <span className="text-[10.5px]">
+                            <span className="text-[11px]">
                               ({ret.quantity} &times; {formatRupee(ret.unitCost)})
                             </span>
                           </span>
@@ -1217,7 +972,7 @@ export function PurchaseBillDetailsModal({
                       </div>
 
                       {ret.notes && (
-                        <div className="text-[11.5px] text-galla-ink-soft bg-galla-paper/50 px-2 py-1 rounded border border-galla-line/50 mt-1">
+                        <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded border border-galla-line/60">
                           {ret.notes}
                         </div>
                       )}
@@ -1225,40 +980,232 @@ export function PurchaseBillDetailsModal({
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Internal Remarks / Terms */}
+          {/* Card 5: Internal Remarks / Terms */}
           {bill.notes && (
-            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-[6px] flex items-start gap-2 text-[12px] text-amber-950">
-              <FileText className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold block">Notes &amp; Terms:</span>
-                <p className="mt-0.5 leading-relaxed">{bill.notes}</p>
+            <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-amber-700" />
+                <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                  Notes &amp; Terms
+                </h2>
               </div>
-            </div>
+              <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-xl text-[12.5px] text-amber-950 leading-relaxed">
+                {bill.notes}
+              </div>
+            </section>
           )}
-        </div>
+        </main>
 
-        {/* Footer Actions */}
-        <div className="px-5 py-3 border-t border-galla-line bg-galla-paper/30 flex items-center justify-between shrink-0">
-          <div className="text-[12px] text-galla-ink-soft">
-            {isDue ? (
-              <span className="text-amber-800 font-medium">
-                Supplier has {formatRupee(dueAmount)} remaining due
-              </span>
-            ) : bill.stockAllocated === false ? (
-              <span className="text-amber-800 font-medium">
-                Paid in full &bull; Delivery awaiting settlement
-              </span>
-            ) : (
-              <span className="text-emerald-700 font-medium">
-                Bill is fully settled &amp; paid
-              </span>
-            )}
-          </div>
+        {/* ====================================================== */}
+        {/* RIGHT COLUMN: FINANCIAL BREAKDOWN, PAYMENTS & ACTIONS   */}
+        {/* ====================================================== */}
+        <aside className="space-y-6 order-2 lg:sticky lg:top-[76px]">
+          {/* Card 1: Bill & Settlement Summary */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-galla-teal" />
+                <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                  Bill &amp; Settlement
+                </h2>
+              </div>
+              <StatusPill
+                status={billStatus.pillStatus}
+                customLabel={billStatus.label}
+              />
+            </div>
 
-          <div className="flex items-center gap-2">
+            <div className="space-y-2.5 text-[13px] pt-1">
+              <div className="flex justify-between text-galla-ink-soft">
+                <span>Products Subtotal:</span>
+                <span className="tabular-nums font-semibold text-galla-ink">
+                  {formatRupee(itemsTotalCost)}
+                </span>
+              </div>
+
+              {Boolean(bill.ledgerAdjustment) && bill.ledgerAdjustment !== 0 && (
+                <div className="flex justify-between text-blue-700 font-medium">
+                  <span>
+                    {bill.ledgerAdjustment! > 0 ? "Credit Applied:" : "Old Dues Paid:"}
+                  </span>
+                  <span className="tabular-nums font-semibold">
+                    {formatRupee(Math.abs(bill.ledgerAdjustment!))}
+                  </span>
+                </div>
+              )}
+
+              {totalDueDeductions > 0 && (
+                <div className="flex justify-between text-purple-700 font-medium">
+                  <span>Returns (Due Deductions):</span>
+                  <span className="tabular-nums font-semibold">
+                    -{formatRupee(totalDueDeductions)}
+                  </span>
+                </div>
+              )}
+
+              {totalSupplierCredits > 0 && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Returns (Supplier Credit):</span>
+                  <span className="tabular-nums font-semibold">
+                    +{formatRupee(totalSupplierCredits)}
+                  </span>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-galla-line flex justify-between items-baseline">
+                <span className="font-bold text-[14px] text-galla-ink">Total Bill:</span>
+                <span className="tabular-nums font-bold text-[18px] text-galla-ink">
+                  {formatRupee(originalBillAmount)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-emerald-700 font-medium pt-1">
+                <span className="inline-flex items-center gap-1.5">
+                  <Wallet className="h-3.5 w-3.5" />
+                  <span>Amount Paid:</span>
+                  {bill.paymentMode && (
+                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
+                      {bill.paymentMode}
+                    </span>
+                  )}
+                </span>
+                <span className="tabular-nums font-bold text-[15px]">
+                  {formatRupee(originalAmountPaid || bill.amountPaid)}
+                </span>
+              </div>
+
+              {/* Balance Due / Fully Settled Box */}
+              {isDue ? (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 space-y-1">
+                  <div className="flex justify-between items-center text-rose-800">
+                    <span className="font-bold text-[13px] flex items-center gap-1.5">
+                      <AlertCircle className="h-4 w-4 text-rose-600" />
+                      <span>Balance Due:</span>
+                    </span>
+                    <span className="tabular-nums font-bold text-[18px] text-rose-700">
+                      {formatRupee(dueAmount)}
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-rose-800/80">
+                    Supplier payment pending
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-emerald-800">
+                  <span className="font-bold text-[13px] flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>Payment Status:</span>
+                  </span>
+                  <span className="font-bold text-[13.5px]">
+                    Fully Cleared (₹0 Due)
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Card 2: Payment History Log */}
+          {resolvedPayments.length > 0 && (
+            <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-galla-teal" />
+                  <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                    Payment History
+                  </h2>
+                </div>
+                <span className="text-[12px] text-galla-ink-soft font-semibold">
+                  {resolvedPayments.length} {resolvedPayments.length === 1 ? "entry" : "entries"}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {resolvedPayments.map((p, pIdx) => {
+                  const badge = getPaymentBadge(p, pIdx, resolvedPayments.length);
+                  const isSupplierCredit = p.type === "supplier_credit";
+                  const isDueDeduction = p.type === "return_due_deduction" || (!isSupplierCredit && p.paymentMode === "reduce_due");
+                  const isNegative = (p.amount != null && p.amount < 0) || p.type === "refund";
+
+                  return (
+                    <div
+                      key={pIdx}
+                      className="p-3 bg-galla-paper/30 border border-galla-line/70 rounded-xl space-y-1.5 text-[12.5px]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${badge.style}`}>
+                            {badge.label}
+                          </span>
+                          <span
+                            className={`font-bold tabular-nums ${
+                              isSupplierCredit
+                                ? "text-emerald-700"
+                                : isDueDeduction
+                                ? "text-purple-700"
+                                : isNegative
+                                ? "text-rose-700"
+                                : "text-galla-ink"
+                            }`}
+                          >
+                            {isSupplierCredit
+                              ? `+${formatRupee(Math.abs(p.amount))}`
+                              : isDueDeduction
+                              ? `-${formatRupee(Math.abs(p.amount))}`
+                              : formatRupee(p.amount)}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-galla-ink-soft tabular-nums">
+                          {formatDateTime(p.recordedAt) || formatDateTime(bill.createdAt)}
+                        </span>
+                      </div>
+
+                      <div className="text-[11.5px] text-galla-ink-soft flex items-center gap-2 flex-wrap">
+                        {isSupplierCredit ? (
+                          <span className="text-emerald-700 font-medium">credited to supplier balance</span>
+                        ) : isDueDeduction ? (
+                          <span className="text-purple-700 font-medium">adjusted in bill due</span>
+                        ) : (
+                          <span>
+                            via <strong className="uppercase text-galla-ink">{p.paymentMode}</strong>
+                          </span>
+                        )}
+                        {p.recordedBy && <span>&bull; Recorded by {p.recordedBy}</span>}
+                      </div>
+
+                      {p.notes && (
+                        <div className="text-[11.5px] text-galla-ink-soft bg-galla-surface p-2 rounded border border-galla-line/50 mt-1">
+                          {p.notes}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Card 3: Action Buttons */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-3">
+            <div className="text-[12px] text-galla-ink-soft pb-1">
+              {isDue ? (
+                <span className="text-amber-800 font-medium">
+                  Supplier has {formatRupee(dueAmount)} remaining due
+                </span>
+              ) : bill.stockAllocated === false ? (
+                <span className="text-amber-800 font-medium">
+                  Paid in full &bull; Delivery awaiting settlement
+                </span>
+              ) : (
+                <span className="text-emerald-700 font-medium">
+                  Bill is fully settled &amp; paid
+                </span>
+              )}
+            </div>
+
+            {/* Primary Action Button */}
             {(isDue || bill.stockAllocated === false) && onOpenPayNow && (
               <button
                 type="button"
@@ -1266,25 +1213,56 @@ export function PurchaseBillDetailsModal({
                   onClose();
                   onOpenPayNow(bill);
                 }}
-                className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs"
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                {isDue
-                  ? `Settle Bill (${formatRupee(dueAmount)})`
-                  : "Settle Bill"}
+                <CheckCircle2 className="h-4 w-4" />
+                <span>
+                  {isDue ? `Settle Bill (${formatRupee(dueAmount)})` : "Settle Bill"}
+                </span>
               </button>
+            )}
+
+            {/* Secondary Buttons Row */}
+            {onOpenReschedule && (hasPendingDelivery || hasPendingDue) && (
+              <div className="flex items-center gap-2">
+                {hasPendingDelivery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenReschedule(bill, "delivery");
+                    }}
+                    className="flex-1 py-2 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
+                  >
+                    {deliveryTarget ? "Reschedule Delivery" : "Set Delivery Date"}
+                  </button>
+                )}
+
+                {hasPendingDue && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenReschedule(bill, "due_date");
+                    }}
+                    className="flex-1 py-2 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
+                  >
+                    {bill.dueDate ? "Change Due Date" : "Set Due Date"}
+                  </button>
+                )}
+              </div>
             )}
 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-[5px] text-[13px] font-sans font-medium bg-galla-teal hover:opacity-95 text-white transition-opacity cursor-pointer shadow-xs"
+              className="w-full py-2.5 rounded-xl border border-galla-line hover:bg-galla-paper text-galla-ink font-semibold text-[13px] transition-colors cursor-pointer"
             >
               Close
             </button>
-          </div>
-        </div>
+          </section>
+        </aside>
       </div>
-
     </div>
   );
 }
