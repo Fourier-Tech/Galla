@@ -88,11 +88,11 @@ export function ExpenseDetailsModal({
         <div className="flex items-start justify-between gap-3 border-b border-galla-line/60 pb-3.5">
           <div className="space-y-1 min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-heading font-semibold text-[17px] text-galla-ink">
+              <span className="text-[15px] font-bold text-galla-ink">
                 Expense Details
               </span>
               {expense.expenseNumber && (
-                <span className="font-mono text-[11px] font-semibold text-galla-brick bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                <span className="font-sans text-[11px] font-semibold text-galla-brick bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 tabular-nums">
                   {formatDisplayNumber(expense.expenseNumber)}
                 </span>
               )}
@@ -115,11 +115,11 @@ export function ExpenseDetailsModal({
 
         {/* Amount Outflow Card */}
         <div className="p-4 rounded-[6px] bg-rose-50/50 border border-rose-200/70 text-center space-y-1">
-          <div className="text-[11px] font-sans font-medium uppercase tracking-wider text-rose-800 flex items-center justify-center gap-1">
+          <div className="text-[12px] font-sans font-medium text-rose-800 flex items-center justify-center gap-1">
             <ArrowDownRight className="h-3.5 w-3.5 text-rose-700" />
-            <span>Total Outflow</span>
+            <span>Total outflow</span>
           </div>
-          <div className="font-heading font-bold text-[28px] text-galla-brick tabular-nums">
+          <div className="font-bold text-[26px] text-galla-brick tabular-nums">
             &minus;{formatRupee(expense.amount)}
           </div>
           <div>
@@ -163,8 +163,8 @@ export function ExpenseDetailsModal({
               <CreditCard className="h-3.5 w-3.5 text-galla-teal" />
               <span>Payment Mode:</span>
             </span>
-            <span className="font-medium text-galla-ink uppercase tracking-wide">
-              {paymentModeLabel}
+            <span className="font-medium text-galla-ink capitalize">
+              {expense.paymentMode || "Cash"}
             </span>
           </div>
 
@@ -200,7 +200,7 @@ export function ExpenseDetailsModal({
           <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-[6px] space-y-1">
             <div className="flex items-center gap-1.5 text-amber-950 font-semibold text-[11.5px]">
               <FileText className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-              <span className="uppercase tracking-wider">Note</span>
+              <span className="font-semibold text-[12px]">Note</span>
             </div>
             <p className="text-[12px] text-amber-900 leading-relaxed font-sans break-words whitespace-pre-wrap">
               {expense.notes}

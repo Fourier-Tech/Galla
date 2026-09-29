@@ -188,10 +188,10 @@ export function ServicesTab({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+          <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
             Services &amp; Packages Catalog
           </h2>
-          <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
+          <p className="text-[13px] font-normal text-galla-ink-soft mt-0.5">
             Manage parlour treatment menu, pricing, and promotional bundled packages
           </p>
         </div>
@@ -386,12 +386,12 @@ export function ServicesTab({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[760px]">
                 <thead>
-                  <tr className="border-b border-galla-line bg-galla-paper/70 font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
-                    <th className="w-[42%] py-3.5 pl-6 pr-4 text-left font-semibold">Service &amp; Notes</th>
-                    <th className="w-[24%] py-3.5 px-4 text-left font-semibold">Category</th>
-                    <th className="w-[12%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Price</th>
-                    <th className="w-[12%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Status</th>
-                    <th className="w-[10%] py-3.5 pl-4 pr-6 text-right font-semibold whitespace-nowrap">Actions</th>
+                  <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
+                    <th className="w-[42%] py-3.5 pl-6 pr-4 text-left font-medium">Service &amp; Notes</th>
+                    <th className="w-[24%] py-3.5 px-4 text-left font-medium">Category</th>
+                    <th className="w-[12%] py-3.5 px-4 text-right font-medium whitespace-nowrap">Price</th>
+                    <th className="w-[12%] py-3.5 px-4 text-center font-medium whitespace-nowrap">Status</th>
+                    <th className="w-[10%] py-3.5 pl-4 pr-6 text-right font-medium whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
 
@@ -403,7 +403,7 @@ export function ServicesTab({
                     >
                       {/* Name & description */}
                       <td className="py-3.5 pl-6 pr-4 align-middle">
-                        <div className="font-heading font-semibold text-[14.5px] text-galla-ink">
+                        <div className="font-semibold text-[15px] text-galla-ink">
                           {service.name}
                         </div>
                         {service.description && (
@@ -433,7 +433,7 @@ export function ServicesTab({
                       </td>
 
                       {/* Price */}
-                      <td className="py-3.5 px-4 text-right align-middle font-heading font-semibold text-[14.5px] text-galla-ink tabular-nums whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-right align-middle font-semibold text-[15px] text-galla-ink tabular-nums whitespace-nowrap">
                         {formatRupee(service.price)}
                       </td>
 
@@ -502,7 +502,7 @@ export function ServicesTab({
               <div className="inline-flex p-3 rounded-full bg-galla-paper text-galla-ink-soft mb-1">
                 <Scissors className="h-6 w-6" />
               </div>
-              <div className="font-heading font-medium text-[15px] text-galla-ink">
+              <div className="font-semibold text-[15px] text-galla-ink">
                 No services found
               </div>
               <p className="font-sans text-[12.5px] text-galla-ink-soft max-w-md mx-auto">
@@ -543,7 +543,7 @@ export function ServicesTab({
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h3 className="font-heading font-semibold text-[17px] text-galla-ink tracking-tight truncate">
+                          <h3 className="font-semibold text-[15px] text-galla-ink tracking-tight truncate">
                             {pkg.name}
                           </h3>
                           {pkg.description && (
@@ -569,11 +569,11 @@ export function ServicesTab({
                       {/* Pricing Tagline */}
                       <div className="flex items-baseline justify-between pt-1">
                         <div>
-                          <div className="font-heading font-bold text-[22px] text-galla-teal tabular-nums">
+                          <div className="font-bold text-[22px] text-galla-teal tabular-nums">
                             {formatRupee(pkg.packagePrice)}
                           </div>
                           {pkg.pricingType === "fixed" && standaloneTotal > pkg.packagePrice && (
-                            <div className="text-[12px] text-galla-ink-soft font-heading font-medium tabular-nums">
+                            <div className="text-[12px] text-galla-ink-soft font-medium tabular-nums">
                               Worth <span className="line-through">{formatRupee(standaloneTotal)}</span>
                             </div>
                           )}
@@ -595,7 +595,7 @@ export function ServicesTab({
                       {/* Services List */}
                       {pkg.services.length > 0 && (
                         <div className="space-y-1">
-                          <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
+                          <div className="text-[12px] font-medium text-galla-ink-soft">
                             Included Services ({pkg.services.length})
                           </div>
                           <div className="flex flex-wrap gap-1.5">
@@ -615,7 +615,7 @@ export function ServicesTab({
                       {/* Products List */}
                       {pkg.products.length > 0 && (
                         <div className="space-y-1 pt-1">
-                          <div className="text-[11px] font-heading font-semibold uppercase tracking-wider text-galla-ink-soft">
+                          <div className="text-[12px] font-medium text-galla-ink-soft">
                             Included Retail Products ({pkg.products.length})
                           </div>
                           <div className="flex flex-wrap gap-1.5">
@@ -674,7 +674,7 @@ export function ServicesTab({
               <div className="inline-flex p-3 rounded-full bg-galla-paper text-galla-ink-soft mb-1">
                 <Package className="h-7 w-7" />
               </div>
-              <div className="font-heading font-medium text-[16px] text-galla-ink">
+              <div className="font-semibold text-[15px] text-galla-ink">
                 No package deals created yet
               </div>
               <p className="font-sans text-[13px] text-galla-ink-soft max-w-md mx-auto">
@@ -728,7 +728,7 @@ export function ServicesTab({
               <div className="p-2 rounded-full bg-red-50 border border-red-200">
                 <AlertTriangle className="h-5 w-5" />
               </div>
-              <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
+              <h3 className="font-bold text-[15px] text-galla-ink">
                 Confirm Deletion
               </h3>
             </div>

@@ -24,7 +24,7 @@ export function CashflowTrendsCard({ timeline, rangeLabel }: CashflowTrendsCardP
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+          <h3 className="text-[15px] font-bold text-galla-ink">
             Cash Flow &mdash; Collections vs Expenses
           </h3>
           <p className="font-sans text-[12px] text-galla-ink-soft">
@@ -79,7 +79,7 @@ export function CashflowTrendsCard({ timeline, rangeLabel }: CashflowTrendsCardP
                   backgroundColor: "#FFFFFF",
                   borderColor: "#EFE5E9",
                   borderRadius: 5,
-                  fontFamily: "var(--font-inter)",
+                  fontFamily: "var(--font-sans)",
                   fontSize: 12,
                   boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                 }}

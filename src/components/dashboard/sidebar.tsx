@@ -94,7 +94,7 @@ export function Sidebar({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="font-heading text-[20px] font-semibold text-galla-ink tracking-tight truncate">
+              <div className="text-[17px] font-semibold text-galla-ink tracking-tight truncate">
                 {salonName}
               </div>
             </div>
@@ -110,10 +110,10 @@ export function Sidebar({
               <button
                 key={item.id}
                 onClick={() => onSelectTab(item.id)}
-                className={`flex items-center gap-2.5 px-[13px] py-[8px] rounded-[5px] text-[13.5px] font-sans font-medium text-left transition-all cursor-pointer ${
+                className={`flex items-center gap-2.5 px-[13px] py-[8px] rounded-[5px] text-[14px] text-left transition-all cursor-pointer ${
                   isActive
                     ? "bg-galla-teal-soft text-galla-teal font-semibold border-l-[3px] border-galla-teal"
-                    : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 border-l-[3px] border-transparent"
+                    : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 font-normal border-l-[3px] border-transparent"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -127,11 +127,11 @@ export function Sidebar({
       {/* Footer Area: Account Role & Sign Out */}
       <div className="px-4 space-y-3">
         <div className="bg-galla-paper/80 border border-galla-line rounded-[5px] px-3 py-2 flex items-center justify-between shadow-2xs">
-          <span className="font-heading text-[11px] font-medium text-galla-ink-soft uppercase tracking-wider">
-            Logged In As
+          <span className="text-[12px] font-normal text-galla-ink-soft">
+            Logged in as
           </span>
           <span
-            className={`text-[11px] font-sans font-semibold px-2 py-0.5 rounded-[3px] uppercase tracking-wide ${
+            className={`text-[12px] font-semibold px-2 py-0.5 rounded-[3px] ${
               role === "owner"
                 ? "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
                 : "bg-galla-brass-soft text-galla-brass border border-galla-brass/20"

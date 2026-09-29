@@ -29,10 +29,10 @@ export function TenderSplitCard({ split }: TenderSplitCardProps) {
     <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[21px] flex flex-col justify-between h-full">
       <div>
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+          <h3 className="text-[15px] font-bold text-galla-ink">
             Tender &amp; Payment Mode Split
           </h3>
-          <span className="font-mono text-[12px] font-semibold text-galla-ink">
+          <span className="font-semibold text-[13px] text-galla-ink tabular-nums">
             {formatRupee(totalCollected)}
           </span>
         </div>
@@ -49,15 +49,15 @@ export function TenderSplitCard({ split }: TenderSplitCardProps) {
                     {getIcon(t.mode)}
                   </span>
                   <span className="font-medium text-galla-ink">{t.label}</span>
-                  <span className="text-[11px] text-galla-ink-soft">
+                  <span className="text-[11px] text-galla-ink-soft tabular-nums">
                     ({t.count} payments)
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="font-mono font-medium text-galla-ink">
+                  <span className="font-sans font-medium text-galla-ink tabular-nums">
                     {formatRupee(t.amount)}
                   </span>{" "}
-                  <span className="text-galla-ink-soft text-[11px]">({t.percent}%)</span>
+                  <span className="text-galla-ink-soft text-[11px] tabular-nums">({t.percent}%)</span>
                 </div>
               </div>
               <div className="h-1.5 w-full bg-galla-paper rounded-full overflow-hidden">

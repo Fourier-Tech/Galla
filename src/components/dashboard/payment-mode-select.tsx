@@ -183,7 +183,7 @@ export function PaymentModeSelect({
           {label && (
             <label
               htmlFor={id}
-              className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider"
+              className="block text-[12px] font-medium text-galla-ink"
             >
               {label} {required && <span className="text-red-500">*</span>}
             </label>

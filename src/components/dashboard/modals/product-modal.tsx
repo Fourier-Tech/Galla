@@ -232,7 +232,7 @@ export function ProductModal({
               <Package className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 {isEditMode ? "Edit Product" : "Add New Product"}
               </h3>
               <p className="font-sans text-[12px] text-galla-ink-soft">
@@ -264,7 +264,7 @@ export function ProductModal({
           {/* Product Name with Duplicate Detection */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Product Name <span className="text-red-600">*</span>
               </label>
             </div>
@@ -301,7 +301,7 @@ export function ProductModal({
 
           {/* Category Selection */}
           <div className="space-y-2">
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Category <span className="text-red-600">*</span>
             </label>
             {dbCategories.length > 0 && (
@@ -336,7 +336,7 @@ export function ProductModal({
           {/* Pricing Grid */}
           <div className="grid grid-cols-2 gap-3 pt-1">
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Sell Price (₹) <span className="text-red-600">*</span>
               </label>
               <div className="relative flex items-center">
@@ -356,7 +356,7 @@ export function ProductModal({
             </div>
 
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Purchase Cost (₹)
               </label>
               <div className="relative flex items-center">
@@ -378,7 +378,7 @@ export function ProductModal({
           {/* Stock Section: Protected in Edit Mode */}
           {isEditMode ? (
             <div className="p-3 bg-galla-paper/40 rounded-[5px] border border-galla-line space-y-2.5">
-              <div className="flex items-center justify-between text-galla-ink font-heading text-[12px] font-semibold uppercase tracking-wider">
+              <div className="flex items-center justify-between text-galla-ink text-[12px] font-semibold">
                 <div className="flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 text-galla-teal" />
                   <span>Current Stock (Protected)</span>
@@ -391,13 +391,13 @@ export function ProductModal({
               <div className="grid grid-cols-2 gap-3 pt-0.5">
                 <div className="p-2 rounded bg-galla-surface border border-galla-line">
                   <div className="text-[11px] font-sans text-galla-ink-soft">Retail Sell Stock</div>
-                  <div className="text-[15px] font-heading font-semibold text-galla-ink mt-0.5">
+                  <div className="text-[15px] font-semibold text-galla-ink mt-0.5 tabular-nums">
                     {productToEdit?.sell ?? 0} pcs
                   </div>
                 </div>
                 <div className="p-2 rounded bg-galla-surface border border-galla-line">
                   <div className="text-[11px] font-sans text-galla-ink-soft">Internal Use Stock</div>
-                  <div className="text-[15px] font-heading font-semibold text-galla-ink mt-0.5">
+                  <div className="text-[15px] font-semibold text-galla-ink mt-0.5 tabular-nums">
                     {productToEdit?.use ?? 0} pcs
                   </div>
                 </div>
@@ -409,7 +409,7 @@ export function ProductModal({
 
               {/* Threshold is still editable */}
               <div className="pt-2 border-t border-galla-line/60 flex items-center justify-between">
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   Low Stock Alert Threshold
                 </label>
                 <div className="w-20 relative flex items-center">
@@ -429,14 +429,14 @@ export function ProductModal({
             </div>
           ) : (
             <div className="p-3 bg-galla-paper/40 rounded-[5px] border border-galla-line space-y-3">
-              <div className="flex items-center gap-1.5 text-galla-ink font-heading text-[12px] font-semibold uppercase tracking-wider">
+              <div className="flex items-center gap-1.5 text-galla-ink text-[12px] font-semibold">
                 <Layers className="h-3.5 w-3.5 text-galla-teal" />
                 <span>Initial Stock Split</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                  <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                     Retail Sell Stock
                   </label>
                   <div className="relative flex items-center">
@@ -456,7 +456,7 @@ export function ProductModal({
                 </div>
 
                 <div>
-                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                  <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                     Internal Use Stock
                   </label>
                   <div className="relative flex items-center">
@@ -478,7 +478,7 @@ export function ProductModal({
 
               <div>
                 <div className="flex items-center justify-between">
-                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                  <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                     Low Stock Alert Threshold
                   </label>
                   <div className="w-20 relative flex items-center">
@@ -504,7 +504,7 @@ export function ProductModal({
 
           {/* Description (Optional) */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Description / Notes (Optional)
             </label>
             <textarea

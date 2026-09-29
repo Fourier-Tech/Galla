@@ -207,7 +207,7 @@ export function ServiceModal({
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[17px] text-galla-ink tracking-tight">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 {serviceToEdit ? "Edit Service" : "Add New Service"}
               </h3>
               <p className="font-sans text-[12px] text-galla-ink-soft">
@@ -236,7 +236,7 @@ export function ServiceModal({
 
           {/* Service Name */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Service Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -252,7 +252,7 @@ export function ServiceModal({
 
           {/* Category */}
           <div className="space-y-1.5">
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Category <span className="text-red-500">*</span>
             </label>
             {allCategories.length > 0 && (
@@ -287,7 +287,7 @@ export function ServiceModal({
 
           {/* Price */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Price (₹) <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -300,14 +300,14 @@ export function ServiceModal({
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="0"
-                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] font-heading font-semibold text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all"
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[14px] font-semibold text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all tabular-nums"
               />
             </div>
           </div>
 
           {/* Description */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Description / Notes (Optional)
             </label>
             <div className="relative">
@@ -326,7 +326,7 @@ export function ServiceModal({
           <div className="space-y-2 pt-2 border-t border-galla-line/80">
             <div className="flex items-center justify-between">
               <div>
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                <label className="block text-[12px] font-medium text-galla-ink">
                   Products Consumed in Service (Optional)
                 </label>
                 <p className="font-sans text-[11.5px] text-galla-ink-soft">
@@ -396,7 +396,7 @@ export function ServiceModal({
                         onChange={(e) =>
                           handleUpdateProductQuantity(item.productId, Number(e.target.value))
                         }
-                        className="w-14 bg-galla-surface border border-galla-line rounded-[4px] px-2 py-1 text-center font-heading font-semibold text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
+                        className="w-14 bg-galla-surface border border-galla-line rounded-[4px] px-2 py-1 text-center font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
                       />
                       <span className="text-[11.5px] text-galla-ink-soft">pcs</span>
                       <button

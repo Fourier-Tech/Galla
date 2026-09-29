@@ -360,10 +360,10 @@ export function ExpensesTab({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+          <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
             Expenses &amp; Petty Cash Outflows
           </h2>
-          <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
+          <p className="text-[13px] font-normal text-galla-ink-soft mt-0.5">
             Operational shop overhead, stock purchases, salon day-to-day &amp; staff advances
           </p>
         </div>
@@ -407,24 +407,24 @@ export function ExpensesTab({
         {/* Date Range & Sort Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Date Range Inputs */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink text-[12.5px] font-sans shadow-xs focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink text-[12px] shadow-xs focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all">
             <Calendar className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
-            <span className="text-[10.5px] font-semibold uppercase text-galla-ink-soft tracking-wider">From</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft">From</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-galla-ink text-[12px] font-sans outline-none cursor-pointer"
+              className="bg-transparent text-galla-ink text-[12px] outline-none cursor-pointer tabular-nums"
               title="Filter from date (e.g. 1st September)"
             />
-            <span className="text-[10.5px] font-semibold text-galla-ink-soft/70">&ndash;</span>
-            <span className="text-[10.5px] font-semibold uppercase text-galla-ink-soft tracking-wider">To</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft/70">&ndash;</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft">To</span>
             <input
               type="date"
               value={endDate}
               min={startDate || undefined}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent text-galla-ink text-[12px] font-sans outline-none cursor-pointer"
+              className="bg-transparent text-galla-ink text-[12px] outline-none cursor-pointer tabular-nums"
               title="Filter to date (e.g. 15th September)"
             />
             {(startDate || endDate) && (
@@ -555,7 +555,7 @@ export function ExpensesTab({
           </span>
           <span className="font-medium text-galla-ink">
             Filtered Outflow:{" "}
-            <span className="font-heading font-semibold text-galla-brick tabular-nums">
+            <span className="font-semibold text-galla-brick tabular-nums">
               {formatRupee(filteredTotal)}
             </span>
           </span>
@@ -569,7 +569,7 @@ export function ExpensesTab({
             const isLoading = loadingDetailsId === expense.id;
 
             return (
-              <div
+               <div
                 key={expense.id || expense.desc + expense.time + expense.amount}
                 onClick={() => handleExpenseClick(expense)}
                 role="button"
@@ -594,7 +594,7 @@ export function ExpensesTab({
                   </div>
                   <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5 flex-wrap">
                     {expense.expenseNumber && (
-                      <span className="font-mono text-[11.5px] font-semibold text-galla-brick mr-1">
+                      <span className="tabular-nums text-[12px] font-semibold text-galla-brick mr-1">
                         {formatDisplayNumber(expense.expenseNumber)}
                       </span>
                     )}
@@ -620,7 +620,7 @@ export function ExpensesTab({
                       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
                       title={`Note: ${expense.notes}`}
                     >
-                      <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                      <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                         Note
                       </span>
                       <span className="truncate font-medium">{expense.notes}</span>
@@ -629,7 +629,7 @@ export function ExpensesTab({
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  <div className="font-heading font-semibold text-[16px] text-galla-brick tabular-nums">
+                  <div className="font-semibold text-[15px] text-galla-brick tabular-nums">
                     &minus;{formatRupee(expense.amount)}
                   </div>
                   <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all shrink-0" />

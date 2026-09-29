@@ -41,10 +41,10 @@ export function InventoryIntelligenceCard({
           </div>
         </div>
         <div className="text-right">
-          <div className="font-heading font-semibold text-[20px] text-galla-ink tabular-nums">
+          <div className="font-semibold text-[17px] text-galla-ink tabular-nums">
             {formatRupee(internalConsumption.totalCost)}
           </div>
-          <div className="font-sans text-[11px] text-galla-ink-soft">
+          <div className="font-sans text-[11px] text-galla-ink-soft tabular-nums">
             {internalConsumption.transfersCount} stock movements recorded
           </div>
         </div>
@@ -57,7 +57,7 @@ export function InventoryIntelligenceCard({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ShoppingBag className="w-4 h-4 text-galla-brass" />
-              <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 Top Retail Merchandise Sellers
               </h3>
             </div>
@@ -77,20 +77,20 @@ export function InventoryIntelligenceCard({
                     className="flex items-center justify-between p-2.5 rounded-[5px] bg-galla-paper border border-galla-line/60"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="w-5 h-5 rounded-full bg-galla-surface border border-galla-line flex items-center justify-center font-mono text-[11px] font-semibold text-galla-ink">
+                      <span className="w-5 h-5 rounded-full bg-galla-surface border border-galla-line flex items-center justify-center font-sans text-[11px] font-semibold text-galla-ink tabular-nums">
                         {idx + 1}
                       </span>
                       <div>
                         <div className="font-sans text-[13px] font-semibold text-galla-ink leading-tight">
                           {prod.name}
                         </div>
-                        <div className="font-sans text-[11px] text-galla-ink-soft">
+                        <div className="font-sans text-[11px] text-galla-ink-soft tabular-nums">
                           {prod.unitsSold} units sold &bull; {prod.currentStock} in stock
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="font-mono text-[13px] font-semibold text-galla-brass">
+                      <span className="font-sans text-[13px] font-semibold text-galla-brass tabular-nums">
                         {formatRupee(prod.grossRevenue)}
                       </span>
                     </div>
@@ -109,7 +109,7 @@ export function InventoryIntelligenceCard({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ArrowUpRight className="w-4 h-4 text-galla-sage" />
-              <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 Highest Margin Products
               </h3>
             </div>
@@ -132,15 +132,15 @@ export function InventoryIntelligenceCard({
                       <div className="font-sans text-[13px] font-semibold text-galla-ink leading-tight">
                         {prod.name}
                       </div>
-                      <div className="font-sans text-[11px] text-galla-ink-soft">
+                      <div className="font-sans text-[11px] text-galla-ink-soft tabular-nums">
                         Cost {formatRupee(prod.purchaseCost)} &rarr; Sell {formatRupee(prod.sellPrice)}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono text-[13px] font-semibold text-galla-sage">
+                      <div className="font-sans text-[13px] font-semibold text-galla-sage tabular-nums">
                         +{formatRupee(prod.marginRupees)}/pc
                       </div>
-                      <div className="font-sans text-[11px] font-semibold text-galla-sage">
+                      <div className="font-sans text-[11px] font-semibold text-galla-sage tabular-nums">
                         {prod.marginPercent}% margin
                       </div>
                     </div>
@@ -161,7 +161,7 @@ export function InventoryIntelligenceCard({
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-galla-brick" />
-              <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 Slow-Moving &amp; Dead Stock Warning
               </h3>
             </div>
@@ -183,15 +183,15 @@ export function InventoryIntelligenceCard({
                   <div className="font-sans text-[12px] font-semibold text-galla-ink truncate">
                     {item.name}
                   </div>
-                  <div className="font-sans text-[11px] text-galla-ink-soft mt-0.5">
+                  <div className="font-sans text-[11px] text-galla-ink-soft mt-0.5 tabular-nums">
                     {item.sellStock} pcs on shelf
                   </div>
                 </div>
                 <div className="mt-3 pt-2 border-t border-galla-line/60">
-                  <span className="font-sans text-[10px] text-galla-ink-soft uppercase tracking-wider block">
+                  <span className="font-sans text-[11px] text-galla-ink-soft font-medium block">
                     Locked Capital
                   </span>
-                  <span className="font-mono text-[13px] font-semibold text-galla-brick">
+                  <span className="font-sans text-[13px] font-semibold text-galla-brick tabular-nums">
                     {formatRupee(item.lockedCapital)}
                   </span>
                 </div>

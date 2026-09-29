@@ -188,7 +188,7 @@ export function SupplierModal({
               <Truck className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 {isEditMode ? "Edit Supplier" : "Add New Supplier"}
               </h3>
               <p className="font-sans text-[12px] text-galla-ink-soft">
@@ -219,7 +219,7 @@ export function SupplierModal({
 
           {/* Supplier Name */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Contact / Supplier Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -238,7 +238,7 @@ export function SupplierModal({
 
           {/* Company / Agency Name */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Company / Agency Name <span className="text-galla-ink-soft text-[11.5px] font-normal">(Optional)</span>
             </label>
             <input
@@ -253,7 +253,7 @@ export function SupplierModal({
           {/* Phone & Email Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Phone Number <span className="text-red-500">*</span>
               </label>
               <input
@@ -262,7 +262,7 @@ export function SupplierModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="98250 12345"
-                className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans text-galla-ink focus:ring-1 outline-none ${
+                className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans tabular-nums text-galla-ink focus:ring-1 outline-none ${
                   (existingExactSupplier && !isEditMode) || phoneConflictSupplier
                     ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400"
                     : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
@@ -301,7 +301,7 @@ export function SupplierModal({
               )}
             </div>
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Email Address <span className="text-galla-ink-soft text-[11.5px] font-normal">(Optional)</span>
               </label>
               <input
@@ -317,7 +317,7 @@ export function SupplierModal({
           {/* GSTIN & Office Address */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 GSTIN / Tax ID <span className="text-galla-ink-soft text-[11.5px] font-normal">(Optional)</span>
               </label>
               <input
@@ -325,11 +325,11 @@ export function SupplierModal({
                 value={gstin}
                 onChange={(e) => setGstin(e.target.value)}
                 placeholder="24ABCDE1234F1Z5"
-                className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line text-[13.5px] font-mono uppercase text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none"
+                className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line text-[13.5px] font-sans tabular-nums uppercase text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none"
               />
             </div>
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 City / Address <span className="text-galla-ink-soft text-[11.5px] font-normal">(Optional)</span>
               </label>
               <input
@@ -344,7 +344,7 @@ export function SupplierModal({
 
           {/* Notes */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Internal Notes <span className="text-galla-ink-soft text-[11.5px] font-normal">(Optional)</span>
             </label>
             <textarea

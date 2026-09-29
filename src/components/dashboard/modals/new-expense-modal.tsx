@@ -121,7 +121,7 @@ export function NewExpenseModal({
     >
       <div className="w-full max-w-[390px] bg-galla-surface border border-galla-line rounded-[5px] p-[21px] shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-heading font-semibold text-[18px] text-galla-ink">
+          <h3 className="text-[15px] font-bold text-galla-ink">
             Record Expense
           </h3>
           <button
@@ -143,7 +143,7 @@ export function NewExpenseModal({
         <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Category Selector */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Category
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -170,7 +170,7 @@ export function NewExpenseModal({
           {/* Conditional Second Field */}
           {category === "Day-to-day" && (
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 What was it for?
               </label>
               <input
@@ -187,7 +187,7 @@ export function NewExpenseModal({
 
           {category === "Salary" && (
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Whom did you pay?
               </label>
               <input
@@ -204,7 +204,7 @@ export function NewExpenseModal({
 
           {/* Amount */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Amount (₹)
             </label>
             <input
@@ -227,7 +227,7 @@ export function NewExpenseModal({
 
           {/* Notes */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               {category === "Rent" ? "Month / Remarks (Optional)" : "Notes (Optional)"}
             </label>
             <input

@@ -263,7 +263,7 @@ export function ReturnCustomerOrderItemModal({
       return (
         <div className="p-3 bg-galla-surface border border-galla-line/80 rounded-[5px] space-y-2">
           <div className="flex items-center justify-between">
-            <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+            <label className="text-[12px] font-medium text-galla-ink">
               Settlement Breakdown
             </label>
             <span className="font-sans text-[11px] text-amber-800 font-medium">
@@ -274,18 +274,18 @@ export function ReturnCustomerOrderItemModal({
           <div className="space-y-1.5 text-[12px] font-sans bg-galla-paper/50 p-2.5 rounded-[4px] border border-galla-line/50">
             <div className="flex justify-between items-center text-galla-ink">
               <span className="text-galla-ink-soft">Return Credit Total:</span>
-              <span className="font-mono font-semibold">{formatRupee(finalReturnAmount)}</span>
+              <span className="font-semibold tabular-nums">{formatRupee(finalReturnAmount)}</span>
             </div>
             {dueDeduction > 0 && (
               <div className="flex justify-between items-center text-emerald-800">
                 <span>Deducted from Pending Due:</span>
-                <span className="font-mono font-medium">-{formatRupee(dueDeduction)}</span>
+                <span className="font-medium tabular-nums">-{formatRupee(dueDeduction)}</span>
               </div>
             )}
             <div className="flex justify-between items-center pt-1.5 border-t border-galla-line/60">
               <span className="font-semibold text-galla-ink">Net Cash Payout to Client:</span>
               <span
-                className={`font-mono font-bold text-[13px] ${
+                className={`font-bold tabular-nums text-[13px] ${
                   cashRefund > 0 ? "text-rose-700" : "text-emerald-700"
                 }`}
               >
@@ -299,7 +299,7 @@ export function ReturnCustomerOrderItemModal({
               <PaymentModeSelect
                 label="Pay Out Net Refund Via"
                 badge={
-                  <span className="font-mono text-[11px] font-semibold text-rose-700">
+                  <span className="text-[11px] font-semibold tabular-nums text-rose-700">
                     Payout: {formatRupee(cashRefund)}
                   </span>
                 }
@@ -321,7 +321,7 @@ export function ReturnCustomerOrderItemModal({
       <PaymentModeSelect
         label={label}
         badge={
-          <span className="font-mono text-[12px] font-semibold text-rose-700">
+          <span className="text-[12px] font-semibold tabular-nums text-rose-700">
             Refund: {formatRupee(finalReturnAmount)}
           </span>
         }
@@ -460,7 +460,7 @@ export function ReturnCustomerOrderItemModal({
               <RotateCcw className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-heading font-semibold text-[15px] text-galla-ink leading-tight truncate">
+              <h2 className="text-[15px] font-bold text-galla-ink leading-tight truncate">
                 Customer Return &amp; Replacement
               </h2>
               <p className="font-sans text-[11px] text-galla-ink-soft truncate">
@@ -488,19 +488,19 @@ export function ReturnCustomerOrderItemModal({
                   {lineItem.name}
                 </div>
                 <div className="font-sans text-[11px] text-galla-ink-soft">
-                  Ordered: <strong className="font-mono text-galla-ink font-medium">{lineItem.quantity}</strong>
+                  Ordered: <strong className="tabular-nums text-galla-ink font-medium">{lineItem.quantity}</strong>
                   {previouslyReturned > 0 && (
-                    <> &bull; Returned: <strong className="font-mono text-galla-ink font-medium">{previouslyReturned}</strong></>
+                    <> &bull; Returned: <strong className="tabular-nums text-galla-ink font-medium">{previouslyReturned}</strong></>
                   )}
                   {previouslyReplaced > 0 && (
-                    <> &bull; Replaced: <strong className="font-mono text-galla-ink font-medium">{previouslyReplaced}</strong></>
+                    <> &bull; Replaced: <strong className="tabular-nums text-galla-ink font-medium">{previouslyReplaced}</strong></>
                   )}
-                  &bull; Returnable: <strong className="font-mono text-emerald-800 font-semibold">{availableToReturn}</strong>
+                  &bull; Returnable: <strong className="tabular-nums text-emerald-800 font-semibold">{availableToReturn}</strong>
                 </div>
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="font-mono text-[13px] font-semibold text-galla-ink">
+              <div className="tabular-nums text-[13px] font-semibold text-galla-ink">
                 {formatRupee(unitPrice)} <span className="font-sans text-[10px] text-galla-ink-soft font-normal">/pc</span>
               </div>
             </div>
@@ -511,7 +511,7 @@ export function ReturnCustomerOrderItemModal({
             {/* Question 1: Quantity to Return */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+                <label className="text-[12px] font-medium text-galla-ink">
                   1. Quantity to Return
                 </label>
                 <div className="flex items-center gap-1.5">
@@ -539,7 +539,7 @@ export function ReturnCustomerOrderItemModal({
                   max={availableToReturn}
                   value={quantity}
                   onChange={(e) => handleQuantityChange(e.target.value)}
-                  className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+                  className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
                   required
                 />
                 <span className="absolute right-3 font-sans text-[11px] text-galla-ink-soft pointer-events-none">
@@ -551,7 +551,7 @@ export function ReturnCustomerOrderItemModal({
             {/* Editable Return / Refund Price */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+                <label className="text-[12px] font-medium text-galla-ink">
                   Return / Refund Price (₹)
                 </label>
                 {customAmountStr !== String(defaultReturnTotal) && (
@@ -566,7 +566,7 @@ export function ReturnCustomerOrderItemModal({
                 )}
               </div>
               <div className="relative flex items-center">
-                <span className="absolute left-2.5 font-mono text-[13px] text-galla-ink-soft pointer-events-none">
+                <span className="absolute left-2.5 tabular-nums text-[13px] text-galla-ink-soft pointer-events-none">
                   ₹
                 </span>
                 <input
@@ -576,7 +576,7 @@ export function ReturnCustomerOrderItemModal({
                   disabled={!isGoodCondition && defectiveResolution === "replacement"}
                   value={customAmountStr}
                   onChange={(e) => setCustomAmountStr(e.target.value)}
-                  className="w-full h-8 pl-6 pr-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors disabled:bg-galla-paper/50 disabled:text-galla-ink-soft/70 disabled:cursor-not-allowed"
+                  className="w-full h-8 pl-6 pr-2.5 bg-galla-surface border border-galla-line rounded-[5px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors disabled:bg-galla-paper/50 disabled:text-galla-ink-soft/70 disabled:cursor-not-allowed"
                   placeholder={String(defaultReturnTotal)}
                   required={isGoodCondition || defectiveResolution === "refund"}
                 />
@@ -587,9 +587,9 @@ export function ReturnCustomerOrderItemModal({
                 ) : isReplacementOrder ? (
                   <span className="text-emerald-700">Original product value &bull; Billed at ₹0 on replacement</span>
                 ) : parsedQty > 1 ? (
-                  <span>{parsedQty} pcs &times; {formatRupee(unitPrice)} = <strong className="font-mono text-galla-ink">{formatRupee(defaultReturnTotal)}</strong></span>
+                  <span>{parsedQty} pcs &times; {formatRupee(unitPrice)} = <strong className="tabular-nums text-galla-ink">{formatRupee(defaultReturnTotal)}</strong></span>
                 ) : customAmountStr !== "" && customAmountStr !== String(defaultReturnTotal) ? (
-                  <span>Default: <strong className="font-mono text-galla-ink">{formatRupee(defaultReturnTotal)}</strong></span>
+                  <span>Default: <strong className="tabular-nums text-galla-ink">{formatRupee(defaultReturnTotal)}</strong></span>
                 ) : null}
               </div>
             </div>
@@ -597,7 +597,7 @@ export function ReturnCustomerOrderItemModal({
 
           {/* Question 2: Is the returned product in good condition? */}
           <div>
-            <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               2. Is the returned product in good condition?
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -614,7 +614,7 @@ export function ReturnCustomerOrderItemModal({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-heading text-[12.5px] font-semibold">Yes, Good Condition</span>
+                  <span className="text-[13px] font-semibold">Yes, Good Condition</span>
                   {isGoodCondition && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
                 </div>
                 <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
@@ -635,7 +635,7 @@ export function ReturnCustomerOrderItemModal({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-heading text-[12.5px] font-semibold">No, Defective / Damaged</span>
+                  <span className="text-[13px] font-semibold">No, Defective / Damaged</span>
                   {!isGoodCondition && <CheckCircle2 className="h-4 w-4 text-rose-600" />}
                 </div>
                 <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
@@ -649,7 +649,7 @@ export function ReturnCustomerOrderItemModal({
           {isGoodCondition ? (
             <div className="space-y-3 p-3 bg-galla-paper/40 border border-galla-line/80 rounded-[5px]">
               <div>
-                <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   Restock Destination
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -690,7 +690,7 @@ export function ReturnCustomerOrderItemModal({
             /* Condition Flow B: Defective -> Ask Resolution (Refund vs Replace) */
             <div className="space-y-3 p-3 bg-rose-50/40 border border-rose-200/80 rounded-[5px]">
               <div>
-                <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   3. What does the client want?
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -707,7 +707,7 @@ export function ReturnCustomerOrderItemModal({
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-heading text-[12px] font-semibold text-galla-ink">Product Replacement</span>
+                      <span className="text-[12px] font-semibold text-galla-ink">Product Replacement</span>
                       {defectiveResolution === "replacement" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                     </div>
                     <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
@@ -728,7 +728,7 @@ export function ReturnCustomerOrderItemModal({
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-heading text-[12px] font-semibold text-galla-ink">Money Refund</span>
+                      <span className="text-[12px] font-semibold text-galla-ink">Money Refund</span>
                       {defectiveResolution === "refund" && <CheckCircle2 className="h-3.5 w-3.5 text-rose-600" />}
                     </div>
                     <p className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
@@ -770,7 +770,7 @@ export function ReturnCustomerOrderItemModal({
                           <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
                           <span>Old Price Product Not Available</span>
                         </div>
-                        <span className="font-heading text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300 shrink-0">
+                        <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300 shrink-0">
                           New MRP In Stock
                         </span>
                       </div>
@@ -806,12 +806,12 @@ export function ReturnCustomerOrderItemModal({
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-galla-ink-soft">Shelf Stock:</span>
-                          <span className="font-mono font-medium text-emerald-800">{selectedNewMRPProduct.sell} pcs available</span>
+                          <span className="tabular-nums font-medium text-emerald-800">{selectedNewMRPProduct.sell} pcs available</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-galla-line/60 items-center">
                           <div>
                             <span className="text-[11px] text-galla-ink-soft block">Old Purchase Price:</span>
-                            <span className="font-mono font-semibold text-galla-ink">{formatRupee(unitPrice)}</span>
+                            <span className="tabular-nums font-semibold text-galla-ink">{formatRupee(unitPrice)}</span>
                           </div>
                           <div className="text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -832,7 +832,7 @@ export function ReturnCustomerOrderItemModal({
                                 )}
                             </div>
                             <div className="inline-flex items-center gap-1 mt-0.5 justify-end">
-                              <span className="font-mono text-[12px] text-galla-ink-soft">₹</span>
+                              <span className="tabular-nums text-[12px] text-galla-ink-soft">₹</span>
                               <input
                                 id="replacement-price-input"
                                 type="number"
@@ -841,7 +841,7 @@ export function ReturnCustomerOrderItemModal({
                                 value={customNewPriceStr}
                                 onChange={(e) => setCustomNewPriceStr(e.target.value)}
                                 placeholder={String(selectedNewMRPProduct.price)}
-                                className="w-24 h-7 px-2 text-right bg-white border border-amber-300 rounded font-mono font-bold text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
+                                className="w-24 h-7 px-2 text-right bg-white border border-amber-300 rounded tabular-nums font-bold text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
                               />
                             </div>
                           </div>
@@ -851,7 +851,7 @@ export function ReturnCustomerOrderItemModal({
                           <span className="font-semibold text-amber-950 text-[11.5px]">
                             {totalPriceDiff > 0 ? "Price Difference to Pay:" : totalPriceDiff < 0 ? "Price Difference to Refund:" : "Price Difference:"}
                           </span>
-                          <span className="font-mono font-bold text-[13px] text-amber-950">
+                          <span className="tabular-nums font-bold text-[13px] text-amber-950">
                             {totalPriceDiff > 0 ? `+${formatRupee(totalPriceDiff)}` : totalPriceDiff < 0 ? `-${formatRupee(Math.abs(totalPriceDiff))}` : "₹0"}
                             {parsedQty > 1 && (
                               <span className="font-sans text-[10.5px] font-normal text-amber-800 ml-1">
@@ -911,7 +911,7 @@ export function ReturnCustomerOrderItemModal({
                           <PaymentModeSelect
                             label="Pay Price Difference Via"
                             badge={
-                              <span className="font-mono text-[11px] font-semibold text-amber-900">
+                              <span className="text-[11px] font-semibold tabular-nums text-amber-900">
                                 Pay: {formatRupee(totalPriceDiff)}
                               </span>
                             }
@@ -928,7 +928,7 @@ export function ReturnCustomerOrderItemModal({
                           <PaymentModeSelect
                             label="Refund Price Difference Via"
                             badge={
-                              <span className="font-mono text-[11px] font-semibold text-rose-900">
+                              <span className="text-[11px] font-semibold tabular-nums text-rose-900">
                                 Refund: {formatRupee(Math.abs(totalPriceDiff))}
                               </span>
                             }
@@ -942,7 +942,7 @@ export function ReturnCustomerOrderItemModal({
                       {/* When Wait: Expected pickup date */}
                       {replacementResolutionType === "wait_original" && (
                         <div className="pt-1">
-                          <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1">
+                          <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                             Expected Client Pickup Date <span className="text-red-600">*</span>
                           </label>
                           <input
@@ -951,7 +951,7 @@ export function ReturnCustomerOrderItemModal({
                             value={expectedPickupDate}
                             onChange={(e) => setExpectedPickupDate(e.target.value)}
                             required
-                            className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[12.5px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
+                            className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
                           />
                         </div>
                       )}
@@ -970,7 +970,7 @@ export function ReturnCustomerOrderItemModal({
                       </div>
 
                       <div>
-                        <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1">
+                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                           Expected Client Pickup Date <span className="text-red-600">*</span>
                         </label>
                         <input
@@ -979,7 +979,7 @@ export function ReturnCustomerOrderItemModal({
                           value={expectedPickupDate}
                           onChange={(e) => setExpectedPickupDate(e.target.value)}
                           required
-                          className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[12.5px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
+                          className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
                         />
                       </div>
                     </div>
@@ -1006,7 +1006,7 @@ export function ReturnCustomerOrderItemModal({
                               : "bg-galla-surface border-galla-line text-galla-ink-soft hover:bg-galla-paper"
                           }`}
                         >
-                          <div className="font-heading text-[11.5px] font-semibold flex items-center justify-between">
+                          <div className="text-[12px] font-semibold flex items-center justify-between">
                             <span>Hand {samePriceStock} Now, Rest Later</span>
                             {replacementOption === "immediate_partial" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                           </div>
@@ -1024,7 +1024,7 @@ export function ReturnCustomerOrderItemModal({
                               : "bg-galla-surface border-galla-line text-galla-ink-soft hover:bg-galla-paper"
                           }`}
                         >
-                          <div className="font-heading text-[11.5px] font-semibold flex items-center justify-between">
+                          <div className="text-[12px] font-semibold flex items-center justify-between">
                             <span>Wait for All ({parsedQty})</span>
                             {replacementOption === "wait_all" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                           </div>
@@ -1035,7 +1035,7 @@ export function ReturnCustomerOrderItemModal({
                       </div>
 
                       <div>
-                        <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1">
+                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                           Expected Pickup Date for Remaining ({replacementOption === "immediate_partial" ? parsedQty - samePriceStock : parsedQty} pcs)
                         </label>
                         <input
@@ -1044,7 +1044,7 @@ export function ReturnCustomerOrderItemModal({
                           value={expectedPickupDate}
                           onChange={(e) => setExpectedPickupDate(e.target.value)}
                           required
-                          className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[12.5px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
+                          className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
                         />
                       </div>
                     </div>
@@ -1056,7 +1056,7 @@ export function ReturnCustomerOrderItemModal({
 
           {/* Reason / Notes */}
           <div>
-            <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Reason / Notes (Optional)
             </label>
             <input

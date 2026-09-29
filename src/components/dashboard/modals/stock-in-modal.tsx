@@ -795,10 +795,10 @@ export function StockInModal({
               <PackagePlus className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 Stock In (Purchase Order Entry)
               </h3>
-              <p className="font-sans text-[12px] text-galla-ink-soft">
+              <p className="text-[12px] text-galla-ink-soft">
                 Add inventory batch from dealer with atomic stock allocation
               </p>
             </div>
@@ -829,7 +829,7 @@ export function StockInModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-1 relative">
               <div className="flex items-center justify-between mb-1">
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   Supplier <span className="text-red-600">*</span>
                 </label>
               </div>
@@ -861,7 +861,7 @@ export function StockInModal({
                   ref={dropdownRef}
                   className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[320px] min-w-full max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-[5px] shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
                 >
-                  <div className="px-2.5 py-1 bg-galla-paper/60 text-[10.5px] font-sans font-medium text-galla-ink-soft uppercase tracking-wider">
+                  <div className="px-2.5 py-1 bg-galla-paper/60 text-[11px] font-medium text-galla-ink-soft">
                     Existing Suppliers ({filteredSuppliers.length})
                   </div>
                   {filteredSuppliers.map((s) => (
@@ -879,17 +879,17 @@ export function StockInModal({
                     >
                       <div className="flex items-center gap-1.5 w-full">
                         <Building2 className="h-3.5 w-3.5 text-galla-teal shrink-0" />
-                        <span className="font-heading font-medium text-[13px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                        <span className="text-[13px] font-medium text-galla-ink group-hover:text-galla-teal transition-colors">
                           {s.name}
                         </span>
                         {s.companyName && (
-                          <span className="text-[11.5px] font-sans text-galla-ink-soft font-normal">
+                          <span className="text-[11.5px] text-galla-ink-soft font-normal">
                             ({s.companyName})
                           </span>
                         )}
                       </div>
                       {s.phone && (
-                        <span className="font-mono text-[11.5px] text-galla-ink-soft pl-5">
+                        <span className="tabular-nums text-[12px] text-galla-ink-soft pl-5">
                           {s.phone}
                         </span>
                       )}
@@ -907,7 +907,7 @@ export function StockInModal({
             </div>
 
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Dealer Phone
               </label>
               <input
@@ -955,7 +955,7 @@ export function StockInModal({
             </div>
 
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Invoice / Bill #
               </label>
               <input
@@ -974,7 +974,7 @@ export function StockInModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-amber-700" />
-                  <span className="font-heading font-semibold text-[12px] text-amber-900 uppercase tracking-wider">
+                  <span className="font-semibold text-[12px] text-amber-900">
                     Pending Dealer Replacements ({pendingDealerReplacements.length})
                   </span>
                 </div>
@@ -1002,10 +1002,10 @@ export function StockInModal({
                           <span className="font-sans font-semibold text-[12.5px] text-galla-ink">
                             {rep.productName}
                           </span>
-                          <span className="text-[10.5px] font-mono px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                          <span className="text-[11px] tabular-nums px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
                             {rep.quantity} pcs defective
                           </span>
-                          <span className="text-[11px] font-mono text-galla-ink-soft">
+                          <span className="text-[11px] tabular-nums text-galla-ink-soft">
                             From PO #{rep.purchaseOrderNumber}
                           </span>
                         </div>
@@ -1039,7 +1039,7 @@ export function StockInModal({
           {/* 2. Products In Batch List */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between">
-              <span className="font-heading text-[12px] font-semibold text-galla-ink uppercase tracking-wider">
+              <span className="text-[12px] font-semibold text-galla-ink">
                 Products In Batch
               </span>
               <button
@@ -1181,7 +1181,7 @@ export function StockInModal({
                     {item.isNewProduct && (
                       <div className="p-2.5 bg-galla-teal-soft/25 border border-galla-teal/30 rounded-[4px] space-y-2 animate-in fade-in duration-100">
                         <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-heading font-semibold text-galla-teal uppercase tracking-wider">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-galla-teal">
                             <Sparkles className="h-3 w-3" />
                             <span>New Product Details</span>
                           </span>
@@ -1192,7 +1192,7 @@ export function StockInModal({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
                           <div>
-                            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                               Product Name{" "}
                               <span className="text-red-600">*</span>
                             </label>
@@ -1242,7 +1242,7 @@ export function StockInModal({
                           </div>
 
                           <div>
-                            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                               Category <span className="text-red-600">*</span>
                             </label>
                             <select
@@ -1269,7 +1269,7 @@ export function StockInModal({
                         {/* Custom Category Input if "+ New Category..." is selected */}
                         {item.category === "custom" && (
                           <div className="text-[12px]">
-                            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                               Custom Category Name{" "}
                               <span className="text-red-600">*</span>
                             </label>
@@ -1417,7 +1417,7 @@ export function StockInModal({
           {/* 3. Settlement Mode Section (Mirrors Order Modal) */}
           <div className="pt-2 space-y-3">
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Settlement Mode <span className="text-red-500">*</span>
               </label>
               <select
@@ -1448,7 +1448,7 @@ export function StockInModal({
               <div className="p-3 rounded-[6px] space-y-2.5 border bg-amber-50/40 border-amber-300/50">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                       Amount Paid Now (₹){" "}
                       <span className="text-galla-ink-soft/70 font-normal">
                         (Optional)
@@ -1468,14 +1468,14 @@ export function StockInModal({
                       setPayLaterPaid(e.target.value.replace(/\D/g, ""))
                     }
                     placeholder={`0 (Full ${formatRupee(totalCalculatedCost)} due later)`}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all"
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all"
                   />
                 </div>
 
                 {/* Optional Expected Payment Due Date */}
                 <div className="space-y-1 pt-0.5">
                   <div className="flex items-center justify-between">
-                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                       Expected Payment Due Date{" "}
                       <span className="text-galla-ink-soft/70 font-normal">
                         (Optional)
@@ -1526,7 +1526,7 @@ export function StockInModal({
                   {settlementMode === "advance" && (
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                           Advance Paid (₹){" "}
                           <span className="text-red-500">*</span>
                         </label>
@@ -1546,7 +1546,7 @@ export function StockInModal({
                           setAdvance(e.target.value.replace(/\D/g, ""))
                         }
                         placeholder="e.g. 500"
-                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
+                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
                       />
                     </div>
                   )}
@@ -1554,7 +1554,7 @@ export function StockInModal({
                   {/* Expected Arrival Date & Time Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="space-y-1">
-                      <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                      <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                         Expected Arrival Date{" "}
                         <span className="text-red-500">*</span>
                       </label>
@@ -1575,7 +1575,7 @@ export function StockInModal({
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                           Expected Time{" "}
                           <span className="text-galla-ink-soft/70 font-normal">
                             (Optional)
@@ -1666,7 +1666,7 @@ export function StockInModal({
 
             {/* Notes / Memo (Optional) */}
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 PO Notes / Memo{" "}
                 <span className="text-galla-ink-soft/70 font-normal">
                   (Optional)
@@ -1697,7 +1697,7 @@ export function StockInModal({
                     <Check className="absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
                   </div>
                   <div className="flex-1">
-                    <div className="font-heading font-semibold text-[12px] text-galla-ink tracking-wider uppercase flex items-center justify-between">
+                    <div className="font-semibold text-[12px] text-galla-ink flex items-center justify-between">
                       <span>
                         {supplierPending < 0
                           ? "Apply Supplier Credit"
@@ -1725,10 +1725,10 @@ export function StockInModal({
             )}
 
             <div className="flex items-center justify-between text-galla-ink">
-              <span className="font-heading text-[13px] font-semibold uppercase tracking-wider">
+              <span className="text-[13px] font-semibold">
                 {effectiveApplyLedgerBalance ? "Net Payable:" : "Total Batch Cost:"}
               </span>
-              <span className="font-heading font-semibold text-[17px] text-galla-teal tabular-nums flex items-center gap-1.5">
+              <span className="text-[17px] font-bold text-galla-teal tabular-nums flex items-center gap-1.5">
                 {effectiveApplyLedgerBalance && (
                   <span className="text-[12px] text-galla-ink-soft/60 line-through">
                     {formatRupee(totalCalculatedCost)}

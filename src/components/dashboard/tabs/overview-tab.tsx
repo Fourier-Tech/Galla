@@ -244,10 +244,10 @@ export function OverviewTab({
       {/* Section Header (Fixed) */}
       <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="font-heading font-semibold text-[20px] tracking-[-0.015em] text-galla-ink">
+          <h2 className="font-bold text-[24px] tracking-[-0.01em] text-galla-ink">
             Today&apos;s Counter
           </h2>
-          <p className="font-sans text-[12.5px] text-galla-ink-soft mt-0.5">
+          <p className="text-[13px] text-galla-ink-soft mt-0.5">
             Real-time shop collections, register balance &amp; daily flow
           </p>
         </div>
@@ -616,10 +616,10 @@ export function OverviewTab({
       <div className="flex-1 flex flex-col min-h-0 space-y-2">
         <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
-            <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
+            <h3 className="font-bold text-[15px] text-galla-ink">
               Recent Counter Orders
             </h3>
-            <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[11px] font-sans font-medium text-galla-ink-soft bg-galla-paper border border-galla-line rounded-[4px] tabular-nums">
+            <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[11px] font-medium text-galla-ink-soft bg-galla-paper border border-galla-line rounded-[4px] tabular-nums">
               {recent24hOrders.length}
             </span>
           </div>
@@ -650,9 +650,9 @@ export function OverviewTab({
           <div className="overflow-x-auto flex-1 flex flex-col min-h-0">
             <div className="min-w-[900px] flex-1 flex flex-col">
               {/* Sticky Table Header */}
-              <div className="shrink-0 grid grid-cols-[115px_minmax(180px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[11px] bg-galla-paper/70 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em] z-10">
+              <div className="shrink-0 grid grid-cols-[115px_minmax(180px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[11px] bg-galla-paper/70 border-b border-galla-line text-[12px] font-medium text-galla-ink-soft z-10">
                 <span>Order</span>
-                <span>Customer &amp; Service</span>
+                <span>Customer &amp; service</span>
                 <span className="text-right">Settlement</span>
                 <span className="text-center">Status</span>
                 <span className="text-right">Action</span>
@@ -682,16 +682,16 @@ export function OverviewTab({
                       onClick={() => setSelectedOrderDetails(order)}
                       className="grid grid-cols-[115px_minmax(180px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[14px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
                     >
-                      <span className="font-mono text-[13px] text-galla-ink-soft">
+                      <span className="tabular-nums text-[13px] font-normal text-galla-ink-soft">
                         {formatDisplayNumber(order.id)}
                       </span>
 
                       <div className="min-w-0 pr-4">
-                        <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
+                        <div className="font-semibold text-[15px] text-galla-ink leading-snug truncate">
                           {order.customer}
                         </div>
                         {order.customerPhone && (
-                          <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
+                          <div className="tabular-nums text-[13px] font-normal text-galla-ink-soft mt-0.5 truncate">
                             <a
                               href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
                               onClick={(e) => e.stopPropagation()}
@@ -716,7 +716,7 @@ export function OverviewTab({
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
                             title={`Note: ${order.notes}`}
                           >
-                            <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                            <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                               Note
                             </span>
                             <span className="truncate font-medium">{order.notes}</span>
@@ -947,7 +947,7 @@ export function OverviewTab({
 
                         return (
                           <div className="text-right">
-                            <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                            <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                               {formatRupee(effectiveOrderAmount)}
                             </div>
                             {order.status === "cancelled_refunded" ? (
@@ -956,7 +956,7 @@ export function OverviewTab({
                                   <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
                                     <span>{formatRupee(order.advanceAmount)} adv. paid</span>
                                     {(order.advancePaymentMode || order.paymentMode) && (
-                                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                         {order.advancePaymentMode || order.paymentMode}
                                       </span>
                                     )}
@@ -969,7 +969,7 @@ export function OverviewTab({
                                       : "Refunded"}
                                   </span>
                                   {order.refundMode && (
-                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                       {order.refundMode}
                                     </span>
                                   )}
@@ -995,7 +995,7 @@ export function OverviewTab({
                                         : "paid"}
                                     </span>
                                     {order.paymentMode && (
-                                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                         {order.paymentMode}
                                       </span>
                                     )}
@@ -1010,7 +1010,7 @@ export function OverviewTab({
                                 <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
                                   <span>{formatRupee(order.advanceAmount)} adv.</span>
                                   {order.advancePaymentMode && (
-                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                       {order.advancePaymentMode}
                                     </span>
                                   )}
@@ -1018,7 +1018,7 @@ export function OverviewTab({
                                 <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
                                   <span>{formatRupee(effectiveOrderAmount - order.advanceAmount)} settled</span>
                                   {order.paymentMode && (
-                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                       {order.paymentMode}
                                     </span>
                                   )}
@@ -1028,7 +1028,7 @@ export function OverviewTab({
                               <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
                                 <span>Settled</span>
                                 {order.paymentMode && (
-                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {order.paymentMode}
                                   </span>
                                 )}

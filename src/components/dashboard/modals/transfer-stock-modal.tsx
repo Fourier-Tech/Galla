@@ -378,7 +378,7 @@ function TransferStockModalContent({
               )}
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[16px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 {mode === "consume"
                   ? "Log Used / Consumed Stock"
                   : mode === "return_supplier"
@@ -469,21 +469,21 @@ function TransferStockModalContent({
                 <span className="font-sans font-semibold text-[13.5px] text-galla-ink truncate">
                   {product.name}
                 </span>
-                <span className="text-[10.5px] font-mono font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded shrink-0">
+                <span className="text-[10.5px] tabular-nums font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded shrink-0">
                   +{formatRupee(unitProfit)} ({marginPct}% margin)
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[11.5px] font-sans shrink-0">
                 {(product.defectiveStock || 0) > 0 && (
                   <span className="px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-800 font-medium">
-                    Defective: <strong className="font-heading text-[12px] text-rose-700 font-semibold">{product.defectiveStock}</strong> pcs
+                    Defective: <strong className="tabular-nums text-[12px] text-rose-700 font-semibold">{product.defectiveStock}</strong> pcs
                   </span>
                 )}
                 <span className="px-2 py-0.5 rounded bg-galla-surface border border-galla-line text-galla-ink-soft">
-                  Retail Shelf: <strong className="font-heading text-[12px] text-galla-ink font-semibold">{product.sell}</strong> pcs
+                  Retail Shelf: <strong className="tabular-nums text-[12px] text-galla-ink font-semibold">{product.sell}</strong> pcs
                 </span>
                 <span className="px-2 py-0.5 rounded bg-galla-surface border border-galla-line text-galla-ink-soft">
-                  Salon Use: <strong className="font-heading text-[12px] text-galla-teal font-semibold">{product.use}</strong> pcs
+                  Salon Use: <strong className="tabular-nums text-[12px] text-galla-teal font-semibold">{product.use}</strong> pcs
                 </span>
               </div>
             </div>
@@ -504,7 +504,7 @@ function TransferStockModalContent({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Left: Direction */}
                 <div>
-                  <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
+                  <label className="text-[12px] font-medium text-galla-ink block mb-1.5">
                     Transfer Direction
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -524,7 +524,7 @@ function TransferStockModalContent({
                         <span>Retail &rarr; Use</span>
                         {direction === "sell_to_use" && <Check className="h-3.5 w-3.5" />}
                       </div>
-                      <div className="text-[11px] opacity-80 mt-0.5 font-mono">
+                      <div className="text-[11px] opacity-80 mt-0.5 tabular-nums">
                         Available: {product.sell} pcs
                       </div>
                     </button>
@@ -545,7 +545,7 @@ function TransferStockModalContent({
                         <span>Use &rarr; Retail</span>
                         {direction === "use_to_sell" && <Check className="h-3.5 w-3.5" />}
                       </div>
-                      <div className="text-[11px] opacity-80 mt-0.5 font-mono">
+                      <div className="text-[11px] opacity-80 mt-0.5 tabular-nums">
                         Available: {product.use} pcs
                       </div>
                     </button>
@@ -555,7 +555,7 @@ function TransferStockModalContent({
                 {/* Right: Quantity */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                    <label className="text-[12px] font-medium text-galla-ink">
                       Quantity to Move <span className="text-red-600">*</span>
                     </label>
                     <span className="font-sans text-[11px] text-galla-ink-soft">
@@ -627,7 +627,7 @@ function TransferStockModalContent({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Left: Reason */}
                 <div className="space-y-1.5">
-                  <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block">
+                  <label className="text-[12px] font-medium text-galla-ink block mb-1">
                     Reason for Deduction
                   </label>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -665,7 +665,7 @@ function TransferStockModalContent({
                 {/* Right: Quantity */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                    <label className="text-[12px] font-medium text-galla-ink">
                       Quantity to Deduct <span className="text-red-600">*</span>
                     </label>
                     <span className="font-sans text-[11px] text-galla-ink-soft">
@@ -719,7 +719,7 @@ function TransferStockModalContent({
                 <div className="p-2 bg-amber-50/80 border border-amber-200/80 rounded-[4px] text-[11.5px] font-sans text-amber-950">
                   <div className="flex items-center justify-between">
                     <span>Auto-logged internal expense:</span>
-                    <span className="font-semibold tabular-nums text-amber-900 font-mono">
+                    <span className="font-semibold tabular-nums text-amber-900">
                       {formatRupee(estTotalCost)}
                     </span>
                   </div>
@@ -736,7 +736,7 @@ function TransferStockModalContent({
             <div className="space-y-2.5">
               {/* Row 1: Supplier Settlement Mode */}
               <div>
-                <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
+                <label className="text-[12px] font-medium text-galla-ink block mb-1.5">
                   Supplier Settlement Mode
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -777,7 +777,7 @@ function TransferStockModalContent({
               {/* Row 2: Original Supplier Bill Selector */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                  <label className="text-[12px] font-medium text-galla-ink">
                     Select Original Supplier Bill <span className="text-red-600">*</span>
                   </label>
                   <span className="font-sans text-[11px] text-galla-ink-soft">
@@ -837,12 +837,12 @@ function TransferStockModalContent({
                               <span className="font-sans font-semibold text-[12px] truncate">
                                 {po.supplierName}
                               </span>
-                              <span className="font-mono text-[10px] text-galla-ink-soft bg-galla-paper px-1.5 py-0.2 rounded border border-galla-line/60">
+                              <span className="tabular-nums text-[10px] text-galla-ink-soft bg-galla-paper px-1.5 py-0.2 rounded border border-galla-line/60">
                                 {po.purchaseOrderNumber}
                               </span>
                             </div>
                             <div className="text-[11px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5 flex-wrap">
-                              <span>Cost: <strong className="font-mono text-galla-ink">{formatRupee(item.purchaseCost)}</strong></span>
+                              <span>Cost: <strong className="tabular-nums text-galla-ink">{formatRupee(item.purchaseCost)}</strong></span>
                               <span>&bull;</span>
                               <span>{new Date(po.createdAt).toLocaleDateString()}</span>
                               <span>&bull;</span>
@@ -878,7 +878,7 @@ function TransferStockModalContent({
               <div className="p-3 bg-galla-paper/50 border border-galla-line rounded-[6px] space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block">
+                    <label className="text-[12px] font-medium text-galla-ink block">
                       Deduct Return From (Stock Allocation) <span className="text-red-600">*</span>
                     </label>
                     <span className="text-[11px] text-galla-ink-soft">
@@ -890,7 +890,7 @@ function TransferStockModalContent({
                       type="button"
                       onClick={handleReturnAllStock}
                       disabled={maxAutoAll <= 0}
-                      className="px-2 py-0.5 text-[11px] font-heading font-semibold rounded-[4px] border border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-2 py-0.5 text-[11px] font-medium rounded-[4px] border border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Return All ({maxAutoAll} pcs)
                     </button>
@@ -909,7 +909,7 @@ function TransferStockModalContent({
                   <div className={`p-2.5 rounded-[5px] border transition-all ${parsedReturnSell > 0 ? "border-rose-400 bg-rose-50/40 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
                     <div className="flex items-center justify-between text-[11.5px] mb-1.5">
                       <span className="font-sans font-semibold text-galla-ink">Retail Shelf</span>
-                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                      <span className="tabular-nums text-[10.5px] text-galla-ink-soft">
                         Avail: <strong className="text-galla-ink font-medium">{product.sell}</strong> pcs
                       </span>
                     </div>
@@ -921,7 +921,7 @@ function TransferStockModalContent({
                           setRetSellInput(String(Math.max(0, parsedReturnSell - 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center tabular-nums font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         -
                       </button>
@@ -935,7 +935,7 @@ function TransferStockModalContent({
                           setRetSellInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-7 text-center font-mono text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-7 text-center tabular-nums text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -944,7 +944,7 @@ function TransferStockModalContent({
                           setRetSellInput(String(Math.min(product.sell, parsedReturnSell + 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center tabular-nums font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         +
                       </button>
@@ -968,7 +968,7 @@ function TransferStockModalContent({
                   <div className={`p-2.5 rounded-[5px] border transition-all ${parsedReturnUse > 0 ? "border-rose-400 bg-rose-50/40 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
                     <div className="flex items-center justify-between text-[11.5px] mb-1.5">
                       <span className="font-sans font-semibold text-galla-ink">Salon Use</span>
-                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                      <span className="tabular-nums text-[10.5px] text-galla-ink-soft">
                         Avail: <strong className="text-galla-ink font-medium">{product.use}</strong> pcs
                       </span>
                     </div>
@@ -980,7 +980,7 @@ function TransferStockModalContent({
                           setRetUseInput(String(Math.max(0, parsedReturnUse - 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center tabular-nums font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         -
                       </button>
@@ -994,7 +994,7 @@ function TransferStockModalContent({
                           setRetUseInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-7 text-center font-mono text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-7 text-center tabular-nums text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1003,7 +1003,7 @@ function TransferStockModalContent({
                           setRetUseInput(String(Math.min(product.use, parsedReturnUse + 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center tabular-nums font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         +
                       </button>
@@ -1027,7 +1027,7 @@ function TransferStockModalContent({
                   <div className={`p-2.5 rounded-[5px] border transition-all ${parsedReturnDef > 0 ? "border-rose-400 bg-rose-50/40 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
                     <div className="flex items-center justify-between text-[11.5px] mb-1.5">
                       <span className="font-sans font-semibold text-galla-ink">Defective</span>
-                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                      <span className="tabular-nums text-[10.5px] text-galla-ink-soft">
                         Avail: <strong className="text-galla-ink font-medium">{product.defectiveStock || 0}</strong> pcs
                       </span>
                     </div>
@@ -1039,7 +1039,7 @@ function TransferStockModalContent({
                           setRetDefInput(String(Math.max(0, parsedReturnDef - 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center tabular-nums font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         -
                       </button>
@@ -1053,7 +1053,7 @@ function TransferStockModalContent({
                           setRetDefInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-7 text-center font-mono text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-7 text-center tabular-nums text-[13px] bg-galla-surface border border-galla-line rounded font-medium text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1062,7 +1062,7 @@ function TransferStockModalContent({
                           setRetDefInput(String(Math.min(product.defectiveStock || 0, parsedReturnDef + 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center font-mono font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="h-7 w-7 rounded border border-galla-line bg-galla-paper flex items-center justify-center tabular-nums font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         +
                       </button>
@@ -1086,7 +1086,7 @@ function TransferStockModalContent({
 
               {/* Row 4: Reason / Notes */}
               <div>
-                <label className="font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider block mb-1">
+                <label className="text-[12px] font-medium text-galla-ink block mb-1.5">
                   Reason / Notes
                 </label>
                 <input
@@ -1113,7 +1113,7 @@ function TransferStockModalContent({
                         </span>
                       ) : null}
                     </span>
-                    <span className="font-bold tabular-nums text-rose-900 font-mono text-[13px]">
+                    <span className="font-bold tabular-nums text-rose-900 text-[13px]">
                       {formatRupee(estReturnCost)}
                     </span>
                   </div>
@@ -1209,7 +1209,7 @@ function TransferStockModalContent({
                       parsedReturnSell > 0 ? `${parsedReturnSell}x Retail Shelf` : null,
                       parsedReturnUse > 0 ? `${parsedReturnUse}x Salon Use` : null,
                       parsedReturnDef > 0 ? `${parsedReturnDef}x Defective` : null,
-                    ].filter(Boolean).join(" + ") || "None"}</strong> &bull; Total Value: <strong className="font-mono text-galla-ink">{formatRupee(estReturnCost)}</strong>
+                    ].filter(Boolean).join(" + ") || "None"}</strong> &bull; Total Value: <strong className="tabular-nums text-galla-ink">{formatRupee(estReturnCost)}</strong>
                   </span>
                   <span className="block mt-1 text-[12px] text-rose-800 font-medium">
                     Settlement:{" "}

@@ -123,7 +123,7 @@ export function CustomersTab({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+            <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
               Customer Directory
             </h2>
             <span className="text-[11px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-galla-ink-soft">
@@ -170,7 +170,7 @@ export function CustomersTab({
                 className="flex items-center justify-between px-[20px] py-[15px] hover:bg-galla-paper/40 transition-all cursor-pointer group"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-heading font-bold text-[13.5px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
+                  <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-bold text-[13px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
                     {initials}
                   </div>
                   <div className="min-w-0">
@@ -186,7 +186,7 @@ export function CustomersTab({
                       ) : null}
                     </div>
                     <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft mt-0.5">
-                      <span className="font-mono">{customer.phone}</span>
+                      <span className="tabular-nums text-[13px]">{customer.phone}</span>
                       {customer.totalSpent && customer.totalSpent > 0 ? (
                         <>
                           <span>&bull;</span>
@@ -201,7 +201,7 @@ export function CustomersTab({
                         className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
                         title={`Note: ${customer.notes}`}
                       >
-                        <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                        <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                           Note
                         </span>
                         <span className="truncate font-medium">{customer.notes}</span>

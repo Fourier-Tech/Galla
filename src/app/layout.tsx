@@ -1,25 +1,11 @@
 import type { Metadata } from "next";
-import { Outfit, Inter, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Providers } from "@/components/shared/providers";
 import "./globals.css";
 
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
 const inter = Inter({
-  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-sans",
   display: "swap",
 });
 
@@ -37,11 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      className={`${outfit.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-galla-paper text-galla-ink font-sans">
+    <html lang="en" className="h-full antialiased">
+      <body className={`${inter.variable} min-h-full flex flex-col bg-galla-paper text-galla-ink font-sans`}>
         <Providers>{children}</Providers>
       </body>
     </html>

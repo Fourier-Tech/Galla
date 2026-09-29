@@ -970,7 +970,7 @@ export function NewOrderModal({
         <div className="flex items-center justify-between pb-3 border-b border-galla-line/60 shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-heading font-semibold text-[18px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 New Order
               </h3>
               <span className="text-[11px] font-sans font-medium px-2 py-0.5 rounded-full bg-galla-teal-soft text-galla-teal">
@@ -1009,7 +1009,7 @@ export function NewOrderModal({
           <form onSubmit={handleNextFromStep1} className="space-y-4 pt-4 overflow-y-auto flex-1">
             {/* Customer Name with Autocomplete */}
             <div className="relative">
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Customer Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -1055,10 +1055,10 @@ export function NewOrderModal({
                       }}
                       className="w-full text-left px-3 py-2 hover:bg-galla-paper/80 transition-colors flex items-center justify-between group cursor-pointer border-b border-galla-line/40 last:border-b-0"
                     >
-                      <span className="font-heading font-medium text-[13px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                      <span className="text-[13px] font-medium text-galla-ink group-hover:text-galla-teal transition-colors">
                         {c.name}
                       </span>
-                      <span className="font-mono text-[12px] text-galla-ink-soft">
+                      <span className="tabular-nums text-[12px] text-galla-ink-soft">
                         {c.phone || "No phone"}
                       </span>
                     </button>
@@ -1069,7 +1069,7 @@ export function NewOrderModal({
 
             {/* Customer Phone */}
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Customer Mobile (Optional)
               </label>
               <input
@@ -1106,7 +1106,7 @@ export function NewOrderModal({
 
             {/* Order Type Selection (Only Product sale & Service booking) */}
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Order Type <span className="text-red-500">*</span>
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -1122,7 +1122,7 @@ export function NewOrderModal({
                       : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-heading font-medium text-[13.5px]">
+                  <div className="flex items-center gap-2 font-medium text-[13.5px]">
                     <Scissors className="h-4 w-4" />
                     <span>Service booking</span>
                   </div>
@@ -1144,7 +1144,7 @@ export function NewOrderModal({
                       : "bg-galla-paper/40 border-galla-line text-galla-ink-soft hover:text-galla-ink"
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-heading font-medium text-[13.5px]">
+                  <div className="flex items-center gap-2 font-medium text-[13.5px]">
                     <Package className="h-4 w-4" />
                     <span>Product sale</span>
                   </div>
@@ -1187,10 +1187,10 @@ export function NewOrderModal({
                     <button
                       type="button"
                       onClick={() => setCatalogTab("services")}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] transition-all cursor-pointer ${
                         activeCatalogTab === "services"
-                          ? "bg-galla-teal text-white shadow-xs"
-                          : "text-galla-ink-soft hover:text-galla-ink"
+                          ? "bg-galla-teal text-white font-semibold shadow-xs"
+                          : "text-galla-ink-soft hover:text-galla-ink font-normal"
                       }`}
                     >
                       <Scissors className="h-3.5 w-3.5" />
@@ -1200,10 +1200,10 @@ export function NewOrderModal({
                     <button
                       type="button"
                       onClick={() => setCatalogTab("packages")}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] font-sans font-medium transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[12px] transition-all cursor-pointer ${
                         activeCatalogTab === "packages"
-                          ? "bg-galla-teal text-white shadow-xs"
-                          : "text-galla-ink-soft hover:text-galla-ink"
+                          ? "bg-galla-teal text-white font-semibold shadow-xs"
+                          : "text-galla-ink-soft hover:text-galla-ink font-normal"
                       }`}
                     >
                       <Package className="h-3.5 w-3.5" />
@@ -1272,7 +1272,7 @@ export function NewOrderModal({
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-heading font-medium text-[13.5px] text-galla-ink">
+                              <span className="font-medium text-[13.5px] text-galla-ink">
                                 {p.name}
                               </span>
                               {higherProfitProductIds.has(String(p.id)) && (
@@ -1304,7 +1304,7 @@ export function NewOrderModal({
                           </div>
                         </div>
 
-                        <div className="font-heading font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                        <div className="font-semibold text-[13.5px] text-galla-ink tabular-nums">
                           {formatRupee(p.price)}
                         </div>
                       </div>
@@ -1349,20 +1349,20 @@ export function NewOrderModal({
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-heading font-medium text-[13.5px] text-galla-ink">
+                              <span className="font-medium text-[13.5px] text-galla-ink">
                                 {s.name}
                               </span>
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
-                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
+                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
                                     Advance Only &bull; Out of Stock
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
-                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
                                     In-Use Short &bull; Shelf Available
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
                                     Products In Stock
                                   </span>
                                 )
@@ -1394,7 +1394,7 @@ export function NewOrderModal({
                           </div>
                         </div>
 
-                        <div className="font-heading font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                        <div className="font-semibold text-[13.5px] text-galla-ink tabular-nums">
                           {formatRupee(s.price)}
                         </div>
                       </div>
@@ -1440,20 +1440,20 @@ export function NewOrderModal({
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-heading font-medium text-[13.5px] text-galla-ink">
+                              <span className="font-medium text-[13.5px] text-galla-ink">
                                 {p.name}
                               </span>
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
-                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
+                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-300">
                                     Advance Only &bull; Out of Stock
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
-                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
                                     In-Use Short &bull; Shelf Available
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
                                     Products In Stock
                                   </span>
                                 )
@@ -1484,7 +1484,7 @@ export function NewOrderModal({
                           </div>
                         </div>
 
-                        <div className="font-heading font-semibold text-[13.5px] text-galla-ink tabular-nums">
+                        <div className="font-semibold text-[13.5px] text-galla-ink tabular-nums">
                           {formatRupee(price)}
                         </div>
                       </div>
@@ -1539,7 +1539,7 @@ export function NewOrderModal({
                 <span className="text-galla-ink-soft">Customer: </span>
                 <span className="font-semibold text-galla-ink">{customer}</span>
                 {phone && (
-                  <span className="font-mono text-galla-ink-soft text-[11.5px] ml-1.5">
+                  <span className="tabular-nums text-galla-ink-soft text-[12px] ml-1.5">
                     ({phone})
                   </span>
                 )}
@@ -1552,7 +1552,7 @@ export function NewOrderModal({
             {/* Selected Items List (Editable / Deletable) */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   Selected Items ({selectedItems.length})
                 </label>
                 <button
@@ -1585,7 +1585,7 @@ export function NewOrderModal({
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span
-                          className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
+                          className={`text-[11px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
                             item.type === "package"
                               ? "bg-galla-brass-soft text-galla-brass border border-galla-brass/30"
                               : item.type === "product"
@@ -1633,7 +1633,7 @@ export function NewOrderModal({
                           </button>
                         </div>
 
-                        <span className="font-heading font-semibold text-galla-ink tabular-nums min-w-[55px] text-right">
+                        <span className="font-semibold text-galla-ink tabular-nums min-w-[55px] text-right">
                           {formatRupee(item.price * (item.quantity || 1))}
                         </span>
                         <button
@@ -1741,7 +1741,7 @@ export function NewOrderModal({
                 </div>
 
                 {settlementMode !== "pay_later" && (
-                  <label className="flex items-center gap-2 font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider cursor-pointer select-none">
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-galla-ink cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={includePreviousDue}
@@ -1760,14 +1760,14 @@ export function NewOrderModal({
                 {/* Non-editable Base Subtotal */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                    <label className="block text-[12px] font-medium text-galla-ink">
                       Subtotal
                     </label>
-                    <span className="text-[10px] font-sans font-medium text-galla-ink-soft/70 uppercase">
+                    <span className="text-[11px] font-medium text-galla-ink-soft/70">
                       Fixed
                     </span>
                   </div>
-                  <div className="w-full bg-galla-paper/60 border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink select-none flex items-center justify-between shadow-2xs">
+                  <div className="w-full bg-galla-paper/60 border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold tabular-nums text-galla-ink select-none flex items-center justify-between shadow-2xs">
                     <span>{formatRupee(calculatedSubtotal)}</span>
                     <span className="text-[10.5px] font-sans font-normal text-galla-ink-soft">
                       {selectedItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} {selectedItems.reduce((acc, it) => acc + (it.quantity || 1), 0) === 1 ? "item" : "items"}
@@ -1778,7 +1778,7 @@ export function NewOrderModal({
                 {/* Discount with % and ₹ Dropdown Toggle */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider">
+                    <label className="block text-[12px] font-medium text-galla-ink">
                       Discount
                     </label>
                     <span className="text-[10.5px] font-sans text-galla-ink-soft">
@@ -1809,7 +1809,7 @@ export function NewOrderModal({
                         }
                       }}
                       placeholder={discountType === "percentage" ? "e.g. 10" : "e.g. 150"}
-                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-2.5 pr-14 py-1.5 text-[13.5px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-2.5 pr-14 py-1.5 text-[13.5px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all"
                     />
 
                     {/* Interactive Dropdown / Toggle Button inside the input */}
@@ -1817,7 +1817,7 @@ export function NewOrderModal({
                       <button
                         type="button"
                         onClick={() => setIsDiscountDropdownOpen((prev) => !prev)}
-                        className="h-6 px-1.5 rounded-[4px] bg-galla-paper hover:bg-galla-line/80 border border-galla-line text-galla-ink font-heading font-bold text-[11.5px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs select-none"
+                        className="h-6 px-1.5 rounded-[4px] bg-galla-paper hover:bg-galla-line/80 border border-galla-line text-galla-ink font-semibold text-[11.5px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs select-none"
                         title={`Current: ${discountType === "percentage" ? "Percentage %" : "Flat Rupees ₹"}. Click to switch.`}
                         aria-haspopup="listbox"
                         aria-expanded={isDiscountDropdownOpen}
@@ -1897,16 +1897,16 @@ export function NewOrderModal({
                     <span>
                       Discount {discountType === "percentage" ? `(${discountValue}%)` : `(Flat ${formatRupee(calculatedDiscountAmount)})`}
                     </span>
-                    <span className="font-heading font-semibold text-emerald-600">
+                    <span className="font-semibold text-emerald-600 tabular-nums">
                       - {formatRupee(calculatedDiscountAmount)}
                     </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="font-heading font-semibold text-[13px] text-galla-ink-soft uppercase tracking-wider">
+                  <span className="text-[13px] font-semibold text-galla-ink-soft">
                     {includePreviousDue && totalPreviousDue > 0 ? "Today's Order Amount" : "Order Total"}
                   </span>
-                  <span className="font-heading font-bold text-[18px] text-galla-ink tabular-nums">
+                  <span className="text-[17px] font-bold text-galla-ink tabular-nums">
                     {formatRupee(finalTotal)}
                   </span>
                 </div>
@@ -1915,21 +1915,21 @@ export function NewOrderModal({
                   <div className="pt-2 border-t border-galla-line/60 space-y-2 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between text-[13px] text-amber-950 bg-amber-50/80 px-3 py-2 rounded-[5px] border border-amber-200">
                       <span className="font-semibold">Previous Due to Settle</span>
-                      <span className="font-heading font-bold text-[14px] text-rose-700 tabular-nums">
+                      <span className="text-[14px] font-bold text-rose-700 tabular-nums">
                         + {formatRupee(totalPreviousDue)}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between pt-1 border-t border-galla-line/60">
                       <div>
-                        <span className="font-heading font-bold text-[13.5px] text-galla-ink uppercase tracking-wider block">
+                        <span className="text-[13.5px] font-bold text-galla-ink block">
                           Total Price
                         </span>
                         <span className="text-[11px] text-galla-ink-soft">
                           (Today&apos;s Order + Due Amount)
                         </span>
                       </div>
-                      <span className="font-heading font-bold text-[20px] text-galla-teal tabular-nums">
+                      <span className="text-[20px] font-bold text-galla-teal tabular-nums">
                         {formatRupee(totalWithDue)}
                       </span>
                     </div>
@@ -1940,7 +1940,7 @@ export function NewOrderModal({
 
             {/* Settlement Mode Dropdown */}
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Settlement Mode <span className="text-red-500">*</span>
               </label>
               <select
@@ -1972,7 +1972,7 @@ export function NewOrderModal({
               <div className="p-3 rounded-[6px] space-y-2.5 border bg-amber-50/40 border-amber-300/50">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                       Amount Paid Now (₹) <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
                     <span className="text-[11.5px] font-sans text-galla-ink-soft">
@@ -1984,14 +1984,14 @@ export function NewOrderModal({
                     value={payLaterPaid}
                     onChange={(e) => setPayLaterPaid(e.target.value.replace(/\D/g, ""))}
                     placeholder={`0 (Full ${formatRupee(finalTotal)} due later)`}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all"
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all"
                   />
                 </div>
 
                 {/* Optional Expected Due Date */}
                 <div className="space-y-1 pt-0.5">
                   <div className="flex items-center justify-between">
-                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                       Expected Payment Due Date <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
                     {dueDate && (
@@ -2032,7 +2032,7 @@ export function NewOrderModal({
                   {/* Advance Amount (only for partial deposit) */}
                   {settlementMode === "advance" && (
                     <div className="space-y-1">
-                      <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                      <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                         Advance Paid (₹)
                       </label>
                       <input
@@ -2040,7 +2040,7 @@ export function NewOrderModal({
                         value={advance}
                         onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
                         placeholder="e.g. 500"
-                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-heading font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
+                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
                       />
                     </div>
                   )}
@@ -2049,7 +2049,7 @@ export function NewOrderModal({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {/* Booking Date */}
                     <div className="space-y-1">
-                      <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                      <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                         {orderType === "Product sale" ? "Expected Pickup / Arrival Date" : "Appointment Date"}{" "}
                         <span className="text-red-500">*</span>
                       </label>
@@ -2067,7 +2067,7 @@ export function NewOrderModal({
                     {/* Booking Time (Optional) */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                           Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                         </label>
                         {bookingTime && (
@@ -2144,7 +2144,7 @@ export function NewOrderModal({
 
             {/* Order Notes / Special Instructions (Optional) */}
             <div className="space-y-1">
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Order Notes / Instructions <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
               </label>
               <textarea

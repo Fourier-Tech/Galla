@@ -103,11 +103,11 @@ function ChangeReplacementDateModalContent({
               <Calendar className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[15px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 Change Expected Pickup Date
               </h3>
               <p className="font-sans text-[11px] text-galla-ink-soft">
-                Order #{replacement.orderNumber} &bull; {replacement.customerName}
+                Order #<span className="tabular-nums">{replacement.orderNumber}</span> &bull; {replacement.customerName}
               </p>
             </div>
           </div>
@@ -123,11 +123,11 @@ function ChangeReplacementDateModalContent({
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="p-2.5 bg-galla-paper/50 border border-galla-line rounded-[5px] text-[12px] font-sans text-galla-ink space-y-0.5">
             <div className="font-semibold text-galla-ink">
-              {replacement.pendingQuantity}x {replacement.productName}
+              <span className="tabular-nums">{replacement.pendingQuantity}</span>x {replacement.productName}
             </div>
             <div className="text-[11px] text-galla-ink-soft">
               Current Date:{" "}
-              <strong className="font-mono text-galla-ink">
+              <strong className="font-sans tabular-nums text-galla-ink">
                 {new Date(replacement.expectedDate).toLocaleDateString(
                   "en-IN",
                   { dateStyle: "medium" }
@@ -137,7 +137,7 @@ function ChangeReplacementDateModalContent({
           </div>
 
           <div>
-            <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               New Expected Pickup Date <span className="text-red-600">*</span>
             </label>
             <input
@@ -146,12 +146,12 @@ function ChangeReplacementDateModalContent({
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
               required
-              className="w-full h-9 px-3 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
+              className="w-full h-9 px-3 bg-galla-surface border border-galla-line rounded-[5px] font-sans tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Reason / Note (Optional)
             </label>
             <input

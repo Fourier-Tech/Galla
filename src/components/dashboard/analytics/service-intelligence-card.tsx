@@ -21,7 +21,7 @@ export function ServiceIntelligenceCard({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="w-4 h-4 text-galla-teal" />
-            <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+            <h3 className="text-[15px] font-bold text-galla-ink">
               Top 5 Performing Services
             </h3>
           </div>
@@ -41,20 +41,20 @@ export function ServiceIntelligenceCard({
                   className="flex items-center justify-between p-2.5 rounded-[5px] bg-galla-paper border border-galla-line/60"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-5 h-5 rounded-full bg-galla-surface border border-galla-line flex items-center justify-center font-mono text-[11px] font-semibold text-galla-ink">
+                    <span className="w-5 h-5 rounded-full bg-galla-surface border border-galla-line flex items-center justify-center font-sans text-[11px] font-semibold text-galla-ink tabular-nums">
                       {idx + 1}
                     </span>
                     <div>
                       <div className="font-sans text-[13px] font-semibold text-galla-ink leading-tight">
                         {service.name}
                       </div>
-                      <div className="font-sans text-[11px] text-galla-ink-soft">
+                      <div className="font-sans text-[11px] text-galla-ink-soft tabular-nums">
                         {service.bookingsCount} bookings &bull; Avg {formatRupee(service.avgPrice)}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="font-mono text-[13px] font-semibold text-galla-teal">
+                    <span className="font-sans text-[13px] font-semibold text-galla-teal tabular-nums">
                       {formatRupee(service.revenue)}
                     </span>
                   </div>
@@ -72,7 +72,7 @@ export function ServiceIntelligenceCard({
       {/* Category Contribution */}
       <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[21px] flex flex-col justify-between">
         <div>
-          <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight mb-1">
+          <h3 className="text-[15px] font-bold text-galla-ink mb-1">
             Department Contribution
           </h3>
           <p className="font-sans text-[12px] text-galla-ink-soft mb-5">
@@ -85,10 +85,10 @@ export function ServiceIntelligenceCard({
                 <div className="flex items-center justify-between text-[12px] font-sans mb-1.5">
                   <span className="font-medium text-galla-ink">{cat.category}</span>
                   <div className="text-right">
-                    <span className="font-mono font-medium text-galla-ink">
+                    <span className="font-sans font-medium text-galla-ink tabular-nums">
                       {formatRupee(cat.revenue)}
                     </span>{" "}
-                    <span className="text-galla-ink-soft text-[11px]">({cat.percent}%)</span>
+                    <span className="text-galla-ink-soft text-[11px] tabular-nums">({cat.percent}%)</span>
                   </div>
                 </div>
                 <div className="h-1.5 w-full bg-galla-paper rounded-full overflow-hidden">

@@ -190,7 +190,7 @@ export function SuppliersTab({
       {/* Header with Title and Modal Action Button (Identical to Services & Packages) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+          <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
             Suppliers &amp; Bills
           </h2>
           <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
@@ -336,7 +336,7 @@ export function SuppliersTab({
                 >
                   {/* Left: Avatar & Info */}
                   <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                    <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-heading font-bold text-[13.5px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
+                    <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-bold text-[13px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
                       {initials}
                     </div>
                     <div className="min-w-0">
@@ -369,7 +369,7 @@ export function SuppliersTab({
                           <a
                             href={`tel:${supplier.phone.replace(/\D/g, "")}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 font-mono text-galla-teal hover:underline"
+                            className="inline-flex items-center gap-1 tabular-nums text-[13px] text-galla-teal hover:underline"
                             title="Call supplier"
                           >
                             <Phone className="h-3 w-3" />
@@ -397,7 +397,7 @@ export function SuppliersTab({
                         {supplier.gstin && (
                           <>
                             <span>&bull;</span>
-                            <span className="font-mono text-[11.5px] text-galla-ink-soft/80">
+                            <span className="tabular-nums text-[12px] text-galla-ink-soft/80">
                               GST: {supplier.gstin}
                             </span>
                           </>
@@ -408,7 +408,7 @@ export function SuppliersTab({
                           className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
                           title={`Note: ${supplier.notes}`}
                         >
-                          <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                          <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                             Note
                           </span>
                           <span className="truncate font-medium">{supplier.notes}</span>

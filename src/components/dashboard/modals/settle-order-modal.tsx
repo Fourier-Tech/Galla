@@ -106,7 +106,7 @@ function SettleOrderModalContent({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-heading font-semibold text-[18px] text-galla-ink">
+            <h3 className="text-[15px] font-bold text-galla-ink">
               {isReplacement
                 ? "Deliver Replacement Product"
                 : defaultDue === 0
@@ -138,8 +138,8 @@ function SettleOrderModalContent({
               </div>
               <div className="flex justify-between text-emerald-700 font-medium">
                 <span>Order Status:</span>
-                <span className="uppercase text-[10px] font-bold tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                  Zero Balance (Free Swap)
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                  Zero balance (free swap)
                 </span>
               </div>
               <div className="flex justify-between text-galla-ink font-medium pt-1 border-t border-galla-line/50">
@@ -158,7 +158,7 @@ function SettleOrderModalContent({
                 <span className="tabular-nums">
                   {formatRupee(order.paid)}
                   {order.paid > 0 && order.paymentMode ? (
-                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 ml-1">
+                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 ml-1">
                       {order.paymentMode}
                     </span>
                   ) : null}
@@ -183,7 +183,7 @@ function SettleOrderModalContent({
           {/* Editable Remaining Due Input */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 {isReplacement
                   ? "Balance to Collect (₹0 - Free Warranty Swap)"
                   : defaultDue === 0
@@ -252,7 +252,7 @@ function SettleOrderModalContent({
 
           {/* Notes / Remarks */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Settlement Note (Optional)
             </label>
             <input

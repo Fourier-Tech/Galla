@@ -38,10 +38,10 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
       {/* 1. Net Collections / Revenue */}
       <div className="bg-galla-surface p-4 flex flex-col justify-between">
         <div>
-          <span className="font-sans text-[11px] uppercase tracking-wider text-galla-ink-soft font-semibold">
+          <span className="font-sans text-[12px] text-galla-ink-soft font-medium">
             Net Collections
           </span>
-          <div className="mt-1 font-heading font-semibold text-[24px] tracking-tight text-galla-sage tabular-nums">
+          <div className="mt-1 font-semibold text-[24px] tracking-tight text-galla-sage tabular-nums">
             {formatRupee(metrics.netRevenue.current)}
           </div>
         </div>
@@ -53,10 +53,10 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
       {/* 2. Total Expenses */}
       <div className="bg-galla-surface p-4 flex flex-col justify-between">
         <div>
-          <span className="font-sans text-[11px] uppercase tracking-wider text-galla-ink-soft font-semibold">
+          <span className="font-sans text-[12px] text-galla-ink-soft font-medium">
             Operating Expenses
           </span>
-          <div className="mt-1 font-heading font-semibold text-[24px] tracking-tight text-galla-brick tabular-nums">
+          <div className="mt-1 font-semibold text-[24px] tracking-tight text-galla-brick tabular-nums">
             {formatRupee(metrics.totalExpenses.current)}
           </div>
         </div>
@@ -69,7 +69,7 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
       <div className="bg-galla-surface p-4 flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between">
-            <span className="font-sans text-[11px] uppercase tracking-wider text-galla-ink-soft font-semibold">
+            <span className="font-sans text-[12px] text-galla-ink-soft font-medium">
               Net Profit
             </span>
             <span
@@ -83,7 +83,7 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
             </span>
           </div>
           <div
-            className={`mt-1 font-heading font-semibold text-[24px] tracking-tight tabular-nums ${
+            className={`mt-1 font-semibold text-[24px] tracking-tight tabular-nums ${
               metrics.netProfit.current >= 0 ? "text-galla-ink" : "text-galla-brick"
             }`}
           >
@@ -100,10 +100,10 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
       {/* 4. Average Ticket Value (ATV) */}
       <div className="bg-galla-surface p-4 flex flex-col justify-between">
         <div>
-          <span className="font-sans text-[11px] uppercase tracking-wider text-galla-ink-soft font-semibold">
+          <span className="font-sans text-[12px] text-galla-ink-soft font-medium">
             Average Ticket (ATV)
           </span>
-          <div className="mt-1 font-heading font-semibold text-[24px] tracking-tight text-galla-ink tabular-nums">
+          <div className="mt-1 font-semibold text-[24px] tracking-tight text-galla-ink tabular-nums">
             {formatRupee(metrics.averageTicketValue.current)}
           </div>
         </div>
@@ -115,10 +115,10 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
       {/* 5. Total Footfall / Bookings */}
       <div className="bg-galla-surface p-4 flex flex-col justify-between">
         <div>
-          <span className="font-sans text-[11px] uppercase tracking-wider text-galla-ink-soft font-semibold">
+          <span className="font-sans text-[12px] text-galla-ink-soft font-medium">
             Total Orders / Footfall
           </span>
-          <div className="mt-1 font-heading font-semibold text-[24px] tracking-tight text-galla-ink tabular-nums">
+          <div className="mt-1 font-semibold text-[24px] tracking-tight text-galla-ink tabular-nums">
             {metrics.totalFootfall.current}
           </div>
         </div>
@@ -131,7 +131,7 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
       <div className="bg-galla-surface p-4 flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between">
-            <span className="font-sans text-[11px] uppercase tracking-wider text-galla-ink-soft font-semibold">
+            <span className="font-sans text-[12px] text-galla-ink-soft font-medium">
               Pending Dues
             </span>
             {metrics.uncollectedDues > 0 && (
@@ -141,7 +141,7 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
             )}
           </div>
           <div
-            className={`mt-1 font-heading font-semibold text-[24px] tracking-tight tabular-nums ${
+            className={`mt-1 font-semibold text-[24px] tracking-tight tabular-nums ${
               metrics.uncollectedDues > 0 ? "text-galla-brick" : "text-galla-ink"
             }`}
           >

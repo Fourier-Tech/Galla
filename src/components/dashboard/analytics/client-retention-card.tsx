@@ -18,7 +18,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Users className="w-4 h-4 text-galla-teal" />
-            <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+            <h3 className="text-[15px] font-bold text-galla-ink">
               Client Retention &amp; Repeat Footfall
             </h3>
           </div>
@@ -32,10 +32,10 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
               <span className="font-sans text-[11px] text-galla-ink-soft block">
                 Returning Regulars
               </span>
-              <div className="font-heading font-semibold text-[22px] text-galla-teal mt-0.5 tabular-nums">
+              <div className="font-semibold text-[20px] text-galla-teal mt-0.5 tabular-nums">
                 {retention.returningClientsCount}
               </div>
-              <span className="font-sans text-[11px] text-galla-teal font-medium">
+              <span className="font-sans text-[11px] text-galla-teal font-medium tabular-nums">
                 {retention.repeatRatePercent}% repeat rate
               </span>
             </div>
@@ -44,7 +44,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
               <span className="font-sans text-[11px] text-galla-ink-soft block">
                 First-Time Walk-Ins
               </span>
-              <div className="font-heading font-semibold text-[22px] text-galla-ink mt-0.5 tabular-nums">
+              <div className="font-semibold text-[20px] text-galla-ink mt-0.5 tabular-nums">
                 {retention.newClientsCount}
               </div>
               <span className="font-sans text-[11px] text-galla-ink-soft">
@@ -55,7 +55,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
 
           {/* Ratio Bar */}
           <div className="space-y-1.5 mb-6">
-            <div className="flex justify-between font-sans text-[11px] text-galla-ink-soft">
+            <div className="flex justify-between font-sans text-[11px] text-galla-ink-soft tabular-nums">
               <span>{retention.repeatRatePercent}% Regulars</span>
               <span>{100 - retention.repeatRatePercent}% First-Timers</span>
             </div>
@@ -77,7 +77,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
               <UserX className="w-4 h-4 text-red-600 shrink-0" />
               <div>
                 <div className="font-sans text-[12px] font-semibold text-red-900 leading-tight">
-                  {retention.dormantClientsCount} Dormant / At-Risk Clients
+                  <span className="tabular-nums">{retention.dormantClientsCount}</span> Dormant / At-Risk Clients
                 </div>
                 <div className="font-sans text-[11px] text-red-700/80">
                   Regulars with 2+ visits who haven&apos;t visited in 45+ days
@@ -100,7 +100,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Crown className="w-4 h-4 text-galla-brass" />
-            <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+            <h3 className="text-[15px] font-bold text-galla-ink">
               Top VIP Salon Clients
             </h3>
           </div>
@@ -120,7 +120,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
                   className="flex items-center justify-between p-2.5 rounded-[5px] bg-galla-paper border border-galla-line/60"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-5 h-5 rounded-full bg-galla-surface border border-galla-line flex items-center justify-center font-mono text-[11px] font-semibold text-galla-ink">
+                    <span className="w-5 h-5 rounded-full bg-galla-surface border border-galla-line flex items-center justify-center font-sans text-[11px] font-semibold text-galla-ink tabular-nums">
                       {idx + 1}
                     </span>
                     <div>
@@ -129,14 +129,14 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
                       </div>
                       <div className="font-sans text-[11px] text-galla-ink-soft flex items-center gap-1.5 mt-0.5">
                         <Phone className="w-2.5 h-2.5" />
-                        <span>{client.phone}</span>
+                        <span className="tabular-nums">{client.phone}</span>
                         <span>&bull;</span>
-                        <span>{client.totalVisits} visits</span>
+                        <span className="tabular-nums">{client.totalVisits} visits</span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono text-[13px] font-semibold text-galla-brass">
+                    <div className="font-sans text-[13px] font-semibold text-galla-brass tabular-nums">
                       {formatRupee(client.lifetimeSpend)}
                     </div>
                     <div className="font-sans text-[10px] text-galla-ink-soft">

@@ -34,10 +34,10 @@ export function AnalyticsHeader({
     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-galla-line">
       {/* Title & Badge */}
       <div>
-        <div className="inline-flex items-center gap-2 px-[10px] py-[3px] rounded-[3px] bg-galla-teal-soft text-galla-teal text-[11px] font-heading font-semibold uppercase tracking-wider mb-1.5">
-          Owner Business Intelligence
+        <div className="inline-flex items-center gap-2 px-[10px] py-[3px] rounded-[3px] bg-galla-teal-soft text-galla-teal text-[12px] font-semibold mb-1.5">
+          Owner business intelligence
         </div>
-        <h2 className="font-heading font-semibold text-[22px] tracking-[-0.015em] text-galla-ink">
+        <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
           Executive Financials &amp; Operational Analytics
         </h2>
         <p className="font-sans text-[13px] text-galla-ink-soft">
@@ -55,10 +55,10 @@ export function AnalyticsHeader({
                 key={p.key}
                 type="button"
                 onClick={() => onRangeChange(p.key)}
-                className={`px-3 py-1.5 rounded-[4px] font-sans text-[12px] font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-[4px] font-sans text-[12px] transition-all ${
                   isActive
                     ? "bg-galla-surface text-galla-ink shadow-xs border border-galla-line font-semibold"
-                    : "text-galla-ink-soft hover:text-galla-ink"
+                    : "text-galla-ink-soft hover:text-galla-ink font-normal"
                 }`}
               >
                 {p.label}
@@ -75,14 +75,14 @@ export function AnalyticsHeader({
               type="date"
               value={customStartDate}
               onChange={(e) => onRangeChange("custom")}
-              className="bg-transparent text-galla-ink text-[12px] outline-none font-mono"
+              className="bg-transparent text-galla-ink text-[12px] outline-none tabular-nums"
             />
             <span className="text-galla-ink-soft text-[11px]">to</span>
             <input
               type="date"
               value={customEndDate}
               onChange={(e) => onRangeChange("custom")}
-              className="bg-transparent text-galla-ink text-[12px] outline-none font-mono"
+              className="bg-transparent text-galla-ink text-[12px] outline-none tabular-nums"
             />
           </div>
         )}

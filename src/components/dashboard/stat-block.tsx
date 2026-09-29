@@ -42,7 +42,7 @@ export function StatBlock({
         )}
       </div>
       <div
-        className={`font-heading font-semibold text-[26px] xl:text-[30px] leading-none tracking-[-0.02em] tabular-nums ${toneClass}`}
+        className={`font-semibold text-[26px] xl:text-[30px] leading-none tracking-[-0.02em] tabular-nums ${toneClass}`}
       >
         {value}
       </div>

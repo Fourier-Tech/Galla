@@ -125,7 +125,7 @@ export function CustomerModal({
               <User className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 Edit Client Details
               </h3>
               <p className="font-sans text-[12px] text-galla-ink-soft">
@@ -154,7 +154,7 @@ export function CustomerModal({
 
           {/* Customer Name */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Full Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -172,7 +172,7 @@ export function CustomerModal({
 
           {/* Phone Number */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Mobile Number <span className="text-red-500">*</span>
             </label>
             <input
@@ -181,14 +181,14 @@ export function CustomerModal({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="98765 43210"
-              className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line text-[13.5px] font-mono text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none"
+              className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line text-[13.5px] font-sans tabular-nums text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none"
             />
           </div>
 
           {/* Email Address & Gender Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Email Address <span className="text-galla-ink-soft text-[11px] font-normal">(Optional)</span>
               </label>
               <input
@@ -201,7 +201,7 @@ export function CustomerModal({
             </div>
 
             <div>
-              <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Gender <span className="text-galla-ink-soft text-[11px] font-normal">(Optional)</span>
               </label>
               <select
@@ -219,7 +219,7 @@ export function CustomerModal({
 
           {/* Internal Notes */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Client Preferences &amp; Notes <span className="text-galla-ink-soft text-[11px] font-normal">(Optional)</span>
             </label>
             <textarea

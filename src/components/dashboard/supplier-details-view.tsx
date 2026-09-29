@@ -304,11 +304,11 @@ export function SupplierDetailsView({
           </button>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-heading font-semibold text-[22px] text-galla-ink tracking-[-0.015em]">
+              <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
                 {supplier.name}
               </h2>
               {supplier.phone && (
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-galla-ink-soft">
+                <span className="text-[13px] tabular-nums font-normal px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-galla-ink-soft">
                   {formatPhoneNumber(supplier.phone)}
                 </span>
               )}
@@ -338,7 +338,7 @@ export function SupplierDetailsView({
                 <>
                   {" "}
                   &bull; GSTIN:{" "}
-                  <span className="font-mono text-galla-ink font-medium">{supplier.gstin}</span>
+                  <span className="tabular-nums text-galla-ink font-medium">{supplier.gstin}</span>
                 </>
               )}
               {supplier.address && (
@@ -394,7 +394,7 @@ export function SupplierDetailsView({
         <div className="p-3.5 rounded-[8px] bg-amber-50/70 border border-amber-200/80 text-amber-950 flex items-start gap-2.5 shadow-2xs">
           <MessageSquare className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1">
-            <span className="text-[11px] font-heading font-semibold uppercase tracking-wider text-amber-900 block">
+            <span className="text-[12px] font-semibold text-amber-900 block">
               Supplier Notes &amp; Terms
             </span>
             <p className="text-[12.5px] text-amber-900/90 mt-0.5 whitespace-pre-wrap font-sans">
@@ -409,14 +409,14 @@ export function SupplierDetailsView({
         {/* Total Purchases */}
         <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
+            <span className="text-[12px] font-normal text-galla-ink-soft">
               Total Purchases
             </span>
             <div className="h-7 w-7 rounded-[5px] bg-galla-teal/10 border border-galla-teal/20 flex items-center justify-center text-galla-teal">
               <Wallet className="h-3.5 w-3.5" />
             </div>
           </div>
-          <div className="text-[22px] font-bold font-heading text-galla-ink mt-2">
+          <div className="text-[22px] font-bold text-galla-ink tabular-nums mt-2">
             {formatRupee(metrics.totalPurchases)}
           </div>
           <span className="text-[11.5px] text-galla-ink-soft mt-1 block">
@@ -427,14 +427,14 @@ export function SupplierDetailsView({
         {/* Total Settled */}
         <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
+            <span className="text-[12px] font-normal text-galla-ink-soft">
               Total Settled
             </span>
             <div className="h-7 w-7 rounded-[5px] bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
             </div>
           </div>
-          <div className="text-[22px] font-bold font-heading text-emerald-700 mt-2">
+          <div className="text-[22px] font-bold text-emerald-700 tabular-nums mt-2">
             {formatRupee(metrics.totalPaid)}
           </div>
           <span className="text-[11px] font-medium mt-1 inline-flex items-center gap-1 px-1.5 py-0.2 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">
@@ -446,7 +446,7 @@ export function SupplierDetailsView({
         {/* Outstanding Dues / Credit Balance */}
         <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
+            <span className="text-[12px] font-normal text-galla-ink-soft">
               {metrics.totalPending < 0 ? "Credit Balance" : "Outstanding Dues"}
             </span>
             <div
@@ -463,7 +463,7 @@ export function SupplierDetailsView({
             </div>
           </div>
           <div
-            className={`text-[22px] font-bold font-heading mt-2 ${metrics.totalPending > 0 ? "text-rose-700" : "text-emerald-700"
+            className={`text-[22px] font-bold tabular-nums mt-2 ${metrics.totalPending > 0 ? "text-rose-700" : "text-emerald-700"
               }`}
           >
             {formatRupee(Math.abs(metrics.totalPending))}
@@ -482,7 +482,7 @@ export function SupplierDetailsView({
       <div className="p-5 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
         <div className="flex items-center justify-between pb-3 border-b border-galla-line">
           <div>
-            <h3 className="font-heading font-semibold text-[15px] text-galla-ink flex items-center gap-2">
+            <h3 className="font-bold text-[15px] text-galla-ink flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-galla-teal" />
               <span>Supply Preference Analysis &bull; What We Buy From Them</span>
             </h3>
@@ -495,7 +495,7 @@ export function SupplierDetailsView({
               <CreditCard className="h-3.5 w-3.5 text-galla-ink-soft" />
               <span>
                 Preferred:{" "}
-                <strong className="text-galla-ink uppercase">
+                <strong className="text-galla-ink capitalize">
                   {analysis.preferredPaymentMode}
                 </strong>
               </span>
@@ -534,7 +534,7 @@ export function SupplierDetailsView({
         {/* Top Items Supplied */}
         {analysis.topItems.length > 0 && (
           <div className="mt-4 pt-3 border-t border-galla-line/60 flex flex-wrap items-center gap-2">
-            <span className="text-[11.5px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold mr-1">
+            <span className="text-[12px] font-medium text-galla-ink-soft mr-1">
               Top Products Supplied:
             </span>
             {analysis.topItems.map((item, idx) => (
@@ -555,7 +555,7 @@ export function SupplierDetailsView({
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="font-heading font-semibold text-[17px] text-galla-ink flex items-center gap-2">
+            <h3 className="font-bold text-[15px] text-galla-ink flex items-center gap-2">
               <Receipt className="h-4 w-4 text-galla-teal" />
               <span>All Purchase Bills Till Date ({filteredBills.length})</span>
             </h3>
@@ -706,11 +706,11 @@ export function SupplierDetailsView({
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-[13px] font-bold text-galla-ink group-hover:text-galla-teal transition-colors">
+                          <span className="tabular-nums text-[13px] font-semibold text-galla-ink group-hover:text-galla-teal transition-colors">
                             {formatDisplayNumber(bill.purchaseOrderNumber)}
                           </span>
                           {bill.dealerInvoiceNumber && (
-                            <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line">
+                            <span className="text-[11px] tabular-nums px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line">
                               Inv: #{bill.dealerInvoiceNumber}
                             </span>
                           )}
@@ -729,7 +729,7 @@ export function SupplierDetailsView({
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
                             title={`Note: ${bill.notes}`}
                           >
-                            <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                            <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                               Note
                             </span>
                             <span className="truncate font-medium">{bill.notes}</span>
@@ -830,7 +830,7 @@ export function SupplierDetailsView({
 
                     <div className="flex items-center justify-between sm:justify-end gap-3.5 shrink-0">
                       <div className="text-right">
-                        <div className="font-mono text-[13.5px] font-bold text-galla-ink">
+                        <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                           {formatRupee(
                             Math.max(
                               0,

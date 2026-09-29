@@ -139,14 +139,14 @@ export function ProfileTab({
     <div className="space-y-6 w-full max-w-4xl">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center gap-1.5 px-[10px] py-[3px] rounded-[3px] bg-galla-teal-soft text-galla-teal text-[11px] font-heading font-semibold uppercase tracking-wider mb-2">
+        <div className="inline-flex items-center gap-1.5 px-[10px] py-[3px] rounded-[3px] bg-galla-teal-soft text-galla-teal text-[12px] font-semibold mb-2">
           <ShieldCheck className="h-3.5 w-3.5" />
           <span>Shop Administration</span>
         </div>
-        <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+        <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
           Salon Profile &amp; Branding
         </h2>
-        <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
+        <p className="text-[13px] font-normal text-galla-ink-soft mt-0.5">
           Manage parlour identity &amp; registered store details
         </p>
       </div>
@@ -221,15 +221,15 @@ export function ProfileTab({
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h3 className="font-heading font-semibold text-[20px] text-galla-ink tracking-tight truncate">
+              <h3 className="font-bold text-[20px] text-galla-ink tracking-tight truncate">
                 {name || "Salon Profile"}
               </h3>
               {salonProfile.tenantCode && (
-                <span className="font-mono text-[12px] font-semibold px-2 py-0.5 rounded-[3px] bg-galla-paper border border-galla-line text-galla-ink">
+                <span className="tabular-nums text-[12px] font-semibold px-2 py-0.5 rounded-[3px] bg-galla-paper border border-galla-line text-galla-ink">
                   Shop #{salonProfile.tenantCode}
                 </span>
               )}
-              <span className="inline-flex items-center px-2 py-0.5 rounded-[3px] bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-heading font-semibold uppercase tracking-wider">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-[3px] bg-emerald-50 border border-emerald-200 text-emerald-800 text-[12px] font-semibold">
                 Active Store
               </span>
             </div>
@@ -262,7 +262,7 @@ export function ProfileTab({
         <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[24px] space-y-4">
           <div className="flex items-center gap-2 border-b border-galla-line pb-3">
             <Building2 className="h-4 w-4 text-galla-teal" />
-            <h4 className="font-heading font-semibold text-[16px] text-galla-ink">
+            <h4 className="font-bold text-[15px] text-galla-ink">
               Business Information
             </h4>
           </div>

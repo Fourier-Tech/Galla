@@ -338,7 +338,7 @@ export function PurchaseOrdersView({
       {showHeader && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+            <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
               Purchase Orders &amp; Bills
             </h2>
             <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
@@ -412,9 +412,9 @@ export function PurchaseOrdersView({
         {/* Date Range & Sort Controls (Matching Orders Tab) */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Date Range Inputs */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink text-[12.5px] font-sans shadow-xs focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink text-[12px] shadow-xs focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all">
             <Calendar className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
-            <span className="text-[10.5px] font-semibold uppercase text-galla-ink-soft tracking-wider">From</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft">From</span>
             <input
               type="date"
               value={startDate}
@@ -422,11 +422,11 @@ export function PurchaseOrdersView({
                 setStartDate(e.target.value);
                 setPage(1);
               }}
-              className="bg-transparent text-galla-ink text-[12px] font-sans outline-none cursor-pointer"
+              className="bg-transparent text-galla-ink text-[12px] outline-none cursor-pointer tabular-nums"
               title="Filter from bill invoice date"
             />
-            <span className="text-[10.5px] font-semibold text-galla-ink-soft/70">&ndash;</span>
-            <span className="text-[10.5px] font-semibold uppercase text-galla-ink-soft tracking-wider">To</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft/70">&ndash;</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft">To</span>
             <input
               type="date"
               value={endDate}
@@ -435,7 +435,7 @@ export function PurchaseOrdersView({
                 setEndDate(e.target.value);
                 setPage(1);
               }}
-              className="bg-transparent text-galla-ink text-[12px] font-sans outline-none cursor-pointer"
+              className="bg-transparent text-galla-ink text-[12px] outline-none cursor-pointer tabular-nums"
               title="Filter to bill invoice date"
             />
             {(startDate || endDate) && (
@@ -598,7 +598,7 @@ export function PurchaseOrdersView({
         <div className="overflow-x-auto">
           <div className="min-w-[920px]">
             {/* Desktop Table Header - Matching Orders Tab Layout */}
-            <div className="grid grid-cols-[115px_minmax(240px,1.5fr)_175px_140px_140px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
+            <div className="grid grid-cols-[115px_minmax(240px,1.5fr)_175px_140px_140px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line text-[12px] font-medium text-galla-ink-soft">
               <span>Order / Bill</span>
               <span>Supplier</span>
               <span className="text-right">Settlement</span>
@@ -715,13 +715,13 @@ export function PurchaseOrdersView({
                     >
                       {/* Column 1: Order / Bill */}
                       <div className="space-y-0.5">
-                        <span className="font-mono text-[13px] font-bold text-galla-ink group-hover:text-galla-teal transition-colors block">
+                        <span className="tabular-nums text-[13px] font-semibold text-galla-ink group-hover:text-galla-teal transition-colors block">
                           {formatDisplayNumber(po.purchaseOrderNumber)}
                         </span>
                         {po.dealerInvoiceNumber && (
                           <div className="mt-1">
                             <span
-                              className="inline-flex items-center text-[10.5px] font-mono px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line font-medium truncate max-w-full"
+                              className="inline-flex items-center text-[11px] tabular-nums px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line font-medium truncate max-w-full"
                               title={`Dealer Invoice Number: ${po.dealerInvoiceNumber}`}
                             >
                               Inv: #{po.dealerInvoiceNumber}
@@ -745,7 +745,7 @@ export function PurchaseOrdersView({
                         </div>
 
                         {po.supplierPhone && (
-                          <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
+                          <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5 truncate">
                             <a
                               href={`tel:${po.supplierPhone.replace(/\D/g, "")}`}
                               onClick={(e) => e.stopPropagation()}
@@ -776,7 +776,7 @@ export function PurchaseOrdersView({
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
                             title={`Note: ${po.notes}`}
                           >
-                            <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                            <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                               Note
                             </span>
                             <span className="truncate font-medium">{po.notes}</span>
@@ -904,7 +904,7 @@ export function PurchaseOrdersView({
 
                         return (
                           <div className="text-right">
-                            <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                            <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                               {formatRupee(effectivePOAmount)}
                             </div>
                             {po.amountPending > 0 ? (
@@ -913,7 +913,7 @@ export function PurchaseOrdersView({
                                   <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
                                     <span>{formatRupee(po.amountPaid)} adv.</span>
                                     {po.paymentMode && (
-                                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                         {po.paymentMode}
                                       </span>
                                     )}
@@ -927,7 +927,7 @@ export function PurchaseOrdersView({
                               <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
                                 <span>{billStatus.pillStatus === "paid_full" ? "Paid in full" : "Settled"}</span>
                                 {po.paymentMode && (
-                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {po.paymentMode}
                                   </span>
                                 )}

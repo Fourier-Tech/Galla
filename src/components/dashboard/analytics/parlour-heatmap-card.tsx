@@ -17,7 +17,7 @@ export function ParlourHeatmapCard({ hourly, weekday }: ParlourHeatmapCardProps)
   return (
     <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[21px]">
       <div className="mb-5">
-        <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+        <h3 className="text-[15px] font-bold text-galla-ink">
           Parlour Peak Traffic &amp; Capacity Curves
         </h3>
         <p className="font-sans text-[12px] text-galla-ink-soft">
@@ -39,7 +39,7 @@ export function ParlourHeatmapCard({ hourly, weekday }: ParlourHeatmapCardProps)
               const intensity = Math.round((item.count / maxHourlyCount) * 100);
               return (
                 <div key={item.hour} className="flex items-center gap-2 text-[11px] font-sans">
-                  <span className="w-12 text-galla-ink-soft font-mono shrink-0">
+                  <span className="w-12 text-galla-ink-soft tabular-nums shrink-0">
                     {item.label}
                   </span>
                   <div className="h-5 flex-1 bg-galla-paper rounded-[3px] overflow-hidden p-0.5 flex items-center">
@@ -51,13 +51,13 @@ export function ParlourHeatmapCard({ hourly, weekday }: ParlourHeatmapCardProps)
                       }}
                     >
                       {item.count > 0 && (
-                        <span className="text-[10px] font-mono text-white font-medium">
+                        <span className="text-[10px] font-sans tabular-nums text-white font-medium">
                           {item.count}
                         </span>
                       )}
                     </div>
                   </div>
-                  <span className="w-16 text-right font-mono text-galla-ink-soft shrink-0">
+                  <span className="w-16 text-right font-sans tabular-nums text-galla-ink-soft shrink-0">
                     {item.revenue > 0 ? formatRupee(item.revenue) : "-"}
                   </span>
                 </div>
@@ -84,7 +84,7 @@ export function ParlourHeatmapCard({ hourly, weekday }: ParlourHeatmapCardProps)
                     <span className={`font-medium ${isWeekend ? "text-galla-brick" : "text-galla-ink"}`}>
                       {item.day} {isWeekend && "• Weekend"}
                     </span>
-                    <span className="font-mono text-galla-ink-soft">
+                    <span className="font-sans tabular-nums text-galla-ink-soft">
                       {item.count} orders &bull; {formatRupee(item.revenue)}
                     </span>
                   </div>

@@ -108,17 +108,17 @@ function LoginFormContent() {
           className="h-11 w-auto object-contain"
           priority
         />
-        <span className="font-heading text-[11px] font-medium tracking-[0.05em] uppercase text-galla-ink-soft mt-2.5">
-          Salon &amp; Parlour Management
+        <span className="text-[12px] font-normal text-galla-ink-soft mt-1.5">
+          Salon &amp; parlour management
         </span>
       </div>
 
       {/* Form Title */}
       <div className="mt-7 mb-6 text-center">
-        <h1 className="font-heading font-semibold text-[18px] text-galla-ink">
+        <h1 className="font-bold text-[18px] text-galla-ink">
           Shop Access Code
         </h1>
-        <p className="font-sans text-[13px] text-galla-ink-soft mt-1">
+        <p className="text-[13px] text-galla-ink-soft mt-1">
           Enter your 8-digit salon code (Owner or Staff)
         </p>
       </div>
@@ -142,7 +142,7 @@ function LoginFormContent() {
         <div>
           <label
             htmlFor="accessCode"
-            className="block font-sans text-[13px] font-medium text-galla-ink mb-2 text-center"
+            className="block text-[13px] font-medium text-galla-ink mb-2 text-center"
           >
             8-Digit Code
           </label>
@@ -162,7 +162,7 @@ function LoginFormContent() {
               value={formattedDisplay}
               onChange={handleCodeChange}
               placeholder="••••  ••••"
-              className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-4 py-3 text-[18px] text-center font-mono font-bold tracking-[4px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-4 py-3 text-[18px] text-center tabular-nums font-bold tracking-[4px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />
           </div>
           <p className="text-[11px] text-galla-ink-soft text-center mt-2">
@@ -173,7 +173,7 @@ function LoginFormContent() {
         <button
           type="submit"
           disabled={loading || rawCode.length !== 8}
-          className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium px-[13px] py-[11px] rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+          className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[15px] font-normal px-[13px] py-[11px] rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
         >
           {loading ? (
             <>

@@ -116,11 +116,11 @@ function BaseRescheduleModalContent({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-galla-line bg-galla-paper/40">
           <div>
-            <h3 className="font-heading font-semibold text-[17px] text-galla-ink">{title}</h3>
+            <h3 className="text-[15px] font-bold text-galla-ink">{title}</h3>
             <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
               {referenceText} &bull; <strong className="text-galla-ink">{entityName}</strong>
               {dueAmount !== undefined && dueAmount > 0 ? (
-                <span className="text-rose-700 font-semibold ml-1">
+                <span className="text-rose-700 font-semibold ml-1 tabular-nums">
                   ({dueAmountLabel}: {formatRupee(dueAmount)})
                 </span>
               ) : null}
@@ -163,7 +163,7 @@ function BaseRescheduleModalContent({
             <div className={`grid gap-3 ${showTimePicker ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
               {/* Date Input */}
               <div className="space-y-1.5">
-                <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                   {dateLabel} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -172,7 +172,7 @@ function BaseRescheduleModalContent({
                   value={newDate}
                   min={todayStr}
                   onChange={(e) => setNewDate(e.target.value)}
-                  className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer shadow-xs"
+                  className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer shadow-xs tabular-nums"
                 />
               </div>
 
@@ -180,7 +180,7 @@ function BaseRescheduleModalContent({
               {showTimePicker && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                       Time <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
                     </label>
                     {newTime && (
@@ -197,7 +197,7 @@ function BaseRescheduleModalContent({
                     type="time"
                     value={newTime}
                     onChange={(e) => setNewTime(e.target.value)}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer shadow-xs"
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer shadow-xs tabular-nums"
                   />
                 </div>
               )}
@@ -205,8 +205,8 @@ function BaseRescheduleModalContent({
 
             {/* Quick Date Presets */}
             <div className="space-y-1">
-              <span className="text-[11px] font-medium text-galla-ink-soft uppercase tracking-wider">
-                QUICK DATE SHORTCUTS:
+              <span className="text-[12px] font-medium text-galla-ink-soft">
+                Quick date shortcuts:
               </span>
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <button

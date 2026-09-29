@@ -61,7 +61,7 @@ export function StatusPill({ status, className = "", customLabel, title }: Statu
   return (
     <span
       title={title}
-      className={`inline-flex items-center justify-center text-center min-w-[105px] px-2.5 shrink-0 rounded-[3px] py-0.5 font-heading text-[12px] font-semibold uppercase tracking-[0.05em] ${config.className} ${className}`}
+      className={`inline-flex items-center justify-center text-center min-w-[105px] px-2.5 shrink-0 rounded-[3px] py-0.5 text-[12px] font-semibold ${config.className} ${className}`}
     >
       {label}
     </span>

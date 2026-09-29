@@ -20,7 +20,7 @@ export function ProcurementHealthCard({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Truck className="w-4 h-4 text-galla-teal" />
-            <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+            <h3 className="text-[15px] font-bold text-galla-ink">
               Procurement Cash Flow &amp; Dealer Balances
             </h3>
           </div>
@@ -34,16 +34,16 @@ export function ProcurementHealthCard({
         {/* Total Wholesale Restock Spend */}
         <div className="p-4 rounded-[5px] bg-galla-paper border border-galla-line flex flex-col justify-between">
           <div className="flex items-center justify-between text-galla-ink-soft mb-2">
-            <span className="font-sans text-[11px] uppercase tracking-wider font-semibold">
+            <span className="font-sans text-[12px] font-medium text-galla-ink-soft">
               Restock Outflow
             </span>
             <Receipt className="w-4 h-4 text-galla-brick" />
           </div>
           <div>
-            <div className="font-heading font-semibold text-[22px] text-galla-ink tabular-nums">
+            <div className="font-semibold text-[20px] text-galla-ink tabular-nums">
               {formatRupee(procurement.totalPOSpend)}
             </div>
-            <div className="font-sans text-[11px] text-galla-ink-soft mt-1">
+            <div className="font-sans text-[11px] text-galla-ink-soft mt-1 tabular-nums">
               {procurement.purchaseOrdersCount} purchase bills in {rangeLabel}
             </div>
           </div>
@@ -52,13 +52,13 @@ export function ProcurementHealthCard({
         {/* Outstanding Dues Owed to Suppliers */}
         <div className="p-4 rounded-[5px] bg-galla-paper border border-galla-line flex flex-col justify-between">
           <div className="flex items-center justify-between text-galla-ink-soft mb-2">
-            <span className="font-sans text-[11px] uppercase tracking-wider font-semibold">
+            <span className="font-sans text-[12px] font-medium text-galla-ink-soft">
               Pending Dealer Dues
             </span>
             <CreditCard className="w-4 h-4 text-galla-brick" />
           </div>
           <div>
-            <div className="font-heading font-semibold text-[22px] text-galla-brick tabular-nums">
+            <div className="font-semibold text-[20px] text-galla-brick tabular-nums">
               {formatRupee(procurement.totalPendingDealerDues)}
             </div>
             <div className="font-sans text-[11px] text-galla-ink-soft mt-1">
@@ -70,13 +70,13 @@ export function ProcurementHealthCard({
         {/* Return Credit Balances with Suppliers */}
         <div className="p-4 rounded-[5px] bg-galla-paper border border-galla-line flex flex-col justify-between">
           <div className="flex items-center justify-between text-galla-ink-soft mb-2">
-            <span className="font-sans text-[11px] uppercase tracking-wider font-semibold">
+            <span className="font-sans text-[12px] font-medium text-galla-ink-soft">
               Dealer Return Credits
             </span>
             <Receipt className="w-4 h-4 text-galla-sage" />
           </div>
           <div>
-            <div className="font-heading font-semibold text-[22px] text-galla-sage tabular-nums">
+            <div className="font-semibold text-[20px] text-galla-sage tabular-nums">
               {formatRupee(procurement.totalSupplierCredits)}
             </div>
             <div className="font-sans text-[11px] text-galla-ink-soft mt-1">
@@ -88,14 +88,14 @@ export function ProcurementHealthCard({
         {/* Net Dealer Position */}
         <div className="p-4 rounded-[5px] bg-galla-paper border border-galla-line flex flex-col justify-between">
           <div className="flex items-center justify-between text-galla-ink-soft mb-2">
-            <span className="font-sans text-[11px] uppercase tracking-wider font-semibold">
+            <span className="font-sans text-[12px] font-medium text-galla-ink-soft">
               Net Dealer Position
             </span>
             <Scale className="w-4 h-4 text-galla-teal" />
           </div>
           <div>
             <div
-              className={`font-heading font-semibold text-[22px] tabular-nums ${
+              className={`font-semibold text-[20px] tabular-nums ${
                 procurement.netDealerBalance > 0
                   ? "text-galla-brick"
                   : procurement.netDealerBalance < 0

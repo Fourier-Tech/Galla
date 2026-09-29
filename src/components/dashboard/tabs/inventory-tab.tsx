@@ -431,10 +431,10 @@ export function InventoryTab({
       {/* Header & Main Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+          <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
             Retail &amp; Salon Inventory
           </h2>
-          <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
+          <p className="text-[13px] font-normal text-galla-ink-soft mt-0.5">
             Dual split stock: Retail for customer sale &bull; Internal consumption for treatments
           </p>
         </div>
@@ -551,8 +551,8 @@ export function InventoryTab({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[920px]">
             <thead>
-              <tr className="border-b border-galla-line bg-galla-paper/70 font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
-                <th className="w-[24%] py-3.5 pl-6 pr-4 text-left font-semibold">Product</th>
+              <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
+                <th className="w-[24%] py-3.5 pl-6 pr-4 text-left font-medium">Product</th>
                 <th className="w-[18%] py-3.5 px-4 text-left font-semibold">Category</th>
                 <th className="w-[12%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Purchase Price</th>
                 <th className="w-[11%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Sell Price</th>
@@ -594,12 +594,12 @@ export function InventoryTab({
                             {product.name}
                           </span>
                           {product.name.includes("(Old)") && (
-                            <span className="text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                            <span className="text-[11px] font-normal px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
                               Old Batch
                             </span>
                           )}
                           {product.name.includes("(New)") && (
-                            <span className="text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                            <span className="text-[11px] font-normal px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
                               New Batch
                             </span>
                           )}
@@ -629,17 +629,17 @@ export function InventoryTab({
                       </td>
 
                       {/* Purchase Price */}
-                      <td className="py-3.5 px-4 text-right align-middle font-heading font-normal text-[14px] text-galla-ink-soft tabular-nums whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-right align-middle font-normal text-[14px] text-galla-ink-soft tabular-nums whitespace-nowrap">
                         {formatRupee(product.purchaseCost || 0)}
                       </td>
 
                       {/* Sell Price & Margin */}
                       <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
-                        <div className="font-heading font-semibold text-[14.5px] text-galla-ink tabular-nums">
+                        <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                           {formatRupee(product.price)}
                         </div>
                         {product.purchaseCost !== undefined && (
-                          <div className="text-[11px] font-mono text-emerald-700 font-medium tabular-nums mt-0.5">
+                          <div className="text-[11px] text-emerald-700 font-medium tabular-nums mt-0.5">
                             +{formatRupee(Math.max(0, product.price - (product.purchaseCost || 0)))} (
                             {product.price > 0
                               ? Math.round(
@@ -663,7 +663,7 @@ export function InventoryTab({
                               {product.sell} pcs
                             </span>
                             {isLowStock && (
-                              <span className="bg-red-50 text-red-800 border border-red-200 text-[10px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-[3px]">
+                              <span className="bg-red-50 text-red-800 border border-red-200 text-[10px] font-medium px-1.5 py-0.5 rounded-[3px]">
                                 Low
                               </span>
                             )}

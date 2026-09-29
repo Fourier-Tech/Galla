@@ -123,11 +123,11 @@ export function SettleReplacementModal({
               <RotateCcw className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-heading font-semibold text-[15px] text-galla-ink leading-tight truncate">
+              <h2 className="text-[15px] font-bold text-galla-ink leading-tight truncate">
                 Settle Dealer Replacement
               </h2>
               <p className="font-sans text-[11px] text-galla-ink-soft truncate">
-                {product.name} &bull; {maxDefective} defective unit{maxDefective !== 1 ? "s" : ""} pending
+                {product.name} &bull; <span className="tabular-nums">{maxDefective}</span> defective unit{maxDefective !== 1 ? "s" : ""} pending
               </p>
             </div>
           </div>
@@ -149,16 +149,16 @@ export function SettleReplacementModal({
               <div className="min-w-0">
                 <div className="font-sans text-[12.5px] font-medium text-galla-ink truncate">{product.name}</div>
                 <div className="font-sans text-[10.5px] text-galla-ink-soft">
-                  Retail: <span className="font-mono text-galla-ink font-medium">{product.sell}</span> &bull; Salon Use: <span className="font-mono text-galla-ink font-medium">{product.use}</span>
+                  Retail: <span className="font-sans tabular-nums text-galla-ink font-medium">{product.sell}</span> &bull; Salon Use: <span className="font-sans tabular-nums text-galla-ink font-medium">{product.use}</span>
                 </div>
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="inline-flex items-center gap-1 bg-rose-50 text-rose-800 border border-rose-200 text-[11px] font-heading font-semibold uppercase tracking-wider px-2 py-0.5 rounded-[4px]">
-                {maxDefective} Defective
+              <div className="inline-flex items-center gap-1 bg-rose-50 text-rose-800 border border-rose-200 text-[11px] font-semibold px-2 py-0.5 rounded-[4px]">
+                <span className="tabular-nums">{maxDefective}</span> Defective
               </div>
               {product.purchaseCost !== undefined && product.purchaseCost > 0 && (
-                <div className="font-mono text-[10.5px] text-galla-ink-soft mt-0.5">
+                <div className="font-sans tabular-nums text-[10.5px] text-galla-ink-soft mt-0.5">
                   Cost: {formatRupee(product.purchaseCost)}/pc
                 </div>
               )}
@@ -168,7 +168,7 @@ export function SettleReplacementModal({
           {/* Quantity Section */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+              <label className="text-[12px] font-medium text-galla-ink">
                 Quantity to Settle
               </label>
               <div className="flex items-center gap-1.5">
@@ -183,7 +183,7 @@ export function SettleReplacementModal({
                 <button
                   type="button"
                   onClick={() => setQuantity(String(maxDefective))}
-                  className="font-sans text-[10.5px] text-galla-teal hover:underline cursor-pointer font-medium"
+                  className="font-sans text-[10.5px] text-galla-teal hover:underline cursor-pointer font-medium tabular-nums"
                 >
                   All ({maxDefective})
                 </button>
@@ -195,14 +195,14 @@ export function SettleReplacementModal({
               max={maxDefective}
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-mono text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              className="w-full h-8 px-2.5 bg-galla-surface border border-galla-line rounded-[5px] font-sans tabular-nums text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
               required
             />
           </div>
 
           {/* Resolution Type */}
           <div>
-            <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               How did the dealer resolve this?
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -216,7 +216,7 @@ export function SettleReplacementModal({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-heading text-[12px] font-semibold">New Stock Replaced</span>
+                  <span className="text-[12px] font-semibold">New Stock Replaced</span>
                   {resolutionType === "replace_stock" && <CheckCircle2 className="h-3.5 w-3.5 text-galla-teal" />}
                 </div>
                 <div className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
@@ -234,7 +234,7 @@ export function SettleReplacementModal({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-heading text-[12px] font-semibold">Dealer Credit / Refund</span>
+                  <span className="text-[12px] font-semibold">Dealer Credit / Refund</span>
                   {resolutionType === "credit_refund" && <CheckCircle2 className="h-3.5 w-3.5 text-rose-600" />}
                 </div>
                 <div className="font-sans text-[10.5px] text-galla-ink-soft mt-0.5">
@@ -247,7 +247,7 @@ export function SettleReplacementModal({
           {/* Conditional Options: Replace Stock */}
           {resolutionType === "replace_stock" ? (
             <div className="p-3 bg-galla-paper/40 border border-galla-line/80 rounded-[5px] space-y-2">
-              <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+              <label className="block text-[12px] font-medium text-galla-ink">
                 Add Replacement Items Into
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -288,7 +288,7 @@ export function SettleReplacementModal({
               <PaymentModeSelect
                 label="Credit / Refund Mode"
                 badge={
-                  <span className="font-mono text-[12px] font-semibold text-rose-700">
+                  <span className="font-sans text-[12px] font-semibold text-rose-700 tabular-nums">
                     Total: {formatRupee(estimatedCost)}
                   </span>
                 }
@@ -323,7 +323,7 @@ export function SettleReplacementModal({
           {/* Mandatory PO Selection */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider">
+              <label className="text-[12px] font-medium text-galla-ink">
                 Link to Original Purchase Bill <span className="text-red-600">*</span>
               </label>
               <span className="font-sans text-[10.5px] text-galla-ink-soft">
@@ -367,7 +367,7 @@ export function SettleReplacementModal({
 
           {/* Notes */}
           <div>
-            <label className="block font-heading text-[11px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Settlement Notes (Optional)
             </label>
             <input
@@ -400,7 +400,7 @@ export function SettleReplacementModal({
             <button
               type="submit"
               disabled={isSubmitting || !isValidQty || !selectedPOId}
-              className="h-8 px-4 rounded-[5px] bg-galla-teal text-white text-[12px] font-heading font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="h-8 px-4 rounded-[5px] bg-galla-teal text-white text-[12px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               {isSubmitting ? (
                 <>

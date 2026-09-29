@@ -437,11 +437,11 @@ export function PurchaseBillDetailsModal({
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-heading font-bold text-[18px] text-galla-ink tracking-tight">
+                <h2 className="text-[15px] font-bold text-galla-ink">
                   Bill {formatDisplayNumber(bill.purchaseOrderNumber)}
                 </h2>
                 <span
-                  className={`inline-flex items-center gap-1 text-[11px] font-sans px-2 py-0.5 rounded-[4px] border font-medium uppercase tracking-wider ${
+                  className={`inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-[4px] border font-semibold ${
                     isPaid
                       ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                       : isPartial
@@ -462,7 +462,7 @@ export function PurchaseBillDetailsModal({
                         : "Unpaid"}
                   </span>
                 </span>
-                <span className="font-sans font-semibold text-[13px] text-galla-ink-soft">
+                <span className="font-semibold tabular-nums text-[13px] text-galla-ink-soft">
                   {formatRupee(originalBillAmount)}
                 </span>
               </div>
@@ -493,7 +493,7 @@ export function PurchaseBillDetailsModal({
           {/* Supplier Card */}
           <div className="p-3.5 bg-galla-paper/50 border border-galla-line rounded-[8px] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-galla-ink font-heading font-semibold text-[15px] shrink-0">
+              <div className="h-10 w-10 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-galla-ink font-semibold text-[15px] shrink-0">
                 {initials}
               </div>
               <div>
@@ -510,7 +510,7 @@ export function PurchaseBillDetailsModal({
                   )}
                 </div>
                 {bill.supplierPhone ? (
-                  <div className="font-mono text-[12.5px] text-galla-ink-soft mt-0.5">
+                  <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5">
                     {formatPhoneNumber(bill.supplierPhone)}
                   </div>
                 ) : (
@@ -553,7 +553,7 @@ export function PurchaseBillDetailsModal({
             <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] flex items-start gap-2.5">
               <Calendar className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <span className="block text-[11px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
+                <span className="block text-[12px] font-medium text-galla-ink-soft">
                   Stock In Date &amp; Time
                 </span>
                 <span className="text-[12.5px] font-medium text-galla-ink mt-0.5 block">
@@ -581,10 +581,10 @@ export function PurchaseBillDetailsModal({
                 <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[11px] font-heading uppercase tracking-wider font-semibold text-emerald-900">
+                    <span className="block text-[12px] font-medium text-emerald-900">
                       Payment Status
                     </span>
-                    <span className="text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
                       Done
                     </span>
                   </div>
@@ -603,10 +603,10 @@ export function PurchaseBillDetailsModal({
                 <Clock className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[11px] font-heading uppercase tracking-wider font-semibold text-amber-900">
+                    <span className="block text-[12px] font-medium text-amber-900">
                       Payment Status
                     </span>
-                    <span className="text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
+                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
                       Pending
                     </span>
                   </div>
@@ -625,10 +625,10 @@ export function PurchaseBillDetailsModal({
                 <AlertCircle className="h-4 w-4 text-rose-700 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[11px] font-heading uppercase tracking-wider font-semibold text-rose-900">
+                    <span className="block text-[12px] font-medium text-rose-900">
                       Payment Status
                     </span>
-                    <span className="text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
+                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
                       Credit
                     </span>
                   </div>
@@ -690,7 +690,7 @@ export function PurchaseBillDetailsModal({
               return (
                 <div className="p-3 bg-galla-paper/40 border border-galla-line rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px]">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-heading uppercase tracking-wider text-[11px] font-semibold text-galla-ink-soft">
+                    <span className="text-[12px] font-medium text-galla-ink-soft">
                       Settlement Mode:
                     </span>
                     <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-galla-surface border border-galla-line text-galla-ink">
@@ -810,7 +810,7 @@ export function PurchaseBillDetailsModal({
           {/* Stock In Items Breakdown ("What we buy from supplier with Price, Qty, Total and Final Total") */}
           <div className="border border-galla-line rounded-[8px] overflow-hidden bg-galla-surface shadow-2xs">
             <div className="px-4 py-2.5 bg-galla-paper/60 border-b border-galla-line flex items-center justify-between">
-              <span className="font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft">
+              <span className="text-[12px] font-semibold text-galla-ink-soft">
                 Products Purchased ({bill.items?.length || bill.itemsCount || 1}
                 )
               </span>
@@ -870,12 +870,12 @@ export function PurchaseBillDetailsModal({
                               {item.productName}
                             </span>
                             {returnedQty > 0 && (
-                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
+                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
                                 {returnedQty} Returned
                               </span>
                             )}
                             {replacedQty > 0 && (
-                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 ml-1">
+                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 ml-1">
                                 {replacedQty} Replaced
                               </span>
                             )}
@@ -886,7 +886,7 @@ export function PurchaseBillDetailsModal({
                               <span className="text-galla-ink-soft text-[11px]">
                                 Price:
                               </span>
-                              <strong className="font-mono text-galla-ink">
+                              <strong className="tabular-nums text-galla-ink">
                                 {formatRupee(item.purchaseCost)}
                               </strong>
                             </span>
@@ -895,7 +895,7 @@ export function PurchaseBillDetailsModal({
                               <span className="text-galla-ink-soft text-[11px]">
                                 Qty:
                               </span>
-                              <strong className="font-mono text-galla-ink">
+                              <strong className="tabular-nums text-galla-ink">
                                 {purchasedQty} pcs
                               </strong>
                             </span>
@@ -913,13 +913,13 @@ export function PurchaseBillDetailsModal({
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div className="text-[11px] text-galla-ink-soft uppercase font-heading font-semibold tracking-wider">
+                          <div className="text-[11px] text-galla-ink-soft font-medium">
                             Total
                           </div>
-                          <div className="font-heading font-bold text-[14.5px] text-galla-ink tabular-nums">
+                          <div className="text-[15px] font-semibold text-galla-ink tabular-nums">
                             {formatRupee(purchasedQty * item.purchaseCost)}
                           </div>
-                          <div className="text-[11.5px] text-galla-ink-soft font-mono">
+                          <div className="text-[11.5px] text-galla-ink-soft tabular-nums">
                             {purchasedQty} &times;{" "}
                             {formatRupee(item.purchaseCost)}
                           </div>
@@ -933,13 +933,13 @@ export function PurchaseBillDetailsModal({
                 {hasMultipleProducts && (
                   <div className="px-4 py-3 bg-galla-paper/80 border-t border-galla-line flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-heading font-bold text-[12.5px] uppercase tracking-wider text-galla-ink">
+                      <span className="text-[13px] font-semibold text-galla-ink">
                         Final Total ({bill.items.length} Products &bull;{" "}
                         {totalUnits} Units)
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="font-heading font-bold text-[15px] text-galla-ink tabular-nums">
+                      <span className="text-[15px] font-bold text-galla-ink tabular-nums">
                         {formatRupee(itemsTotalCost || bill.totalAmount)}
                       </span>
                     </div>
@@ -949,7 +949,7 @@ export function PurchaseBillDetailsModal({
             ) : (
               <div className="p-4 text-[13px] text-galla-ink-soft flex items-center justify-between">
                 <span>Stock In Products</span>
-                <span className="font-heading font-semibold text-galla-ink tabular-nums">
+                <span className="text-[15px] font-semibold text-galla-ink tabular-nums">
                   {formatRupee(itemsTotalCost)}
                 </span>
               </div>
@@ -958,22 +958,22 @@ export function PurchaseBillDetailsModal({
 
           {/* Payment & Financial Summary (With Detailed Payment Breakdown) */}
           <div className="p-4 bg-galla-paper/40 border border-galla-line rounded-[8px] space-y-2">
-            <span className="block font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
+            <span className="block text-[12px] font-semibold text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
               Payment &amp; Financial Summary
             </span>
 
             {hasMultipleProducts && (
               <div className="flex justify-between text-[13px] text-galla-ink-soft">
                 <span>Products Subtotal ({bill.items!.length} items):</span>
-                <span className="tabular-nums font-mono">
+                <span className="tabular-nums font-medium">
                   {formatRupee(itemsTotalCost)}
                 </span>
               </div>
             )}
 
-            <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
+            <div className="flex justify-between text-[15px] font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
               <span>Total Bill Amount:</span>
-              <span className="tabular-nums text-[16px]">
+              <span className="tabular-nums font-bold text-[17px]">
                 {formatRupee(originalBillAmount)}
               </span>
             </div>
@@ -983,12 +983,12 @@ export function PurchaseBillDetailsModal({
                 <Wallet className="h-3.5 w-3.5" />
                 <span>Amount Paid:</span>
                 {bill.paymentMode && (
-                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                     {bill.paymentMode}
                   </span>
                 )}
               </span>
-              <span className="tabular-nums font-mono">
+              <span className="tabular-nums font-semibold">
                 {formatRupee(originalAmountPaid || bill.amountPaid)}
               </span>
             </div>
@@ -996,7 +996,7 @@ export function PurchaseBillDetailsModal({
             {Boolean(bill.ledgerAdjustment) && bill.ledgerAdjustment !== 0 && (
               <div className="flex justify-between text-[13px] text-blue-700 font-medium pt-0.5">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="uppercase text-[9.5px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
                     Ledger Adjustment
                   </span>
                   <span>
@@ -1005,7 +1005,7 @@ export function PurchaseBillDetailsModal({
                       : "Old Dues Paid:"}
                   </span>
                 </span>
-                <span className="tabular-nums font-mono">
+                <span className="tabular-nums font-semibold">
                   {formatRupee(Math.abs(bill.ledgerAdjustment!))}
                 </span>
               </div>
@@ -1017,7 +1017,7 @@ export function PurchaseBillDetailsModal({
                   <AlertCircle className="h-3.5 w-3.5" />
                   <span>Remaining Price to be Paid:</span>
                 </span>
-                <span className="tabular-nums font-mono text-[15px]">
+                <span className="tabular-nums font-bold text-[15px]">
                   {formatRupee(dueAmount)}
                 </span>
               </div>
@@ -1034,7 +1034,7 @@ export function PurchaseBillDetailsModal({
             {/* Payment History Log (e.g. half payment done by cash and due done by UPI, with date & time) */}
             {resolvedPayments.length > 0 && (
               <div className="pt-2 border-t border-galla-line/60 space-y-1.5">
-                <span className="text-[11px] font-heading uppercase tracking-wider text-galla-ink-soft block font-semibold">
+                <span className="text-[12px] font-semibold text-galla-ink-soft block">
                   Payment History ({resolvedPayments.length})
                 </span>
                 <div className="space-y-1">
@@ -1058,7 +1058,7 @@ export function PurchaseBillDetailsModal({
                         <div className="flex items-center justify-between text-[11.5px] px-2.5 py-1.5 text-galla-ink-soft">
                           <div className="flex items-center gap-2">
                             <span
-                              className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border shrink-0 ${badge.style}`}
+                              className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${badge.style}`}
                             >
                               {badge.label}
                             </span>
@@ -1099,7 +1099,7 @@ export function PurchaseBillDetailsModal({
                               {p.recordedBy ? ` (${p.recordedBy})` : ""}
                             </span>
                           </div>
-                          <span className="font-mono text-[11px] text-galla-ink-soft/75">
+                          <span className="tabular-nums text-[11px] text-galla-ink-soft/75">
                             {formatDateTime(p.recordedAt) ||
                               formatDateTime(bill.createdAt)}
                           </span>
@@ -1121,7 +1121,7 @@ export function PurchaseBillDetailsModal({
           {hasReturns && (
             <div className="p-3.5 bg-rose-50/50 border border-rose-200/80 rounded-[8px] space-y-2.5">
               <div className="flex items-center justify-between border-b border-rose-200/60 pb-2">
-                <span className="text-[12px] font-heading uppercase tracking-wider text-rose-900 font-bold flex items-center gap-1.5">
+                <span className="text-[12px] text-rose-900 font-bold flex items-center gap-1.5">
                   <RotateCcw className="h-4 w-4 text-rose-700" />
                   <span>Item Returns &amp; Replacements ({returnEvents.length})</span>
                 </span>
@@ -1182,17 +1182,17 @@ export function PurchaseBillDetailsModal({
                             {ret.quantity}x {ret.productName}
                           </span>
                           <span
-                            className={`text-[10px] font-heading font-semibold uppercase tracking-wider px-2 py-0.5 rounded border ${stockTypeBadge.style}`}
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${stockTypeBadge.style}`}
                           >
                             {stockTypeBadge.label}
                           </span>
                           {ret.returnNumber && (
-                            <span className="text-[10.5px] text-galla-ink-soft font-mono">
+                            <span className="text-[11px] text-galla-ink-soft tabular-nums">
                               #{ret.returnNumber}
                             </span>
                           )}
                         </div>
-                        <span className="font-mono text-[11px] text-galla-ink-soft shrink-0">
+                        <span className="tabular-nums text-[11px] text-galla-ink-soft shrink-0">
                           {ret.returnedAt ? formatDateTime(ret.returnedAt) : ""}
                         </span>
                       </div>
@@ -1222,7 +1222,7 @@ export function PurchaseBillDetailsModal({
                         {ret.unitCost > 0 && (
                           <span>
                             &bull; Value:{" "}
-                            <span className="font-mono font-medium text-galla-ink">
+                            <span className="tabular-nums font-medium text-galla-ink">
                               {formatRupee(
                                 ret.totalRefundAmount ||
                                   ret.quantity * ret.unitCost,

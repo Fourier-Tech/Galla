@@ -152,7 +152,7 @@ function SettlePurchaseBillModalContent({
               {isZeroDue ? <PackageCheck className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
             </div>
             <div>
-              <h3 className="font-heading font-semibold text-[17px] text-galla-ink">
+              <h3 className="text-[15px] font-bold text-galla-ink">
                 {isZeroDue ? "Settle Purchase Order" : "Settle Purchase Bill"}
               </h3>
               <p className="font-sans text-[12px] text-galla-ink-soft">
@@ -213,7 +213,7 @@ function SettlePurchaseBillModalContent({
           {/* Editable Payment Amount Input */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+                  <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                     Payment to Record Now (₹)
                   </label>
                   <div className="flex items-center gap-2">
@@ -271,7 +271,7 @@ function SettlePurchaseBillModalContent({
 
           {/* Notes / Reference */}
           <div>
-            <label className="block font-heading text-[11.5px] font-semibold text-galla-ink uppercase tracking-wider mb-1.5">
+            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Settlement Notes / Remarks (Optional)
             </label>
             <input

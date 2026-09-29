@@ -413,17 +413,17 @@ export function OrdersTab({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="font-heading font-semibold text-[21px] tracking-[-0.015em] text-galla-ink">
+          <h2 className="text-[24px] font-bold tracking-[-0.01em] text-galla-ink">
             Orders &amp; Service Transactions
           </h2>
-          <p className="font-sans text-[13px] text-galla-ink-soft mt-0.5">
+          <p className="text-[13px] font-normal text-galla-ink-soft mt-0.5">
             Full ledger of counter sales, advance deposits &amp; settlements
           </p>
         </div>
 
         <button
           onClick={onOpenNewOrder}
-          className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[14px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer shrink-0"
+          className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white text-[15px] font-normal px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer shrink-0"
         >
           <Plus className="h-4 w-4" />
           <span>New Order</span>
@@ -440,7 +440,7 @@ export function OrdersTab({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search order, customer, service..."
-            className="w-full bg-transparent font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 outline-none"
+            className="w-full bg-transparent text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 outline-none"
           />
           {searchQuery && (
             <button
@@ -457,24 +457,24 @@ export function OrdersTab({
         {/* Date Range & Sort Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Date Range Inputs */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink text-[12.5px] font-sans shadow-xs focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] bg-galla-surface border border-galla-line text-galla-ink text-[12px] shadow-xs focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all">
             <Calendar className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
-            <span className="text-[10.5px] font-semibold uppercase text-galla-ink-soft tracking-wider">From</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft">From</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-galla-ink text-[12px] font-sans outline-none cursor-pointer"
+              className="bg-transparent text-galla-ink text-[12px] outline-none cursor-pointer tabular-nums"
               title="Filter from date (e.g. 1st September)"
             />
-            <span className="text-[10.5px] font-semibold text-galla-ink-soft/70">&ndash;</span>
-            <span className="text-[10.5px] font-semibold uppercase text-galla-ink-soft tracking-wider">To</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft/70">&ndash;</span>
+            <span className="text-[11px] font-medium text-galla-ink-soft">To</span>
             <input
               type="date"
               value={endDate}
               min={startDate || undefined}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent text-galla-ink text-[12px] font-sans outline-none cursor-pointer"
+              className="bg-transparent text-galla-ink text-[12px] outline-none cursor-pointer tabular-nums"
               title="Filter to date (e.g. 15th September)"
             />
             {(startDate || endDate) && (
@@ -604,7 +604,7 @@ export function OrdersTab({
         <div className="overflow-x-auto">
           <div className="min-w-[920px]">
             {/* Table Header */}
-            <div className="grid grid-cols-[115px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line font-heading text-[11px] font-semibold text-galla-ink-soft uppercase tracking-[0.06em]">
+            <div className="grid grid-cols-[115px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line text-[12px] font-medium text-galla-ink-soft">
               <span>Order</span>
               <span>Customer &amp; Service</span>
               <span className="text-right">Settlement</span>
@@ -636,16 +636,16 @@ export function OrdersTab({
                     onClick={() => setSelectedOrderDetails(order)}
                     className="grid grid-cols-[115px_minmax(200px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[16px] hover:bg-galla-paper/50 transition-colors cursor-pointer"
                   >
-                    <span className="font-mono text-[13px] text-galla-ink-soft">
+                    <span className="tabular-nums text-[13px] font-normal text-galla-ink-soft">
                       {formatDisplayNumber(order.id)}
                     </span>
 
                     <div className="min-w-0 pr-4">
-                      <div className="font-sans font-semibold text-[15px] text-galla-ink leading-snug truncate">
+                      <div className="font-semibold text-[15px] text-galla-ink leading-snug truncate">
                         {order.customer}
                       </div>
                       {order.customerPhone && (
-                        <div className="font-mono text-[12px] text-galla-ink-soft/90 mt-0.5 truncate">
+                        <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5 truncate">
                           <a
                             href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
                             onClick={(e) => e.stopPropagation()}
@@ -670,7 +670,7 @@ export function OrdersTab({
                           className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
                           title={`Note: ${order.notes}`}
                         >
-                          <span className="font-bold not-italic text-[9.5px] uppercase tracking-wider bg-amber-200 text-amber-950 px-1 py-0.2 rounded shrink-0">
+                          <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                             Note
                           </span>
                           <span className="truncate font-medium">{order.notes}</span>
@@ -1037,7 +1037,7 @@ export function OrdersTab({
 
                       return (
                         <div className="text-right">
-                          <div className="font-heading font-semibold text-[15.5px] text-galla-ink tabular-nums">
+                          <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                             {formatRupee(effectiveOrderAmount)}
                           </div>
                           {order.status === "cancelled_refunded" ? (
@@ -1046,7 +1046,7 @@ export function OrdersTab({
                                 <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
                                   <span>{formatRupee(order.advanceAmount)} adv. paid</span>
                                   {(order.advancePaymentMode || order.paymentMode) && (
-                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                       {order.advancePaymentMode || order.paymentMode}
                                     </span>
                                   )}
@@ -1059,7 +1059,7 @@ export function OrdersTab({
                                     : "Refunded"}
                                 </span>
                                 {order.refundMode && (
-                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {order.refundMode}
                                   </span>
                                 )}
@@ -1085,7 +1085,7 @@ export function OrdersTab({
                                       : "paid"}
                                   </span>
                                   {order.paymentMode && (
-                                    <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                       {order.paymentMode}
                                     </span>
                                   )}
@@ -1100,7 +1100,7 @@ export function OrdersTab({
                               <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
                                 <span>{formatRupee(order.advanceAmount)} adv.</span>
                                 {order.advancePaymentMode && (
-                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {order.advancePaymentMode}
                                   </span>
                                 )}
@@ -1108,7 +1108,7 @@ export function OrdersTab({
                               <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
                                 <span>{formatRupee(effectiveOrderAmount - order.advanceAmount)} settled</span>
                                 {order.paymentMode && (
-                                  <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {order.paymentMode}
                                   </span>
                                 )}
@@ -1118,7 +1118,7 @@ export function OrdersTab({
                             <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
                               <span>Settled</span>
                               {order.paymentMode && (
-                                <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                   {order.paymentMode}
                                 </span>
                               )}

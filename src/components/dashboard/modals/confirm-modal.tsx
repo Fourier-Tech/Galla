@@ -53,7 +53,7 @@ export function ConfirmModal({
             </div>
             <h3
               id="confirm-modal-title"
-              className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight"
+              className="text-[15px] font-bold text-galla-ink"
             >
               {title}
             </h3>

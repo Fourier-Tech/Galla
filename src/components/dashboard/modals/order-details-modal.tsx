@@ -261,7 +261,7 @@ export function OrderDetailsModal({
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-heading font-bold text-[18px] text-galla-ink tracking-tight">
+                <h2 className="text-[15px] font-bold text-galla-ink">
                   Order {formatDisplayNumber(order.id)}
                 </h2>
                 <StatusPill status={order.status} />
@@ -273,7 +273,7 @@ export function OrderDetailsModal({
                     </span>
                   </span>
                 ) : (
-                  <span className="font-sans font-semibold text-[13px] text-galla-ink-soft">
+                  <span className="font-semibold tabular-nums text-[13px] text-galla-ink-soft">
                     {formatRupee(originalBillAmount)}
                   </span>
                 )}
@@ -299,7 +299,7 @@ export function OrderDetailsModal({
           {/* Customer & Quick Contact Card */}
           <div className="p-3.5 bg-galla-paper/50 border border-galla-line rounded-[8px] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-galla-ink font-heading font-semibold text-[15px] shrink-0">
+              <div className="h-10 w-10 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-galla-ink font-semibold text-[15px] shrink-0">
                 {order.customer.slice(0, 1).toUpperCase()}
               </div>
               <div>
@@ -310,7 +310,7 @@ export function OrderDetailsModal({
                   </span>
                 </div>
                 {order.customerPhone ? (
-                  <div className="font-mono text-[12.5px] text-galla-ink-soft mt-0.5">
+                  <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5">
                     {formatPhoneNumber(order.customerPhone)}
                   </div>
                 ) : (
@@ -353,7 +353,7 @@ export function OrderDetailsModal({
             <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] flex items-start gap-2.5">
               <Calendar className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
               <div>
-                <span className="block text-[11px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
+                <span className="block text-[12px] font-medium text-galla-ink-soft">
                   Order Placed
                 </span>
                 <span className="text-[12.5px] font-medium text-galla-ink mt-0.5 block">
@@ -373,14 +373,14 @@ export function OrderDetailsModal({
                 <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[11px] font-heading uppercase tracking-wider font-semibold text-emerald-900">
+                    <span className="block text-[12px] font-medium text-emerald-900">
                       {order.scheduledFor
                         ? order.type === "Product sale"
                           ? "Picked Up (Completed)"
                           : "Appointment Slot (Completed)"
                         : "Completed & Settled"}
                     </span>
-                    <span className="text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
                       Done
                     </span>
                   </div>
@@ -394,10 +394,10 @@ export function OrderDetailsModal({
                 <RotateCcw className="h-4 w-4 text-rose-700 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[11px] font-heading uppercase tracking-wider font-semibold text-rose-900">
+                    <span className="block text-[12px] font-medium text-rose-900">
                       Order Refunded
                     </span>
-                    <span className="text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
+                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
                       Refunded
                     </span>
                   </div>
@@ -422,7 +422,7 @@ export function OrderDetailsModal({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span
-                      className={`block text-[11px] font-heading uppercase tracking-wider font-semibold ${
+                      className={`block text-[12px] font-medium ${
                         isReplacement && isTomorrow ? "text-rose-900" : "text-amber-900"
                       }`}
                     >
@@ -435,7 +435,7 @@ export function OrderDetailsModal({
                         : "Appointment Slot"}
                     </span>
                     <span
-                      className={`text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded border ${
+                      className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
                         isReplacement && isTomorrow
                           ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
                           : "bg-amber-100 text-amber-800 border-amber-300/80"
@@ -459,10 +459,10 @@ export function OrderDetailsModal({
                 <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[11px] font-heading uppercase tracking-wider font-semibold text-amber-900">
+                    <span className="block text-[12px] font-medium text-amber-900">
                       Payment Due
                     </span>
-                    <span className="text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
+                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
                       Pending
                     </span>
                   </div>
@@ -475,7 +475,7 @@ export function OrderDetailsModal({
               <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] flex items-start gap-2.5">
                 <Clock className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-heading uppercase tracking-wider text-galla-ink-soft font-semibold">
+                  <span className="block text-[12px] font-medium text-galla-ink-soft">
                     Last Activity
                   </span>
                   <span className="text-[12.5px] font-medium text-galla-ink mt-0.5 block">
@@ -489,7 +489,7 @@ export function OrderDetailsModal({
           {/* Items Purchased ("What they buy") */}
           <div className="border border-galla-line rounded-[8px] overflow-hidden bg-galla-surface shadow-2xs">
             <div className="px-4 py-2.5 bg-galla-paper/60 border-b border-galla-line flex items-center justify-between">
-              <span className="font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft">
+              <span className="text-[12px] font-semibold text-galla-ink-soft">
                 Items Purchased ({order.lineItems?.length || (order.itemsSummary ? 1 : 0)})
               </span>
               <span className="text-[11.5px] text-galla-ink-soft font-sans">
@@ -550,12 +550,12 @@ export function OrderDetailsModal({
                               {item.itemType}
                             </span>
                             {returnedQty > 0 && (
-                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
+                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
                                 {returnedQty} Returned
                               </span>
                             )}
                             {replacedQty > 0 && (
-                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 ml-1">
+                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 ml-1">
                                 {replacedQty} Replaced
                               </span>
                             )}
@@ -640,10 +640,10 @@ export function OrderDetailsModal({
                       </div>
 
                       <div className="text-right shrink-0">
-                        <div className="font-heading font-semibold text-[14px] text-galla-ink tabular-nums">
+                        <div className="text-[15px] font-semibold text-galla-ink tabular-nums">
                           {formatRupee(item.unitPrice * (item.quantity || 1))}
                         </div>
-                        <div className="text-[11.5px] text-galla-ink-soft font-mono">
+                        <div className="text-[11.5px] text-galla-ink-soft tabular-nums">
                           {item.quantity} &times; {formatRupee(item.unitPrice)}
                         </div>
                       </div>
@@ -655,13 +655,13 @@ export function OrderDetailsModal({
                 {/* Final Total row just below productwise calculation (matching purchase modal) */}
                 <div className="px-4 py-3 bg-galla-paper/80 border-t border-galla-line flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-heading font-bold text-[12.5px] uppercase tracking-wider text-galla-ink">
+                    <span className="text-[13px] font-semibold text-galla-ink">
                       Total ({order.lineItems.length} {order.lineItems.length === 1 ? "Item" : "Items"} &bull;{" "}
                       {totalUnits} {totalUnits === 1 ? "Unit" : "Units"})
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="font-heading font-bold text-[15px] text-galla-ink tabular-nums">
+                    <span className="text-[15px] font-bold text-galla-ink tabular-nums">
                       {formatRupee(originalSubtotal)}
                     </span>
                   </div>
@@ -672,7 +672,7 @@ export function OrderDetailsModal({
                 {order.itemsSummary ? (
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-galla-ink">{order.itemsSummary}</span>
-                    <span className="font-heading font-semibold text-galla-ink tabular-nums">
+                    <span className="text-[15px] font-semibold text-galla-ink tabular-nums">
                       {formatRupee(order.amount)}
                     </span>
                   </div>
@@ -685,14 +685,14 @@ export function OrderDetailsModal({
 
           {/* Billing & Financial Breakdown */}
           <div className="p-4 bg-galla-paper/40 border border-galla-line rounded-[8px] space-y-2">
-            <span className="block font-heading font-bold text-[12px] uppercase tracking-wider text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
+            <span className="block text-[12px] font-semibold text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
               Payment &amp; Financial Summary
             </span>
 
             {/* 1. Subtotal */}
             <div className="flex justify-between text-[13px] text-galla-ink-soft">
               <span>Subtotal:</span>
-              <span className="tabular-nums font-mono">{formatRupee(originalSubtotal)}</span>
+              <span className="tabular-nums font-medium">{formatRupee(originalSubtotal)}</span>
             </div>
 
             {/* 2. Discount if applicable */}
@@ -701,7 +701,7 @@ export function OrderDetailsModal({
                 <span>
                   Discount {order.discountType === "percentage" ? `(${order.discountValue}%)` : ""}:
                 </span>
-                <span className="tabular-nums font-mono">- {formatRupee(originalDiscountAmount)}</span>
+                <span className="tabular-nums font-medium">- {formatRupee(originalDiscountAmount)}</span>
               </div>
             ) : null}
 
@@ -710,14 +710,14 @@ export function OrderDetailsModal({
                 <span className="inline-flex items-center gap-1.5">
                   <span>Extra Paid:</span>
                 </span>
-                <span className="tabular-nums font-mono">+{formatRupee(extraOnBill)}</span>
+                <span className="tabular-nums font-medium">+{formatRupee(extraOnBill)}</span>
               </div>
             )}
 
             {/* 3. Bill Amount (Amount to be paid) - Fixed */}
-            <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
+            <div className="flex justify-between text-[15px] font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
               <span>Total Bill Amount:</span>
-              <span className="tabular-nums text-[16px]">{formatRupee(originalBillAmount)}</span>
+              <span className="tabular-nums font-bold text-[17px]">{formatRupee(originalBillAmount)}</span>
             </div>
 
             {/* 4. When product return is made: add below bill amount and show full calculation */}
@@ -728,14 +728,14 @@ export function OrderDetailsModal({
                     <RotateCcw className="h-3.5 w-3.5" />
                     <span>Returned Items Deduction:</span>
                   </span>
-                  <span className="tabular-nums font-mono font-semibold">
+                  <span className="tabular-nums font-semibold">
                     - {formatRupee(totalReturnRefundAmount)}
                   </span>
                 </div>
 
-                <div className="flex justify-between text-[14px] font-heading font-semibold text-galla-ink pt-1 border-t border-dashed border-galla-line/60">
+                <div className="flex justify-between text-[15px] font-semibold text-galla-ink pt-1 border-t border-dashed border-galla-line/60">
                   <span>Reduced Bill Amount (New Order Price):</span>
-                  <span className="tabular-nums font-mono text-[15px]">
+                  <span className="tabular-nums font-bold text-[15px]">
                     {formatRupee(netBillAmount)}
                   </span>
                 </div>
@@ -750,7 +750,7 @@ export function OrderDetailsModal({
                     <Wallet className="h-3.5 w-3.5 text-galla-ink-soft" />
                     <span>Amount Collected:</span>
                   </span>
-                  <span className="tabular-nums font-mono">
+                  <span className="tabular-nums font-medium">
                     {formatRupee(totalCollected)}
                   </span>
                 </div>
@@ -760,7 +760,7 @@ export function OrderDetailsModal({
                     <Undo2 className="h-3.5 w-3.5" />
                     <span>Total Refunded:</span>
                   </span>
-                  <span className="tabular-nums font-mono">
+                  <span className="tabular-nums font-medium">
                     - {formatRupee(totalRefunded)}
                   </span>
                 </div>
@@ -771,7 +771,7 @@ export function OrderDetailsModal({
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                       <span>Retained by Shop (Charge / Fee):</span>
                     </span>
-                    <span className="tabular-nums font-mono text-[14px]">+{formatRupee(retainedByShop)}</span>
+                    <span className="tabular-nums font-semibold text-[14px]">+{formatRupee(retainedByShop)}</span>
                   </div>
                 )}
               </>
@@ -782,12 +782,12 @@ export function OrderDetailsModal({
                     <Wallet className="h-3.5 w-3.5" />
                     <span>Amount Paid:</span>
                     {order.paymentMode && (
-                      <span className="uppercase text-[10px] font-semibold tracking-wider px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                         {order.paymentMode}
                       </span>
                     )}
                   </span>
-                  <span className="tabular-nums font-mono">{formatRupee(netAmountPaid)}</span>
+                  <span className="tabular-nums font-semibold">{formatRupee(netAmountPaid)}</span>
                 </div>
 
                 <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
@@ -795,7 +795,7 @@ export function OrderDetailsModal({
                     <AlertCircle className="h-3.5 w-3.5" />
                     <span>Remaining Price to be Paid:</span>
                   </span>
-                  <span className="tabular-nums font-mono text-[15px]">{formatRupee(dueAmount)}</span>
+                  <span className="tabular-nums font-bold text-[15px]">{formatRupee(dueAmount)}</span>
                 </div>
               </>
             ) : (
@@ -805,7 +805,7 @@ export function OrderDetailsModal({
                     <Wallet className="h-3.5 w-3.5" />
                     <span>Amount Paid:</span>
                   </span>
-                  <span className="tabular-nums font-mono font-semibold">
+                  <span className="tabular-nums font-semibold">
                     {formatRupee(netAmountPaid || (hasReturns ? netBillAmount : originalBillAmount))}
                   </span>
                 </div>
@@ -870,7 +870,7 @@ export function OrderDetailsModal({
 
               return (
                 <div className="pt-2 border-t border-galla-line/60 space-y-1.5">
-                  <span className="text-[11px] font-heading uppercase tracking-wider text-galla-ink-soft block font-semibold">
+                  <span className="text-[12px] font-semibold text-galla-ink-soft block">
                     Payment History ({combinedPayments.length})
                   </span>
                   <div className="space-y-1">
@@ -885,7 +885,7 @@ export function OrderDetailsModal({
                           <div className="flex items-center justify-between text-[11.5px] px-2.5 py-1.5 text-galla-ink-soft">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border shrink-0 ${badge.style}`}
+                                className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${badge.style}`}
                               >
                                 {badge.label}
                               </span>
@@ -897,7 +897,7 @@ export function OrderDetailsModal({
                                 {p.recordedBy ? ` (${p.recordedBy})` : ""}
                               </span>
                             </div>
-                            <span className="font-mono text-[11px] text-galla-ink-soft/75">
+                            <span className="tabular-nums text-[11px] text-galla-ink-soft/75">
                               {formatDateTime(p.recordedAt)}
                             </span>
                           </div>
@@ -919,7 +919,7 @@ export function OrderDetailsModal({
           {order.returns && order.returns.length > 0 && (
             <div className="p-3 bg-rose-50/50 border border-rose-200/80 rounded-[6px] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11.5px] font-heading uppercase tracking-wider text-rose-900 font-semibold flex items-center gap-1.5">
+                <span className="text-[12px] text-rose-900 font-bold flex items-center gap-1.5">
                   <RotateCcw className="h-3.5 w-3.5 text-rose-700" />
                   <span>Item Returns &amp; Replacements ({order.returns.length})</span>
                 </span>
@@ -936,7 +936,7 @@ export function OrderDetailsModal({
                           {ret.quantity}x {ret.productName}
                         </span>
                         <span
-                          className={`text-[9.5px] font-heading font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded border ${
+                          className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
                             ret.returnCondition === "defective_dealer_claim"
                               ? "bg-rose-50 text-rose-700 border-rose-200"
                               : "bg-emerald-50 text-emerald-800 border-emerald-200"
@@ -945,7 +945,7 @@ export function OrderDetailsModal({
                           {ret.returnCondition === "defective_dealer_claim" ? "Defective" : "Good (Restocked)"}
                         </span>
                       </div>
-                      <span className="font-mono text-[10.5px] text-galla-ink-soft">
+                      <span className="tabular-nums text-[11px] text-galla-ink-soft">
                         {ret.returnedAt ? formatDateTime(ret.returnedAt) : ""}
                       </span>
                     </div>
@@ -1006,7 +1006,7 @@ export function OrderDetailsModal({
                   <RotateCcw className="h-3.5 w-3.5 text-rose-700" />
                   <span>Refund Issued:</span>
                 </span>
-                <span className="font-mono tabular-nums text-rose-800">
+                <span className="tabular-nums font-semibold text-rose-800">
                   {formatRupee(totalRefunded)}
                   {order.refundMode ? ` (${order.refundMode.toUpperCase()})` : ""}
                 </span>
@@ -1018,7 +1018,7 @@ export function OrderDetailsModal({
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                     <span>Retained by Shop (Charge / Fee):</span>
                   </span>
-                  <span className="font-mono tabular-nums text-emerald-700">
+                  <span className="tabular-nums font-semibold text-emerald-700">
                     +{formatRupee(retainedByShop)}
                   </span>
                 </div>

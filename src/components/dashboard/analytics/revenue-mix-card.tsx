@@ -34,10 +34,10 @@ export function RevenueMixCard({ mix }: RevenueMixCardProps) {
     <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[21px] flex flex-col justify-between h-full">
       <div>
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-heading font-semibold text-[16px] text-galla-ink tracking-tight">
+          <h3 className="text-[15px] font-bold text-galla-ink">
             Revenue Department Mix
           </h3>
-          <span className="font-mono text-[12px] font-semibold text-galla-ink">
+          <span className="font-semibold text-[13px] text-galla-ink tabular-nums">
             {formatRupee(mix.total)}
           </span>
         </div>
@@ -67,16 +67,16 @@ export function RevenueMixCard({ mix }: RevenueMixCardProps) {
                   <div className="font-sans text-[13px] font-medium text-galla-ink leading-tight">
                     {it.label}
                   </div>
-                  <div className="font-sans text-[11px] text-galla-ink-soft">
+                  <div className="font-sans text-[11px] text-galla-ink-soft tabular-nums">
                     {it.data.count} units / sessions booked
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="font-mono text-[13px] font-medium text-galla-ink">
+                <div className="font-sans text-[13px] font-medium text-galla-ink tabular-nums">
                   {formatRupee(it.data.amount)}
                 </div>
-                <div className={`font-sans text-[11px] font-semibold ${it.textTone}`}>
+                <div className={`font-sans text-[11px] font-semibold tabular-nums ${it.textTone}`}>
                   {it.data.percent}% share
                 </div>
               </div>
