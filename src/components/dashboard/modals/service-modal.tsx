@@ -198,7 +198,7 @@ export function ServiceModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-      <div className="w-full max-w-lg bg-galla-surface border border-galla-line rounded-[8px] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+      <div className="w-full max-w-2xl bg-galla-surface border border-galla-line rounded-[8px] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-galla-line shrink-0">
           <div className="flex items-center gap-2.5">
@@ -225,7 +225,7 @@ export function ServiceModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleFormSubmit} className="p-6 space-y-4 overflow-y-auto">
+        <form onSubmit={handleFormSubmit} className="p-6 space-y-4 overflow-y-auto overflow-x-hidden">
           {errorMsg && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[5px]">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -344,7 +344,7 @@ export function ServiceModal({
               <select
                 value={productToAdd}
                 onChange={(e) => setProductToAdd(e.target.value)}
-                className="flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
+                className="w-full max-w-full min-w-0 flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
               >
                 <option value="">-- Choose an inventory product consumed in this service --</option>
                 {sortedAvailableProducts.map((p) => (
@@ -357,7 +357,7 @@ export function ServiceModal({
                 type="button"
                 onClick={handleAddProductItem}
                 disabled={!productToAdd}
-                className="inline-flex items-center gap-1 px-3 py-2 bg-galla-teal text-white rounded-[5px] text-[12.5px] font-sans font-medium hover:opacity-95 disabled:opacity-40 cursor-pointer"
+                className="shrink-0 inline-flex items-center gap-1 px-3 py-2 bg-galla-teal text-white rounded-[5px] text-[12.5px] font-sans font-medium hover:opacity-95 disabled:opacity-40 cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add</span>
@@ -370,24 +370,27 @@ export function ServiceModal({
                 {selectedProducts.map((item) => (
                   <div
                     key={item.productId}
-                    className="flex items-center justify-between px-3 py-2.5 text-[13px]"
+                    className="flex items-center justify-between px-3 py-2.5 text-[13px] gap-2"
                   >
-                    <div className="flex-1 pr-3 min-w-0">
-                      <div className="font-sans text-galla-ink font-medium truncate">
+                    <div className="min-w-0 flex-1 pr-3">
+                      <div
+                        title={item.name}
+                        className="font-sans text-galla-ink font-medium line-clamp-2 break-words"
+                      >
                         {item.name}
                       </div>
-                      <div className="text-[11px] text-galla-ink-soft flex items-center gap-1.5 mt-0.5">
-                        <span className="text-emerald-700 font-medium">
+                      <div className="text-[11px] text-galla-ink-soft flex items-center gap-1.5 mt-0.5 shrink-0 flex-wrap">
+                        <span className="shrink-0 text-emerald-700 font-medium">
                           Purchase Cost: {formatRupee(item.unitCost || 0)}/pc
                         </span>
                         <span>&bull;</span>
-                        <span className="text-galla-ink-soft">
+                        <span className="shrink-0 text-galla-ink-soft">
                           Total Expense: {formatRupee((item.unitCost || 0) * item.quantity)}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11.5px] text-galla-ink-soft">Qty:</span>
+                      <span className="text-[11.5px] text-galla-ink-soft shrink-0">Qty:</span>
                       <input
                         type="number"
                         min="1"
@@ -395,13 +398,13 @@ export function ServiceModal({
                         onChange={(e) =>
                           handleUpdateProductQuantity(item.productId, Number(e.target.value))
                         }
-                        className="w-14 bg-galla-surface border border-galla-line rounded-[4px] px-2 py-1 text-center font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
+                        className="shrink-0 w-14 bg-galla-surface border border-galla-line rounded-[4px] px-2 py-1 text-center font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
                       />
-                      <span className="text-[11.5px] text-galla-ink-soft">pcs</span>
+                      <span className="text-[11.5px] text-galla-ink-soft shrink-0">pcs</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveProductItem(item.productId)}
-                        className="text-galla-ink-soft hover:text-red-600 p-1 transition-colors cursor-pointer ml-1"
+                        className="shrink-0 text-galla-ink-soft hover:text-red-600 p-1 transition-colors cursor-pointer ml-1"
                         title="Remove product"
                       >
                         <Trash2 className="h-3.5 w-3.5" />

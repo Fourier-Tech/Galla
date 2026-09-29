@@ -42,9 +42,6 @@ export function PackageModal({
 }: PackageModalProps) {
   const [name, setName] = useState(packageToEdit?.name || "");
   const [description, setDescription] = useState(packageToEdit?.description || "");
-  const [pricingType, setPricingType] = useState<"fixed" | "sum_of_items">(
-    packageToEdit?.pricingType || "fixed"
-  );
   const [packagePrice, setPackagePrice] = useState(
     packageToEdit ? String(packageToEdit.packagePrice) : ""
   );
@@ -74,11 +71,9 @@ export function PackageModal({
   );
   const standaloneTotal = standaloneServicesTotal + standaloneProductsTotal;
 
-  // If pricingType is "sum_of_items", packagePrice automatically matches standaloneTotal
-  const effectivePrice =
-    pricingType === "sum_of_items" ? standaloneTotal : Number(packagePrice) || 0;
-
-  const savingsAmount = Math.max(0, standaloneTotal - effectivePrice);
+  const enteredPrice = Number(packagePrice) || 0;
+  const savingsAmount =
+    enteredPrice > 0 ? Math.max(0, standaloneTotal - enteredPrice) : 0;
   const savingsPercent =
     standaloneTotal > 0 && savingsAmount > 0
       ? Math.round((savingsAmount / standaloneTotal) * 100)
@@ -182,9 +177,8 @@ export function PackageModal({
       return;
     }
 
-    const finalPrice =
-      pricingType === "sum_of_items" ? standaloneTotal : Number(packagePrice);
-    if (isNaN(finalPrice) || finalPrice < 0) {
+    const finalPrice = Number(packagePrice);
+    if (packagePrice.trim() === "" || isNaN(finalPrice) || finalPrice < 0) {
       setErrorMsg("Please enter a valid non-negative package price");
       return;
     }
@@ -197,8 +191,7 @@ export function PackageModal({
     setErrorMsg(null);
 
     const trimmedName = name.trim();
-    const finalPrice =
-      pricingType === "sum_of_items" ? standaloneTotal : Number(packagePrice);
+    const finalPrice = Number(packagePrice);
 
     setIsSubmitting(true);
 
@@ -208,7 +201,7 @@ export function PackageModal({
           id: packageToEdit.id,
           name: trimmedName,
           description: description.trim(),
-          pricingType,
+          pricingType: "fixed",
           packagePrice: finalPrice,
           services: selectedServices,
           products: selectedProducts,
@@ -225,7 +218,7 @@ export function PackageModal({
         const res = await createPackageAction({
           name: trimmedName,
           description: description.trim() || undefined,
-          pricingType,
+          pricingType: "fixed",
           packagePrice: finalPrice,
           services: selectedServices,
           products: selectedProducts,
@@ -272,7 +265,7 @@ export function PackageModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleFormSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleFormSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto overflow-x-hidden">
           {errorMsg && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[5px]">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -330,7 +323,7 @@ export function PackageModal({
               <select
                 value={serviceToAdd}
                 onChange={(e) => setServiceToAdd(e.target.value)}
-                className="flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
+                className="w-full max-w-full min-w-0 flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
               >
                 <option value="">-- Choose a service to bundle --</option>
                 {availableServices
@@ -345,7 +338,7 @@ export function PackageModal({
                 type="button"
                 onClick={handleAddServiceItem}
                 disabled={!serviceToAdd}
-                className="inline-flex items-center gap-1 px-3 py-2 bg-galla-teal text-white rounded-[5px] text-[12.5px] font-sans font-medium hover:opacity-95 disabled:opacity-40 cursor-pointer"
+                className="shrink-0 inline-flex items-center gap-1 px-3 py-2 bg-galla-teal text-white rounded-[5px] text-[12.5px] font-sans font-medium hover:opacity-95 disabled:opacity-40 cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add</span>
@@ -358,13 +351,18 @@ export function PackageModal({
                 {selectedServices.map((item) => (
                   <div
                     key={item.serviceId}
-                    className="flex items-center justify-between px-3 py-2.5 text-[13px]"
+                    className="flex items-center justify-between px-3 py-2.5 text-[13px] gap-2"
                   >
-                    <span className="font-sans text-galla-ink font-medium truncate flex-1 pr-3">
-                      {item.name}
-                    </span>
+                    <div className="min-w-0 flex-1 pr-3">
+                      <div
+                        title={item.name}
+                        className="font-sans text-galla-ink font-medium line-clamp-2 break-words"
+                      >
+                        {item.name}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11.5px] text-galla-ink-soft">Value ₹</span>
+                      <span className="text-[11.5px] text-galla-ink-soft shrink-0">Value ₹</span>
                       <input
                         type="number"
                         min="0"
@@ -372,12 +370,12 @@ export function PackageModal({
                         onChange={(e) =>
                           handleUpdateServicePrice(item.serviceId, Number(e.target.value))
                         }
-                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
+                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shrink-0"
                       />
                       <button
                         type="button"
                         onClick={() => handleRemoveServiceItem(item.serviceId)}
-                        className="text-galla-ink-soft hover:text-red-600 p-1 transition-colors cursor-pointer"
+                        className="text-galla-ink-soft hover:text-red-600 p-1 transition-colors cursor-pointer shrink-0"
                         title="Remove service"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -412,7 +410,7 @@ export function PackageModal({
               <select
                 value={productToAdd}
                 onChange={(e) => setProductToAdd(e.target.value)}
-                className="flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
+                className="w-full max-w-full min-w-0 flex-1 bg-galla-paper/50 border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
               >
                 <option value="">-- Choose an inventory product to bundle (optional) --</option>
                 {sortedAvailableProducts.map((p) => (
@@ -425,7 +423,7 @@ export function PackageModal({
                 type="button"
                 onClick={handleAddProductItem}
                 disabled={!productToAdd}
-                className="inline-flex items-center gap-1 px-3 py-2 bg-galla-teal text-white rounded-[5px] text-[12.5px] font-sans font-medium hover:opacity-95 disabled:opacity-40 cursor-pointer"
+                className="shrink-0 inline-flex items-center gap-1 px-3 py-2 bg-galla-teal text-white rounded-[5px] text-[12.5px] font-sans font-medium hover:opacity-95 disabled:opacity-40 cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add</span>
@@ -438,13 +436,18 @@ export function PackageModal({
                 {selectedProducts.map((item) => (
                   <div
                     key={item.productId}
-                    className="flex items-center justify-between px-3 py-2.5 text-[13px]"
+                    className="flex items-center justify-between px-3 py-2.5 text-[13px] gap-2"
                   >
-                    <span className="font-sans text-galla-ink font-medium truncate flex-1 pr-3">
-                      {item.name}
-                    </span>
+                    <div className="min-w-0 flex-1 pr-3">
+                      <div
+                        title={item.name}
+                        className="font-sans text-galla-ink font-medium line-clamp-2 break-words"
+                      >
+                        {item.name}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11.5px] text-galla-ink-soft">Qty</span>
+                      <span className="text-[11.5px] text-galla-ink-soft shrink-0">Qty</span>
                       <input
                         type="number"
                         min="1"
@@ -452,9 +455,9 @@ export function PackageModal({
                         onChange={(e) =>
                           handleUpdateProductQuantity(item.productId, Number(e.target.value))
                         }
-                        className="w-14 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-center font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
+                        className="w-14 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-center font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shrink-0"
                       />
-                      <span className="text-[11.5px] text-galla-ink-soft ml-1">₹/ea</span>
+                      <span className="text-[11.5px] text-galla-ink-soft ml-1 shrink-0">₹/ea</span>
                       <input
                         type="number"
                         min="0"
@@ -462,12 +465,12 @@ export function PackageModal({
                         onChange={(e) =>
                           handleUpdateProductPrice(item.productId, Number(e.target.value))
                         }
-                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
+                        className="w-20 bg-galla-paper border border-galla-line rounded-[4px] px-2 py-1 text-right font-medium text-[12.5px] text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shrink-0"
                       />
                       <button
                         type="button"
                         onClick={() => handleRemoveProductItem(item.productId)}
-                        className="text-galla-ink-soft hover:text-red-600 p-1 transition-colors cursor-pointer"
+                        className="text-galla-ink-soft hover:text-red-600 p-1 transition-colors cursor-pointer shrink-0"
                         title="Remove product"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -487,39 +490,15 @@ export function PackageModal({
           <div className="pt-4 border-t border-galla-line/80 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-[14px] font-semibold text-galla-ink">
-                Package Pricing Model
+                Package Pricing
               </span>
-              <div className="flex items-center gap-2 bg-galla-paper p-1 rounded-[5px] border border-galla-line text-[12px]">
-                <button
-                  type="button"
-                  onClick={() => setPricingType("fixed")}
-                  className={`px-3 py-1 rounded-[4px] font-medium transition-colors cursor-pointer ${
-                    pricingType === "fixed"
-                      ? "bg-galla-teal text-white shadow-2xs"
-                      : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  Custom Fixed Price
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPricingType("sum_of_items")}
-                  className={`px-3 py-1 rounded-[4px] font-medium transition-colors cursor-pointer ${
-                    pricingType === "sum_of_items"
-                      ? "bg-galla-teal text-white shadow-2xs"
-                      : "text-galla-ink-soft hover:text-galla-ink"
-                  }`}
-                >
-                  Sum of Items
-                </button>
-              </div>
             </div>
 
             {/* Price Input & Value Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
               <div>
                 <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                  Final Package Selling Price (₹)
+                  Final Package Selling Price (₹) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <IndianRupee className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5" />
@@ -528,11 +507,10 @@ export function PackageModal({
                     required
                     min="0"
                     step="1"
-                    disabled={pricingType === "sum_of_items"}
-                    value={pricingType === "sum_of_items" ? standaloneTotal : packagePrice}
+                    value={packagePrice}
                     onChange={(e) => setPackagePrice(e.target.value)}
                     placeholder="0"
-                    className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[15px] font-semibold text-galla-ink focus:outline-none focus:border-galla-teal disabled:bg-galla-paper/30 disabled:text-galla-ink-soft tabular-nums"
+                    className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[15px] font-semibold text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums"
                   />
                 </div>
               </div>
@@ -540,18 +518,24 @@ export function PackageModal({
               {/* Value & Discount summary pill */}
               <div className="p-3 rounded-[6px] bg-galla-paper/70 border border-galla-line flex flex-col justify-center">
                 <div className="flex items-center justify-between text-[12px] text-galla-ink-soft">
-                  <span>Standalone Value:</span>
-                  <span className="font-semibold line-through tabular-nums">
+                  <span>Total Price:</span>
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      enteredPrice > 0 && savingsAmount > 0
+                        ? "line-through text-galla-ink-soft"
+                        : "text-galla-ink"
+                    }`}
+                  >
                     {formatRupee(standaloneTotal)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[13px] text-galla-ink font-medium mt-1">
                   <span>Selling Price:</span>
                   <span className="font-bold text-galla-teal tabular-nums">
-                    {formatRupee(effectivePrice)}
+                    {formatRupee(enteredPrice)}
                   </span>
                 </div>
-                {savingsAmount > 0 && (
+                {enteredPrice > 0 && savingsAmount > 0 && (
                   <div className="mt-1 inline-flex items-center gap-1 text-[11.5px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200 self-start">
                     <Percent className="h-3 w-3" />
                     <span>
@@ -625,7 +609,7 @@ export function PackageModal({
                 <>
                   Are you sure you want to create package <strong className="font-semibold text-galla-ink">&ldquo;{name.trim()}&rdquo;</strong> with{" "}
                   <strong className="font-semibold text-galla-ink">{selectedServices.length + selectedProducts.length} item(s)</strong> for{" "}
-                  <strong className="font-semibold text-galla-ink">{formatRupee(pricingType === "sum_of_items" ? standaloneTotal : Number(packagePrice) || 0)}</strong>?
+                  <strong className="font-semibold text-galla-ink">{formatRupee(enteredPrice)}</strong>?
                 </>
               )}
             </span>
