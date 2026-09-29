@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Package, IndianRupee, AlertCircle, Loader2, Layers } from "lucide-react";
+import { X, Package, IndianRupee, AlertCircle, Loader2, Layers, Tag, AlignLeft } from "lucide-react";
 import { DashboardProduct } from "@/types/dashboard";
 import { createProductAction, updateProductAction } from "@/app/dashboard/actions";
 import { formatRupee } from "@/lib/utils";
@@ -222,13 +222,13 @@ export function ProductModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] overscroll-contain"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto"
     >
-      <div className="w-full max-w-[500px] max-h-[90vh] flex flex-col bg-galla-surface border border-galla-line rounded-[5px] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-2xl bg-galla-surface border border-galla-line rounded-[8px] shadow-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-[21px] py-[16px] border-b border-galla-line bg-galla-paper/30 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-[4px] bg-galla-teal-soft text-galla-teal">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-galla-line bg-galla-paper/30 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-[5px] bg-galla-teal-soft text-galla-teal">
               <Package className="h-4 w-4" />
             </div>
             <div>
@@ -246,101 +246,103 @@ export function ProductModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="p-1 text-galla-ink-soft hover:text-galla-ink rounded-[4px] transition-colors cursor-pointer"
+            className="text-galla-ink-soft hover:text-galla-ink p-1 rounded-md transition-colors cursor-pointer"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleFormSubmit} className="overflow-y-auto p-[21px] space-y-4">
+        <form onSubmit={handleFormSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto overflow-x-hidden">
           {errorMsg && (
-            <div className="flex items-start gap-2 p-3 rounded-[4px] bg-red-50 border border-red-200 text-red-800 text-[13px] font-sans">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[5px]">
+              <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
-          {/* Product Name with Duplicate Detection */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
+          {/* Product Name & Category */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
               <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Product Name <span className="text-red-600">*</span>
+                Product Name <span className="text-red-500">*</span>
               </label>
-            </div>
-            <input
-              type="text"
-              autoFocus
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter product name (e.g. Daily Shampoo 250ml)"
-              className={`w-full px-3 py-2 rounded-[5px] bg-galla-paper/30 border font-sans text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:bg-galla-surface outline-none transition-all ${
-                duplicateWarning
-                  ? "border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                  : "border-galla-line focus:border-galla-teal focus:ring-1 focus:ring-galla-teal"
-              }`}
-            />
-
-            {/* Real-time Inline Duplicate Warning */}
-            {duplicateWarning && (
-              <p className="font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200 rounded px-2.5 py-1 mt-1.5 flex items-center gap-1.5">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <span>{duplicateWarning}</span>
-              </p>
-            )}
-
-            {/* Name error banner if backend returns duplicate */}
-            {errorMsg && errorMsg.toLowerCase().includes("already exists") && (
-              <p className="font-sans text-[11.5px] text-red-700 bg-red-50 border border-red-200 rounded px-2.5 py-1 mt-1.5 flex items-center gap-1.5">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
-                <span>{errorMsg}</span>
-              </p>
-            )}
-          </div>
-
-          {/* Category Selection */}
-          <div className="space-y-2">
-            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-              Category <span className="text-red-600">*</span>
-            </label>
-            {dbCategories.length > 0 && (
-              <div className="relative">
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[5px] bg-galla-paper/30 border border-galla-line font-sans text-[14px] text-galla-ink focus:bg-galla-surface focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all cursor-pointer"
-                >
-                  {dbCategories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                  <option value="custom">+ New Category...</option>
-                </select>
-              </div>
-            )}
-
-            {isCustomCategory && (
               <input
                 type="text"
-                autoFocus={dbCategories.length === 0}
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="Type category name (e.g. Skin Care, Hair Care)..."
-                className="w-full px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
+                autoFocus
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Daily Shampoo 250ml, Hair Serum"
+                className={`w-full bg-galla-paper/50 border rounded-[5px] px-[13px] py-[8px] text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none transition-all ${
+                  duplicateWarning
+                    ? "border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    : "border-galla-line focus:border-galla-teal focus:ring-1 focus:ring-galla-teal"
+                }`}
               />
-            )}
+
+              {/* Real-time Inline Duplicate Warning */}
+              {duplicateWarning && (
+                <p className="font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200 rounded px-2.5 py-1 mt-1.5 flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <span>{duplicateWarning}</span>
+                </p>
+              )}
+
+              {/* Name error banner if backend returns duplicate */}
+              {errorMsg && errorMsg.toLowerCase().includes("already exists") && (
+                <p className="font-sans text-[11.5px] text-red-700 bg-red-50 border border-red-200 rounded px-2.5 py-1 mt-1.5 flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
+                  <span>{errorMsg}</span>
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                Category <span className="text-red-500">*</span>
+              </label>
+              {dbCategories.length > 0 && (
+                <div className="relative">
+                  <Tag className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13.5px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer"
+                  >
+                    {dbCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="custom">+ New Category...</option>
+                  </select>
+                </div>
+              )}
+
+              {isCustomCategory && (
+                <input
+                  type="text"
+                  autoFocus={dbCategories.length === 0}
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder="Type category (e.g. Skin Care, Hair Care)..."
+                  className={`w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all ${
+                    dbCategories.length > 0 ? "mt-2" : ""
+                  }`}
+                />
+              )}
+            </div>
           </div>
 
           {/* Pricing Grid */}
-          <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Sell Price (₹) <span className="text-red-600">*</span>
+                Retail Sell Price (₹) <span className="text-red-500">*</span>
               </label>
-              <div className="relative flex items-center">
-                <IndianRupee className="absolute left-3 h-3.5 w-3.5 text-galla-ink-soft pointer-events-none" />
+              <div className="relative">
+                <IndianRupee className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
                 <input
                   type="number"
                   min="0"
@@ -349,18 +351,18 @@ export function ProductModal({
                   value={sellPrice}
                   onChange={(e) => setSellPrice(e.target.value)}
                   placeholder="0"
-                  className="w-full pl-8 pr-3 py-2 rounded-[5px] bg-galla-paper/30 border border-galla-line font-sans text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:bg-galla-surface focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all tabular-nums"
+                  className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[14px] font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all tabular-nums"
                 />
               </div>
-              <p className="font-sans text-[11px] text-galla-ink-soft mt-1">Retail counter price</p>
+              <p className="font-sans text-[11px] text-galla-ink-soft mt-1">Customer retail counter price</p>
             </div>
 
             <div>
               <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                 Purchase Cost (₹)
               </label>
-              <div className="relative flex items-center">
-                <IndianRupee className="absolute left-3 h-3.5 w-3.5 text-galla-ink-soft pointer-events-none" />
+              <div className="relative">
+                <IndianRupee className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
                 <input
                   type="number"
                   min="0"
@@ -368,73 +370,69 @@ export function ProductModal({
                   value={purchaseCost}
                   onChange={(e) => setPurchaseCost(e.target.value)}
                   placeholder="0"
-                  className="w-full pl-8 pr-3 py-2 rounded-[5px] bg-galla-paper/30 border border-galla-line font-sans text-[14px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:bg-galla-surface focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all tabular-nums"
+                  className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[14px] font-semibold text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all tabular-nums"
                 />
               </div>
-              <p className="font-sans text-[11px] text-galla-ink-soft mt-1">Wholesale / buying cost</p>
+              <p className="font-sans text-[11px] text-galla-ink-soft mt-1">Wholesale / vendor buying cost</p>
             </div>
           </div>
 
-          {/* Stock Section: Protected in Edit Mode */}
-          {isEditMode ? (
-            <div className="pt-3 border-t border-galla-line/80 space-y-2.5">
-              <div className="flex items-center justify-between text-galla-ink text-[12px] font-semibold">
-                <div className="flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-galla-teal" />
-                  <span>Current Stock (Protected)</span>
-                </div>
-                <span className="text-[10.5px] font-sans font-normal text-galla-ink-soft bg-galla-surface px-1.5 py-0.5 rounded border border-galla-line">
-                  Audit Locked
+          {/* Stock Section */}
+          <div className="pt-4 border-t border-galla-line/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-galla-teal" />
+                <span className="text-[14px] font-semibold text-galla-ink">
+                  {isEditMode ? "Current Stock & Inventory Settings" : "Initial Stock & Inventory Settings"}
                 </span>
               </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-0.5">
-                <div className="p-2 rounded bg-galla-paper/40 border border-galla-line">
-                  <div className="text-[11px] font-sans text-galla-ink-soft">Retail Sell Stock</div>
-                  <div className="text-[15px] font-semibold text-galla-ink mt-0.5 tabular-nums">
-                    {productToEdit?.sell ?? 0} pcs
-                  </div>
-                </div>
-                <div className="p-2 rounded bg-galla-paper/40 border border-galla-line">
-                  <div className="text-[11px] font-sans text-galla-ink-soft">Internal Use Stock</div>
-                  <div className="text-[15px] font-semibold text-galla-ink mt-0.5 tabular-nums">
-                    {productToEdit?.use ?? 0} pcs
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-[11px] font-sans text-galla-ink-soft italic leading-tight">
-                Stock counts are protected and cannot be directly typed. Use <strong>Stock In (PO)</strong>, <strong>Counter Sale</strong>, or <strong>Move to use</strong> to update quantities.
-              </p>
-
-              {/* Threshold is still editable */}
-              <div className="pt-2 border-t border-galla-line/60 flex items-center justify-between">
-                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                  Low Stock Alert Threshold
-                </label>
-                <div className="w-20 relative flex items-center">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={lowStockThreshold}
-                    onChange={(e) => setLowStockThreshold(e.target.value)}
-                    className="w-full px-2.5 py-1 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[12px] text-galla-ink text-right pr-7 focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all tabular-nums"
-                  />
-                  <span className="absolute right-2 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
-                    pcs
-                  </span>
-                </div>
-              </div>
+              {isEditMode && (
+                <span className="text-[11px] font-sans font-medium text-galla-ink-soft bg-galla-paper px-2 py-0.5 rounded-[4px] border border-galla-line">
+                  Audit Locked
+                </span>
+              )}
             </div>
-          ) : (
-            <div className="pt-3 border-t border-galla-line/80 space-y-3">
-              <div className="flex items-center gap-1.5 text-galla-ink text-[12px] font-semibold">
-                <Layers className="h-3.5 w-3.5 text-galla-teal" />
-                <span>Initial Stock Split</span>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            {isEditMode ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-[6px] bg-galla-paper/40 border border-galla-line">
+                    <div className="text-[11.5px] font-sans text-galla-ink-soft">Retail Sell Stock</div>
+                    <div className="text-[16px] font-bold text-galla-ink mt-0.5 tabular-nums">
+                      {productToEdit?.sell ?? 0} <span className="text-[12px] font-normal text-galla-ink-soft">pcs</span>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-[6px] bg-galla-paper/40 border border-galla-line">
+                    <div className="text-[11.5px] font-sans text-galla-ink-soft">Internal Use Stock</div>
+                    <div className="text-[16px] font-bold text-galla-ink mt-0.5 tabular-nums">
+                      {productToEdit?.use ?? 0} <span className="text-[12px] font-normal text-galla-ink-soft">pcs</span>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-[6px] bg-galla-paper/40 border border-galla-line flex flex-col justify-between">
+                    <label className="text-[11.5px] font-sans text-galla-ink-soft block">
+                      Low Stock Alert
+                    </label>
+                    <div className="relative flex items-center mt-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={lowStockThreshold}
+                        onChange={(e) => setLowStockThreshold(e.target.value)}
+                        className="w-full bg-galla-surface border border-galla-line rounded-[4px] pl-2.5 pr-8 py-1 font-sans text-[13px] font-medium text-galla-ink text-right focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all tabular-nums"
+                      />
+                      <span className="absolute right-2.5 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
+                        pcs
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[11px] font-sans text-galla-ink-soft italic leading-tight">
+                  Stock counts are protected and cannot be directly typed. Use <strong>Stock In (PO)</strong>, <strong>Counter Sale</strong>, or <strong>Move to use</strong> to update quantities.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                     Retail Sell Stock
@@ -446,13 +444,13 @@ export function ProductModal({
                       step="1"
                       value={sellStock}
                       onChange={(e) => setSellStock(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all tabular-nums"
+                      className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-3 pr-8 py-[8px] font-sans text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all tabular-nums"
                     />
-                    <span className="absolute right-2.5 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
+                    <span className="absolute right-2.5 text-[11.5px] font-sans text-galla-ink-soft pointer-events-none">
                       pcs
                     </span>
                   </div>
-                  <p className="font-sans text-[11px] text-galla-ink-soft mt-0.5">Available for counter sale</p>
+                  <p className="font-sans text-[11px] text-galla-ink-soft mt-1">Available for counter sale</p>
                 </div>
 
                 <div>
@@ -466,72 +464,71 @@ export function ProductModal({
                       step="1"
                       value={useStock}
                       onChange={(e) => setUseStock(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all tabular-nums"
+                      className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-3 pr-8 py-[8px] font-sans text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all tabular-nums"
                     />
-                    <span className="absolute right-2.5 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
+                    <span className="absolute right-2.5 text-[11.5px] font-sans text-galla-ink-soft pointer-events-none">
                       pcs
                     </span>
                   </div>
-                  <p className="font-sans text-[11px] text-galla-ink-soft mt-0.5">For salon treatments</p>
+                  <p className="font-sans text-[11px] text-galla-ink-soft mt-1">For in-salon treatments</p>
                 </div>
-              </div>
 
-              <div>
-                <div className="flex items-center justify-between">
+                <div>
                   <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                    Low Stock Alert Threshold
+                    Low Stock Alert
                   </label>
-                  <div className="w-20 relative flex items-center">
+                  <div className="relative flex items-center">
                     <input
                       type="number"
                       min="0"
                       step="1"
                       value={lowStockThreshold}
                       onChange={(e) => setLowStockThreshold(e.target.value)}
-                      className="w-full px-2.5 py-1 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[12px] text-galla-ink text-right pr-7 focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all tabular-nums"
+                      className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-3 pr-8 py-[8px] font-sans text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all tabular-nums"
                     />
-                    <span className="absolute right-2 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
+                    <span className="absolute right-2.5 text-[11.5px] font-sans text-galla-ink-soft pointer-events-none">
                       pcs
                     </span>
                   </div>
+                  <p className="font-sans text-[11px] text-galla-ink-soft mt-1">Warn when stock falls to this</p>
                 </div>
-                <p className="font-sans text-[11px] text-galla-ink-soft mt-1">
-                  Show warning banner when retail stock falls to or below this amount
-                </p>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Description (Optional) */}
-          <div>
+          <div className="pt-2">
             <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
               Description / Notes (Optional)
             </label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add product specifications or treatment notes..."
-              className="w-full px-3 py-2 rounded-[5px] bg-galla-paper/30 border border-galla-line font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:bg-galla-surface focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all resize-none"
-            />
+            <div className="relative">
+              <AlignLeft className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
+              <textarea
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add product specifications, volume, or treatment notes..."
+                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all resize-none"
+              />
+            </div>
           </div>
 
           {/* Form Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-galla-line">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-galla-line">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-3.5 py-2 rounded-[5px] border border-galla-line font-sans text-[13px] font-medium text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-[5px] border border-galla-line text-galla-ink font-sans text-[13px] font-medium hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || Boolean(duplicateWarning)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium shadow-xs transition-all cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-[5px] bg-galla-teal text-white font-sans text-[13px] font-medium hover:opacity-95 shadow-sm transition-all cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
               <span>
                 {isSubmitting
                   ? isEditMode
