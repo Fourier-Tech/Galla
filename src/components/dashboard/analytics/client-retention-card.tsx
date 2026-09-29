@@ -101,7 +101,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
           <div className="flex items-center gap-2 mb-1">
             <Crown className="w-4 h-4 text-galla-brass" />
             <h3 className="text-[15px] font-bold text-galla-ink">
-              Top VIP Salon Clients
+              Top Salon Clients
             </h3>
           </div>
           <p className="font-sans text-[12px] text-galla-ink-soft mb-4">

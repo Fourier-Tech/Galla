@@ -2,7 +2,6 @@
 
 import React from "react";
 import {
-  X,
   Calendar,
   Clock,
   User,
@@ -18,6 +17,7 @@ import {
   Receipt,
   Wallet,
   Undo2,
+  ArrowLeft,
 } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { StatusPill } from "@/components/dashboard/status-pill";
@@ -67,6 +67,15 @@ export function OrderDetailsModal({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
 
   if (!isOpen || !order) return null;
 
@@ -132,6 +141,7 @@ export function OrderDetailsModal({
   const dueAmount = balanceDue;
   const isDue = dueAmount > 0 && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted";
   const isAdvance = order.status === "advance_paid";
+  const isPaidFull = order.status === "paid_full";
   const isCompleted = order.status === "completed" || order.status === "replacement_completed";
   const isReplacement = order.status === "replacement_pending" || order.status === "replacement";
   const isRefunded = order.status === "cancelled_refunded";
@@ -242,575 +252,769 @@ export function OrderDetailsModal({
     <div
       role="dialog"
       aria-modal="true"
-      className={`fixed inset-0 ${zIndex} flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150`}
+      aria-label={`Order ${formatDisplayNumber(order.id)}`}
+      className={`fixed inset-0 ${zIndex} bg-galla-paper flex flex-col overflow-y-auto`}
     >
-      <div className="w-full max-w-[620px] bg-galla-surface border border-galla-line rounded-[10px] shadow-2xl transition-all max-h-[92vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-galla-line/80 flex items-center justify-between bg-galla-paper/40 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-[6px] bg-galla-teal/10 border border-galla-teal/20 flex items-center justify-center text-galla-teal">
-              <Receipt className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-[15px] font-bold text-galla-ink">
-                  Order {formatDisplayNumber(order.id)}
-                </h2>
-                <StatusPill status={order.status} />
-                {hasReturns && totalReturnRefundAmount > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 text-[12px] font-sans px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200 font-semibold shadow-2xs">
-                    <span>{formatRupee(netBillAmount)}</span>
-                    <span className="line-through text-rose-400 font-normal text-[10.5px]">
-                      {formatRupee(originalBillAmount)}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="font-semibold tabular-nums text-[13px] text-galla-ink-soft">
-                    {formatRupee(originalBillAmount)}
-                  </span>
-                )}
-              </div>
-              <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-                {order.type} &bull; {order.time}
-              </p>
-            </div>
-          </div>
-
+      {/* ======================================================== */}
+      {/* TOP HEADER (Sticky)                                      */}
+      {/* ======================================================== */}
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="text-galla-ink-soft hover:text-galla-ink p-1.5 rounded-[5px] hover:bg-galla-paper border border-transparent hover:border-galla-line transition-all cursor-pointer"
-            title="Close modal"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-galla-line text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/70 text-[13px] font-medium transition-colors cursor-pointer"
           >
-            <X className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to orders</span>
           </button>
+          <div className="h-4 w-px bg-galla-line hidden sm:block" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-[5px] bg-galla-teal-soft text-galla-teal">
+              <Receipt className="h-4 w-4" />
+            </div>
+            <h1 className="text-[16px] font-bold text-galla-ink">
+              Order {formatDisplayNumber(order.id)}
+            </h1>
+            <StatusPill status={order.status} />
+            <span className="text-[12px] text-galla-ink-soft hidden md:inline">
+              &bull; {order.type} &bull; {order.time}
+            </span>
+          </div>
         </div>
 
-        {/* Scrollable Content Body */}
-        <div className="px-5 py-4 overflow-y-auto space-y-4 font-sans text-galla-ink">
-          {/* Customer & Quick Contact Card */}
-          <div className="p-3.5 bg-galla-paper/50 border border-galla-line rounded-[8px] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-galla-ink font-semibold text-[15px] shrink-0">
-                {order.customer.slice(0, 1).toUpperCase()}
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-galla-ink-soft" />
-                  <span className="font-sans font-semibold text-[15px] text-galla-ink">
-                    {order.customer}
-                  </span>
-                </div>
-                {order.customerPhone ? (
-                  <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5">
-                    {formatPhoneNumber(order.customerPhone)}
-                  </div>
-                ) : (
-                  <div className="text-[12px] text-galla-ink-soft/70 italic mt-0.5">
-                    No phone recorded
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {order.customerPhone && (
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12px] font-sans font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
-                  title={`Call ${order.customer}`}
-                >
-                  <Phone className="h-3.5 w-3.5 text-galla-teal" />
-                  <span>Call</span>
-                </a>
-                {waUrl && (
-                  <a
-                    href={waUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12px] font-sans font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
-                    title="Open WhatsApp message"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
-                    <span>WhatsApp</span>
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Date & Time Tracking Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {/* Created / Placed At */}
-            <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] flex items-start gap-2.5">
-              <Calendar className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
-              <div>
-                <span className="block text-[12px] font-medium text-galla-ink-soft">
-                  Order Placed
-                </span>
-                <span className="text-[12.5px] font-medium text-galla-ink mt-0.5 block">
-                  {formatDateTime(order.createdAt) || order.time}
-                </span>
-                {order.recordedBy && (
-                  <span className="text-[11px] text-galla-ink-soft/75 mt-0.5 block capitalize">
-                    Recorded by: {order.recordedBy}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Latest Lifecycle Status Card */}
-            {isCompleted ? (
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200/90 rounded-[6px] flex items-start gap-2.5 text-emerald-950">
-                <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[12px] font-medium text-emerald-900">
-                      {order.scheduledFor
-                        ? order.type === "Product sale"
-                          ? "Picked Up (Completed)"
-                          : "Appointment Slot (Completed)"
-                        : "Completed & Settled"}
-                    </span>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
-                      Done
-                    </span>
-                  </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block text-emerald-950">
-                    {formatDateTime(order.completedAt || order.latestActivityAt || order.createdAt) || "Completed at counter"}
-                  </span>
-                </div>
-              </div>
-            ) : isRefunded ? (
-              <div className="p-3 bg-rose-50/60 border border-rose-200/90 rounded-[6px] flex items-start gap-2.5 text-rose-950">
-                <RotateCcw className="h-4 w-4 text-rose-700 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[12px] font-medium text-rose-900">
-                      Order Refunded
-                    </span>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
-                      Refunded
-                    </span>
-                  </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block text-rose-950">
-                    {formatDateTime(order.refundedAt || order.latestActivityAt || order.createdAt) || "Refund processed"}
-                  </span>
-                </div>
-              </div>
-            ) : order.scheduledFor ? (
-              <div
-                className={`p-3 rounded-[6px] flex items-start gap-2.5 ${
-                  isReplacement && isTomorrow
-                    ? "bg-rose-50 border border-rose-300 text-rose-950 ring-1 ring-rose-300/40"
-                    : "bg-amber-50/50 border border-amber-200/80 text-amber-950"
-                }`}
-              >
-                <Clock
-                  className={`h-4 w-4 shrink-0 mt-0.5 ${
-                    isReplacement && isTomorrow ? "text-rose-700" : "text-amber-700"
-                  }`}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span
-                      className={`block text-[12px] font-medium ${
-                        isReplacement && isTomorrow ? "text-rose-900" : "text-amber-900"
-                      }`}
-                    >
-                      {isReplacement
-                        ? "Expected Replacement Delivery"
-                        : isDue && !hasPendingDelivery
-                        ? "Payment Due Date"
-                        : order.type === "Product sale"
-                        ? "Expected Pickup"
-                        : "Appointment Slot"}
-                    </span>
-                    <span
-                      className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
-                        isReplacement && isTomorrow
-                          ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
-                          : "bg-amber-100 text-amber-800 border-amber-300/80"
-                      }`}
-                    >
-                      {isReplacement && isTomorrow
-                        ? "Urgent: Tomorrow"
-                        : isToday
-                        ? "Today"
-                        : "Upcoming"}
-                    </span>
-                  </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block">
-                    {formatBookingDate(order.scheduledFor)}
-                    {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
-                  </span>
-                </div>
-              </div>
-            ) : isDue ? (
-              <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-[6px] flex items-start gap-2.5 text-amber-950">
-                <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="block text-[12px] font-medium text-amber-900">
-                      Payment Due
-                    </span>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
-                      Pending
-                    </span>
-                  </div>
-                  <span className="text-[12.5px] font-medium mt-0.5 block text-amber-950">
-                    {formatDateTime(order.latestActivityAt || order.createdAt) || order.time}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3 bg-galla-paper/30 border border-galla-line rounded-[6px] flex items-start gap-2.5">
-                <Clock className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <span className="block text-[12px] font-medium text-galla-ink-soft">
-                    Last Activity
-                  </span>
-                  <span className="text-[12.5px] font-medium text-galla-ink mt-0.5 block">
-                    {formatDateTime(order.latestActivityAt || order.createdAt) || order.time}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Items Purchased ("What they buy") */}
-          <div className="border border-galla-line rounded-[8px] overflow-hidden bg-galla-surface shadow-2xs">
-            <div className="px-4 py-2.5 bg-galla-paper/60 border-b border-galla-line flex items-center justify-between">
-              <span className="text-[12px] font-semibold text-galla-ink-soft">
-                Items Purchased ({order.lineItems?.length || (order.itemsSummary ? 1 : 0)})
+        <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft">
+          <span>
+            {order.lineItems?.length || (order.itemsSummary ? 1 : 0)}{" "}
+            {(order.lineItems?.length || 1) === 1 ? "item" : "items"}{" "}
+            ({totalUnits} {totalUnits === 1 ? "unit" : "units"})
+          </span>
+          <span className="text-galla-line">&bull;</span>
+          {hasReturns && totalReturnRefundAmount > 0 ? (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-rose-800">
+              <span>{formatRupee(netBillAmount)}</span>
+              <span className="line-through text-rose-400 font-normal text-[11px]">
+                {formatRupee(originalBillAmount)}
               </span>
-              <span className="text-[11.5px] text-galla-ink-soft font-sans">
-                Type &bull; Qty &bull; Price
-              </span>
+            </span>
+          ) : (
+            <span className="font-bold text-galla-ink tabular-nums text-[13px]">
+              {formatRupee(originalBillAmount)}
+            </span>
+          )}
+        </div>
+      </header>
+
+      {/* ======================================================== */}
+      {/* MAIN TWO-COLUMN LAYOUT                                   */}
+      {/* ======================================================== */}
+      <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start flex-1">
+        {/* ====================================================== */}
+        {/* LEFT COLUMN: CUSTOMER, TIMELINE, ITEMS & RETURNS       */}
+        {/* ====================================================== */}
+        <main className="space-y-6 min-w-0 order-1">
+          {/* Card 1: Customer Details */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-galla-teal" />
+                <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                  Customer Details
+                </h2>
+              </div>
+              <div className="text-[12px] text-galla-ink-soft">
+                {order.type}
+              </div>
             </div>
 
-            {order.lineItems && order.lineItems.length > 0 ? (
-              <div className="divide-y divide-galla-line/70">
-                {order.lineItems.map((item, idx) => {
-                  const itemReturns = (order.returns || []).filter(
-                    (r) =>
-                      (r.lineItemId && item.itemId && String(r.lineItemId) === String(item.itemId)) ||
-                      (typeof r.lineItemIndex === "number" && r.lineItemIndex === idx) ||
-                      (r.productId && item.itemId && String(r.productId) === String(item.itemId)) ||
-                      (r.productName && item.name && r.productName.trim().toLowerCase() === item.name.trim().toLowerCase())
-                  );
-
-                  const returnedQty = itemReturns.length > 0
-                    ? itemReturns
-                        .filter((r) => r.customerResolution === "refund" || !r.customerResolution)
-                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
-                    : (item.returnedQuantity || 0);
-
-                  const replacedQty = itemReturns.length > 0
-                    ? itemReturns
-                        .filter((r) => r.customerResolution === "replacement")
-                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
-                    : (item.replacedQuantity || 0);
-
-                  const isFullyReturned = returnedQty >= item.quantity;
-                  const totalHandled = returnedQty + replacedQty;
-
-                  return (
-                    <div key={idx} className="p-3.5 hover:bg-galla-paper/20 transition-colors">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {item.itemType === "product" ? (
-                              <ShoppingBag className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                            ) : item.itemType === "package" ? (
-                              <Package className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                            ) : (
-                              <Scissors className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                            )}
-                            <span className={`font-sans font-semibold text-[14px] ${isFullyReturned ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}>
-                              {item.name}
-                            </span>
-                            <span
-                              className={`text-[10.5px] font-medium uppercase px-1.5 py-0.2 rounded border ${
-                                item.itemType === "product"
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                                  : item.itemType === "package"
-                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                  : "bg-purple-50 text-purple-700 border-purple-200"
-                              }`}
-                            >
-                              {item.itemType}
-                            </span>
-                            {returnedQty > 0 && (
-                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 ml-1">
-                                {returnedQty} Returned
-                              </span>
-                            )}
-                            {replacedQty > 0 && (
-                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 ml-1">
-                                {replacedQty} Replaced
-                              </span>
-                            )}
-                            {item.itemType === "product" && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted" && totalHandled < item.quantity && (
-                              <button
-                                onClick={() => setReturningItemIndex(idx)}
-                                className="ml-2 text-[11px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-100 transition-colors flex items-center gap-1"
-                              >
-                                <Undo2 className="h-3 w-3" />
-                                Return
-                              </button>
-                            )}
-                          </div>
-
-                        {/* Package Components Breakdown */}
-                        {item.packageDetails?.components && item.packageDetails.components.length > 0 && (
-                          <div className="pl-5 pt-1 space-y-0.5">
-                            <span className="text-[11px] font-medium text-galla-ink-soft">
-                              Includes services:
-                            </span>
-                            <ul className="list-disc list-inside text-[11px] text-galla-ink-soft/90 space-y-0.5">
-                              {item.packageDetails.components.map((comp, cIdx) => (
-                                <li key={cIdx}>
-                                  {comp.name} ({formatRupee(comp.componentPrice)})
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Product Delivery / Fulfillment status */}
-                        {item.itemType === "product" && (
-                          <div className="pl-5 text-[11px]">
-                            {item.fulfilled ? (
-                              <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
-                                <CheckCircle2 className="h-3 w-3" /> Delivered / Handed over
-                              </span>
-                            ) : order.paid >= order.amount ? (
-                              <span className="text-blue-700 font-medium inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> Fully Paid &bull; Delivery Pending (Awaiting Stock Pickup)
-                              </span>
-                            ) : order.paid > 0 ? (
-                              <span className="text-amber-800 font-medium inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> Advance Received &bull; Delivery Pending
-                              </span>
-                            ) : (
-                              <span className="text-amber-700 font-medium inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> Pending Pickup / Backorder
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Package Fulfillment status */}
-                        {item.itemType === "package" && (
-                          <div className="pl-5 text-[11px]">
-                            {item.fulfilled ? (
-                              <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
-                                <CheckCircle2 className="h-3 w-3" /> Package Rendered &bull; Products Deducted
-                              </span>
-                            ) : (
-                              <span className="text-indigo-700 font-medium inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> Advance Booking &bull; Products deducted on order completion
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {item.itemType === "service" && (
-                          <div className="pl-5 text-[11px]">
-                            {item.fulfilled ? (
-                              <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
-                                <CheckCircle2 className="h-3 w-3" /> Service Rendered
-                              </span>
-                            ) : (
-                              <span className="text-purple-700 font-medium inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> Advance Booking &bull; Consumed products deducted on completion
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <div className="text-[15px] font-semibold text-galla-ink tabular-nums">
-                          {formatRupee(item.unitPrice * (item.quantity || 1))}
-                        </div>
-                        <div className="text-[11.5px] text-galla-ink-soft tabular-nums">
-                          {item.quantity} &times; {formatRupee(item.unitPrice)}
-                        </div>
-                      </div>
+            <div className="p-4 bg-galla-paper/40 border border-galla-line/70 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="h-12 w-12 rounded-full bg-galla-teal-soft border border-galla-teal/30 flex items-center justify-center text-galla-teal font-bold text-[16px] shrink-0">
+                  {order.customer.slice(0, 1).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-[16px] text-galla-ink">
+                      {order.customer}
+                    </span>
+                  </div>
+                  {order.customerPhone ? (
+                    <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5 flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 text-galla-teal" />
+                      <span>{formatPhoneNumber(order.customerPhone)}</span>
                     </div>
-                  </div>
-                );
-              })}
+                  ) : (
+                    <div className="text-[12px] text-galla-ink-soft/70 italic mt-0.5">
+                      No phone number recorded
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                {/* Final Total row just below productwise calculation (matching purchase modal) */}
-                <div className="px-4 py-3 bg-galla-paper/80 border-t border-galla-line flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold text-galla-ink">
-                      Total ({order.lineItems.length} {order.lineItems.length === 1 ? "Item" : "Items"} &bull;{" "}
-                      {totalUnits} {totalUnits === 1 ? "Unit" : "Units"})
+              {order.customerPhone && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
+                    title={`Call ${order.customer}`}
+                  >
+                    <Phone className="h-3.5 w-3.5 text-galla-teal" />
+                    <span>Call</span>
+                  </a>
+                  {waUrl && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
+                      title="Open WhatsApp message"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Card 2: Timeline & Status Tracking */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-galla-teal" />
+              <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                Timeline &amp; Order Status
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Created / Placed At */}
+              <div className="p-3.5 bg-galla-paper/30 border border-galla-line rounded-lg flex items-start gap-3">
+                <Calendar className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
+                <div>
+                  <span className="block text-[12px] font-medium text-galla-ink-soft">
+                    Order Placed
+                  </span>
+                  <span className="text-[13px] font-semibold text-galla-ink mt-0.5 block">
+                    {formatDateTime(order.createdAt) || order.time}
+                  </span>
+                  {order.recordedBy && (
+                    <span className="text-[11.5px] text-galla-ink-soft/75 mt-0.5 block capitalize">
+                      Recorded by: {order.recordedBy}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Latest Lifecycle Status Card */}
+              {isCompleted ? (
+                <div className="p-3.5 bg-emerald-50/60 border border-emerald-200/90 rounded-lg flex items-start gap-3 text-emerald-950">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="block text-[12px] font-semibold text-emerald-900">
+                        {order.scheduledFor
+                          ? order.type === "Product sale"
+                            ? "Picked Up (Completed)"
+                            : "Appointment Slot (Completed)"
+                          : "Completed & Settled"}
+                      </span>
+                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                        Done
+                      </span>
+                    </div>
+                    <span className="text-[13px] font-semibold mt-0.5 block text-emerald-950">
+                      {formatDateTime(order.completedAt || order.latestActivityAt || order.createdAt) || "Completed at counter"}
                     </span>
                   </div>
-                  <div className="text-right">
+                </div>
+              ) : isRefunded ? (
+                <div className="p-3.5 bg-rose-50/60 border border-rose-200/90 rounded-lg flex items-start gap-3 text-rose-950">
+                  <RotateCcw className="h-4 w-4 text-rose-700 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="block text-[12px] font-semibold text-rose-900">
+                        Order Refunded
+                      </span>
+                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
+                        Refunded
+                      </span>
+                    </div>
+                    <span className="text-[13px] font-semibold mt-0.5 block text-rose-950">
+                      {formatDateTime(order.refundedAt || order.latestActivityAt || order.createdAt) || "Refund processed"}
+                    </span>
+                  </div>
+                </div>
+              ) : order.scheduledFor ? (
+                <div
+                  className={`p-3.5 rounded-lg flex items-start gap-3 ${
+                    isReplacement && isTomorrow
+                      ? "bg-rose-50 border border-rose-300 text-rose-950 ring-1 ring-rose-300/40"
+                      : "bg-amber-50/60 border border-amber-200/80 text-amber-950"
+                  }`}
+                >
+                  <Clock
+                    className={`h-4 w-4 shrink-0 mt-0.5 ${
+                      isReplacement && isTomorrow ? "text-rose-700" : "text-amber-700"
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`block text-[12px] font-semibold ${
+                          isReplacement && isTomorrow ? "text-rose-900" : "text-amber-900"
+                        }`}
+                      >
+                        {isReplacement
+                          ? "Expected Replacement Delivery"
+                          : isDue && !hasPendingDelivery
+                          ? "Payment Due Date"
+                          : order.type === "Product sale"
+                          ? "Expected Pickup"
+                          : "Appointment Slot"}
+                      </span>
+                      <span
+                        className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded border ${
+                          isReplacement && isTomorrow
+                            ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
+                            : "bg-amber-100 text-amber-800 border-amber-300/80"
+                        }`}
+                      >
+                        {isReplacement && isTomorrow
+                          ? "Urgent: Tomorrow"
+                          : isToday
+                          ? "Today"
+                          : "Upcoming"}
+                      </span>
+                    </div>
+                    <span className="text-[13px] font-semibold mt-0.5 block">
+                      {formatBookingDate(order.scheduledFor)}
+                      {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
+                    </span>
+                  </div>
+                </div>
+              ) : isDue ? (
+                <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-lg flex items-start gap-3 text-amber-950">
+                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="block text-[12px] font-semibold text-amber-900">
+                        Payment Due
+                      </span>
+                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
+                        Pending
+                      </span>
+                    </div>
+                    <span className="text-[13px] font-semibold mt-0.5 block text-amber-950">
+                      {formatDateTime(order.latestActivityAt || order.createdAt) || order.time}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-galla-paper/30 border border-galla-line rounded-lg flex items-start gap-3">
+                  <Clock className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-[12px] font-medium text-galla-ink-soft">
+                      Last Activity
+                    </span>
+                    <span className="text-[13px] font-semibold text-galla-ink mt-0.5 block">
+                      {formatDateTime(order.latestActivityAt || order.createdAt) || order.time}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Card 3: Items Purchased */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-galla-teal" />
+                <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                  Items Purchased ({order.lineItems?.length || (order.itemsSummary ? 1 : 0)})
+                </h2>
+              </div>
+              <span className="text-[12px] font-semibold text-galla-ink-soft tabular-nums">
+                {totalUnits} {totalUnits === 1 ? "unit" : "units"} total
+              </span>
+            </div>
+
+            <div className="border border-galla-line rounded-xl overflow-hidden bg-galla-surface">
+              {order.lineItems && order.lineItems.length > 0 ? (
+                <div className="divide-y divide-galla-line/60">
+                  {order.lineItems.map((item, idx) => {
+                    const itemReturns = (order.returns || []).filter(
+                      (r) =>
+                        (r.lineItemId && item.itemId && String(r.lineItemId) === String(item.itemId)) ||
+                        (typeof r.lineItemIndex === "number" && r.lineItemIndex === idx) ||
+                        (r.productId && item.itemId && String(r.productId) === String(item.itemId)) ||
+                        (r.productName && item.name && r.productName.trim().toLowerCase() === item.name.trim().toLowerCase())
+                    );
+
+                    const returnedQty = itemReturns.length > 0
+                      ? itemReturns
+                          .filter((r) => r.customerResolution === "refund" || !r.customerResolution)
+                          .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                      : (item.returnedQuantity || 0);
+
+                    const replacedQty = itemReturns.length > 0
+                      ? itemReturns
+                          .filter((r) => r.customerResolution === "replacement")
+                          .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                      : (item.replacedQuantity || 0);
+
+                    const isFullyReturned = returnedQty >= item.quantity;
+                    const totalHandled = returnedQty + replacedQty;
+
+                    return (
+                      <div key={idx} className="p-4 hover:bg-galla-paper/20 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {item.itemType === "product" ? (
+                                <ShoppingBag className="h-4 w-4 text-blue-600 shrink-0" />
+                              ) : item.itemType === "package" ? (
+                                <Package className="h-4 w-4 text-indigo-600 shrink-0" />
+                              ) : (
+                                <Scissors className="h-4 w-4 text-purple-600 shrink-0" />
+                              )}
+                              <span className={`font-semibold text-[14px] ${isFullyReturned ? "text-galla-ink-soft line-through" : "text-galla-ink"}`}>
+                                {item.name}
+                              </span>
+                              <span
+                                className={`text-[10.5px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                                  item.itemType === "product"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : item.itemType === "package"
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                    : "bg-purple-50 text-purple-700 border-purple-200"
+                                }`}
+                              >
+                                {item.itemType}
+                              </span>
+                              {returnedQty > 0 && (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                  {returnedQty} Returned
+                                </span>
+                              )}
+                              {replacedQty > 0 && (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  {replacedQty} Replaced
+                                </span>
+                              )}
+                              {item.itemType === "product" &&
+                                !isAdvance &&
+                                !isPaidFull &&
+                                item.fulfilled !== false &&
+                                order.status !== "cancelled_refunded" &&
+                                order.status !== "cancelled_converted" &&
+                                totalHandled < item.quantity && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReturningItemIndex(idx)}
+                                  className="text-[11.5px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Undo2 className="h-3 w-3" />
+                                  <span>Return Item</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Package Components Breakdown */}
+                            {item.packageDetails?.components && item.packageDetails.components.length > 0 && (
+                              <div className="pl-6 pt-1 space-y-0.5">
+                                <span className="text-[11.5px] font-medium text-galla-ink-soft">
+                                  Includes services:
+                                </span>
+                                <ul className="list-disc list-inside text-[11.5px] text-galla-ink-soft/90 space-y-0.5">
+                                  {item.packageDetails.components.map((comp, cIdx) => (
+                                    <li key={cIdx}>
+                                      {comp.name} ({formatRupee(comp.componentPrice)})
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Fulfillment status */}
+                            {item.itemType === "product" && (
+                              <div className="pl-6 text-[11.5px]">
+                                {item.fulfilled ? (
+                                  <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Delivered / Handed over
+                                  </span>
+                                ) : order.paid >= order.amount ? (
+                                  <span className="text-blue-700 font-medium inline-flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" /> Fully Paid &bull; Delivery Pending (Awaiting Stock Pickup)
+                                  </span>
+                                ) : order.paid > 0 ? (
+                                  <span className="text-amber-800 font-medium inline-flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" /> Advance Received &bull; Delivery Pending
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-700 font-medium inline-flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" /> Pending Pickup / Backorder
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {item.itemType === "package" && (
+                              <div className="pl-6 text-[11.5px]">
+                                {item.fulfilled ? (
+                                  <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Package Rendered &bull; Products Deducted
+                                  </span>
+                                ) : (
+                                  <span className="text-indigo-700 font-medium inline-flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" /> Advance Booking &bull; Products deducted on order completion
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {item.itemType === "service" && (
+                              <div className="pl-6 text-[11.5px]">
+                                {item.fulfilled ? (
+                                  <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Service Rendered
+                                  </span>
+                                ) : (
+                                  <span className="text-purple-700 font-medium inline-flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" /> Advance Booking &bull; Consumed products deducted on completion
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="text-[15px] font-bold text-galla-ink tabular-nums">
+                              {formatRupee(item.unitPrice * (item.quantity || 1))}
+                            </div>
+                            <div className="text-[11.5px] text-galla-ink-soft tabular-nums mt-0.5">
+                              {item.quantity} &times; {formatRupee(item.unitPrice)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Subtotal row */}
+                  <div className="px-5 py-3.5 bg-galla-paper/70 border-t border-galla-line flex items-center justify-between">
+                    <span className="text-[13px] font-semibold text-galla-ink">
+                      Items Subtotal ({order.lineItems.length} {order.lineItems.length === 1 ? "Item" : "Items"} &bull; {totalUnits} {totalUnits === 1 ? "Unit" : "Units"})
+                    </span>
                     <span className="text-[15px] font-bold text-galla-ink tabular-nums">
                       {formatRupee(originalSubtotal)}
                     </span>
                   </div>
                 </div>
+              ) : (
+                <div className="p-5 text-[13px] text-galla-ink-soft">
+                  {order.itemsSummary ? (
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-galla-ink">{order.itemsSummary}</span>
+                      <span className="text-[15px] font-bold text-galla-ink tabular-nums">
+                        {formatRupee(order.amount)}
+                      </span>
+                    </div>
+                  ) : (
+                    <span>{order.type} &bull; {formatRupee(order.amount)}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Card 4: Returns & Replacements History (if any) */}
+          {hasReturns && (
+            <section className="bg-galla-surface border border-rose-200/80 rounded-xl p-5 shadow-xs space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="h-4 w-4 text-rose-700" />
+                  <h2 className="text-[14px] font-bold text-rose-950 uppercase tracking-wider">
+                    Item Returns &amp; Replacements ({order.returns!.length})
+                  </h2>
+                </div>
               </div>
-            ) : (
-              <div className="p-4 text-[13px] text-galla-ink-soft">
-                {order.itemsSummary ? (
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-galla-ink">{order.itemsSummary}</span>
-                    <span className="text-[15px] font-semibold text-galla-ink tabular-nums">
-                      {formatRupee(order.amount)}
-                    </span>
+
+              <div className="space-y-2.5">
+                {order.returns!.map((ret, rIdx) => (
+                  <div
+                    key={rIdx}
+                    className="p-3.5 bg-rose-50/40 rounded-lg border border-rose-200/70 text-[12px] space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-galla-ink text-[13px]">
+                          {ret.quantity}x {ret.productName}
+                        </span>
+                        <span
+                          className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded border ${
+                            ret.returnCondition === "defective_dealer_claim"
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          }`}
+                        >
+                          {ret.returnCondition === "defective_dealer_claim" ? "Defective" : "Good (Restocked)"}
+                        </span>
+                      </div>
+                      <span className="tabular-nums text-[11.5px] text-galla-ink-soft">
+                        {ret.returnedAt ? formatDateTime(ret.returnedAt) : ""}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap text-[11.5px] text-galla-ink-soft">
+                      <span>
+                        Resolution:{" "}
+                        <strong className="text-galla-ink font-semibold">
+                          {ret.customerResolution === "replacement"
+                            ? ret.expectedPickupDate
+                              ? `Replacement Scheduled (Expected: ${formatBookingDate(ret.expectedPickupDate)})`
+                              : ret.replacementProductName && ret.replacementProductName !== ret.productName
+                              ? `Replacement Handed Over (Upgraded to ${ret.replacementProductName}${
+                                  typeof ret.priceDifference === "number" && ret.priceDifference !== 0
+                                    ? ` • ${ret.priceDifference > 0 ? `Price Diff: +${formatRupee(ret.priceDifference)} via ${(ret.priceDifferencePaymentMode || "cash").toUpperCase()}` : `Excess Refund: -${formatRupee(Math.abs(ret.priceDifference))}`}`
+                                    : ""
+                                })`
+                              : "Replacement Handed Over"
+                            : (() => {
+                                const hasDueDed = (ret.dueDeduction || 0) > 0;
+                                const hasCash = (ret.cashRefund || 0) > 0;
+                                if (hasDueDed && hasCash) {
+                                  return `Deducted ${formatRupee(ret.dueDeduction || 0)} due & Refunded ${formatRupee(ret.cashRefund || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
+                                }
+                                if (hasDueDed) {
+                                  return `Deducted ${formatRupee(ret.dueDeduction || ret.refundAmount || 0)} from pending due`;
+                                }
+                                return `Refunded ${formatRupee(ret.cashRefund || ret.refundAmount || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
+                              })()}
+                        </strong>
+                      </span>
+                      {ret.restockLocation && (
+                        <span>
+                          &bull; Restock:{" "}
+                          <span className="text-galla-ink font-medium">
+                            {ret.restockLocation === "sellStock" ? "Retail Shelf" : "Salon Use"}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+
+                    {ret.notes && (
+                      <div className="text-[11.5px] text-galla-ink-soft/80 italic pt-1 border-t border-rose-200/50">
+                        &ldquo;{ret.notes}&rdquo;
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <span>{order.type} &bull; {formatRupee(order.amount)}</span>
-                )}
+                ))}
               </div>
-            )}
+            </section>
+          )}
+
+          {/* Card 5: Refund Details (if refunded) */}
+          {isRefunded && (
+            <section className="bg-rose-50/50 border border-rose-200 rounded-xl p-5 shadow-xs space-y-2 text-[13px] text-rose-950">
+              <div className="flex items-center justify-between font-semibold">
+                <span className="inline-flex items-center gap-1.5">
+                  <RotateCcw className="h-4 w-4 text-rose-700" />
+                  <span>Refund Issued:</span>
+                </span>
+                <span className="tabular-nums font-bold text-rose-800 text-[15px]">
+                  {formatRupee(totalRefunded)}
+                  {order.refundMode ? ` (${order.refundMode.toUpperCase()})` : ""}
+                </span>
+              </div>
+
+              {retainedByShop > 0 && (
+                <div className="flex items-center justify-between text-[12.5px] text-emerald-800 font-semibold pt-1.5 border-t border-rose-200/60">
+                  <span className="inline-flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Retained by Shop (Charge / Fee):</span>
+                  </span>
+                  <span className="tabular-nums font-bold text-emerald-700">
+                    +{formatRupee(retainedByShop)}
+                  </span>
+                </div>
+              )}
+
+              {order.refundReason && (
+                <div className="text-[12px] text-rose-800 pt-1">
+                  Reason: {order.refundReason}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Card 6: Order Notes & Settlement Memo */}
+          {order.notes && (
+            <section className="bg-amber-50/50 border border-amber-200/80 rounded-xl p-5 shadow-xs space-y-1.5 text-[12.5px] text-amber-950">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-amber-700 shrink-0" />
+                <h2 className="text-[14px] font-bold text-amber-950 uppercase tracking-wider">
+                  Notes &amp; Settlement Memo
+                </h2>
+              </div>
+              <p className="pt-1 text-galla-ink leading-relaxed">
+                {order.notes}
+              </p>
+            </section>
+          )}
+        </main>
+
+        {/* ====================================================== */}
+        {/* RIGHT COLUMN: BILL SUMMARY, PAYMENTS & ACTIONS         */}
+        {/* ====================================================== */}
+        <aside className="bg-galla-surface border border-galla-line rounded-xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
+          {/* Summary Header */}
+          <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-galla-teal" />
+              <h2 className="text-[15px] font-bold text-galla-ink">Bill &amp; Settlement</h2>
+            </div>
+            <StatusPill status={order.status} />
           </div>
 
-          {/* Billing & Financial Breakdown */}
-          <div className="p-4 bg-galla-paper/40 border border-galla-line rounded-[8px] space-y-2">
-            <span className="block text-[12px] font-semibold text-galla-ink-soft border-b border-galla-line/60 pb-1.5">
-              Payment &amp; Financial Summary
-            </span>
+          {/* Scrollable Summary Body */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Financial Breakdown */}
+            <div className="space-y-2 text-[12.5px]">
+              <span className="block text-[12px] font-semibold text-galla-ink-soft border-b border-galla-line/60 pb-1.5 uppercase tracking-wider">
+                Financial Breakdown
+              </span>
 
-            {/* 1. Subtotal */}
-            <div className="flex justify-between text-[13px] text-galla-ink-soft">
-              <span>Subtotal:</span>
-              <span className="tabular-nums font-medium">{formatRupee(originalSubtotal)}</span>
-            </div>
-
-            {/* 2. Discount if applicable */}
-            {originalDiscountAmount > 0 ? (
-              <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
-                <span>
-                  Discount {order.discountType === "percentage" ? `(${order.discountValue}%)` : ""}:
+              {/* 1. Subtotal */}
+              <div className="flex justify-between text-galla-ink-soft">
+                <span>Items Subtotal</span>
+                <span className="tabular-nums font-medium text-galla-ink">
+                  {formatRupee(originalSubtotal)}
                 </span>
-                <span className="tabular-nums font-medium">- {formatRupee(originalDiscountAmount)}</span>
               </div>
-            ) : null}
 
-            {extraOnBill > 0 && (
-              <div className="flex justify-between text-[13px] text-emerald-700 font-medium">
-                <span className="inline-flex items-center gap-1.5">
-                  <span>Extra Paid:</span>
-                </span>
-                <span className="tabular-nums font-medium">+{formatRupee(extraOnBill)}</span>
-              </div>
-            )}
-
-            {/* 3. Bill Amount (Amount to be paid) - Fixed */}
-            <div className="flex justify-between text-[15px] font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
-              <span>Total Bill Amount:</span>
-              <span className="tabular-nums font-bold text-[17px]">{formatRupee(originalBillAmount)}</span>
-            </div>
-
-            {/* 4. When product return is made: add below bill amount and show full calculation */}
-            {hasReturns && totalReturnRefundAmount > 0 && (
-              <>
-                <div className="flex justify-between text-[13.5px] text-rose-700 font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    <span>Returned Items Deduction:</span>
+              {/* 2. Discount */}
+              {originalDiscountAmount > 0 && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>
+                    Discount {order.discountType === "percentage" ? `(${order.discountValue}%)` : ""}
                   </span>
                   <span className="tabular-nums font-semibold">
-                    - {formatRupee(totalReturnRefundAmount)}
+                    - {formatRupee(originalDiscountAmount)}
                   </span>
                 </div>
+              )}
 
-                <div className="flex justify-between text-[15px] font-semibold text-galla-ink pt-1 border-t border-dashed border-galla-line/60">
-                  <span>Reduced Bill Amount (New Order Price):</span>
-                  <span className="tabular-nums font-bold text-[15px]">
-                    {formatRupee(netBillAmount)}
-                  </span>
+              {/* Extra paid */}
+              {extraOnBill > 0 && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Extra Paid</span>
+                  <span className="tabular-nums font-semibold">+{formatRupee(extraOnBill)}</span>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* 5. Two options: If full payment not made vs Settled / Paid in Full */}
-            {isRefunded ? (
-              <>
-                <div className="flex justify-between text-[13.5px] text-galla-ink font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Wallet className="h-3.5 w-3.5 text-galla-ink-soft" />
-                    <span>Amount Collected:</span>
-                  </span>
-                  <span className="tabular-nums font-medium">
-                    {formatRupee(totalCollected)}
-                  </span>
-                </div>
+              {/* 3. Total Bill Amount */}
+              <div className="flex justify-between items-baseline pt-2 border-t border-galla-line text-[14.5px] font-semibold text-galla-ink">
+                <span>Total Bill Amount</span>
+                <span className="text-[17px] font-bold tabular-nums text-galla-ink">
+                  {formatRupee(originalBillAmount)}
+                </span>
+              </div>
 
-                <div className="flex justify-between text-[13px] text-rose-700 font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Undo2 className="h-3.5 w-3.5" />
-                    <span>Total Refunded:</span>
-                  </span>
-                  <span className="tabular-nums font-medium">
-                    - {formatRupee(totalRefunded)}
-                  </span>
-                </div>
-
-                {retainedByShop > 0 && (
-                  <div className="flex justify-between text-[13px] text-emerald-800 font-semibold bg-emerald-50/70 p-2 rounded border border-emerald-200/80">
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>Retained by Shop (Charge / Fee):</span>
+              {/* 4. Returns Deduction if any */}
+              {hasReturns && totalReturnRefundAmount > 0 && (
+                <div className="space-y-1.5 pt-1.5 border-t border-dashed border-rose-200">
+                  <div className="flex justify-between text-rose-700 font-medium">
+                    <span className="flex items-center gap-1">
+                      <RotateCcw className="h-3 w-3" />
+                      <span>Returned Items Deduction</span>
                     </span>
-                    <span className="tabular-nums font-semibold text-[14px]">+{formatRupee(retainedByShop)}</span>
+                    <span className="tabular-nums font-semibold">
+                      - {formatRupee(totalReturnRefundAmount)}
+                    </span>
                   </div>
-                )}
-              </>
-            ) : isDue ? (
-              <>
-                <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium pt-1">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Wallet className="h-3.5 w-3.5" />
-                    <span>Amount Paid:</span>
-                    {order.paymentMode && (
-                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                        {order.paymentMode}
-                      </span>
-                    )}
-                  </span>
-                  <span className="tabular-nums font-semibold">{formatRupee(netAmountPaid)}</span>
-                </div>
 
-                <div className="flex justify-between text-[13.5px] text-rose-700 font-semibold pt-1 border-t border-galla-line/40">
-                  <span className="inline-flex items-center gap-1">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    <span>Remaining Price to be Paid:</span>
-                  </span>
-                  <span className="tabular-nums font-bold text-[15px]">{formatRupee(dueAmount)}</span>
+                  <div className="flex justify-between text-[13.5px] font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
+                    <span>Reduced Net Bill</span>
+                    <span className="tabular-nums font-bold text-galla-teal">
+                      {formatRupee(netBillAmount)}
+                    </span>
+                  </div>
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="flex justify-between text-[13.5px] text-emerald-700 font-medium pt-1">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Wallet className="h-3.5 w-3.5" />
-                    <span>Amount Paid:</span>
-                  </span>
-                  <span className="tabular-nums font-semibold">
-                    {formatRupee(netAmountPaid || (hasReturns ? netBillAmount : originalBillAmount))}
-                  </span>
-                </div>
+              )}
 
-                <div className="flex justify-between text-[12.5px] text-emerald-800 font-medium pt-1 border-t border-galla-line/40">
-                  <span className="inline-flex items-center gap-1">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span>Status:</span>
-                  </span>
-                  <span>Fully Settled (₹0 Due)</span>
+              {/* 5. Payments & Due / Settled */}
+              {isRefunded ? (
+                <div className="space-y-1.5 pt-2 border-t border-galla-line/60">
+                  <div className="flex justify-between text-galla-ink font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Wallet className="h-3.5 w-3.5 text-galla-ink-soft" />
+                      <span>Amount Collected</span>
+                    </span>
+                    <span className="tabular-nums font-medium">{formatRupee(totalCollected)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <Undo2 className="h-3.5 w-3.5" />
+                      <span>Total Refunded</span>
+                    </span>
+                    <span className="tabular-nums font-bold">- {formatRupee(totalRefunded)}</span>
+                  </div>
+                  {retainedByShop > 0 && (
+                    <div className="flex justify-between text-emerald-800 font-semibold bg-emerald-50/70 p-2 rounded-lg border border-emerald-200/80">
+                      <span>Retained Charge / Fee</span>
+                      <span className="tabular-nums font-bold">+{formatRupee(retainedByShop)}</span>
+                    </div>
+                  )}
                 </div>
-              </>
-            )}
+              ) : isDue ? (
+                <div className="space-y-1.5 pt-2 border-t border-galla-line/60">
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Wallet className="h-3.5 w-3.5" />
+                      <span>Amount Paid</span>
+                      {order.paymentMode && (
+                        <span className="text-[10.5px] font-medium px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
+                          {order.paymentMode}
+                        </span>
+                      )}
+                    </span>
+                    <span className="tabular-nums font-bold">{formatRupee(netAmountPaid)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-baseline text-[14px] text-rose-700 font-bold pt-1.5 border-t border-rose-200">
+                    <span className="flex items-center gap-1.5">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                      <span>Balance Due</span>
+                    </span>
+                    <span className="text-xl tabular-nums font-extrabold text-rose-700">
+                      {formatRupee(dueAmount)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5 pt-2 border-t border-galla-line/60">
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Wallet className="h-3.5 w-3.5" />
+                      <span>Amount Paid</span>
+                    </span>
+                    <span className="tabular-nums font-bold">
+                      {formatRupee(netAmountPaid || (hasReturns ? netBillAmount : originalBillAmount))}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-[12.5px] text-emerald-800 font-semibold pt-1 border-t border-emerald-200">
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span>Settlement Status</span>
+                    </span>
+                    <span>Fully Settled (₹0 Due)</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Payment History Log */}
             {combinedPayments.length > 0 && (() => {
@@ -831,7 +1035,6 @@ export function OrderDetailsModal({
                   return { label: "Full Payment", style: "bg-galla-teal/10 text-galla-teal border-galla-teal/20" };
                 }
 
-                // Intelligently infer for existing historical orders
                 if (total > 1) {
                   if (idx === 0) {
                     if (order.status === "created" || (!order.scheduledFor && order.status !== "advance_paid")) {
@@ -861,23 +1064,23 @@ export function OrderDetailsModal({
               };
 
               return (
-                <div className="pt-2 border-t border-galla-line/60 space-y-1.5">
-                  <span className="text-[12px] font-semibold text-galla-ink-soft block">
+                <div className="pt-2 border-t border-galla-line/60 space-y-2">
+                  <span className="text-[12px] font-semibold text-galla-ink-soft block uppercase tracking-wider">
                     Payment History ({combinedPayments.length})
                   </span>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {combinedPayments.map((p, pIdx) => {
                       const badge = getPaymentBadge(p, pIdx, combinedPayments.length);
                       const isRefund = p.type === "refund" || p.amount < 0;
                       return (
                         <div
                           key={pIdx}
-                          className="bg-galla-surface rounded border border-galla-line/60 flex flex-col"
+                          className="bg-galla-paper/30 rounded-lg border border-galla-line/60 flex flex-col overflow-hidden"
                         >
-                          <div className="flex items-center justify-between text-[11.5px] px-2.5 py-1.5 text-galla-ink-soft">
+                          <div className="flex items-center justify-between text-[12px] px-3 py-2 text-galla-ink-soft">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${badge.style}`}
+                                className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${badge.style}`}
                               >
                                 {badge.label}
                               </span>
@@ -894,7 +1097,7 @@ export function OrderDetailsModal({
                             </span>
                           </div>
                           {p.notes && (
-                            <div className="px-2.5 pb-1.5 pt-1 text-[11px] text-galla-ink-soft/80 bg-galla-paper/30">
+                            <div className="px-3 pb-2 pt-0.5 text-[11px] text-galla-ink-soft/80 bg-galla-paper/50">
                               {p.notes}
                             </div>
                           )}
@@ -907,157 +1110,29 @@ export function OrderDetailsModal({
             })()}
           </div>
 
-          {/* Returns & Replacements History Log */}
-          {order.returns && order.returns.length > 0 && (
-            <div className="p-3 bg-rose-50/50 border border-rose-200/80 rounded-[6px] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-rose-900 font-bold flex items-center gap-1.5">
-                  <RotateCcw className="h-3.5 w-3.5 text-rose-700" />
-                  <span>Item Returns &amp; Replacements ({order.returns.length})</span>
+          {/* Sidebar Footer Actions */}
+          <div className="p-4 border-t border-galla-line/60 bg-galla-surface space-y-2.5 shrink-0">
+            {/* Status notice */}
+            <div className="text-[11.5px] text-galla-ink-soft">
+              {isDue ? (
+                <span className="text-amber-800 font-medium">
+                  Customer has {formatRupee(dueAmount)} remaining due
+                  {!isScheduledDateArrived && order.scheduledFor && (
+                    <span className="text-[11px] text-galla-ink-soft/80 block font-normal">
+                      Settle available on {isDue && !hasPendingDelivery ? "due date" : order.type === "Product sale" ? "pickup day" : "appointment day"} ({formatBookingDate(order.scheduledFor)})
+                    </span>
+                  )}
                 </span>
-              </div>
-              <div className="space-y-1.5">
-                {order.returns.map((ret, rIdx) => (
-                  <div
-                    key={rIdx}
-                    className="p-2.5 bg-galla-surface rounded-[4px] border border-rose-200/70 text-[11.5px] space-y-1"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-galla-ink">
-                          {ret.quantity}x {ret.productName}
-                        </span>
-                        <span
-                          className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
-                            ret.returnCondition === "defective_dealer_claim"
-                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          }`}
-                        >
-                          {ret.returnCondition === "defective_dealer_claim" ? "Defective" : "Good (Restocked)"}
-                        </span>
-                      </div>
-                      <span className="tabular-nums text-[11px] text-galla-ink-soft">
-                        {ret.returnedAt ? formatDateTime(ret.returnedAt) : ""}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-galla-ink-soft">
-                      <span>
-                        Resolution:{" "}
-                        <strong className="text-galla-ink font-medium">
-                          {ret.customerResolution === "replacement"
-                            ? ret.expectedPickupDate
-                              ? `Replacement Scheduled (Expected: ${formatBookingDate(ret.expectedPickupDate)})`
-                              : ret.replacementProductName && ret.replacementProductName !== ret.productName
-                              ? `Replacement Handed Over (Upgraded to ${ret.replacementProductName}${
-                                  typeof ret.priceDifference === "number" && ret.priceDifference !== 0
-                                    ? ` • ${ret.priceDifference > 0 ? `Price Diff: +${formatRupee(ret.priceDifference)} via ${(ret.priceDifferencePaymentMode || "cash").toUpperCase()}` : `Excess Refund: -${formatRupee(Math.abs(ret.priceDifference))}`}`
-                                    : ""
-                                })`
-                              : "Replacement Handed Over"
-                            : (() => {
-                                const hasDueDed = (ret.dueDeduction || 0) > 0;
-                                const hasCash = (ret.cashRefund || 0) > 0;
-                                if (hasDueDed && hasCash) {
-                                  return `Deducted ${formatRupee(ret.dueDeduction || 0)} due & Refunded ${formatRupee(ret.cashRefund || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
-                                }
-                                if (hasDueDed) {
-                                  return `Deducted ${formatRupee(ret.dueDeduction || ret.refundAmount || 0)} from pending due`;
-                                }
-                                return `Refunded ${formatRupee(ret.cashRefund || ret.refundAmount || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
-                              })()}
-                        </strong>
-                      </span>
-                      {ret.restockLocation && (
-                        <span>
-                          &bull; Destination:{" "}
-                          <span className="text-galla-ink font-medium">
-                            {ret.restockLocation === "sellStock" ? "Retail Shelf" : "Salon Use"}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-
-                    {ret.notes && (
-                      <div className="text-[11px] text-galla-ink-soft/80 italic pt-0.5 border-t border-galla-line/40">
-                        &ldquo;{ret.notes}&rdquo;
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              ) : isReplacement ? (
+                <span className="text-amber-800 font-medium">Replacement order &bull; Awaiting dealer delivery</span>
+              ) : isCompleted ? (
+                <span className="text-emerald-700 font-medium">Order is complete</span>
+              ) : hasPendingDelivery ? (
+                <span className="text-blue-700 font-medium">Paid in full &bull; Delivery pending stock pickup</span>
+              ) : null}
             </div>
-          )}
 
-          {/* Refund Details if refunded */}
-          {isRefunded && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-[6px] space-y-1.5 text-[12.5px] text-rose-900">
-              <div className="flex items-center justify-between font-semibold">
-                <span className="inline-flex items-center gap-1.5">
-                  <RotateCcw className="h-3.5 w-3.5 text-rose-700" />
-                  <span>Refund Issued:</span>
-                </span>
-                <span className="tabular-nums font-semibold text-rose-800">
-                  {formatRupee(totalRefunded)}
-                  {order.refundMode ? ` (${order.refundMode.toUpperCase()})` : ""}
-                </span>
-              </div>
-
-              {retainedByShop > 0 && (
-                <div className="flex items-center justify-between text-[12px] text-emerald-800 font-semibold pt-1 border-t border-rose-200/60">
-                  <span className="inline-flex items-center gap-1">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    <span>Retained by Shop (Charge / Fee):</span>
-                  </span>
-                  <span className="tabular-nums font-semibold text-emerald-700">
-                    +{formatRupee(retainedByShop)}
-                  </span>
-                </div>
-              )}
-
-              {order.refundReason && (
-                <div className="text-[12px] text-rose-800 pt-0.5">
-                  Reason: {order.refundReason}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Order Notes / Settlement Notice */}
-          {order.notes && (
-            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-[6px] flex items-start gap-2 text-[12px] text-amber-950">
-              <FileText className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold block">Notes &amp; Settlement:</span>
-                <p className="mt-0.5 leading-relaxed">{order.notes}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer Actions */}
-        <div className="px-5 py-3 border-t border-galla-line bg-galla-paper/30 flex items-center justify-between shrink-0">
-          <div className="text-[12px] text-galla-ink-soft">
-            {isDue ? (
-              <span className="text-amber-800 font-medium">
-                Customer has {formatRupee(dueAmount)} remaining due
-                {!isScheduledDateArrived && order.scheduledFor && (
-                  <span className="text-[11px] text-galla-ink-soft/80 block sm:inline sm:ml-1 font-normal">
-                    &bull; Settle available on {isDue && !hasPendingDelivery ? "due date" : order.type === "Product sale" ? "pickup day" : "appointment day"} ({formatBookingDate(order.scheduledFor)})
-                  </span>
-                )}
-              </span>
-            ) : isReplacement ? (
-              <span className="text-amber-800 font-medium">Replacement order &bull; Awaiting dealer delivery</span>
-            ) : isCompleted ? (
-              <span className="text-emerald-700 font-medium">Order is complete</span>
-            ) : hasPendingDelivery ? (
-              <span className="text-blue-700 font-medium">Paid in full &bull; Delivery pending stock pickup</span>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-2">
+            {/* Primary Action Button */}
             {isDue && isScheduledDateArrived && onOpenSettle && (
               <button
                 type="button"
@@ -1065,9 +1140,10 @@ export function OrderDetailsModal({
                   onClose();
                   onOpenSettle(order);
                 }}
-                className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs"
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                Settle Due ({formatRupee(dueAmount)})
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Settle Due ({formatRupee(dueAmount)})</span>
               </button>
             )}
 
@@ -1078,59 +1154,62 @@ export function OrderDetailsModal({
                   onClose();
                   onOpenSettle(order);
                 }}
-                className="px-3.5 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                <CheckCircle2 className="h-3.5 w-3.5" />
+                <CheckCircle2 className="h-4 w-4" />
                 <span>Deliver &amp; Complete Order</span>
               </button>
             )}
 
-            {(isAdvance || isDue || isReplacement) && onOpenReschedule && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenReschedule(order);
-                }}
-                className="px-3 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft transition-colors cursor-pointer"
-              >
-                {order.scheduledFor
-                  ? isDue && !hasPendingDelivery
-                    ? "Change Due Date"
-                    : "Reschedule"
-                  : isDue && !hasPendingDelivery
-                  ? "Set Due Date"
-                  : isReplacement
-                  ? "Set Delivery Date"
-                  : "Set Date"}
-              </button>
-            )}
+            {/* Secondary Buttons Row */}
+            <div className="flex items-center gap-2">
+              {(isAdvance || isDue || isReplacement) && onOpenReschedule && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenReschedule(order);
+                  }}
+                  className="flex-1 py-2 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
+                >
+                  {order.scheduledFor
+                    ? isDue && !hasPendingDelivery
+                      ? "Change Due Date"
+                      : "Reschedule"
+                    : isDue && !hasPendingDelivery
+                    ? "Set Due Date"
+                    : isReplacement
+                    ? "Set Delivery Date"
+                    : "Set Date"}
+                </button>
+              )}
 
-            {canOrderBeRefunded(order) && onOpenRefund && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenRefund(order);
-                }}
-                className="px-3 py-1.5 rounded-[5px] text-[12.5px] font-sans font-medium bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 transition-colors cursor-pointer"
-              >
-                Refund
-              </button>
-            )}
+              {canOrderBeRefunded(order) && onOpenRefund && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenRefund(order);
+                  }}
+                  className="py-2 px-3.5 rounded-lg text-[12.5px] font-medium bg-red-50 text-red-800 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
+                >
+                  Refund
+                </button>
+              )}
+            </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-[5px] text-[13px] font-sans font-medium bg-galla-teal hover:opacity-95 text-white transition-opacity cursor-pointer shadow-xs"
+              className="w-full py-2.5 rounded-xl border border-galla-line hover:bg-galla-paper text-galla-ink font-semibold text-[13px] transition-colors cursor-pointer"
             >
               Close
             </button>
           </div>
-        </div>
+        </aside>
       </div>
 
-      {returningItemIndex !== null && order.lineItems && (
+      {returningItemIndex !== null && order.lineItems && !isAdvance && !isPaidFull && (
         <ReturnCustomerOrderItemModal
           isOpen={returningItemIndex !== null}
           onClose={() => setReturningItemIndex(null)}

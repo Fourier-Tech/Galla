@@ -5,7 +5,7 @@ import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, Ar
 import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus, canOrderBeRefunded } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus, canOrderBeRefunded, getOrderRefundBreakdown } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { ChangeReplacementDateModal } from "@/components/dashboard/modals/change-replacement-date-modal";
@@ -117,7 +117,10 @@ export function OverviewTab({
   // Excludes fully refunded orders (whose net retained amount is 0) so refunds do not inflate income
   const todayIncome = useMemo(() => {
     return orders.reduce((sum, o) => {
-      if (o.status === "cancelled_refunded" && !o.refundAmount) return sum;
+      if (o.status === "cancelled_refunded") {
+        const breakdown = getOrderRefundBreakdown(o);
+        return sum + (o.isToday ? breakdown.retainedAmount : 0);
+      }
       return sum + (o.todayPaid ?? (o.isToday ? o.paid : 0));
     }, 0);
   }, [orders]);
@@ -661,9 +664,8 @@ export function OverviewTab({
               {/* Scrollable Table Rows */}
               <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-galla-line">
                 {recent24hOrders.map((order) => {
-                  const isPartialRefund =
-                    order.status === "cancelled_refunded" &&
-                    Boolean(order.refundAmount && order.paid > 0);
+                  const refundBreakdown = getOrderRefundBreakdown(order);
+                  const isPartialRefund = refundBreakdown.isPartialRefund;
                   const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full";
                   const isDueOrder =
                     order.status === "created" ||
@@ -974,9 +976,9 @@ export function OverviewTab({
                                     </span>
                                   )}
                                 </div>
-                                {isPartialRefund && (
+                                {isPartialRefund && refundBreakdown.retainedAmount > 0 && (
                                   <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                                    {formatRupee(order.paid)} kept
+                                    {formatRupee(refundBreakdown.retainedAmount)} kept
                                   </div>
                                 )}
                               </div>

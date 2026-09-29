@@ -30,6 +30,7 @@ import {
   formatPhoneNumber,
   formatDisplayNumber,
   canOrderBeRefunded,
+  getOrderRefundBreakdown,
 } from "@/lib/utils";
 
 interface OrdersTabProps {
@@ -614,9 +615,8 @@ export function OrdersTab({
 
             <div className={`divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
               {sortedOrders.map((order) => {
-                const isPartialRefund =
-                  order.status === "cancelled_refunded" &&
-                  Boolean(order.refundAmount && order.paid > 0);
+                const refundBreakdown = getOrderRefundBreakdown(order);
+                const isPartialRefund = refundBreakdown.isPartialRefund;
                 const isReplacementOrder = order.status === "replacement_pending" || order.status === "replacement";
                 const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full" || isReplacementOrder;
                 const isDueOrder =
@@ -1064,9 +1064,9 @@ export function OrdersTab({
                                   </span>
                                 )}
                               </div>
-                              {isPartialRefund && (
+                              {isPartialRefund && refundBreakdown.retainedAmount > 0 && (
                                 <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                                  {formatRupee(order.paid)} kept
+                                  {formatRupee(refundBreakdown.retainedAmount)} kept
                                 </div>
                               )}
                             </div>

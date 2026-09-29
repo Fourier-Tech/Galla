@@ -523,6 +523,54 @@ export function getBillStatus(po: {
   return { statusKey: "pending", pillStatus: "created", label: "Pending" };
 }
 
+export function getOrderRefundBreakdown(order: {
+  status: string;
+  paid?: number;
+  refundAmount?: number;
+  payments?: Array<{ amount: number; type?: string }>;
+  returns?: Array<{ cashRefund?: number; refundMode?: string; customerResolution?: string; refundAmount?: number }>;
+}): {
+  isRefunded: boolean;
+  isPartialRefund: boolean;
+  totalCollected: number;
+  totalRefunded: number;
+  retainedAmount: number;
+} {
+  const isRefunded = order.status === "cancelled_refunded";
+  if (!isRefunded) {
+    return {
+      isRefunded: false,
+      isPartialRefund: false,
+      totalCollected: order.paid || 0,
+      totalRefunded: 0,
+      retainedAmount: 0,
+    };
+  }
+
+  const returnEvents = Array.isArray(order.returns) ? order.returns : [];
+  const cashRefundTotal = returnEvents.reduce((sum, r) => {
+    if (typeof r.cashRefund === "number") return sum + r.cashRefund;
+    return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0);
+  }, 0);
+
+  const positivePayments = (order.payments || [])
+    .filter((p) => p.amount > 0 && p.type !== "refund")
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const totalCollected = positivePayments > 0 ? positivePayments : (order.paid || 0) + cashRefundTotal;
+  const totalRefunded = (order.refundAmount ?? (order.paid || 0)) + cashRefundTotal;
+  const retainedAmount = Math.max(0, totalCollected - totalRefunded);
+  const isPartialRefund = retainedAmount > 0;
+
+  return {
+    isRefunded,
+    isPartialRefund,
+    totalCollected,
+    totalRefunded,
+    retainedAmount,
+  };
+}
+
 export function getBillLastUpdatedTime(po: {
   updatedAt?: Date | string;
   createdAt?: Date | string;
