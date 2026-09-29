@@ -18,6 +18,12 @@ import {
   Check,
   Calendar,
   Sparkles,
+  ArrowLeft,
+  IndianRupee,
+  CheckCircle2,
+  Clock,
+  ShoppingBag,
+  ChevronDown,
 } from "lucide-react";
 import {
   DashboardProduct,
@@ -39,6 +45,171 @@ import {
 } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 import { PaymentModeSelect } from "../payment-mode-select";
+
+const SETTLEMENT_MODE_OPTIONS = [
+  {
+    value: "completed",
+    label: "Paid in full now",
+    sublabel: "Receive stock & pay dealer immediately",
+    icon: CheckCircle2,
+    badge: "Instant",
+  },
+  {
+    value: "pending",
+    label: "Pay Later / Credit",
+    sublabel: "Receive stock now, pay balance later",
+    icon: Clock,
+    badge: "Credit",
+  },
+  {
+    value: "advance",
+    label: "Advance Order",
+    sublabel: "Partial deposit now, stock arrives later",
+    icon: Calendar,
+    badge: "Deposit",
+  },
+  {
+    value: "paid_full",
+    label: "Paid in Full (Advance PO)",
+    sublabel: "100% upfront payment, stock arrives later",
+    icon: ShoppingBag,
+    badge: "Prepaid",
+  },
+] as const;
+
+function SettlementModeSelect({
+  value,
+  onChange,
+}: {
+  value: "completed" | "pending" | "advance" | "paid_full";
+  onChange: (val: "completed" | "pending" | "advance" | "paid_full") => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption =
+    SETTLEMENT_MODE_OPTIONS.find((opt) => opt.value === value) ||
+    SETTLEMENT_MODE_OPTIONS[0];
+  const SelectedIcon = selectedOption.icon;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsOpen(false);
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="space-y-1.5 w-full relative" ref={containerRef}>
+      <label className="block text-[12px] font-medium text-galla-ink">
+        Settlement Mode <span className="text-red-500">*</span>
+      </label>
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-sans flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs select-none ${
+            isOpen
+              ? "border-galla-teal ring-1 ring-galla-teal"
+              : "border-galla-line hover:border-galla-ink-soft/40"
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-6 w-6 rounded-[4px] bg-galla-teal-soft/80 border border-galla-teal/20 text-galla-teal flex items-center justify-center shrink-0">
+              <SelectedIcon className="h-3.5 w-3.5" />
+            </div>
+            <div className="flex items-center gap-2 truncate text-left">
+              <span className="font-semibold text-galla-ink text-[13px] truncate">
+                {selectedOption.label}
+              </span>
+              <span className="text-[11.5px] text-galla-ink-soft hidden sm:inline truncate">
+                &bull; {selectedOption.sublabel}
+              </span>
+            </div>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-galla-ink-soft shrink-0 transition-transform duration-200 ${
+              isOpen ? "rotate-180 text-galla-teal" : ""
+            }`}
+          />
+        </button>
+
+        {isOpen && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-lg shadow-xl z-30 overflow-hidden divide-y divide-galla-line/40 animate-in fade-in-50 zoom-in-95 duration-100">
+            {SETTLEMENT_MODE_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              const isSelected = opt.value === value;
+
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 text-[12.5px] transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-galla-teal/10"
+                      : "hover:bg-galla-paper/70"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-6 w-6 rounded-[4px] flex items-center justify-center shrink-0 ${
+                        isSelected
+                          ? "bg-galla-teal text-white"
+                          : "bg-galla-paper text-galla-ink-soft border border-galla-line"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-semibold text-[13px] ${
+                            isSelected ? "text-galla-teal" : "text-galla-ink"
+                          }`}
+                        >
+                          {opt.label}
+                        </span>
+                        <span className="text-[10.5px] px-1.5 py-0.2 rounded font-medium bg-galla-paper border border-galla-line text-galla-ink-soft">
+                          {opt.badge}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-galla-ink-soft truncate">
+                        {opt.sublabel}
+                      </div>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <Check className="h-4 w-4 text-galla-teal shrink-0 stroke-[2.5]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface StockInModalProps {
   isOpen: boolean;
@@ -358,6 +529,16 @@ export function StockInModal({
     }
   }, [isOpen, products, createInitialDraftItem]);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && isOpen && !showConfirm) {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, showConfirm, onClose]);
+
   const handleProductSelect = (index: number, selectedId: string) => {
     if (selectedId === "__new__") {
       setItems((prev) =>
@@ -480,6 +661,14 @@ export function StockInModal({
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const totalUnits = useMemo(() => {
+    return items.reduce((acc, it) => {
+      const qSell = Number(it.quantityForSell) || 0;
+      const qUse = Number(it.quantityForUse) || 0;
+      return acc + qSell + qUse;
+    }, 0);
+  }, [items]);
+
   const totalCalculatedCost = items.reduce((sum, it) => {
     const qSell = Number(it.quantityForSell) || 0;
     const qUse = Number(it.quantityForUse) || 0;
@@ -507,7 +696,8 @@ export function StockInModal({
 
   const supplierPending = matchedSupplier?.totalPending || 0;
   const isLedgerBalanceApplicable = settlementMode !== "pending";
-  const effectiveApplyLedgerBalance = applyLedgerBalance && isLedgerBalanceApplicable;
+  const effectiveApplyLedgerBalance =
+    applyLedgerBalance && isLedgerBalanceApplicable;
 
   // If effectiveApplyLedgerBalance is checked, we adjust the target payable amount
   const netPayable = effectiveApplyLedgerBalance
@@ -524,15 +714,18 @@ export function StockInModal({
           ? Math.min(minPayable, enteredAdvance)
           : 0;
 
-  const ledgerAdj = effectiveApplyLedgerBalance && supplierPending !== 0
-    ? (supplierPending < 0 ? Math.min(Math.abs(supplierPending), totalCalculatedCost) : -supplierPending)
-    : 0;
+  const ledgerAdj =
+    effectiveApplyLedgerBalance && supplierPending !== 0
+      ? supplierPending < 0
+        ? Math.min(Math.abs(supplierPending), totalCalculatedCost)
+        : -supplierPending
+      : 0;
 
   // The true pending amount on THIS bill matches backend logic: totalCalculatedCost - amountPaid - ledgerAdj
   const amountPending = totalCalculatedCost - currentAmountPaid - ledgerAdj;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     setErrorMsg(null);
 
     const trimmedSupplier = supplierName.trim();
@@ -776,279 +969,296 @@ export function StockInModal({
   };
 
   if (!isOpen) return null;
-
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] overscroll-contain"
+      role="region"
+      aria-label="Stock In (Purchase Order)"
+      className="fixed inset-0 z-50 bg-galla-paper flex flex-col overflow-y-auto"
     >
-      <div className="w-full max-w-[660px] max-h-[92vh] flex flex-col bg-galla-surface border border-galla-line rounded-[5px] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between px-[21px] py-[16px] border-b border-galla-line bg-galla-paper/30 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-[4px] bg-galla-teal-soft text-galla-teal">
-              <PackagePlus className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-galla-ink">
-                Stock In
-              </h3>
-              <p className="text-[12px] text-galla-ink-soft">
-                Record incoming supplier purchase and stock allocation
-              </p>
-            </div>
-          </div>
+      {/* Top Header (Sticky) */}
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="p-1 text-galla-ink-soft hover:text-galla-ink rounded-[4px] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-galla-line text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/70 text-[13px] font-medium transition-colors cursor-pointer disabled:opacity-50"
           >
-            <X className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to inventory</span>
           </button>
+          <div className="h-4 w-px bg-galla-line hidden sm:block" />
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-[5px] bg-galla-teal-soft text-galla-teal">
+              <PackagePlus className="h-4 w-4" />
+            </div>
+            <h1 className="text-[16px] font-bold text-galla-ink">Stock In (Purchase Order)</h1>
+          </div>
         </div>
 
-        {/* Form Body - Single Screen (Non-Wizard) */}
-        <form
-          onSubmit={handleSubmit}
-          className="overflow-y-auto p-[21px] space-y-4"
-        >
-          {errorMsg && (
-            <div className="flex items-start gap-2 p-3 rounded-[4px] bg-red-50 border border-red-200 text-red-800 text-[13px] font-sans">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+        <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft">
+          <span>
+            {items.length} {items.length === 1 ? "product" : "products"} ({totalUnits} pcs)
+          </span>
+          <span className="text-galla-line">&bull;</span>
+          <span className="font-bold text-galla-ink tabular-nums">
+            {formatRupee(effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost)}
+          </span>
+        </div>
+      </header>
+
+      {/* Global Error Banner */}
+      {errorMsg && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
-          )}
-
-          {/* 1. Supplier Info Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-1 relative">
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                  Supplier <span className="text-red-600">*</span>
-                </label>
-              </div>
-              <input
-                ref={supplierInputRef}
-                type="text"
-                autoFocus
-                required
-                value={supplierName}
-                onChange={(e) => {
-                  setSupplierName(e.target.value);
-                  setSelectedSupplierId(null);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => {
-                  if (supplierName.trim().length > 0) setShowSuggestions(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setShowSuggestions(false);
-                }}
-                placeholder="Type supplier or company..."
-                className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
-                autoComplete="off"
-              />
-
-              {/* Suggestions Dropdown */}
-              {showSuggestions && filteredSuppliers.length > 0 && (
-                <div
-                  ref={dropdownRef}
-                  className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[320px] min-w-full max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-[5px] shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
-                >
-                  <div className="px-2.5 py-1 bg-galla-paper/60 text-[11px] font-medium text-galla-ink-soft">
-                    Existing Suppliers ({filteredSuppliers.length})
-                  </div>
-                  {filteredSuppliers.map((s) => (
-                    <button
-                      type="button"
-                      key={s.id}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setSupplierName(s.name);
-                        if (s.phone) setSupplierPhone(s.phone);
-                        setSelectedSupplierId(s.id);
-                        setShowSuggestions(false);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-galla-paper/80 flex flex-col gap-0.5 cursor-pointer transition-colors group"
-                    >
-                      <div className="flex items-center gap-1.5 w-full">
-                        <Building2 className="h-3.5 w-3.5 text-galla-teal shrink-0" />
-                        <span className="text-[13px] font-medium text-galla-ink group-hover:text-galla-teal transition-colors">
-                          {s.name}
-                        </span>
-                        {s.companyName && (
-                          <span className="text-[11.5px] text-galla-ink-soft font-normal">
-                            ({s.companyName})
-                          </span>
-                        )}
-                      </div>
-                      {s.phone && (
-                        <span className="tabular-nums text-[12px] text-galla-ink-soft pl-5">
-                          {s.phone}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {selectedSupplierId && (
-                <div className="flex items-center gap-1 mt-1 text-[11px] font-sans text-emerald-700">
-                  <Check className="h-3 w-3" />
-                  <span>Linked to existing supplier profile</span>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Dealer Phone
-              </label>
-              <input
-                type="tel"
-                value={supplierPhone}
-                onChange={(e) => setSupplierPhone(e.target.value)}
-                onBlur={() => {
-                  if (supplierPhone.trim())
-                    setSupplierPhone(formatPhoneNumber(supplierPhone));
-                }}
-                placeholder="+91 98250 00000"
-                className={`w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border font-sans text-[13px] text-galla-ink focus:ring-1 outline-none transition-all ${phoneConflictSupplier ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400" : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"}`}
-              />
-              {phoneConflictSupplier && (
-                <div className="flex items-start gap-1.5 mt-1 p-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[11.5px] rounded-[4px] font-sans">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
-                  <div className="leading-tight">
-                    <span>This number is registered to </span>
-                    <strong>{phoneConflictSupplier.name}</strong>
-                    {phoneConflictSupplier.companyName
-                      ? ` (${phoneConflictSupplier.companyName})`
-                      : ""}
-                    .
-                    <span>
-                      {" "}
-                      Creating this bill will update the supplier name to{" "}
-                    </span>
-                    <strong>
-                      {supplierName.trim() || phoneConflictSupplier.name}
-                    </strong>
-                    <span> permanently.</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSupplierName(phoneConflictSupplier.name);
-                        setSelectedSupplierId(phoneConflictSupplier.id);
-                      }}
-                      className="ml-1.5 underline font-medium text-amber-800 hover:text-amber-900 cursor-pointer"
-                    >
-                      Keep {phoneConflictSupplier.name}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Invoice / Bill #
-              </label>
-              <input
-                type="text"
-                value={dealerInvoiceNumber}
-                onChange={(e) => setDealerInvoiceNumber(e.target.value)}
-                placeholder="INV-2026-89"
-                className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[13px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="text-red-600 hover:text-red-800 p-0.5 cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
+        </div>
+      )}
 
-          {/* Pending Dealer Replacements Card */}
-          {pendingDealerReplacements.length > 0 && (
-            <div className="p-3 bg-amber-50/80 border border-amber-300 rounded-[5px] space-y-2 animate-in fade-in duration-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-700" />
-                  <span className="font-semibold text-[12px] text-amber-900">
-                    Pending Dealer Replacements ({pendingDealerReplacements.length})
-                  </span>
-                </div>
-                <span className="text-[11px] font-sans text-amber-800">
-                  Claim defective pieces back at ₹0 cost
-                </span>
-              </div>
+      {/* Main Two-Column Layout */}
+      <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start flex-1">
+        {/* ====================================================== */}
+        {/* LEFT COLUMN: SUPPLIER, ITEMS & PAYMENT TERMS          */}
+        {/* ====================================================== */}
+        <main className="space-y-6 min-w-0 order-1">
+          {/* Card 1: Supplier & Invoice Details */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-galla-teal" />
+              <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                1. Supplier &amp; Invoice Details
+              </h2>
+            </div>
 
-              <div className="space-y-1.5">
-                {pendingDealerReplacements.map((rep, rIdx) => {
-                  const isAlreadyAdded = items.some(
-                    (it) =>
-                      it.isReplacement &&
-                      ((it.productId && it.productId === rep.productId) ||
-                        it.productName.trim().toLowerCase() === rep.productName.trim().toLowerCase()),
-                  );
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Supplier Name with Autocomplete */}
+              <div className="relative">
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                  Supplier Name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  ref={supplierInputRef}
+                  type="text"
+                  autoFocus
+                  required
+                  value={supplierName}
+                  onChange={(e) => {
+                    setSupplierName(e.target.value);
+                    setSelectedSupplierId(null);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => {
+                    if (supplierName.trim().length > 0) setShowSuggestions(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setShowSuggestions(false);
+                  }}
+                  placeholder="Type supplier or distributor..."
+                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                  autoComplete="off"
+                />
 
-                  return (
-                    <div
-                      key={rIdx}
-                      className="flex items-center justify-between p-2 rounded-[4px] bg-white border border-amber-200/80 gap-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-sans font-semibold text-[12.5px] text-galla-ink">
-                            {rep.productName}
-                          </span>
-                          <span className="text-[11px] tabular-nums px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                            {rep.quantity} pcs defective
-                          </span>
-                          <span className="text-[11px] tabular-nums text-galla-ink-soft">
-                            From PO #{rep.purchaseOrderNumber}
-                          </span>
-                        </div>
-                      </div>
-
+                {/* Suggestions Dropdown */}
+                {showSuggestions && filteredSuppliers.length > 0 && (
+                  <div
+                    ref={dropdownRef}
+                    className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[320px] min-w-full max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-lg shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
+                  >
+                    <div className="px-3 py-1.5 bg-galla-paper/60 text-[11px] font-semibold text-galla-ink-soft">
+                      Existing Suppliers ({filteredSuppliers.length})
+                    </div>
+                    {filteredSuppliers.map((s) => (
                       <button
                         type="button"
-                        onClick={() => handleFillReplacement(rep)}
-                        disabled={isAlreadyAdded}
-                        className={`shrink-0 px-2.5 py-1 rounded-[4px] font-sans text-[11.5px] font-medium transition-all cursor-pointer ${
-                          isAlreadyAdded
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                            : "bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
-                        }`}
+                        key={s.id}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSupplierName(s.name);
+                          if (s.phone) setSupplierPhone(s.phone);
+                          setSelectedSupplierId(s.id);
+                          setShowSuggestions(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 hover:bg-galla-paper/80 flex flex-col gap-0.5 cursor-pointer transition-colors group"
                       >
-                        {isAlreadyAdded ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Check className="h-3 w-3" /> Added (@ ₹0)
+                        <div className="flex items-center gap-1.5 w-full">
+                          <Building2 className="h-3.5 w-3.5 text-galla-teal shrink-0" />
+                          <span className="text-[13px] font-semibold text-galla-ink group-hover:text-galla-teal transition-colors">
+                            {s.name}
                           </span>
-                        ) : (
-                          <span>+ Fill Replacement (@ ₹0)</span>
+                          {s.companyName && (
+                            <span className="text-[11.5px] text-galla-ink-soft font-normal">
+                              ({s.companyName})
+                            </span>
+                          )}
+                        </div>
+                        {s.phone && (
+                          <span className="tabular-nums text-[12px] text-galla-ink-soft pl-5">
+                            {s.phone}
+                          </span>
                         )}
                       </button>
+                    ))}
+                  </div>
+                )}
+
+                {selectedSupplierId && (
+                  <div className="flex items-center gap-1 mt-1.5 text-[11.5px] font-sans text-emerald-700">
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Linked to existing supplier profile</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Dealer Phone */}
+              <div>
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                  Dealer Phone
+                </label>
+                <input
+                  type="tel"
+                  value={supplierPhone}
+                  onChange={(e) => setSupplierPhone(e.target.value)}
+                  onBlur={() => {
+                    if (supplierPhone.trim())
+                      setSupplierPhone(formatPhoneNumber(supplierPhone));
+                  }}
+                  placeholder="+91 98250 00000"
+                  className={`w-full bg-galla-surface border rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none transition-all shadow-2xs ${
+                    phoneConflictSupplier
+                      ? "border-amber-400 focus:border-amber-500"
+                      : "border-galla-line focus:border-galla-teal"
+                  }`}
+                />
+                {phoneConflictSupplier && (
+                  <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-900 text-[11.5px] rounded-lg font-sans">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+                    <div className="leading-tight">
+                      <span>This number belongs to </span>
+                      <strong>{phoneConflictSupplier.name}</strong>
+                      {phoneConflictSupplier.companyName
+                        ? ` (${phoneConflictSupplier.companyName})`
+                        : ""}
+                      . Creating will associate with this supplier.
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSupplierName(phoneConflictSupplier.name);
+                          setSelectedSupplierId(phoneConflictSupplier.id);
+                        }}
+                        className="ml-1.5 underline font-semibold text-amber-800 hover:text-amber-950 cursor-pointer"
+                      >
+                        Keep {phoneConflictSupplier.name}
+                      </button>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+              </div>
+
+              {/* Invoice / Bill Number */}
+              <div>
+                <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                  Invoice / Bill #
+                </label>
+                <input
+                  type="text"
+                  value={dealerInvoiceNumber}
+                  onChange={(e) => setDealerInvoiceNumber(e.target.value)}
+                  placeholder="e.g. INV-2026-89"
+                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs font-mono"
+                />
               </div>
             </div>
-          )}
 
-          {/* 2. Products In Batch List */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-semibold text-galla-ink">
-                Products In Batch
-              </span>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="inline-flex items-center gap-1 text-[12px] font-sans font-medium text-galla-teal hover:opacity-85 cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Another Item</span>
-              </button>
+            {/* Pending Dealer Replacements Card */}
+            {pendingDealerReplacements.length > 0 && (
+              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl space-y-2.5 animate-in fade-in duration-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-amber-700" />
+                    <span className="font-semibold text-[13px] text-amber-900">
+                      Pending Dealer Replacements ({pendingDealerReplacements.length})
+                    </span>
+                  </div>
+                  <span className="text-[11.5px] font-sans text-amber-800">
+                    Claim defective pieces back at ₹0 cost
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {pendingDealerReplacements.map((rep, rIdx) => {
+                    const isAlreadyAdded = items.some(
+                      (it) =>
+                        it.isReplacement &&
+                        ((it.productId && it.productId === rep.productId) ||
+                          it.productName.trim().toLowerCase() === rep.productName.trim().toLowerCase()),
+                    );
+
+                    return (
+                      <div
+                        key={rIdx}
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-white border border-amber-200/80 gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-sans font-semibold text-[13px] text-galla-ink">
+                              {rep.productName}
+                            </span>
+                            <span className="text-[11px] tabular-nums px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">
+                              {rep.quantity} pcs defective
+                            </span>
+                            <span className="text-[11.5px] tabular-nums text-galla-ink-soft">
+                              From PO #{rep.purchaseOrderNumber}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleFillReplacement(rep)}
+                          disabled={isAlreadyAdded}
+                          className={`shrink-0 px-3 py-1.5 rounded-lg font-sans text-[12px] font-semibold transition-all cursor-pointer ${
+                            isAlreadyAdded
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                              : "bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
+                          }`}
+                        >
+                          {isAlreadyAdded ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Check className="h-3.5 w-3.5" /> Added (@ ₹0)
+                            </span>
+                          ) : (
+                            <span>+ Fill Replacement (@ ₹0)</span>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Card 2: Products In Batch */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-2">
+              <PackagePlus className="h-4 w-4 text-galla-teal" />
+              <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+                2. Purchase Items &amp; Stock Allocation ({items.length})
+              </h2>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               {items.map((item, idx) => {
                 const qSell = Number(item.quantityForSell) || 0;
                 const qUse = Number(item.quantityForUse) || 0;
@@ -1083,88 +1293,92 @@ export function StockInModal({
                 return (
                   <div
                     key={idx}
-                    className={`p-3 bg-galla-paper/40 border rounded-[5px] space-y-2.5 transition-colors ${
+                    className={`p-4 bg-galla-paper/30 border rounded-xl space-y-3.5 transition-colors ${
                       isDuplicate
                         ? "border-red-300 bg-red-50/20"
                         : "border-galla-line"
                     }`}
                   >
-                    {/* Product Selection Dropdown + Remove button */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1">
-                        <select
-                          value={item.isNewProduct ? "__new__" : item.productId}
-                          onChange={(e) =>
-                            handleProductSelect(idx, e.target.value)
-                          }
-                          className={`w-full px-2.5 py-1.5 rounded-[4px] bg-galla-surface border font-sans text-[13px] text-galla-ink font-medium focus:ring-1 outline-none cursor-pointer ${
-                            isDuplicate
-                              ? "border-red-400 focus:border-red-500 focus:ring-red-400"
-                              : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
-                          }`}
-                        >
-                          {sortedProducts.length > 0 && (
-                            <optgroup label="Catalog Products">
-                              {sortedProducts.map((p) => {
-                                const isSelectedElsewhere = items.some(
-                                  (other, otherIdx) =>
-                                    otherIdx !== idx &&
-                                    other.productId === String(p.id),
-                                );
-                                return (
-                                  <option
-                                    key={p.id}
-                                    value={p.id}
-                                    disabled={isSelectedElsewhere}
-                                    className={
-                                      isSelectedElsewhere
-                                        ? "text-galla-ink-soft/40 italic bg-gray-50"
-                                        : ""
-                                    }
-                                  >
-                                    {p.name}{" "}
-                                    {isSelectedElsewhere
-                                      ? "(Already added)"
-                                      : `(Current: ${p.sell} sell / ${p.use} use)`}
-                                  </option>
-                                );
-                              })}
-                            </optgroup>
-                          )}
-                          <optgroup label="New Product Entry">
-                            <option value="__new__">
-                              ✨ + Add New Product...
-                            </option>
-                          </optgroup>
-                        </select>
+                    {/* Item Card Header */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11.5px] font-bold px-2 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line">
+                          Item #{idx + 1}
+                        </span>
+                        <span className="text-[13px] font-semibold text-galla-ink">
+                          {item.isNewProduct ? "✨ New Catalog Product" : "Catalog Product"}
+                        </span>
                       </div>
 
                       {items.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(idx)}
-                          className="p-1.5 text-galla-ink-soft hover:text-red-700 rounded-[4px] transition-colors cursor-pointer"
-                          title="Remove product"
+                          className="inline-flex items-center gap-1 text-[12px] text-galla-ink-soft hover:text-rose-600 transition-colors cursor-pointer"
+                          title="Remove item"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
+                          <span>Remove</span>
                         </button>
                       )}
                     </div>
 
+                    {/* Product Selection Dropdown */}
+                    <div>
+                      <select
+                        value={item.isNewProduct ? "__new__" : item.productId}
+                        onChange={(e) => handleProductSelect(idx, e.target.value)}
+                        className={`w-full bg-galla-surface border rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs ${
+                          isDuplicate ? "border-red-400" : "border-galla-line"
+                        }`}
+                      >
+                        {sortedProducts.length > 0 && (
+                          <optgroup label="Catalog Products">
+                            {sortedProducts.map((p) => {
+                              const isSelectedElsewhere = items.some(
+                                (other, otherIdx) =>
+                                  otherIdx !== idx &&
+                                  other.productId === String(p.id),
+                              );
+                              return (
+                                <option
+                                  key={p.id}
+                                  value={p.id}
+                                  disabled={isSelectedElsewhere}
+                                  className={
+                                    isSelectedElsewhere
+                                      ? "text-galla-ink-soft/40 italic bg-gray-50"
+                                      : ""
+                                  }
+                                >
+                                  {p.name}{" "}
+                                  {isSelectedElsewhere
+                                    ? "(Already added)"
+                                    : `(Current Stock: ${p.sell} sell / ${p.use} use)`}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        )}
+                        <optgroup label="New Product Entry">
+                          <option value="__new__">✨ + Add New Product...</option>
+                        </optgroup>
+                      </select>
+                    </div>
+
                     {isDuplicate && (
-                      <div className="flex items-center gap-1.5 p-2 bg-red-50 border border-red-200 text-red-700 text-[11.5px] rounded-[4px] font-sans">
+                      <div className="flex items-center gap-1.5 p-2 bg-red-50 border border-red-200 text-red-700 text-[11.5px] rounded-lg font-sans">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
                         <span>
-                          Duplicate product: already added in another row.
-                          Adjust quantities instead.
+                          Duplicate product: already added in another row. Adjust quantities instead.
                         </span>
                       </div>
                     )}
 
                     {item.isReplacement && (
-                      <div className="flex items-center justify-between p-2 bg-amber-50 border border-amber-300 rounded-[4px] text-[11.5px] font-sans text-amber-900">
-                        <span className="font-semibold flex items-center gap-1">
-                          <Sparkles className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                      <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-[12px] font-sans text-amber-900">
+                        <span className="font-semibold flex items-center gap-1.5">
+                          <Sparkles className="h-4 w-4 text-amber-700 shrink-0" />
                           Dealer Replacement Item (@ ₹0 cost)
                         </span>
                         <span className="text-[11px] text-amber-800">
@@ -1173,47 +1387,41 @@ export function StockInModal({
                       </div>
                     )}
 
-                    {/* New Product Inline Card (Shown when "+ Add New Product..." is selected) */}
+                    {/* New Product Inline Card */}
                     {item.isNewProduct && (
-                      <div className="p-2.5 bg-galla-teal-soft/25 border border-galla-teal/30 rounded-[4px] space-y-2 animate-in fade-in duration-100">
+                      <div className="p-3.5 bg-galla-teal-soft/20 border border-galla-teal/30 rounded-xl space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-galla-teal">
-                            <Sparkles className="h-3 w-3" />
-                            <span>New Product Details</span>
+                          <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-galla-teal">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            <span>New Product Specification</span>
                           </span>
-                          <span className="text-[10.5px] font-sans text-galla-ink-soft">
-                            Will be automatically created in catalog
+                          <span className="text-[11px] font-sans text-galla-ink-soft">
+                            Will be created in catalog automatically
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
                           <div>
-                            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                              Product Name{" "}
-                              <span className="text-red-600">*</span>
+                            <label className="block text-[12px] font-medium text-galla-ink mb-1">
+                              Product Name <span className="text-red-600">*</span>
                             </label>
                             <input
                               type="text"
                               autoFocus
                               value={item.productName}
                               onChange={(e) =>
-                                handleItemFieldChange(
-                                  idx,
-                                  "productName",
-                                  e.target.value,
-                                )
+                                handleItemFieldChange(idx, "productName", e.target.value)
                               }
                               placeholder="e.g. L'Oreal Serum 100ml"
-                              className={`w-full px-2.5 py-1.5 rounded-[4px] bg-galla-surface border font-sans text-[12.5px] text-galla-ink outline-none transition-all ${
+                              className={`w-full bg-galla-surface border rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none transition-all ${
                                 duplicateWarning
-                                  ? "border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                                  : "border-galla-line focus:border-galla-teal focus:ring-1 focus:ring-galla-teal"
+                                  ? "border-amber-400 focus:border-amber-500"
+                                  : "border-galla-line focus:border-galla-teal"
                               }`}
                             />
 
-                            {/* Real-time Inline Duplicate Warning (Matches Add New Product Modal) */}
                             {duplicateWarning && (
-                              <div className="font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200 rounded px-2.5 py-1 mt-1.5 flex items-center justify-between gap-1.5 animate-in fade-in duration-100">
+                              <div className="font-sans text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1.5 flex items-center justify-between gap-1.5">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
                                   <span>{duplicateWarning}</span>
@@ -1222,13 +1430,9 @@ export function StockInModal({
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      handleProductSelect(
-                                        idx,
-                                        String(existingInventoryProduct.id),
-                                      )
+                                      handleProductSelect(idx, String(existingInventoryProduct.id))
                                     }
                                     className="shrink-0 text-[11px] font-semibold text-amber-900 underline hover:text-amber-950 cursor-pointer ml-1"
-                                    title={`Select "${existingInventoryProduct.name}" from catalog`}
                                   >
                                     Select from catalog
                                   </button>
@@ -1238,19 +1442,15 @@ export function StockInModal({
                           </div>
 
                           <div>
-                            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                            <label className="block text-[12px] font-medium text-galla-ink mb-1">
                               Category <span className="text-red-600">*</span>
                             </label>
                             <select
                               value={item.category}
                               onChange={(e) =>
-                                handleItemFieldChange(
-                                  idx,
-                                  "category",
-                                  e.target.value,
-                                )
+                                handleItemFieldChange(idx, "category", e.target.value)
                               }
-                              className="w-full px-2.5 py-1 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[12.5px] text-galla-ink focus:border-galla-teal outline-none cursor-pointer"
+                              className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
                             >
                               {availableCategories.map((cat) => (
                                 <option key={cat} value={cat}>
@@ -1262,145 +1462,148 @@ export function StockInModal({
                           </div>
                         </div>
 
-                        {/* Custom Category Input if "+ New Category..." is selected */}
                         {item.category === "custom" && (
                           <div className="text-[12px]">
-                            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                              Custom Category Name{" "}
-                              <span className="text-red-600">*</span>
+                            <label className="block text-[12px] font-medium text-galla-ink mb-1">
+                              Custom Category Name <span className="text-red-600">*</span>
                             </label>
                             <input
                               type="text"
                               autoFocus
                               value={item.customCategory}
                               onChange={(e) =>
-                                handleItemFieldChange(
-                                  idx,
-                                  "customCategory",
-                                  e.target.value,
-                                )
+                                handleItemFieldChange(idx, "customCategory", e.target.value)
                               }
                               placeholder="Type new category name (e.g. Organic Hair Care)..."
-                              className="w-full px-2.5 py-1 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[12.5px] text-galla-ink focus:border-galla-teal outline-none"
+                              className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
                             />
                           </div>
                         )}
                       </div>
                     )}
 
-                    {/* Quantity & Cost Grid */}
-                    <div className="grid grid-cols-4 gap-2 text-[12px] font-sans">
+                    {/* Quantity & Cost Grid (Clean 4-column layout) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
-                        <span className="text-galla-ink-soft block mb-0.5">
-                          + Retail Sell
+                        <label className="block text-[11.5px] font-medium text-galla-ink mb-1">
+                          + Retail Sell Stock
+                        </label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.quantityForSell}
+                            onChange={(e) =>
+                              handleItemFieldChange(idx, "quantityForSell", e.target.value)
+                            }
+                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-3 pr-8 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            placeholder="0"
+                          />
+                          <span className="absolute right-2.5 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
+                            pcs
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] text-galla-ink-soft mt-0.5 block">
+                          For counter sale
                         </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={item.quantityForSell}
-                          onChange={(e) =>
-                            handleItemFieldChange(
-                              idx,
-                              "quantityForSell",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full px-2 py-1 rounded-[4px] bg-galla-surface border border-galla-line tabular-nums"
-                          placeholder="0"
-                        />
                       </div>
 
                       <div>
-                        <span className="text-galla-ink-soft block mb-0.5">
-                          + Salon Use
+                        <label className="block text-[11.5px] font-medium text-galla-ink mb-1">
+                          + Salon Use Stock
+                        </label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.quantityForUse}
+                            onChange={(e) =>
+                              handleItemFieldChange(idx, "quantityForUse", e.target.value)
+                            }
+                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-3 pr-8 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            placeholder="0"
+                          />
+                          <span className="absolute right-2.5 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
+                            pcs
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] text-galla-ink-soft mt-0.5 block">
+                          For treatments
                         </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={item.quantityForUse}
-                          onChange={(e) =>
-                            handleItemFieldChange(
-                              idx,
-                              "quantityForUse",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full px-2 py-1 rounded-[4px] bg-galla-surface border border-galla-line tabular-nums"
-                          placeholder="0"
-                        />
                       </div>
 
                       <div>
-                        <span className="text-galla-ink-soft block mb-0.5">
-                          Unit Cost (₹)
+                        <label className="block text-[11.5px] font-medium text-galla-ink mb-1">
+                          Unit Purchase Cost
+                        </label>
+                        <div className="relative flex items-center">
+                          <IndianRupee className="absolute left-2.5 h-3.5 w-3.5 text-galla-ink-soft/60 pointer-events-none" />
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item.purchaseCost}
+                            onChange={(e) =>
+                              handleItemFieldChange(idx, "purchaseCost", e.target.value)
+                            }
+                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-8 pr-3 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            placeholder="0"
+                          />
+                        </div>
+                        <span className="text-[10.5px] text-galla-ink-soft mt-0.5 block">
+                          Wholesale buy cost
                         </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={item.purchaseCost}
-                          onChange={(e) =>
-                            handleItemFieldChange(
-                              idx,
-                              "purchaseCost",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full px-2 py-1 rounded-[4px] bg-galla-surface border border-galla-line tabular-nums"
-                          placeholder="0"
-                        />
                       </div>
 
                       <div>
-                        <span className="text-galla-ink-soft block mb-0.5">
-                          Sell Price (₹)
+                        <label className="block text-[11.5px] font-medium text-galla-ink mb-1">
+                          Retail Sell Price
+                        </label>
+                        <div className="relative flex items-center">
+                          <IndianRupee className="absolute left-2.5 h-3.5 w-3.5 text-galla-ink-soft/60 pointer-events-none" />
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item.expectedSellPrice}
+                            onChange={(e) =>
+                              handleItemFieldChange(idx, "expectedSellPrice", e.target.value)
+                            }
+                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-8 pr-3 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            placeholder="0"
+                          />
+                        </div>
+                        <span className="text-[10.5px] text-galla-ink-soft mt-0.5 block">
+                          Counter retail price
                         </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={item.expectedSellPrice}
-                          onChange={(e) =>
-                            handleItemFieldChange(
-                              idx,
-                              "expectedSellPrice",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full px-2 py-1 rounded-[4px] bg-galla-surface border border-galla-line tabular-nums"
-                          placeholder="0"
-                        />
                       </div>
                     </div>
 
+                    {/* New Price Detected Banner */}
                     {(() => {
-                      const matched = products.find(
-                        (p) => String(p.id) === item.productId,
-                      );
+                      const matched = products.find((p) => String(p.id) === item.productId);
                       const isPriceChanged =
                         matched &&
                         ((matched.price !== undefined &&
                           Number(item.expectedSellPrice) !== matched.price) ||
                           (matched.purchaseCost !== undefined &&
-                            Number(item.purchaseCost) !==
-                              matched.purchaseCost));
+                            Number(item.purchaseCost) !== matched.purchaseCost));
                       if (!isPriceChanged) return null;
                       return (
-                        <div className="mt-1 text-[11.5px] font-sans text-blue-800 bg-blue-50/80 border border-blue-200/80 px-2 py-1 rounded-[4px]">
-                          ✨ <strong>New Price Detected:</strong> Incoming stock
-                          will be automatically saved as a separate{" "}
-                          <em>(New)</em> batch, leaving current stock as{" "}
-                          <em>(Old)</em>.
+                        <div className="text-[11.5px] font-sans text-blue-800 bg-blue-50/80 border border-blue-200/80 px-2.5 py-1.5 rounded-lg">
+                          ✨ <strong>New Price Detected:</strong> Incoming stock will be automatically saved as a separate <em>(New)</em> batch, leaving current stock as <em>(Old)</em>.
                         </div>
                       );
                     })()}
 
-                    {/* Line item subtotal */}
-                    <div className="flex items-center justify-between text-[11.5px] pt-1 text-galla-ink-soft border-t border-galla-line/60">
-                      <span>Total: {qSell + qUse} units</span>
-                      <span className="font-medium text-galla-ink tabular-nums">
+                    {/* Card Subtotal Bar */}
+                    <div className="flex items-center justify-between text-[12px] pt-2 border-t border-galla-line/60">
+                      <span className="text-galla-ink-soft">
+                        Total Units: <strong className="text-galla-ink font-semibold">{qSell + qUse} pcs</strong>
+                      </span>
+                      <span className="font-bold text-[13px] text-galla-teal tabular-nums">
                         Subtotal: {formatRupee(itemTotal)}
                       </span>
                     </div>
@@ -1408,123 +1611,119 @@ export function StockInModal({
                 );
               })}
             </div>
-          </div>
 
-          {/* 3. Settlement Mode Section (Mirrors Order Modal) */}
-          <div className="pt-2 space-y-3">
-            <div>
-              <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                Settlement Mode <span className="text-red-500">*</span>
-              </label>
-              <select
+            <button
+              type="button"
+              onClick={handleAddItem}
+              className="w-full py-2.5 rounded-xl border border-dashed border-galla-line hover:border-galla-teal text-galla-ink-soft hover:text-galla-teal text-[13px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-galla-paper/20 hover:bg-galla-paper/50"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Another Item</span>
+            </button>
+          </section>
+
+          {/* Card 3: Settlement Terms & Payment */}
+          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+            <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
+              3. Settlement Terms &amp; Payment
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <SettlementModeSelect
                 value={settlementMode}
-                onChange={(e) =>
-                  setSettlementMode(
-                    e.target.value as
-                      "completed" | "pending" | "advance" | "paid_full",
-                  )
-                }
-                className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-sans font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs"
-              >
-                <option value="completed">Completed (Paid in full now)</option>
-                <option value="pending">
-                  Pending / Pay Later (Stock received, payment due)
-                </option>
-                <option value="advance">
-                  Advance (Partial deposit, delivery later)
-                </option>
-                <option value="paid_full">
-                  Paid in Full (100% upfront, delivery later)
-                </option>
-              </select>
+                onChange={setSettlementMode}
+              />
+
+              {(settlementMode !== "pending" || enteredPayLaterPaid > 0) && (
+                <PaymentModeSelect
+                  label={
+                    settlementMode === "pending"
+                      ? `Mode of Upfront Payment (${formatRupee(enteredPayLaterPaid)})`
+                      : settlementMode === "advance"
+                        ? `Mode of Advance Payment (${formatRupee(enteredAdvance)})`
+                        : "Mode of Payment"
+                  }
+                  value={paymentMode}
+                  onChange={setPaymentMode}
+                  allowedModes={["cash", "upi", "card", "bank_transfer"]}
+                />
+              )}
             </div>
 
-            {/* Pending / Pay Later / Due Card */}
+            {/* Pending / Pay Later Card */}
             {settlementMode === "pending" && (
-              <div className="p-3 rounded-[6px] space-y-2.5 border bg-amber-50/40 border-amber-300/50">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                      Amount Paid Now (₹){" "}
-                      <span className="text-galla-ink-soft/70 font-normal">
-                        (Optional)
+              <div className="p-4 rounded-xl space-y-3 border bg-amber-50/40 border-amber-300/50">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[12px] font-medium text-galla-ink">
+                        Amount Paid Now (₹){" "}
+                        <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                      </label>
+                      <span className="text-[11.5px] font-sans text-galla-ink-soft">
+                        Pending:{" "}
+                        <strong className="text-rose-700 font-semibold">
+                          {formatRupee(amountPending)}
+                        </strong>
                       </span>
-                    </label>
-                    <span className="text-[11.5px] font-sans text-galla-ink-soft">
-                      Pending Due:{" "}
-                      <strong className="text-rose-700 font-semibold">
-                        {formatRupee(amountPending)}
-                      </strong>
-                    </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={payLaterPaid}
+                      onChange={(e) => setPayLaterPaid(e.target.value.replace(/\D/g, ""))}
+                      placeholder={`0 (Full ${formatRupee(totalCalculatedCost)} due later)`}
+                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all shadow-2xs"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={payLaterPaid}
-                    onChange={(e) =>
-                      setPayLaterPaid(e.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder={`0 (Full ${formatRupee(totalCalculatedCost)} due later)`}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all"
-                  />
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[12px] font-medium text-galla-ink">
+                        Expected Payment Due Date{" "}
+                        <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                      </label>
+                      {dueDate && (
+                        <button
+                          type="button"
+                          onClick={() => setDueDate("")}
+                          className="text-[11px] text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      min={getLocalDateString()}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none focus:border-amber-500 transition-all cursor-pointer shadow-2xs"
+                    />
+                  </div>
                 </div>
 
-                {/* Optional Expected Payment Due Date */}
-                <div className="space-y-1 pt-0.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                      Expected Payment Due Date{" "}
-                      <span className="text-galla-ink-soft/70 font-normal">
-                        (Optional)
-                      </span>
-                    </label>
-                    {dueDate && (
-                      <button
-                        type="button"
-                        onClick={() => setDueDate("")}
-                        className="text-[10.5px] text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
-                      >
-                        Clear date
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    min={getLocalDateString()}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none focus:border-amber-500 transition-all cursor-pointer"
-                  />
-                </div>
-
-                <div className="text-[11.5px] text-galla-ink-soft pt-1 leading-snug">
+                <p className="text-[11.5px] text-galla-ink-soft leading-snug">
                   ℹ️ Purchase order will be recorded with{" "}
-                  <strong className="text-amber-800 font-semibold">
-                    Payment Due
-                  </strong>
-                  . You can settle the remaining balance anytime in the
-                  Suppliers / Bills tab.
-                </div>
+                  <strong className="text-amber-800 font-semibold">Payment Due</strong>. You can settle the remaining balance anytime in the Suppliers &amp; Purchase Bills register.
+                </p>
               </div>
             )}
 
             {/* Advance / Paid in Full Details Card */}
-            {(settlementMode === "advance" ||
-              settlementMode === "paid_full") && (
+            {(settlementMode === "advance" || settlementMode === "paid_full") && (
               <div
-                className={`p-3 rounded-[6px] space-y-2.5 border ${
+                className={`p-4 rounded-xl space-y-3 border ${
                   settlementMode === "advance"
                     ? "bg-galla-brass-soft/40 border-galla-brass/30"
                     : "bg-galla-teal-soft/40 border-galla-teal/30"
                 }`}
               >
-                <div className="space-y-2.5">
-                  {/* Advance Amount (only for partial deposit) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {settlementMode === "advance" && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                          Advance Paid (₹){" "}
-                          <span className="text-red-500">*</span>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[12px] font-medium text-galla-ink">
+                          Advance Paid (₹) <span className="text-red-500">*</span>
                         </label>
                         {advance.trim() !== "" && Number(advance) > 0 && (
                           <span className="text-[11px] font-sans text-galla-ink-soft">
@@ -1538,105 +1737,78 @@ export function StockInModal({
                       <input
                         type="text"
                         value={advance}
-                        onChange={(e) =>
-                          setAdvance(e.target.value.replace(/\D/g, ""))
-                        }
+                        onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
                         placeholder="e.g. 500"
-                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all"
+                        className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all shadow-2xs"
                       />
                     </div>
                   )}
 
-                  {/* Expected Arrival Date & Time Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div className="space-y-1">
-                      <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                        Expected Arrival Date{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={expectedDeliveryDate}
-                        min={getLocalDateString()}
-                        onChange={(e) =>
-                          setExpectedDeliveryDate(e.target.value)
-                        }
-                        className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
-                          settlementMode === "advance"
-                            ? "focus:border-galla-brass"
-                            : "focus:border-galla-teal"
-                        }`}
-                      />
-                    </div>
+                  <div className={settlementMode === "advance" ? "sm:col-span-1" : "sm:col-span-2"}>
+                    <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
+                      Expected Arrival Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={expectedDeliveryDate}
+                      min={getLocalDateString()}
+                      onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                      className={`w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
+                        settlementMode === "advance"
+                          ? "focus:border-galla-brass"
+                          : "focus:border-galla-teal"
+                      }`}
+                    />
+                  </div>
 
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                          Expected Time{" "}
-                          <span className="text-galla-ink-soft/70 font-normal">
-                            (Optional)
-                          </span>
-                        </label>
-                        {deliveryTime && (
-                          <button
-                            type="button"
-                            onClick={() => setDeliveryTime("")}
-                            className="text-[10px] text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                      <input
-                        type="time"
-                        value={deliveryTime}
-                        onChange={(e) => setDeliveryTime(e.target.value)}
-                        className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-2.5 py-1.5 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer ${
-                          settlementMode === "advance"
-                            ? "focus:border-galla-brass"
-                            : "focus:border-galla-teal"
-                        }`}
-                      />
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[12px] font-medium text-galla-ink">
+                        Expected Time{" "}
+                        <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
+                      </label>
+                      {deliveryTime && (
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryTime("")}
+                          className="text-[11px] text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
+                    <input
+                      type="time"
+                      value={deliveryTime}
+                      onChange={(e) => setDeliveryTime(e.target.value)}
+                      className={`w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
+                        settlementMode === "advance"
+                          ? "focus:border-galla-brass"
+                          : "focus:border-galla-teal"
+                      }`}
+                    />
                   </div>
                 </div>
 
-                <div
-                  className={`flex items-center justify-between text-[11.5px] pt-1.5 border-t text-galla-ink-soft ${
-                    settlementMode === "advance"
-                      ? "border-galla-brass/25"
-                      : "border-galla-teal/20"
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <Calendar
-                      className={`h-3 w-3 shrink-0 ${
-                        settlementMode === "advance"
-                          ? "text-galla-brass"
-                          : "text-galla-teal"
-                      }`}
-                    />
+                <div className="flex items-center justify-between text-[12px] pt-1.5 border-t border-galla-line/40 text-galla-ink-soft">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-galla-teal" />
                     <span>
-                      Expected arrival:{" "}
-                      <strong className="text-galla-ink">
-                        {formatBookingDate(expectedDeliveryDate) || "Not set"}
-                        {deliveryTime
-                          ? ` at ${formatAppointmentTime(deliveryTime)}`
-                          : ""}
+                      Expected delivery:{" "}
+                      <strong className="text-galla-ink font-semibold">
+                        {formatBookingDate(expectedDeliveryDate) || "Not scheduled"}
+                        {deliveryTime ? ` at ${formatAppointmentTime(deliveryTime)}` : ""}
                       </strong>
                     </span>
                   </span>
                   {settlementMode === "advance" ? (
                     advance.trim() !== "" && Number(advance) > 0 ? (
                       <span>
-                        Remaining:{" "}
-                        <strong className="text-red-700">
-                          {formatRupee(amountPending)}
-                        </strong>
+                        Remaining due: <strong className="text-rose-700 font-semibold">{formatRupee(amountPending)}</strong>
                       </span>
                     ) : null
                   ) : (
-                    <span className="text-galla-teal font-medium">
+                    <span className="text-galla-teal font-semibold">
                       Paid in Full ({formatRupee(totalCalculatedCost)})
                     </span>
                   )}
@@ -1644,164 +1816,218 @@ export function StockInModal({
               </div>
             )}
 
-            {/* 4. Payment Method Selector (Shown when paying > 0) */}
-            {(settlementMode !== "pending" || enteredPayLaterPaid > 0) && (
-              <PaymentModeSelect
-                label={
-                  settlementMode === "pending"
-                    ? `Mode of Upfront Payment (${formatRupee(enteredPayLaterPaid)})`
-                    : settlementMode === "advance"
-                      ? `Mode of Advance Payment (${formatRupee(enteredAdvance)})`
-                      : "Mode of Payment"
-                }
-                value={paymentMode}
-                onChange={setPaymentMode}
-                allowedModes={["cash", "upi", "card", "bank_transfer"]}
-              />
-            )}
-
             {/* Notes / Memo (Optional) */}
             <div>
               <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                PO Notes / Memo{" "}
-                <span className="text-galla-ink-soft/70 font-normal">
-                  (Optional)
-                </span>
+                PO Notes / Memo <span className="text-galla-ink-soft/70 font-normal">(Optional)</span>
               </label>
               <input
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Delivery memo, dealer payment terms, batch notes..."
-                className="w-full px-3 py-1.5 rounded-[4px] bg-galla-surface border border-galla-line font-sans text-[12.5px] text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all placeholder:text-galla-ink-soft/50"
+                placeholder="e.g. Batch notes, vendor payment conditions, delivery instructions..."
+                className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
               />
             </div>
+          </section>
+        </main>
+
+        {/* ====================================================== */}
+        {/* RIGHT COLUMN: PO SUMMARY & SETTLEMENT                   */}
+        {/* ====================================================== */}
+        <aside className="bg-galla-surface border border-galla-line rounded-xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
+          {/* Summary Header */}
+          <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-bold text-galla-ink">PO Summary</h2>
+              {items.length > 0 && (
+                <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-galla-teal-soft text-galla-teal">
+                  {items.length} {items.length === 1 ? "product" : "products"}
+                </span>
+              )}
+            </div>
+            <span className="text-[12px] font-semibold text-galla-ink-soft tabular-nums">
+              {totalUnits} pcs total
+            </span>
           </div>
 
-          {/* 5. Ledger Balance & Financial Summary */}
-          <div className="pt-3 border-t border-galla-line/80 space-y-2.5">
-            {matchedSupplier && supplierPending !== 0 && isLedgerBalanceApplicable && (
-              <div className="pb-2.5 border-b border-galla-line/60">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <div className="relative flex items-center justify-center mt-0.5">
-                    <input
-                      type="checkbox"
-                      checked={applyLedgerBalance}
-                      onChange={(e) => setApplyLedgerBalance(e.target.checked)}
-                      className="peer appearance-none w-4 h-4 border border-galla-brass rounded-[3px] checked:bg-galla-brass checked:border-galla-brass transition-colors cursor-pointer"
-                    />
-                    <Check className="absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
+          {/* Items Breakdown List */}
+          <div className="flex-1 overflow-y-auto p-4 divide-y divide-galla-line/40 min-h-[140px] max-h-[300px] lg:max-h-[340px]">
+            {items.length === 0 ? (
+              <div className="py-10 text-center text-galla-ink-soft border border-dashed border-galla-line rounded-lg bg-galla-paper/30">
+                <p className="text-[13px] font-medium">No items in this purchase order</p>
+                <p className="text-[11.5px] mt-0.5">Add products on the left</p>
+              </div>
+            ) : (
+              items.map((item, idx) => {
+                const qSell = Number(item.quantityForSell) || 0;
+                const qUse = Number(item.quantityForUse) || 0;
+                const cost = Number(item.purchaseCost) || 0;
+                const itemTotal = (qSell + qUse) * cost;
+                const displayName = item.productName.trim() || `Item #${idx + 1}`;
+
+                return (
+                  <div key={idx} className="py-2.5 flex items-center justify-between gap-3 text-[12.5px]">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-galla-ink truncate" title={displayName}>
+                        {displayName}
+                      </div>
+                      <div className="text-[11px] text-galla-ink-soft flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="tabular-nums font-medium">
+                          {qSell + qUse} pcs ({qSell} sell / {qUse} use)
+                        </span>
+                        <span>&bull;</span>
+                        <span className="tabular-nums">
+                          {formatRupee(cost)}/pc
+                        </span>
+                        {item.isReplacement && (
+                          <span className="text-amber-800 font-medium">
+                            &bull; Replacement
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="font-bold text-[13px] text-galla-ink tabular-nums shrink-0 text-right">
+                      {formatRupee(itemTotal)}
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-[12px] text-galla-ink flex items-center justify-between">
+                );
+              })
+            )}
+          </div>
+
+          {/* Financial Breakdown & Actions */}
+          <div className="p-4 border-t border-galla-line/60 bg-galla-surface space-y-3.5 shrink-0">
+            {/* Supplier Ledger Balance checkbox if applicable */}
+            {matchedSupplier && supplierPending !== 0 && isLedgerBalanceApplicable && (
+              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-lg text-[12px]">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={applyLedgerBalance}
+                    onChange={(e) => setApplyLedgerBalance(e.target.checked)}
+                    className="h-4 w-4 mt-0.5 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-galla-ink flex items-center justify-between">
                       <span>
-                        {supplierPending < 0
-                          ? "Apply Supplier Credit"
-                          : "Settle Past Dues"}
+                        {supplierPending < 0 ? "Apply Supplier Credit" : "Settle Past Dues"}
                       </span>
-                      <span
-                        className={
-                          supplierPending < 0
-                            ? "text-emerald-700"
-                            : "text-rose-700"
-                        }
-                      >
+                      <span className={supplierPending < 0 ? "text-emerald-700" : "text-rose-700"}>
                         {supplierPending < 0 ? "-" : "+"}
                         {formatRupee(Math.abs(supplierPending))}
                       </span>
                     </div>
-                    <p className="text-[11.5px] font-sans text-galla-ink-soft mt-0.5 leading-snug">
+                    <p className="text-[11px] text-galla-ink-soft mt-0.5 leading-snug">
                       {supplierPending < 0
-                        ? `Use your existing credit balance from previous returns to pay for this order.`
-                        : `Pay off your pending dues along with this order in a single transaction.`}
+                        ? "Credit balance from previous returns applied to this bill."
+                        : "Outstanding supplier dues added to this payment."}
                     </p>
                   </div>
                 </label>
               </div>
             )}
 
-            <div className="flex items-center justify-between text-galla-ink">
-              <span className="text-[13px] font-semibold">
-                {effectiveApplyLedgerBalance ? "Net Payable:" : "Total Batch Cost:"}
-              </span>
-              <span className="text-[17px] font-bold text-galla-teal tabular-nums flex items-center gap-1.5">
-                {effectiveApplyLedgerBalance && (
-                  <span className="text-[12px] text-galla-ink-soft/60 line-through">
-                    {formatRupee(totalCalculatedCost)}
-                  </span>
-                )}
-                {formatRupee(
-                  effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost,
-                )}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-[12px] pt-1.5 border-t border-galla-line/60">
-              <div className="flex items-center gap-1.5">
-                <span className="text-galla-ink-soft text-[11.5px]">Payment Status:</span>
-                {amountPending <= 0 ? (
-                  <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded text-[11px] font-medium">
-                    Paid in Full
-                  </span>
-                ) : currentAmountPaid > 0 ? (
-                  <span className="bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded text-[11px] font-medium">
-                    Partial Payment
-                  </span>
-                ) : (
-                  <span className="bg-rose-50 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded text-[11px] font-medium">
-                    Payment Due
-                  </span>
-                )}
-              </div>
-
-              <div className="font-sans font-medium text-galla-ink tabular-nums text-[12px]">
-                Pending:{" "}
-                <span
-                  className={
-                    amountPending > 0
-                      ? "text-rose-700 font-semibold"
-                      : "text-emerald-700"
-                  }
-                >
-                  {formatRupee(amountPending)}
+            {/* Calculations Breakdown */}
+            <div className="space-y-1 text-[12.5px]">
+              <div className="flex justify-between text-galla-ink-soft">
+                <span>Total Batch Cost</span>
+                <span className="tabular-nums font-medium text-galla-ink">
+                  {formatRupee(totalCalculatedCost)}
                 </span>
               </div>
+
+              {effectiveApplyLedgerBalance && supplierPending !== 0 && (
+                <div className="flex justify-between text-emerald-700">
+                  <span>Ledger Adjustment</span>
+                  <span className="tabular-nums font-medium">
+                    {supplierPending < 0 ? "- " : "+ "}
+                    {formatRupee(Math.abs(supplierPending))}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-baseline pt-2 border-t border-galla-line text-[16px] font-bold text-galla-ink">
+                <span>{effectiveApplyLedgerBalance ? "Net Payable" : "Total Payable"}</span>
+                <span className="text-xl tabular-nums text-galla-teal">
+                  {formatRupee(effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost)}
+                </span>
+              </div>
+
+              {/* Settlement specifics */}
+              {settlementMode === "pending" && (
+                <div className="pt-1.5 text-[11.5px] space-y-0.5 border-t border-galla-line/40">
+                  <div className="flex justify-between text-galla-ink font-medium">
+                    <span>Paid Upfront Now</span>
+                    <span className="tabular-nums">{formatRupee(enteredPayLaterPaid)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 font-semibold">
+                    <span>Pending Due Later</span>
+                    <span className="tabular-nums">{formatRupee(amountPending)}</span>
+                  </div>
+                </div>
+              )}
+
+              {settlementMode === "advance" && (
+                <div className="pt-1.5 text-[11.5px] space-y-0.5 border-t border-galla-line/40">
+                  <div className="flex justify-between text-teal-800 font-medium">
+                    <span>Advance Paid Now</span>
+                    <span className="tabular-nums">{formatRupee(enteredAdvance)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 font-semibold">
+                    <span>Balance Due Upon Delivery</span>
+                    <span className="tabular-nums">{formatRupee(amountPending)}</span>
+                  </div>
+                </div>
+              )}
+
+              {settlementMode === "paid_full" && (
+                <div className="pt-1.5 text-[11.5px] flex justify-between text-teal-800 font-medium border-t border-galla-line/40">
+                  <span>Advance Status</span>
+                  <span>100% Paid in Full</span>
+                </div>
+              )}
+            </div>
+
+            {/* Create PO CTA Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => handleSubmit()}
+                disabled={isSubmitting || items.length === 0 || !supplierName.trim()}
+                className="w-full py-3 rounded-xl bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] shadow-sm disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 transition-all"
+              >
+                {isSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Recording Purchase...</span>
+                  </span>
+                ) : (
+                  <span>
+                    {settlementMode === "pending"
+                      ? enteredPayLaterPaid > 0
+                        ? `Confirm Stock In (Paid: ${formatRupee(enteredPayLaterPaid)}, Due: ${formatRupee(amountPending)})`
+                        : `Confirm Stock In (Due: ${formatRupee(totalCalculatedCost)})`
+                      : settlementMode === "advance"
+                        ? `Confirm Stock In (Advance: ${formatRupee(enteredAdvance)}, Due: ${formatRupee(amountPending)})`
+                        : settlementMode === "paid_full"
+                          ? `Confirm Stock In (Paid in Full: ${formatRupee(totalCalculatedCost)})`
+                          : `Confirm Stock In (${formatRupee(effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost)})`}
+                  </span>
+                )}
+              </button>
+
+              {!supplierName.trim() && items.length > 0 && (
+                <p className="text-[11.5px] text-galla-ink-soft text-center mt-1.5">
+                  Enter supplier name on the left to complete purchase order
+                </p>
+              )}
             </div>
           </div>
-
-          {/* Form Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-galla-line">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-3.5 py-2 rounded-[5px] border border-galla-line font-sans text-[13px] font-medium text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium shadow-xs transition-all cursor-pointer disabled:opacity-60"
-            >
-              {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              <span>
-                {isSubmitting
-                  ? "Processing PO..."
-                  : settlementMode === "pending"
-                    ? enteredPayLaterPaid > 0
-                      ? `Confirm Stock In (Paid: ${formatRupee(enteredPayLaterPaid)}, Due: ${formatRupee(amountPending)})`
-                      : `Confirm Stock In (Due: ${formatRupee(totalCalculatedCost)})`
-                    : settlementMode === "advance"
-                      ? `Confirm Stock In (Advance: ${formatRupee(enteredAdvance)}, Due: ${formatRupee(amountPending)})`
-                      : settlementMode === "paid_full"
-                        ? `Confirm Stock In (Paid in Full: ${formatRupee(totalCalculatedCost)})`
-                        : `Confirm Stock In (${formatRupee(totalCalculatedCost)})`}
-              </span>
-            </button>
-          </div>
-        </form>
+        </aside>
       </div>
+
 
       <ConfirmModal
         isOpen={showConfirm}
