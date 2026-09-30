@@ -125,6 +125,15 @@ export async function syncRollupForPeriod(
                       $cond: [{ $in: ["$status", ["completed", "paid_full"]] }, 1, 0],
                     },
                   },
+                  advancePayment: {
+                    $sum: {
+                      $cond: [
+                        { $in: ["$status", ["advance_paid", "paid_full"]] },
+                        { $ifNull: ["$advanceAmount", "$amountPaid"] },
+                        0,
+                      ],
+                    },
+                  },
                   cash: {
                     $sum: { $cond: [{ $eq: ["$paymentMode", "cash"] }, "$amountPaid", 0] },
                   },
@@ -292,6 +301,7 @@ export async function syncRollupForPeriod(
           netProfit,
           totalOrders,
           completedOrders,
+          advancePayment: ordMeta.advancePayment || 0,
           footfall: totalOrders,
           averageTicketValue: atv,
           uncollectedDues: duesSummary[0]?.uncollectedDues || 0,
@@ -380,3 +390,39 @@ export async function ensureDailyRollupsForRange(
 
   return finalDocs as unknown as IAnalyticsRollup[];
 }
+
+// Fast O(1) read of today's saved rollup in MongoDB; syncs once if not yet initialized for today
+export async function getOrSyncTodayRollup(
+  tenantId: Types.ObjectId
+): Promise<IAnalyticsRollup | null> {
+  const now = new Date();
+  const { periodKey } = getPeriodKey(now, "daily");
+
+  let rollup = await AnalyticsRollup.findOne({
+    tenantId,
+    periodType: "daily",
+    periodKey,
+  }).lean();
+
+  if (!rollup) {
+    const synced = await syncRollupForPeriod(tenantId, "daily", now);
+    if (synced) {
+      rollup = synced.toObject ? synced.toObject() : (synced as any);
+    }
+  }
+
+  return rollup as unknown as IAnalyticsRollup | null;
+}
+
+// Live write-through trigger: immediately updates today's persistent rollup document
+export async function triggerLiveRollupSync(
+  tenantId: Types.ObjectId
+): Promise<void> {
+  try {
+    const now = new Date();
+    await syncRollupForPeriod(tenantId, "daily", now);
+  } catch (err) {
+    console.error("[LiveRollupSync Error]:", err);
+  }
+}
+

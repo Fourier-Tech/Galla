@@ -20,6 +20,7 @@ import {
 } from "@/lib/db/models/package-template.model";
 import { CustomerReplacement } from "@/lib/db/models/customer-replacement.model";
 import { withTransaction } from "@/lib/db/transaction";
+import { triggerLiveRollupSync } from "@/lib/analytics/rollup-service";
 import {
   createOrderSchema,
   completeOrderSchema,
@@ -1149,6 +1150,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_created");
     broadcastUpdate(tenantId, "customer_updated");
+    triggerLiveRollupSync(tenantId);
 
     const newOrderDoc = newDoc.createdOrder;
 
@@ -1506,6 +1508,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_completed");
     broadcastUpdate(tenantId, "customer_replacement_updated");
+    triggerLiveRollupSync(tenantId);
 
     const mappedType = mapOrderType(order.orderType);
 
@@ -1974,6 +1977,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         broadcastUpdate(tenantId, "inventory_updated");
         broadcastUpdate(tenantId, "order_returned");
       }
+      triggerLiveRollupSync(tenantId);
     } catch (revalErr) {
       console.warn("revalidatePath warning:", revalErr);
     }
@@ -2138,6 +2142,7 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
 
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "expense_created");
+    triggerLiveRollupSync(tenantId);
 
     return {
       success: true,
@@ -2340,6 +2345,7 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
 
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "stock_consumed");
+    triggerLiveRollupSync(tenantId);
 
     return {
       success: true,
@@ -3505,6 +3511,9 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
     if (result.updatedProductsList && result.updatedProductsList.length > 0) {
       broadcastUpdate(tenantId, "stock_in_created");
     }
+    if (result.createdExpenseDoc) {
+      triggerLiveRollupSync(tenantId);
+    }
 
     const po = result.createdPO;
     const supp = result.supplierDoc;
@@ -3837,6 +3846,9 @@ export async function recordPurchaseOrderPaymentAction(
     broadcastUpdate(tenantId, "purchase_order_updated");
     if (result.updatedProductsList && result.updatedProductsList.length > 0) {
       broadcastUpdate(tenantId, "inventory_updated");
+    }
+    if (result.createdExp) {
+      triggerLiveRollupSync(tenantId);
     }
 
     return {
@@ -6787,6 +6799,7 @@ export async function returnCustomerOrderItemAction(
       if (customerReplacementId) {
         broadcastUpdate(tenantId, "customer_replacement_updated");
       }
+      triggerLiveRollupSync(tenantId);
 
       return {
         success: true,

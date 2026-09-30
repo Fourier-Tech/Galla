@@ -17,6 +17,9 @@ interface OverviewTabProps {
   suppliers?: DashboardSupplier[];
   purchaseOrders?: DashboardPurchaseOrder[];
   expensesTotal: number;
+  todayIncome?: number;
+  advancePayment?: number;
+  pendingAmount?: number;
   salonName?: string;
   customerReplacements?: DashboardCustomerReplacement[];
   onOpenNewOrder: () => void;
@@ -40,6 +43,9 @@ export function OverviewTab({
   suppliers = [],
   purchaseOrders = [],
   expensesTotal,
+  todayIncome: propsTodayIncome,
+  advancePayment: propsAdvancePayment,
+  pendingAmount: propsPendingAmount,
   salonName,
   onOpenNewOrder,
   onOpenNewExpense,
@@ -113,20 +119,23 @@ export function OverviewTab({
       setLoadingId(null);
     }
   };
-  // Today's Total Income: sum of all revenue actually collected today across all orders (new orders, advance payments, and settlements)
-  // Excludes fully refunded orders (whose net retained amount is 0) so refunds do not inflate income
-  const todayIncome = useMemo(() => {
-    return orders.reduce((sum, o) => {
-      if (o.status === "cancelled_refunded") {
-        const breakdown = getOrderRefundBreakdown(o);
-        return sum + (o.isToday ? breakdown.retainedAmount : 0);
-      }
-      return sum + (o.todayPaid ?? (o.isToday ? o.paid : 0));
-    }, 0);
-  }, [orders]);
+  // Today's Total Income: uses pre-saved persisted O(1) rollup metric directly
+  const todayIncome =
+    typeof propsTodayIncome === "number"
+      ? propsTodayIncome
+      : orders.reduce((sum, o) => {
+          if (o.status === "cancelled_refunded") {
+            const breakdown = getOrderRefundBreakdown(o);
+            return sum + (o.isToday ? breakdown.retainedAmount : 0);
+          }
+          return sum + (o.todayPaid ?? (o.isToday ? o.paid : 0));
+        }, 0);
 
-  // Overall Customer Outstanding Dues
-  const pendingAmount = useMemo(() => calculatePendingAmount(orders), [orders]);
+  // Overall Customer Outstanding Dues: uses pre-saved customer dues aggregate directly
+  const pendingAmount =
+    typeof propsPendingAmount === "number"
+      ? propsPendingAmount
+      : calculatePendingAmount(orders);
 
   // Overall Dealer / Supplier Dues and Credits
   const { totalDealerDues, totalDealerCredit } = useMemo(() => {
@@ -148,12 +157,13 @@ export function OverviewTab({
     });
   }, [products]);
 
-  // Total Advance Bookings deposit received today
-  const advancePayment = useMemo(() => {
-    return orders
-      .filter((o) => (o.status === "advance_paid" || o.status === "paid_full") && o.isToday)
-      .reduce((sum, o) => sum + (o.advanceAmount ?? o.paid), 0);
-  }, [orders]);
+  // Total Advance Bookings deposit received today: uses pre-saved rollup metric directly
+  const advancePayment =
+    typeof propsAdvancePayment === "number"
+      ? propsAdvancePayment
+      : orders
+          .filter((o) => (o.status === "advance_paid" || o.status === "paid_full") && o.isToday)
+          .reduce((sum, o) => sum + (o.advanceAmount ?? o.paid), 0);
 
   // Recent 24h Orders
   const recent24hOrders = useMemo(() => {

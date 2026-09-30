@@ -15,6 +15,7 @@ import { Service } from "@/lib/db/models/service.model";
 import { PackageTemplate } from "@/lib/db/models/package-template.model";
 import { CustomerReplacement } from "@/lib/db/models/customer-replacement.model";
 import { connectToDatabase } from "@/lib/db/mongodb";
+import { getOrSyncTodayRollup } from "@/lib/analytics/rollup-service";
 import {
   formatPhoneNumber,
   checkIsToday,
@@ -141,6 +142,11 @@ export default async function DashboardPage() {
     currency: "INR",
     ownerName: session.user.name || "",
   };
+  let initialTodayIncome = 0;
+  let initialTodayExpense = 0;
+  let initialTodayAdvance = 0;
+  let initialTodayNetProfit = 0;
+  let initialCustomerDues = 0;
 
   try {
     await connectToDatabase();
@@ -187,6 +193,8 @@ export default async function DashboardPage() {
         rawPurchaseOrders,
         rawCustomerReplacements,
         replacementOrdersCount,
+        todayRollup,
+        customerDuesAgg,
       ] = await Promise.all([
         Order.find({ tenantId: tenantObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
         Product.find({ tenantId: tenantObjectId }).sort({ createdAt: 1 }).lean(),
@@ -229,7 +237,18 @@ export default async function DashboardPage() {
             { "returns.customerResolution": "replacement" },
           ],
         }),
+        getOrSyncTodayRollup(tenantObjectId),
+        Customer.aggregate([
+          { $match: { tenantId: tenantObjectId, isActive: true } },
+          { $group: { _id: null, total: { $sum: "$stats.outstandingBalance" } } },
+        ]),
       ]);
+
+      initialTodayIncome = todayRollup?.metrics?.revenue?.total ?? 0;
+      initialTodayExpense = todayRollup?.metrics?.expenses?.total ?? 0;
+      initialTodayAdvance = todayRollup?.metrics?.advancePayment ?? 0;
+      initialTodayNetProfit = todayRollup?.metrics?.netProfit ?? 0;
+      initialCustomerDues = customerDuesAgg[0]?.total ?? 0;
 
       initialTotalOrdersCount = count;
       initialOrderStatusCounts = {
@@ -687,6 +706,11 @@ export default async function DashboardPage() {
       initialPackages={initialPackages}
       initialCustomerReplacements={initialCustomerReplacements}
       initialOrderStatusCounts={initialOrderStatusCounts}
+      initialTodayIncome={initialTodayIncome}
+      initialTodayExpense={initialTodayExpense}
+      initialTodayAdvance={initialTodayAdvance}
+      initialTodayNetProfit={initialTodayNetProfit}
+      initialCustomerDues={initialCustomerDues}
     />
   );
 }

@@ -56,6 +56,11 @@ interface DashboardClientProps {
   initialTotalExpensesCount?: number;
   initialExpenseCategoryCounts?: Record<string, number>;
   initialExpensesTotalAmount?: number;
+  initialTodayIncome?: number;
+  initialTodayExpense?: number;
+  initialTodayAdvance?: number;
+  initialTodayNetProfit?: number;
+  initialCustomerDues?: number;
 }
 
 export function DashboardClient({
@@ -77,6 +82,11 @@ export function DashboardClient({
   initialTotalExpensesCount,
   initialExpenseCategoryCounts,
   initialExpensesTotalAmount,
+  initialTodayIncome = 0,
+  initialTodayExpense = 0,
+  initialTodayAdvance = 0,
+  initialTodayNetProfit = 0,
+  initialCustomerDues = 0,
 }: DashboardClientProps) {
   const router = useRouter();
   const role: UserRole = initialRole;
@@ -135,6 +145,10 @@ export function DashboardClient({
   const [totalExpensesCount, setTotalExpensesCount] = useState<number>(initialTotalExpensesCount || 0);
   const [expenseCategoryCounts, setExpenseCategoryCounts] = useState<Record<string, number> | undefined>(initialExpenseCategoryCounts);
   const [expensesTotalAmount, setExpensesTotalAmount] = useState<number>(initialExpensesTotalAmount || 0);
+  const [todayIncome, setTodayIncome] = useState<number>(initialTodayIncome || 0);
+  const [todayExpense, setTodayExpense] = useState<number>(initialTodayExpense || 0);
+  const [todayAdvance, setTodayAdvance] = useState<number>(initialTodayAdvance || 0);
+  const [customerDues, setCustomerDues] = useState<number>(initialCustomerDues || 0);
 
   const [services, setServices] = useState<DashboardService[]>(initialServices);
   const [packages, setPackages] = useState<DashboardPackage[]>(initialPackages);
@@ -247,6 +261,30 @@ export function DashboardClient({
     }
   }
 
+  const [prevInitialTodayIncome, setPrevInitialTodayIncome] = useState(initialTodayIncome);
+  if (initialTodayIncome !== prevInitialTodayIncome) {
+    setPrevInitialTodayIncome(initialTodayIncome);
+    setTodayIncome(initialTodayIncome || 0);
+  }
+
+  const [prevInitialTodayExpense, setPrevInitialTodayExpense] = useState(initialTodayExpense);
+  if (initialTodayExpense !== prevInitialTodayExpense) {
+    setPrevInitialTodayExpense(initialTodayExpense);
+    setTodayExpense(initialTodayExpense || 0);
+  }
+
+  const [prevInitialTodayAdvance, setPrevInitialTodayAdvance] = useState(initialTodayAdvance);
+  if (initialTodayAdvance !== prevInitialTodayAdvance) {
+    setPrevInitialTodayAdvance(initialTodayAdvance);
+    setTodayAdvance(initialTodayAdvance || 0);
+  }
+
+  const [prevInitialCustomerDues, setPrevInitialCustomerDues] = useState(initialCustomerDues);
+  if (initialCustomerDues !== prevInitialCustomerDues) {
+    setPrevInitialCustomerDues(initialCustomerDues);
+    setCustomerDues(initialCustomerDues || 0);
+  }
+
   // Real-time Pusher updates across open devices (Owner & Staff)
   useTenantSubscription({
     tenantId,
@@ -261,9 +299,9 @@ export function DashboardClient({
   const [refundOrder, setRefundOrder] = useState<DashboardOrder | null>(null);
   const [settleOrder, setSettleOrder] = useState<DashboardOrder | null>(null);
 
-  const todayExpenses = expenses.filter((e) => e.isToday !== false);
-  const expensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const pendingAmount = calculatePendingAmount(orders);
+  // Directly use pre-saved O(1) persisted metrics (no client-side recomputation)
+  const expensesTotal = todayExpense;
+  const pendingAmount = customerDues;
 
   const handleAddOrder = (
     order: DashboardOrder,
@@ -301,6 +339,17 @@ export function DashboardClient({
       });
       return [enrichedOrder, ...updated];
     });
+
+    if (order.paid > 0) {
+      setTodayIncome((prev) => prev + order.paid);
+    }
+    if (order.status === "advance_paid" || order.status === "paid_full") {
+      setTodayAdvance((prev) => prev + (order.advanceAmount ?? order.paid));
+    }
+    const orderDue = Math.max(0, order.amount - order.paid);
+    if (orderDue > 0) {
+      setCustomerDues((prev) => prev + orderDue);
+    }
 
     setTotalOrdersCount((prev) => prev + 1);
     setOrderStatusCounts((prev) => {
@@ -360,6 +409,7 @@ export function DashboardClient({
     setExpenses((prev) => [expense, ...prev]);
     setTotalExpensesCount((prev) => prev + 1);
     setExpensesTotalAmount((prev) => prev + (expense.amount || 0));
+    setTodayExpense((prev) => prev + (expense.amount || 0));
     setExpenseCategoryCounts((prev) => {
       const counts = { ...(prev || {}) };
       counts.all = (counts.all || 0) + 1;
@@ -398,6 +448,7 @@ export function DashboardClient({
       setExpenses((prev) => [newExpense, ...prev]);
       setTotalExpensesCount((prev) => prev + 1);
       setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+      setTodayExpense((prev) => prev + (newExpense.amount || 0));
       setExpenseCategoryCounts((prev) => {
         const counts = { ...(prev || {}) };
         counts.all = (counts.all || 0) + 1;
@@ -456,6 +507,7 @@ export function DashboardClient({
       setExpenses((prev) => [newExpense, ...prev]);
       setTotalExpensesCount((prev) => prev + 1);
       setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+      setTodayExpense((prev) => prev + (newExpense.amount || 0));
     }
     if (updatedSupplier) {
       setSuppliers((prev) =>
@@ -482,6 +534,7 @@ export function DashboardClient({
       setExpenses((prev) => [newExpense, ...prev]);
       setTotalExpensesCount((prev) => prev + 1);
       setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+      setTodayExpense((prev) => prev + (newExpense.amount || 0));
       setExpenseCategoryCounts((prev) => {
         const counts = { ...(prev || {}) };
         counts.all = (counts.all || 0) + 1;
@@ -542,6 +595,7 @@ export function DashboardClient({
       setExpenses((prev) => [newExpense, ...prev]);
       setTotalExpensesCount((prev) => prev + 1);
       setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
+      setTodayExpense((prev) => prev + (newExpense.amount || 0));
       setExpenseCategoryCounts((prev) => {
         const counts = { ...(prev || {}) };
         counts.all = (counts.all || 0) + 1;
@@ -751,6 +805,9 @@ export function DashboardClient({
               suppliers={suppliers}
               purchaseOrders={purchaseOrders}
               expensesTotal={expensesTotal}
+              todayIncome={todayIncome}
+              advancePayment={todayAdvance}
+              pendingAmount={customerDues}
               salonName={salonProfile.name || salonName}
               customerReplacements={customerReplacements}
               onOpenNewOrder={() => setIsNewOrderOpen(true)}

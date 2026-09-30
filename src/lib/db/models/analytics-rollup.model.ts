@@ -32,6 +32,7 @@ export interface IAnalyticsRollupMetrics {
   netProfit: number;
   totalOrders: number;
   completedOrders: number;
+  advancePayment: number;
   footfall: number;
   averageTicketValue: number;
   uncollectedDues: number;
@@ -100,6 +101,7 @@ const AnalyticsRollupSchema = new Schema<IAnalyticsRollup>(
       netProfit: { type: Number, default: 0 },
       totalOrders: { type: Number, default: 0 },
       completedOrders: { type: Number, default: 0 },
+      advancePayment: { type: Number, default: 0 },
       footfall: { type: Number, default: 0 },
       averageTicketValue: { type: Number, default: 0 },
       uncollectedDues: { type: Number, default: 0 },
