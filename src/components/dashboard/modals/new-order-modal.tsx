@@ -367,7 +367,7 @@ function SettlementModeSelect({
         </button>
 
         {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-lg shadow-xl z-30 overflow-hidden divide-y divide-galla-line/40 animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-[6px] shadow-xl z-30 overflow-hidden divide-y divide-galla-line/40 animate-in fade-in-50 zoom-in-95 duration-100">
             {SETTLEMENT_MODE_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               const isSelected = opt.value === value;
@@ -440,7 +440,7 @@ function SettlementModeSelect({
                         >
                           {opt.label}
                         </span>
-                        <span className="text-[10.5px] px-1.5 py-0.2 rounded font-medium bg-galla-paper border border-galla-line text-galla-ink-soft">
+                        <span className="text-[10.5px] px-1.5 py-0.2 rounded-[4px] font-medium bg-galla-paper border border-galla-line text-galla-ink-soft">
                           {opt.badge}
                         </span>
                       </div>
@@ -1013,7 +1013,7 @@ export function NewOrderModal({
       {/* ======================================================== */}
       {createdOrderResult && (
         <div className="fixed inset-0 z-50 bg-galla-paper flex items-center justify-center p-4">
-          <div className="bg-galla-surface border border-galla-line rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-5">
+          <div className="bg-galla-surface border border-galla-line rounded-[8px] p-8 max-w-md w-full text-center shadow-xl space-y-5">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-bold shadow-2xs">
               ✓
             </div>
@@ -1024,7 +1024,7 @@ export function NewOrderModal({
               </p>
             </div>
 
-            <div className="text-[13.5px] text-galla-ink bg-galla-paper/70 p-4 rounded-xl border border-galla-line/60 space-y-1.5 text-left">
+            <div className="text-[13.5px] text-galla-ink bg-galla-paper/70 p-4 rounded-[6px] border border-galla-line/60 space-y-1.5 text-left">
               <div className="flex justify-between items-center pb-1.5 border-b border-galla-line/50">
                 <span className="text-galla-ink-soft text-[12.5px]">Order ID</span>
                 <span className="font-semibold text-galla-ink">
@@ -1066,7 +1066,7 @@ export function NewOrderModal({
             <button
               type="button"
               onClick={handleClose}
-              className="w-full py-3 rounded-xl bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] transition-all cursor-pointer shadow-sm"
+              className="w-full py-3 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] transition-all cursor-pointer shadow-sm"
             >
               Back to counter
             </button>
@@ -1077,7 +1077,7 @@ export function NewOrderModal({
       {/* ======================================================== */}
       {/* TOP HEADER (Sticky, covers sidebar, cancel button)       */}
       {/* ======================================================== */}
-      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3 flex items-center justify-between shadow-2xs shrink-0">
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -1105,7 +1105,7 @@ export function NewOrderModal({
       {/* Global Error Banner */}
       {errorMsg && (
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4">
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[5px] flex items-center justify-between gap-2 shadow-2xs">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errorMsg}</span>
@@ -1131,7 +1131,7 @@ export function NewOrderModal({
         {/* ====================================================== */}
         {/* RIGHT COLUMN: BILL                                     */}
         {/* ====================================================== */}
-        <aside className="bg-galla-surface border border-galla-line rounded-xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
+        <aside className="bg-galla-surface border border-galla-line rounded-[8px] shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
           {/* Bill Header */}
           <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
@@ -1156,7 +1156,7 @@ export function NewOrderModal({
           {/* Selected Items List */}
           <div className="flex-1 overflow-y-auto p-3 divide-y divide-galla-line/40 min-h-[140px] max-h-[300px] lg:max-h-[360px]">
             {selectedItems.length === 0 ? (
-              <div className="py-12 text-center text-galla-ink-soft border border-dashed border-galla-line rounded-lg bg-galla-paper/30">
+              <div className="py-12 text-center text-galla-ink-soft border border-dashed border-galla-line rounded-[5px] bg-galla-paper/30">
                 <p className="text-[13px] font-medium">No items added yet</p>
                 <p className="text-[11.5px] mt-0.5">Select services, packages, or products from the catalog on the left</p>
               </div>
@@ -1169,7 +1169,7 @@ export function NewOrderModal({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[13px] font-medium text-galla-ink truncate">{item.name}</span>
                         {item.type === "package" && (
-                          <span className="text-[10px] font-medium bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded shrink-0">
+                          <span className="text-[10px] font-medium bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded-[4px] shrink-0">
                             Package
                           </span>
                         )}
@@ -1195,11 +1195,11 @@ export function NewOrderModal({
                     </div>
 
                     {/* Stepper */}
-                    <div className="flex items-center border border-galla-line rounded-md bg-galla-paper/40 shrink-0">
+                    <div className="flex items-center border border-galla-line rounded-[5px] bg-galla-paper/40 shrink-0">
                       <button
                         type="button"
                         onClick={() => handleUpdateQuantity(item.id, item.type, -1)}
-                        className="w-7 h-7 flex items-center justify-center text-galla-ink-soft hover:text-galla-ink cursor-pointer hover:bg-galla-paper rounded-l-md transition-colors"
+                        className="w-7 h-7 flex items-center justify-center text-galla-ink-soft hover:text-galla-ink cursor-pointer hover:bg-galla-paper rounded-l-[4px] transition-colors"
                       >
                         -
                       </button>
@@ -1209,7 +1209,7 @@ export function NewOrderModal({
                       <button
                         type="button"
                         onClick={() => handleUpdateQuantity(item.id, item.type, 1)}
-                        className="w-7 h-7 flex items-center justify-center text-galla-ink-soft hover:text-galla-ink cursor-pointer hover:bg-galla-paper rounded-r-md transition-colors"
+                        className="w-7 h-7 flex items-center justify-center text-galla-ink-soft hover:text-galla-ink cursor-pointer hover:bg-galla-paper rounded-r-[4px] transition-colors"
                       >
                         +
                       </button>
@@ -1239,7 +1239,7 @@ export function NewOrderModal({
           <div className="p-4 border-t border-galla-line/60 bg-galla-surface space-y-3 shrink-0">
             {/* Previous Due Alert & Opt-in */}
             {customerDueOrders.length > 0 && settlementMode !== "pay_later" && (
-              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-lg text-[12px] space-y-1.5">
+              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-[5px] text-[12px] space-y-1.5">
                 <div className="text-amber-900 font-medium">
                   Previous unpaid due: <strong className="text-rose-700">{formatRupee(totalPreviousDue)}</strong>
                 </div>
@@ -1248,7 +1248,7 @@ export function NewOrderModal({
                     type="checkbox"
                     checked={includePreviousDue}
                     onChange={(e) => setIncludePreviousDue(e.target.checked)}
-                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
+                    className="h-4 w-4 rounded-[4px] border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
                   />
                   <span>Add previous due to this bill</span>
                 </label>
@@ -1269,13 +1269,13 @@ export function NewOrderModal({
                   value={discount}
                   onChange={(e) => setDiscount(e.target.value.replace(/\D/g, ""))}
                   placeholder={discountType === "percentage" ? "e.g. 10%" : "e.g. 100"}
-                  className="flex-1 bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink tabular-nums focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                  className="flex-1 bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink tabular-nums focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
                 />
-                <div className="inline-flex border border-galla-line rounded-lg p-0.5 bg-galla-paper/60 shrink-0">
+                <div className="inline-flex border border-galla-line rounded-[5px] p-0.5 bg-galla-paper/60 shrink-0">
                   <button
                     type="button"
                     onClick={() => setDiscountType("percentage")}
-                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${discountType === "percentage"
+                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-[4px] transition-colors cursor-pointer ${discountType === "percentage"
                         ? "bg-galla-teal text-white shadow-2xs"
                         : "text-galla-ink-soft hover:text-galla-ink"
                       }`}
@@ -1285,7 +1285,7 @@ export function NewOrderModal({
                   <button
                     type="button"
                     onClick={() => setDiscountType("flat")}
-                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${discountType === "flat"
+                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-[4px] transition-colors cursor-pointer ${discountType === "flat"
                         ? "bg-galla-teal text-white shadow-2xs"
                         : "text-galla-ink-soft hover:text-galla-ink"
                       }`}
@@ -1361,7 +1361,7 @@ export function NewOrderModal({
                   !customer.trim() ||
                   getPhoneDigits(phone).length < 10
                 }
-                className="w-full py-3 rounded-xl bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] shadow-sm disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 transition-all"
+                className="w-full py-3 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] shadow-sm disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 transition-all"
               >
                 {isSubmitting ? (
                   <span>Creating order...</span>
@@ -1397,7 +1397,7 @@ export function NewOrderModal({
         <main className="space-y-5 min-w-0 order-1">
 
           {/* Card 1: Customer Details */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
               1. Customer
             </h2>
@@ -1423,12 +1423,12 @@ export function NewOrderModal({
                     }
                   }}
                   placeholder="e.g. John Doe"
-                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                  className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
                 />
 
                 {/* Autocomplete Suggestions */}
                 {showSuggestions && filteredCustomers.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-lg shadow-lg z-20 overflow-hidden divide-y divide-galla-line/40">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-[6px] shadow-lg z-20 overflow-hidden divide-y divide-galla-line/40">
                     {filteredCustomers.map((c) => (
                       <button
                         key={c.id}
@@ -1492,14 +1492,14 @@ export function NewOrderModal({
                     }
                   }}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 font-sans tabular-nums text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                  className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 font-sans tabular-nums text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
                 />
               </div>
             </div>
 
             {/* Phone conflict banner */}
             {phoneConflictCustomer && (
-              <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-[12px] flex items-center justify-between">
+              <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-[5px] text-[12px] flex items-center justify-between">
                 <span>
                   Phone belongs to existing customer: <strong>{phoneConflictCustomer.name}</strong>
                 </span>
@@ -1515,18 +1515,18 @@ export function NewOrderModal({
           </section>
 
           {/* Card 2: Catalog Selection */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
                 2. Catalog Selection
               </h2>
 
               {/* All 3 Catalog Tabs */}
-              <div className="inline-flex border border-galla-line rounded-lg p-1 bg-galla-paper/70 self-start sm:self-auto gap-1">
+              <div className="inline-flex border border-galla-line rounded-[5px] p-1 bg-galla-paper/70 self-start sm:self-auto gap-1">
                 <button
                   type="button"
                   onClick={() => setCatalogTab("services")}
-                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${catalogTab === "services"
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-[4px] transition-all cursor-pointer ${catalogTab === "services"
                       ? "bg-galla-teal text-white shadow-xs font-semibold"
                       : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                     }`}
@@ -1536,7 +1536,7 @@ export function NewOrderModal({
                 <button
                   type="button"
                   onClick={() => setCatalogTab("packages")}
-                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${catalogTab === "packages"
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-[4px] transition-all cursor-pointer ${catalogTab === "packages"
                       ? "bg-galla-teal text-white shadow-xs font-semibold"
                       : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                     }`}
@@ -1549,7 +1549,7 @@ export function NewOrderModal({
                     setCatalogTab("products");
                     fetchLiveProducts();
                   }}
-                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${catalogTab === "products"
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-[4px] transition-all cursor-pointer ${catalogTab === "products"
                       ? "bg-galla-teal text-white shadow-xs font-semibold"
                       : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                     }`}
@@ -1573,12 +1573,12 @@ export function NewOrderModal({
                       ? "Search bundled packages..."
                       : "Search services by name or category..."
                 }
-                className="w-full bg-galla-surface border border-galla-line rounded-lg pl-9 pr-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-9 pr-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
               />
             </div>
 
             {/* Catalog Items List */}
-            <div className="border border-galla-line rounded-xl overflow-hidden divide-y divide-galla-line/40 max-h-[420px] overflow-y-auto bg-galla-paper/10">
+            <div className="border border-galla-line rounded-[6px] overflow-hidden divide-y divide-galla-line/40 max-h-[420px] overflow-y-auto bg-galla-paper/10">
               {/* Product Sale View */}
               {catalogTab === "products" && (
                 filteredProducts.length === 0 ? (
@@ -1622,11 +1622,11 @@ export function NewOrderModal({
                                 {p.name}
                               </span>
                               {isOutOfStock ? (
-                                <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
+                                <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200">
                                   Out of Stock &bull; Pre-order only
                                 </span>
                               ) : (
-                                <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 text-emerald-800 border border-emerald-200">
                                   {p.sell} in stock
                                 </span>
                               )}
@@ -1689,15 +1689,15 @@ export function NewOrderModal({
                               </span>
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
-                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200">
                                     Out of Stock
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
-                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-amber-50 text-amber-800 border border-amber-200">
                                     In-use short &bull; shelf available
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 text-emerald-800 border border-emerald-200">
                                     In Stock
                                   </span>
                                 )
@@ -1705,7 +1705,7 @@ export function NewOrderModal({
                             </div>
                             <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
                               {s.category && (
-                                <span className="bg-galla-paper px-1.5 py-0.5 rounded border border-galla-line/60">
+                                <span className="bg-galla-paper px-1.5 py-0.5 rounded-[4px] border border-galla-line/60">
                                   {s.category}
                                 </span>
                               )}
@@ -1766,15 +1766,15 @@ export function NewOrderModal({
                               </span>
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
-                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200">
                                     Out of Stock
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
-                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-amber-50 text-amber-800 border border-amber-200">
                                     In-use short &bull; shelf available
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 text-emerald-800 border border-emerald-200">
                                     In Stock
                                   </span>
                                 )
@@ -1813,14 +1813,14 @@ export function NewOrderModal({
           </section>
 
           {/* Card 3: Payment & Settlement */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
               3. Payment &amp; Settlement
             </h2>
 
             {/* Retail Shelf Stock Transfer Opt-in (if services/packages need shelf backup) */}
             {orderSellStockItems.length > 0 && (
-              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl text-[12px] space-y-2">
+              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-[6px] text-[12px] space-y-2">
                 <div className="font-semibold text-amber-900 flex items-center gap-1.5">
                   <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
                   <span>Transfer Shelf Stock to In-Use?</span>
@@ -1830,7 +1830,7 @@ export function NewOrderModal({
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {orderSellStockItems.map((it) => (
-                    <span key={it.name} className="px-2 py-0.5 bg-amber-100/90 text-amber-950 font-medium rounded border border-amber-300/80">
+                    <span key={it.name} className="px-2 py-0.5 bg-amber-100/90 text-amber-950 font-medium rounded-[4px] border border-amber-300/80">
                       {it.neededFromSell}x {it.name}
                     </span>
                   ))}
@@ -1852,7 +1852,7 @@ export function NewOrderModal({
                         }
                       }
                     }}
-                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
+                    className="h-4 w-4 rounded-[4px] border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
                   />
                   <span>Confirm transfer from retail shelf inventory for this order</span>
                 </label>
@@ -1880,7 +1880,7 @@ export function NewOrderModal({
 
             {/* Dynamic Settlement Fields */}
             {settlementMode === "advance" && (
-              <div className="p-4 bg-teal-50/40 border border-teal-200/80 rounded-xl space-y-3">
+              <div className="p-4 bg-teal-50/40 border border-teal-200/80 rounded-[6px] space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
@@ -1891,7 +1891,7 @@ export function NewOrderModal({
                       value={advance}
                       onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
                       placeholder="e.g. 500"
-                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink tabular-nums font-semibold focus:outline-none focus:border-galla-teal"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink tabular-nums font-semibold focus:outline-none focus:border-galla-teal"
                     />
                   </div>
                   <div>
@@ -1902,7 +1902,7 @@ export function NewOrderModal({
                       type="date"
                       value={bookingDate}
                       onChange={(e) => setBookingDate(e.target.value)}
-                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
                     />
                   </div>
                 </div>
@@ -1910,7 +1910,7 @@ export function NewOrderModal({
             )}
 
             {settlementMode === "pay_later" && (
-              <div className="p-4 bg-amber-50/40 border border-amber-200/80 rounded-xl space-y-3">
+              <div className="p-4 bg-amber-50/40 border border-amber-200/80 rounded-[6px] space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
@@ -1921,7 +1921,7 @@ export function NewOrderModal({
                       value={payLaterPaid}
                       onChange={(e) => setPayLaterPaid(e.target.value.replace(/\D/g, ""))}
                       placeholder={`0 (Full ${formatRupee(finalTotal)} due later)`}
-                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink tabular-nums font-semibold focus:outline-none focus:border-galla-teal"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink tabular-nums font-semibold focus:outline-none focus:border-galla-teal"
                     />
                   </div>
                   <div>
@@ -1932,7 +1932,7 @@ export function NewOrderModal({
                       type="date"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
                     />
                   </div>
                 </div>
@@ -1940,7 +1940,7 @@ export function NewOrderModal({
             )}
 
             {settlementMode === "paid_full" && (
-              <div className="p-4 bg-indigo-50/40 border border-indigo-200/80 rounded-xl space-y-3">
+              <div className="p-4 bg-indigo-50/40 border border-indigo-200/80 rounded-[6px] space-y-3">
                 <div>
                   <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
                     Appointment / Delivery Date <span className="text-red-500">*</span>
@@ -1949,7 +1949,7 @@ export function NewOrderModal({
                     type="date"
                     value={bookingDate}
                     onChange={(e) => setBookingDate(e.target.value)}
-                    className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                    className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
                   />
                 </div>
               </div>
@@ -1965,7 +1965,7 @@ export function NewOrderModal({
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 placeholder="e.g. Client requested herbal wash, allergic to chemical dye"
-                className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
               />
             </div>
           </section>
@@ -1988,7 +1988,7 @@ export function NewOrderModal({
             </span>
 
             {allowSellStockUsage && orderSellStockItems.length > 0 && (
-              <div className="mt-2 p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-[12px] text-amber-950">
+              <div className="mt-2 p-2.5 bg-amber-50 border border-amber-300 rounded-[5px] text-[12px] text-amber-950">
                 <strong>Retail Shelf Stock Transfer:</strong>
                 <ul className="mt-1 list-disc pl-4 space-y-0.5">
                   {orderSellStockItems.map((it) => (
@@ -2026,13 +2026,13 @@ export function NewOrderModal({
           onClick={() => setViewingPackage(null)}
         >
           <div
-            className="w-full max-w-[480px] bg-galla-surface border border-galla-line rounded-[10px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-150"
+            className="w-full max-w-[480px] bg-galla-surface border border-galla-line rounded-[8px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-galla-line bg-galla-paper/50 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-9 w-9 rounded-lg bg-galla-teal/10 border border-galla-teal/20 flex items-center justify-center text-galla-teal shrink-0">
+                <div className="h-9 w-9 rounded-[6px] bg-galla-teal/10 border border-galla-teal/20 flex items-center justify-center text-galla-teal shrink-0">
                   <Package className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -2047,7 +2047,7 @@ export function NewOrderModal({
               <button
                 type="button"
                 onClick={() => setViewingPackage(null)}
-                className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors cursor-pointer"
+                className="text-galla-ink-soft hover:text-galla-ink p-1 rounded-[4px] transition-colors cursor-pointer"
                 title="Close"
               >
                 <X className="h-4 w-4" />
@@ -2065,7 +2065,7 @@ export function NewOrderModal({
                 </span>
               </div>
               <div className="text-right">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] bg-galla-teal/10 border border-galla-teal/20 text-galla-teal text-[12px] font-semibold">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-galla-teal/10 border border-galla-teal/20 text-galla-teal text-[12px] font-semibold">
                   <Check className="h-3 w-3 stroke-[2.5]" />
                   {viewingPackage.services.length} {viewingPackage.services.length === 1 ? "Service" : "Services"} Included
                 </span>
@@ -2075,7 +2075,7 @@ export function NewOrderModal({
             {/* Content Body */}
             <div className="p-5 overflow-y-auto space-y-4">
               {viewingPackage.description && (
-                <div className="text-[12.5px] text-galla-ink-soft bg-galla-paper/50 p-3 rounded-lg border border-galla-line/70">
+                <div className="text-[12.5px] text-galla-ink-soft bg-galla-paper/50 p-3 rounded-[5px] border border-galla-line/70">
                   <p className="leading-relaxed">{viewingPackage.description}</p>
                 </div>
               )}
@@ -2088,7 +2088,7 @@ export function NewOrderModal({
                   </span>
                 </h4>
 
-                <div className="border border-galla-line/80 rounded-lg divide-y divide-galla-line/60 overflow-hidden bg-galla-surface">
+                <div className="border border-galla-line/80 rounded-[6px] divide-y divide-galla-line/60 overflow-hidden bg-galla-surface">
                   {viewingPackage.services.map((svc, idx) => {
                     const fullService = services.find((s) => s.id === svc.serviceId);
                     return (
@@ -2106,7 +2106,7 @@ export function NewOrderModal({
                             </div>
                             {fullService && fullService.category && (
                               <div className="text-[11px] text-galla-ink-soft flex items-center gap-1.5 mt-0.5">
-                                <span className="px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                <span className="px-1.5 py-0.2 rounded-[4px] bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                   {fullService.category}
                                 </span>
                                 {fullService.description && (
@@ -2138,7 +2138,7 @@ export function NewOrderModal({
                       ({viewingPackage.products.length})
                     </span>
                   </h4>
-                  <div className="border border-galla-line/80 rounded-lg divide-y divide-galla-line/60 overflow-hidden bg-galla-surface">
+                  <div className="border border-galla-line/80 rounded-[6px] divide-y divide-galla-line/60 overflow-hidden bg-galla-surface">
                     {viewingPackage.products.map((prod, pIdx) => (
                       <div
                         key={prod.productId || pIdx}
@@ -2152,7 +2152,7 @@ export function NewOrderModal({
                             {prod.name}
                           </div>
                         </div>
-                        <div className="text-[11.5px] font-medium text-galla-ink-soft px-2 py-0.5 bg-galla-paper rounded border border-galla-line shrink-0">
+                        <div className="text-[11.5px] font-medium text-galla-ink-soft px-2 py-0.5 bg-galla-paper rounded-[4px] border border-galla-line shrink-0">
                           Qty: {prod.quantity}
                         </div>
                       </div>
@@ -2181,7 +2181,7 @@ export function NewOrderModal({
                     });
                     setViewingPackage(null);
                   }}
-                  className="px-4 py-2 rounded-lg bg-galla-teal hover:opacity-95 text-white font-medium text-[13px] transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-medium text-[13px] transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Add Package to Order</span>
@@ -2190,7 +2190,7 @@ export function NewOrderModal({
               <button
                 type="button"
                 onClick={() => setViewingPackage(null)}
-                className="px-4 py-2 rounded-lg border border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink font-medium text-[13px] transition-colors cursor-pointer ml-auto"
+                className="px-4 py-2 rounded-[5px] border border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink font-medium text-[13px] transition-colors cursor-pointer ml-auto"
               >
                 Close
               </button>

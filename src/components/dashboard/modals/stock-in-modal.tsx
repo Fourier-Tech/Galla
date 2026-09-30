@@ -151,7 +151,7 @@ function SettlementModeSelect({
         </button>
 
         {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-lg shadow-xl z-30 overflow-hidden divide-y divide-galla-line/40 animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-galla-surface border border-galla-line rounded-[6px] shadow-xl z-30 overflow-hidden divide-y divide-galla-line/40 animate-in fade-in-50 zoom-in-95 duration-100">
             {SETTLEMENT_MODE_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               const isSelected = opt.value === value;
@@ -189,7 +189,7 @@ function SettlementModeSelect({
                         >
                           {opt.label}
                         </span>
-                        <span className="text-[10.5px] px-1.5 py-0.2 rounded font-medium bg-galla-paper border border-galla-line text-galla-ink-soft">
+                        <span className="text-[10.5px] px-1.5 py-0.2 rounded-[4px] font-medium bg-galla-paper border border-galla-line text-galla-ink-soft">
                           {opt.badge}
                         </span>
                       </div>
@@ -976,7 +976,7 @@ export function StockInModal({
       className="fixed inset-0 z-50 bg-galla-paper flex flex-col overflow-y-auto"
     >
       {/* Top Header (Sticky) */}
-      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3 flex items-center justify-between shadow-2xs shrink-0">
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -1009,7 +1009,7 @@ export function StockInModal({
       {/* Global Error Banner */}
       {errorMsg && (
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4">
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[6px] flex items-center justify-between gap-2 shadow-2xs">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errorMsg}</span>
@@ -1032,7 +1032,7 @@ export function StockInModal({
         {/* ====================================================== */}
         <main className="space-y-6 min-w-0 order-1">
           {/* Card 1: Supplier & Invoice Details */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-galla-teal" />
               <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
@@ -1064,7 +1064,7 @@ export function StockInModal({
                     if (e.key === "Escape") setShowSuggestions(false);
                   }}
                   placeholder="Type supplier or distributor..."
-                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                  className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
                   autoComplete="off"
                 />
 
@@ -1072,7 +1072,7 @@ export function StockInModal({
                 {showSuggestions && filteredSuppliers.length > 0 && (
                   <div
                     ref={dropdownRef}
-                    className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[320px] min-w-full max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-lg shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
+                    className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[320px] min-w-full max-h-56 overflow-y-auto bg-galla-surface border border-galla-line rounded-[5px] shadow-lg divide-y divide-galla-line/60 animate-in fade-in zoom-in-95 duration-100"
                   >
                     <div className="px-3 py-1.5 bg-galla-paper/60 text-[11px] font-semibold text-galla-ink-soft">
                       Existing Suppliers ({filteredSuppliers.length})
@@ -1133,14 +1133,14 @@ export function StockInModal({
                       setSupplierPhone(formatPhoneNumber(supplierPhone));
                   }}
                   placeholder="+91 98250 00000"
-                  className={`w-full bg-galla-surface border rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none transition-all shadow-2xs ${
+                  className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none transition-all shadow-2xs ${
                     phoneConflictSupplier
                       ? "border-amber-400 focus:border-amber-500"
                       : "border-galla-line focus:border-galla-teal"
                   }`}
                 />
                 {phoneConflictSupplier && (
-                  <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-900 text-[11.5px] rounded-lg font-sans">
+                  <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-900 text-[11.5px] rounded-[6px] font-sans">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
                     <div className="leading-tight">
                       <span>This number belongs to </span>
@@ -1174,14 +1174,14 @@ export function StockInModal({
                   value={dealerInvoiceNumber}
                   onChange={(e) => setDealerInvoiceNumber(e.target.value)}
                   placeholder="e.g. INV-2026-89"
-                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs font-mono"
+                  className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs font-mono"
                 />
               </div>
             </div>
 
             {/* Pending Dealer Replacements Card */}
             {pendingDealerReplacements.length > 0 && (
-              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl space-y-2.5 animate-in fade-in duration-100">
+              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-[6px] space-y-2.5 animate-in fade-in duration-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4 text-amber-700" />
@@ -1206,14 +1206,14 @@ export function StockInModal({
                     return (
                       <div
                         key={rIdx}
-                        className="flex items-center justify-between p-2.5 rounded-lg bg-white border border-amber-200/80 gap-3"
+                        className="flex items-center justify-between p-2.5 rounded-[6px] bg-white border border-amber-200/80 gap-3"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-sans font-semibold text-[13px] text-galla-ink">
                               {rep.productName}
                             </span>
-                            <span className="text-[11px] tabular-nums px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">
+                            <span className="text-[11px] tabular-nums px-2 py-0.5 rounded-[4px] bg-amber-100 text-amber-900 border border-amber-300 font-medium">
                               {rep.quantity} pcs defective
                             </span>
                             <span className="text-[11.5px] tabular-nums text-galla-ink-soft">
@@ -1226,7 +1226,7 @@ export function StockInModal({
                           type="button"
                           onClick={() => handleFillReplacement(rep)}
                           disabled={isAlreadyAdded}
-                          className={`shrink-0 px-3 py-1.5 rounded-lg font-sans text-[12px] font-semibold transition-all cursor-pointer ${
+                          className={`shrink-0 px-3 py-1.5 rounded-[5px] font-sans text-[12px] font-semibold transition-all cursor-pointer ${
                             isAlreadyAdded
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
                               : "bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
@@ -1249,7 +1249,7 @@ export function StockInModal({
           </section>
 
           {/* Card 2: Products In Batch */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center gap-2">
               <PackagePlus className="h-4 w-4 text-galla-teal" />
               <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
@@ -1292,7 +1292,7 @@ export function StockInModal({
                 return (
                   <div
                     key={idx}
-                    className={`p-4 bg-galla-paper/30 border rounded-xl space-y-3.5 transition-colors ${
+                    className={`p-4 bg-galla-paper/30 border rounded-[6px] space-y-3.5 transition-colors ${
                       isDuplicate
                         ? "border-red-300 bg-red-50/20"
                         : "border-galla-line"
@@ -1301,7 +1301,7 @@ export function StockInModal({
                     {/* Item Card Header */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-[11.5px] font-bold px-2 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line">
+                        <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-[4px] bg-galla-paper text-galla-ink-soft border border-galla-line">
                           Item #{idx + 1}
                         </span>
                         <span className="text-[13px] font-semibold text-galla-ink">
@@ -1327,7 +1327,7 @@ export function StockInModal({
                       <select
                         value={item.isNewProduct ? "__new__" : item.productId}
                         onChange={(e) => handleProductSelect(idx, e.target.value)}
-                        className={`w-full bg-galla-surface border rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs ${
+                        className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs ${
                           isDuplicate ? "border-red-400" : "border-galla-line"
                         }`}
                       >
@@ -1366,7 +1366,7 @@ export function StockInModal({
                     </div>
 
                     {isDuplicate && (
-                      <div className="flex items-center gap-1.5 p-2 bg-red-50 border border-red-200 text-red-700 text-[11.5px] rounded-lg font-sans">
+                      <div className="flex items-center gap-1.5 p-2 bg-red-50 border border-red-200 text-red-700 text-[11.5px] rounded-[6px] font-sans">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
                         <span>
                           Duplicate product: already added in another row. Adjust quantities instead.
@@ -1375,7 +1375,7 @@ export function StockInModal({
                     )}
 
                     {item.isReplacement && (
-                      <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-[12px] font-sans text-amber-900">
+                      <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-300 rounded-[6px] text-[12px] font-sans text-amber-900">
                         <span className="font-semibold flex items-center gap-1.5">
                           <Sparkles className="h-4 w-4 text-amber-700 shrink-0" />
                           Dealer Replacement Item (@ ₹0 cost)
@@ -1388,7 +1388,7 @@ export function StockInModal({
 
                     {/* New Product Inline Card */}
                     {item.isNewProduct && (
-                      <div className="p-3.5 bg-galla-teal-soft/20 border border-galla-teal/30 rounded-xl space-y-3">
+                      <div className="p-3.5 bg-galla-teal-soft/20 border border-galla-teal/30 rounded-[6px] space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-galla-teal">
                             <Sparkles className="h-3.5 w-3.5" />
@@ -1412,7 +1412,7 @@ export function StockInModal({
                                 handleItemFieldChange(idx, "productName", e.target.value)
                               }
                               placeholder="e.g. L'Oreal Serum 100ml"
-                              className={`w-full bg-galla-surface border rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none transition-all ${
+                              className={`w-full bg-galla-surface border rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none transition-all ${
                                 duplicateWarning
                                   ? "border-amber-400 focus:border-amber-500"
                                   : "border-galla-line focus:border-galla-teal"
@@ -1420,7 +1420,7 @@ export function StockInModal({
                             />
 
                             {duplicateWarning && (
-                              <div className="font-sans text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1.5 flex items-center justify-between gap-1.5">
+                              <div className="font-sans text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-[4px] px-2 py-1 mt-1.5 flex items-center justify-between gap-1.5">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
                                   <span>{duplicateWarning}</span>
@@ -1449,7 +1449,7 @@ export function StockInModal({
                               onChange={(e) =>
                                 handleItemFieldChange(idx, "category", e.target.value)
                               }
-                              className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
+                              className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal cursor-pointer"
                             >
                               {availableCategories.map((cat) => (
                                 <option key={cat} value={cat}>
@@ -1474,7 +1474,7 @@ export function StockInModal({
                                 handleItemFieldChange(idx, "customCategory", e.target.value)
                               }
                               placeholder="Type new category name (e.g. Organic Hair Care)..."
-                              className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
+                              className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal"
                             />
                           </div>
                         )}
@@ -1496,7 +1496,7 @@ export function StockInModal({
                             onChange={(e) =>
                               handleItemFieldChange(idx, "quantityForSell", e.target.value)
                             }
-                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-3 pr-8 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-3 pr-8 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
                             placeholder="0"
                           />
                           <span className="absolute right-2.5 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
@@ -1521,7 +1521,7 @@ export function StockInModal({
                             onChange={(e) =>
                               handleItemFieldChange(idx, "quantityForUse", e.target.value)
                             }
-                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-3 pr-8 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-3 pr-8 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
                             placeholder="0"
                           />
                           <span className="absolute right-2.5 text-[11px] font-sans text-galla-ink-soft pointer-events-none">
@@ -1547,7 +1547,7 @@ export function StockInModal({
                             onChange={(e) =>
                               handleItemFieldChange(idx, "purchaseCost", e.target.value)
                             }
-                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-8 pr-3 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-8 pr-3 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
                             placeholder="0"
                           />
                         </div>
@@ -1570,7 +1570,7 @@ export function StockInModal({
                             onChange={(e) =>
                               handleItemFieldChange(idx, "expectedSellPrice", e.target.value)
                             }
-                            className="w-full bg-galla-surface border border-galla-line rounded-lg pl-8 pr-3 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
+                            className="w-full bg-galla-surface border border-galla-line rounded-[5px] pl-8 pr-3 py-1.5 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal tabular-nums shadow-2xs"
                             placeholder="0"
                           />
                         </div>
@@ -1591,7 +1591,7 @@ export function StockInModal({
                             Number(item.purchaseCost) !== matched.purchaseCost));
                       if (!isPriceChanged) return null;
                       return (
-                        <div className="text-[11.5px] font-sans text-blue-800 bg-blue-50/80 border border-blue-200/80 px-2.5 py-1.5 rounded-lg">
+                        <div className="text-[11.5px] font-sans text-blue-800 bg-blue-50/80 border border-blue-200/80 px-2.5 py-1.5 rounded-[6px]">
                           ✨ <strong>New Price Detected:</strong> Incoming stock will be automatically saved as a separate <em>(New)</em> batch, leaving current stock as <em>(Old)</em>.
                         </div>
                       );
@@ -1614,7 +1614,7 @@ export function StockInModal({
             <button
               type="button"
               onClick={handleAddItem}
-              className="w-full py-2.5 rounded-xl border border-dashed border-galla-line hover:border-galla-teal text-galla-ink-soft hover:text-galla-teal text-[13px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-galla-paper/20 hover:bg-galla-paper/50"
+              className="w-full py-2.5 rounded-[5px] border border-dashed border-galla-line hover:border-galla-teal text-galla-ink-soft hover:text-galla-teal text-[13px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-galla-paper/20 hover:bg-galla-paper/50"
             >
               <Plus className="h-4 w-4" />
               <span>Add Another Item</span>
@@ -1622,7 +1622,7 @@ export function StockInModal({
           </section>
 
           {/* Card 3: Settlement Terms & Payment */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
               3. Settlement Terms &amp; Payment
             </h2>
@@ -1651,7 +1651,7 @@ export function StockInModal({
 
             {/* Pending / Pay Later Card */}
             {settlementMode === "pending" && (
-              <div className="p-4 rounded-xl space-y-3 border bg-amber-50/40 border-amber-300/50">
+              <div className="p-4 rounded-[6px] space-y-3 border bg-amber-50/40 border-amber-300/50">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
@@ -1671,7 +1671,7 @@ export function StockInModal({
                       value={payLaterPaid}
                       onChange={(e) => setPayLaterPaid(e.target.value.replace(/\D/g, ""))}
                       placeholder={`0 (Full ${formatRupee(totalCalculatedCost)} due later)`}
-                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all shadow-2xs"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-amber-500 transition-all shadow-2xs"
                     />
                   </div>
 
@@ -1696,7 +1696,7 @@ export function StockInModal({
                       value={dueDate}
                       min={getLocalDateString()}
                       onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none focus:border-amber-500 transition-all cursor-pointer shadow-2xs"
+                      className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none focus:border-amber-500 transition-all cursor-pointer shadow-2xs"
                     />
                   </div>
                 </div>
@@ -1711,7 +1711,7 @@ export function StockInModal({
             {/* Advance / Paid in Full Details Card */}
             {(settlementMode === "advance" || settlementMode === "paid_full") && (
               <div
-                className={`p-4 rounded-xl space-y-3 border ${
+                className={`p-4 rounded-[6px] space-y-3 border ${
                   settlementMode === "advance"
                     ? "bg-galla-brass-soft/40 border-galla-brass/30"
                     : "bg-galla-teal-soft/40 border-galla-teal/30"
@@ -1738,7 +1738,7 @@ export function StockInModal({
                         value={advance}
                         onChange={(e) => setAdvance(e.target.value.replace(/\D/g, ""))}
                         placeholder="e.g. 500"
-                        className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all shadow-2xs"
+                        className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-medium tabular-nums text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-brass transition-all shadow-2xs"
                       />
                     </div>
                   )}
@@ -1752,7 +1752,7 @@ export function StockInModal({
                       value={expectedDeliveryDate}
                       min={getLocalDateString()}
                       onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                      className={`w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
+                      className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
                         settlementMode === "advance"
                           ? "focus:border-galla-brass"
                           : "focus:border-galla-teal"
@@ -1780,7 +1780,7 @@ export function StockInModal({
                       type="time"
                       value={deliveryTime}
                       onChange={(e) => setDeliveryTime(e.target.value)}
-                      className={`w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
+                      className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
                         settlementMode === "advance"
                           ? "focus:border-galla-brass"
                           : "focus:border-galla-teal"
@@ -1825,7 +1825,7 @@ export function StockInModal({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. Batch notes, vendor payment conditions, delivery instructions..."
-                className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                className="w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
               />
             </div>
           </section>
@@ -1834,13 +1834,13 @@ export function StockInModal({
         {/* ====================================================== */}
         {/* RIGHT COLUMN: PO SUMMARY & SETTLEMENT                   */}
         {/* ====================================================== */}
-        <aside className="bg-galla-surface border border-galla-line rounded-xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
+        <aside className="bg-galla-surface border border-galla-line rounded-[8px] shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
           {/* Summary Header */}
           <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <h2 className="text-[15px] font-bold text-galla-ink">PO Summary</h2>
               {items.length > 0 && (
-                <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-galla-teal-soft text-galla-teal">
+                <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-[4px] bg-galla-teal-soft text-galla-teal">
                   {items.length} {items.length === 1 ? "product" : "products"}
                 </span>
               )}
@@ -1853,7 +1853,7 @@ export function StockInModal({
           {/* Items Breakdown List */}
           <div className="flex-1 overflow-y-auto p-4 divide-y divide-galla-line/40 min-h-[140px] max-h-[300px] lg:max-h-[340px]">
             {items.length === 0 ? (
-              <div className="py-10 text-center text-galla-ink-soft border border-dashed border-galla-line rounded-lg bg-galla-paper/30">
+              <div className="py-10 text-center text-galla-ink-soft border border-dashed border-galla-line rounded-[6px] bg-galla-paper/30">
                 <p className="text-[13px] font-medium">No items in this purchase order</p>
                 <p className="text-[11.5px] mt-0.5">Add products on the left</p>
               </div>
@@ -1900,13 +1900,13 @@ export function StockInModal({
           <div className="p-4 border-t border-galla-line/60 bg-galla-surface space-y-3.5 shrink-0">
             {/* Supplier Ledger Balance checkbox if applicable */}
             {matchedSupplier && supplierPending !== 0 && isLedgerBalanceApplicable && (
-              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-lg text-[12px]">
+              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-[6px] text-[12px]">
                 <label className="flex items-start gap-2.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={applyLedgerBalance}
                     onChange={(e) => setApplyLedgerBalance(e.target.checked)}
-                    className="h-4 w-4 mt-0.5 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
+                    className="h-4 w-4 mt-0.5 rounded-[4px] border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-galla-ink flex items-center justify-between">
@@ -1995,7 +1995,7 @@ export function StockInModal({
                 type="button"
                 onClick={() => handleSubmit()}
                 disabled={isSubmitting || items.length === 0 || !supplierName.trim()}
-                className="w-full py-3 rounded-xl bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] shadow-sm disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 transition-all"
+                className="w-full py-3 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] shadow-sm disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 transition-all"
               >
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">

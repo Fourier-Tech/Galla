@@ -259,7 +259,7 @@ export function OrderDetailsModal({
       {/* ======================================================== */}
       {/* TOP HEADER (Sticky)                                      */}
       {/* ======================================================== */}
-      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3 flex items-center justify-between shadow-2xs shrink-0">
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -302,7 +302,7 @@ export function OrderDetailsModal({
         {/* ====================================================== */}
         <main className="space-y-6 min-w-0 order-1">
           {/* Card 1: Customer Details */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-galla-teal" />
@@ -315,7 +315,7 @@ export function OrderDetailsModal({
               </div>
             </div>
 
-            <div className="p-4 bg-galla-paper/40 border border-galla-line/70 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 bg-galla-paper/40 border border-galla-line/70 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
                 <div className="h-12 w-12 rounded-full bg-galla-teal-soft border border-galla-teal/30 flex items-center justify-center text-galla-teal font-bold text-[16px] shrink-0">
                   {order.customer.slice(0, 1).toUpperCase()}
@@ -343,7 +343,7 @@ export function OrderDetailsModal({
                 <div className="flex items-center gap-2 shrink-0">
                   <a
                     href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
                     title={`Call ${order.customer}`}
                   >
                     <Phone className="h-3.5 w-3.5 text-galla-teal" />
@@ -354,7 +354,7 @@ export function OrderDetailsModal({
                       href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12.5px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
                       title="Open WhatsApp message"
                     >
                       <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
@@ -367,7 +367,7 @@ export function OrderDetailsModal({
           </section>
 
           {/* Card 2: Timeline & Status Tracking */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-galla-teal" />
               <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
@@ -377,7 +377,7 @@ export function OrderDetailsModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Created / Placed At */}
-              <div className="p-3.5 bg-galla-paper/30 border border-galla-line rounded-lg flex items-start gap-3">
+              <div className="p-3.5 bg-galla-paper/30 border border-galla-line rounded-[5px] flex items-start gap-3">
                 <Calendar className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
                 <div>
                   <span className="block text-[12px] font-medium text-galla-ink-soft">
@@ -396,7 +396,7 @@ export function OrderDetailsModal({
 
               {/* Latest Lifecycle Status Card */}
               {isCompleted ? (
-                <div className="p-3.5 bg-emerald-50/60 border border-emerald-200/90 rounded-lg flex items-start gap-3 text-emerald-950">
+                <div className="p-3.5 bg-emerald-50/60 border border-emerald-200/90 rounded-[5px] flex items-start gap-3 text-emerald-950">
                   <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -407,7 +407,7 @@ export function OrderDetailsModal({
                             : "Appointment Slot (Completed)"
                           : "Completed & Settled"}
                       </span>
-                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] bg-emerald-100 text-emerald-800 border border-emerald-300/80">
                         Done
                       </span>
                     </div>
@@ -417,14 +417,14 @@ export function OrderDetailsModal({
                   </div>
                 </div>
               ) : isRefunded ? (
-                <div className="p-3.5 bg-rose-50/60 border border-rose-200/90 rounded-lg flex items-start gap-3 text-rose-950">
+                <div className="p-3.5 bg-rose-50/60 border border-rose-200/90 rounded-[5px] flex items-start gap-3 text-rose-950">
                   <RotateCcw className="h-4 w-4 text-rose-700 shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="block text-[12px] font-semibold text-rose-900">
                         Order Refunded
                       </span>
-                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300/80">
+                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] bg-rose-100 text-rose-800 border border-rose-300/80">
                         Refunded
                       </span>
                     </div>
@@ -435,7 +435,7 @@ export function OrderDetailsModal({
                 </div>
               ) : order.scheduledFor ? (
                 <div
-                  className={`p-3.5 rounded-lg flex items-start gap-3 ${
+                  className={`p-3.5 rounded-[5px] flex items-start gap-3 ${
                     isReplacement && isTomorrow
                       ? "bg-rose-50 border border-rose-300 text-rose-950 ring-1 ring-rose-300/40"
                       : "bg-amber-50/60 border border-amber-200/80 text-amber-950"
@@ -462,7 +462,7 @@ export function OrderDetailsModal({
                           : "Appointment Slot"}
                       </span>
                       <span
-                        className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded border ${
+                        className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${
                           isReplacement && isTomorrow
                             ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
                             : "bg-amber-100 text-amber-800 border-amber-300/80"
@@ -482,14 +482,14 @@ export function OrderDetailsModal({
                   </div>
                 </div>
               ) : isDue ? (
-                <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-lg flex items-start gap-3 text-amber-950">
+                <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-[5px] flex items-start gap-3 text-amber-950">
                   <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="block text-[12px] font-semibold text-amber-900">
                         Payment Due
                       </span>
-                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300/80">
+                      <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] bg-amber-100 text-amber-800 border border-amber-300/80">
                         Pending
                       </span>
                     </div>
@@ -499,7 +499,7 @@ export function OrderDetailsModal({
                   </div>
                 </div>
               ) : (
-                <div className="p-3.5 bg-galla-paper/30 border border-galla-line rounded-lg flex items-start gap-3">
+                <div className="p-3.5 bg-galla-paper/30 border border-galla-line rounded-[5px] flex items-start gap-3">
                   <Clock className="h-4 w-4 text-galla-teal shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <span className="block text-[12px] font-medium text-galla-ink-soft">
@@ -515,7 +515,7 @@ export function OrderDetailsModal({
           </section>
 
           {/* Card 3: Items Purchased */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Receipt className="h-4 w-4 text-galla-teal" />
@@ -528,7 +528,7 @@ export function OrderDetailsModal({
               </span>
             </div>
 
-            <div className="border border-galla-line rounded-xl overflow-hidden bg-galla-surface">
+            <div className="border border-galla-line rounded-[6px] overflow-hidden bg-galla-surface">
               {order.lineItems && order.lineItems.length > 0 ? (
                 <div className="divide-y divide-galla-line/60">
                   {order.lineItems.map((item, idx) => {
@@ -571,7 +571,7 @@ export function OrderDetailsModal({
                                 {item.name}
                               </span>
                               <span
-                                className={`text-[10.5px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                                className={`text-[10.5px] font-semibold uppercase px-1.5 py-0.5 rounded-[4px] border ${
                                   item.itemType === "product"
                                     ? "bg-blue-50 text-blue-700 border-blue-200"
                                     : item.itemType === "package"
@@ -582,12 +582,12 @@ export function OrderDetailsModal({
                                 {item.itemType}
                               </span>
                               {returnedQty > 0 && (
-                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-700 border border-rose-200">
                                   {returnedQty} Returned
                                 </span>
                               )}
                               {replacedQty > 0 && (
-                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-[4px] bg-blue-50 text-blue-700 border border-blue-200">
                                   {replacedQty} Replaced
                                 </span>
                               )}
@@ -601,7 +601,7 @@ export function OrderDetailsModal({
                                 <button
                                   type="button"
                                   onClick={() => setReturningItemIndex(idx)}
-                                  className="text-[11.5px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                  className="text-[11.5px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-[4px] border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
                                 >
                                   <Undo2 className="h-3 w-3" />
                                   <span>Return Item</span>
@@ -719,7 +719,7 @@ export function OrderDetailsModal({
 
           {/* Card 4: Returns & Replacements History (if any) */}
           {hasReturns && (
-            <section className="bg-galla-surface border border-rose-200/80 rounded-xl p-5 shadow-xs space-y-3.5">
+            <section className="bg-galla-surface border border-rose-200/80 rounded-[8px] p-5 shadow-xs space-y-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <RotateCcw className="h-4 w-4 text-rose-700" />
@@ -733,7 +733,7 @@ export function OrderDetailsModal({
                 {order.returns!.map((ret, rIdx) => (
                   <div
                     key={rIdx}
-                    className="p-3.5 bg-rose-50/40 rounded-lg border border-rose-200/70 text-[12px] space-y-1.5"
+                    className="p-3.5 bg-rose-50/40 rounded-[5px] border border-rose-200/70 text-[12px] space-y-1.5"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -741,7 +741,7 @@ export function OrderDetailsModal({
                           {ret.quantity}x {ret.productName}
                         </span>
                         <span
-                          className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded border ${
+                          className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${
                             ret.returnCondition === "defective_dealer_claim"
                               ? "bg-rose-50 text-rose-700 border-rose-200"
                               : "bg-emerald-50 text-emerald-800 border-emerald-200"
@@ -805,7 +805,7 @@ export function OrderDetailsModal({
 
           {/* Card 5: Refund Details (if refunded) */}
           {isRefunded && (
-            <section className="bg-rose-50/50 border border-rose-200 rounded-xl p-5 shadow-xs space-y-2 text-[13px] text-rose-950">
+            <section className="bg-rose-50/50 border border-rose-200 rounded-[8px] p-5 shadow-xs space-y-2 text-[13px] text-rose-950">
               <div className="flex items-center justify-between font-semibold">
                 <span className="inline-flex items-center gap-1.5">
                   <RotateCcw className="h-4 w-4 text-rose-700" />
@@ -839,7 +839,7 @@ export function OrderDetailsModal({
 
           {/* Card 6: Order Notes & Settlement Memo */}
           {order.notes && (
-            <section className="bg-amber-50/50 border border-amber-200/80 rounded-xl p-5 shadow-xs space-y-1.5 text-[12.5px] text-amber-950">
+            <section className="bg-amber-50/50 border border-amber-200/80 rounded-[8px] p-5 shadow-xs space-y-1.5 text-[12.5px] text-amber-950">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-amber-700 shrink-0" />
                 <h2 className="text-[14px] font-bold text-amber-950 uppercase tracking-wider">
@@ -856,7 +856,7 @@ export function OrderDetailsModal({
         {/* ====================================================== */}
         {/* RIGHT COLUMN: BILL SUMMARY, PAYMENTS & ACTIONS         */}
         {/* ====================================================== */}
-        <aside className="bg-galla-surface border border-galla-line rounded-xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
+        <aside className="bg-galla-surface border border-galla-line rounded-[8px] shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
           {/* Summary Header */}
           <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
@@ -950,7 +950,7 @@ export function OrderDetailsModal({
                     <span className="tabular-nums font-bold">- {formatRupee(totalRefunded)}</span>
                   </div>
                   {retainedByShop > 0 && (
-                    <div className="flex justify-between text-emerald-800 font-semibold bg-emerald-50/70 p-2 rounded-lg border border-emerald-200/80">
+                    <div className="flex justify-between text-emerald-800 font-semibold bg-emerald-50/70 p-2 rounded-[5px] border border-emerald-200/80">
                       <span>Retained Charge / Fee</span>
                       <span className="tabular-nums font-bold">+{formatRupee(retainedByShop)}</span>
                     </div>
@@ -963,7 +963,7 @@ export function OrderDetailsModal({
                       <Wallet className="h-3.5 w-3.5" />
                       <span>Amount Paid</span>
                       {order.paymentMode && (
-                        <span className="text-[10.5px] font-medium px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
+                        <span className="text-[10.5px] font-medium px-1.5 py-0.2 rounded-[4px] bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
                           {order.paymentMode}
                         </span>
                       )}
@@ -1063,12 +1063,12 @@ export function OrderDetailsModal({
                       return (
                         <div
                           key={pIdx}
-                          className="bg-galla-paper/30 rounded-lg border border-galla-line/60 flex flex-col overflow-hidden"
+                          className="bg-galla-paper/30 rounded-[5px] border border-galla-line/60 flex flex-col overflow-hidden"
                         >
                           <div className="flex items-center justify-between text-[12px] px-3 py-2 text-galla-ink-soft">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${badge.style}`}
+                                className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border shrink-0 ${badge.style}`}
                               >
                                 {badge.label}
                               </span>
@@ -1127,7 +1127,7 @@ export function OrderDetailsModal({
                 onClick={() => {
                   onOpenSettle(order);
                 }}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-[5px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>Settle Due ({formatRupee(dueAmount)})</span>
@@ -1140,7 +1140,7 @@ export function OrderDetailsModal({
                 onClick={() => {
                   onOpenSettle(order);
                 }}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-[5px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>Deliver &amp; Complete Order</span>
@@ -1155,7 +1155,7 @@ export function OrderDetailsModal({
                   onClick={() => {
                     onOpenReschedule(order);
                   }}
-                  className="flex-1 py-2.5 rounded-xl border border-galla-line bg-galla-surface hover:bg-galla-paper/70 text-galla-ink font-sans font-medium text-[13px] transition-colors cursor-pointer text-center"
+                  className="flex-1 py-2.5 rounded-[5px] border border-galla-line bg-galla-surface hover:bg-galla-paper/70 text-galla-ink font-sans font-medium text-[13px] transition-colors cursor-pointer text-center"
                 >
                   {order.scheduledFor
                     ? isDue && !hasPendingDelivery
@@ -1175,7 +1175,7 @@ export function OrderDetailsModal({
                   onClick={() => {
                     onOpenRefund(order);
                   }}
-                  className="flex-1 py-2.5 rounded-xl border border-galla-line bg-galla-surface hover:bg-galla-paper/70 text-galla-ink font-sans font-medium text-[13px] transition-colors cursor-pointer text-center"
+                  className="flex-1 py-2.5 rounded-[5px] border border-galla-line bg-galla-surface hover:bg-galla-paper/70 text-galla-ink font-sans font-medium text-[13px] transition-colors cursor-pointer text-center"
                 >
                   Refund
                 </button>
@@ -1189,7 +1189,7 @@ export function OrderDetailsModal({
                   (canOrderBeRefunded(order) && onOpenRefund)
                     ? "flex-1"
                     : "w-full"
-                } py-2.5 rounded-xl bg-galla-teal hover:bg-galla-teal/90 text-white font-sans font-medium text-[13px] transition-colors cursor-pointer text-center shadow-xs`}
+                } py-2.5 rounded-[5px] bg-galla-teal hover:bg-galla-teal/90 text-white font-sans font-medium text-[13px] transition-colors cursor-pointer text-center shadow-xs`}
               >
                 Close
               </button>

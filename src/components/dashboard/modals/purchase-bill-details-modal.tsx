@@ -417,8 +417,9 @@ export function PurchaseBillDetailsModal({
     >
       {/* ======================================================== */}
       {/* TOP STICKY HEADER                                        */}
+      {/* TOP HEADER (Sticky)                                      */}
       {/* ======================================================== */}
-      <header className="sticky top-0 z-20 bg-galla-surface/95 backdrop-blur-md border-b border-galla-line px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shrink-0 shadow-2xs">
+      <header className="sticky top-0 z-20 bg-galla-surface/95 backdrop-blur-md border-b border-galla-line px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shrink-0 shadow-2xs">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
@@ -464,7 +465,7 @@ export function PurchaseBillDetailsModal({
         {/* ====================================================== */}
         <main className="space-y-6 min-w-0 order-1">
           {/* Card 1: Supplier Details */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4 text-galla-teal" />
@@ -479,7 +480,7 @@ export function PurchaseBillDetailsModal({
               </div>
             </div>
 
-            <div className="p-4 bg-galla-paper/40 border border-galla-line/70 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 bg-galla-paper/40 border border-galla-line/70 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
                 <div className="h-12 w-12 rounded-full bg-galla-teal-soft border border-galla-teal/30 flex items-center justify-center text-galla-teal font-bold text-[16px] shrink-0">
                   {initials}
@@ -490,7 +491,7 @@ export function PurchaseBillDetailsModal({
                       {bill.supplierName}
                     </span>
                     {bill.supplierCompany && (
-                      <span className="inline-flex items-center gap-1 text-[11.5px] px-2 py-0.5 rounded bg-galla-surface border border-galla-line text-galla-ink-soft">
+                      <span className="inline-flex items-center gap-1 text-[11.5px] px-2 py-0.5 rounded-[4px] bg-galla-surface border border-galla-line text-galla-ink-soft">
                         <Building2 className="h-3 w-3" />
                         <span>{bill.supplierCompany}</span>
                       </span>
@@ -513,7 +514,7 @@ export function PurchaseBillDetailsModal({
                 <div className="flex items-center gap-2 shrink-0">
                   <a
                     href={`tel:${bill.supplierPhone.replace(/\D/g, "")}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-teal hover:text-galla-teal transition-all shadow-2xs"
                     title={`Call ${bill.supplierName}`}
                   >
                     <Phone className="h-3.5 w-3.5 text-galla-teal" />
@@ -524,7 +525,7 @@ export function PurchaseBillDetailsModal({
                       href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12.5px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-2xs"
                       title="Send inquiry to supplier via WhatsApp"
                     >
                       <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
@@ -537,7 +538,7 @@ export function PurchaseBillDetailsModal({
           </section>
 
           {/* Card 2: Timeline & Status Tracking */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-galla-teal" />
@@ -561,7 +562,7 @@ export function PurchaseBillDetailsModal({
             {/* 3 Status/Timeline Blocks */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Block 1: Stock In Date */}
-              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/70 rounded-xl space-y-1">
+              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/70 rounded-[6px] space-y-1">
                 <span className="text-[11.5px] font-medium text-galla-ink-soft flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5 text-galla-teal" />
                   <span>Stock In Date &amp; Time</span>
@@ -575,19 +576,19 @@ export function PurchaseBillDetailsModal({
               </div>
 
               {/* Block 2: Physical Inventory Status */}
-              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/70 rounded-xl space-y-1">
+              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/70 rounded-[6px] space-y-1">
                 <span className="text-[11.5px] font-medium text-galla-ink-soft flex items-center gap-1">
                   <PackageCheck className="h-3.5 w-3.5 text-galla-teal" />
                   <span>Inventory Stock</span>
                 </span>
                 <div>
                   {bill.stockAllocated ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] text-[11.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                       <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                       <span>Stock In Inventory</span>
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] text-[11.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                       <Clock className="h-3 w-3 text-amber-600" />
                       <span>Awaiting Delivery</span>
                     </span>
@@ -599,7 +600,7 @@ export function PurchaseBillDetailsModal({
               </div>
 
               {/* Block 3: Payment Status */}
-              <div className={`p-3.5 rounded-xl border space-y-1 ${
+              <div className={`p-3.5 rounded-[6px] border space-y-1 ${
                 isPaid
                   ? "bg-emerald-50/50 border-emerald-200/80"
                   : isPartial
@@ -627,26 +628,26 @@ export function PurchaseBillDetailsModal({
 
             {/* Delivery / Due Date Alerts & Targets */}
             {(isDeliveryToday || isDeliveryOverdue || isDueToday || isDueOverdue || deliveryTarget || (hasPendingDue && bill.dueDate)) && (
-              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/80 rounded-xl space-y-2">
+              <div className="p-3.5 bg-galla-paper/40 border border-galla-line/80 rounded-[6px] space-y-2">
                 {/* Urgent badges */}
                 <div className="flex items-center gap-2 flex-wrap">
                   {isDeliveryToday && (
-                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
                       🚨 Delivery Expected Today
                     </span>
                   )}
                   {isDeliveryOverdue && (
-                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
+                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
                       ⚠️ Delivery Overdue
                     </span>
                   )}
                   {isDueToday && (
-                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
                       🚨 Payment Due Today
                     </span>
                   )}
                   {isDueOverdue && (
-                    <span className="px-2.5 py-1 rounded-md text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
+                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
                       ⚠️ Payment Overdue
                     </span>
                   )}
@@ -702,7 +703,7 @@ export function PurchaseBillDetailsModal({
           </section>
 
           {/* Card 3: Stock Items Purchased */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-galla-teal" />
@@ -752,11 +753,11 @@ export function PurchaseBillDetailsModal({
                   return (
                     <div
                       key={idx}
-                      className="p-4 bg-galla-paper/30 border border-galla-line/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-galla-teal/40 transition-colors"
+                      className="p-4 bg-galla-paper/30 border border-galla-line/80 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-galla-teal/40 transition-colors"
                     >
                       <div className="space-y-1.5 min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <div className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+                          <div className="h-7 w-7 rounded-[5px] bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
                             <Package className="h-3.5 w-3.5" />
                           </div>
                           <span
@@ -765,24 +766,24 @@ export function PurchaseBillDetailsModal({
                             {item.productName}
                           </span>
                           {returnedQty > 0 && (
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-700 border border-rose-200">
                               {returnedQty} Returned
                             </span>
                           )}
                           {replacedQty > 0 && (
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-[4px] bg-blue-50 text-blue-700 border border-blue-200">
                               {replacedQty} Replaced
                             </span>
                           )}
                         </div>
 
                         <div className="flex items-center gap-2 text-[12px] text-galla-ink-soft flex-wrap pl-9">
-                          <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
+                          <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded-[4px] border border-galla-line/70 text-galla-ink font-medium">
                             <span className="text-galla-ink-soft text-[11px]">Price:</span>
                             <strong className="tabular-nums text-galla-ink">{formatRupee(item.purchaseCost)}</strong>
                           </span>
 
-                          <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded border border-galla-line/70 text-galla-ink font-medium">
+                          <span className="inline-flex items-center gap-1 bg-galla-paper px-2 py-0.5 rounded-[4px] border border-galla-line/70 text-galla-ink font-medium">
                             <span className="text-galla-ink-soft text-[11px]">Qty:</span>
                             <strong className="tabular-nums text-galla-ink">{purchasedQty} pcs</strong>
                           </span>
@@ -818,7 +819,7 @@ export function PurchaseBillDetailsModal({
 
               {/* Subtotal Row */}
               {hasMultipleProducts && (
-                <div className="p-3.5 bg-galla-paper/60 border border-galla-line/80 rounded-xl flex items-center justify-between">
+                <div className="p-3.5 bg-galla-paper/60 border border-galla-line/80 rounded-[6px] flex items-center justify-between">
                   <span className="text-[13px] font-semibold text-galla-ink">
                     Products Subtotal ({bill.items?.length} Products &bull; {totalUnits} Units)
                   </span>
@@ -832,7 +833,7 @@ export function PurchaseBillDetailsModal({
 
           {/* Card 4: Item Returns & Replacements History Log */}
           {hasReturns && (
-            <section className="bg-galla-surface border border-rose-200 rounded-xl p-5 shadow-xs space-y-4">
+            <section className="bg-galla-surface border border-rose-200 rounded-[8px] p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-rose-100 pb-3">
                 <div className="flex items-center gap-2">
                   <RotateCcw className="h-4 w-4 text-rose-700" />
@@ -842,12 +843,12 @@ export function PurchaseBillDetailsModal({
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {totalDueDeductions > 0 && (
-                    <span className="text-[11.5px] font-semibold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
+                    <span className="text-[11.5px] font-semibold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-[4px]">
                       Due Adjusted: -{formatRupee(totalDueDeductions)}
                     </span>
                   )}
                   {totalSupplierCredits > 0 && (
-                    <span className="text-[11.5px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                    <span className="text-[11.5px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-[4px]">
                       Supplier Credit: +{formatRupee(totalSupplierCredits)}
                     </span>
                   )}
@@ -890,14 +891,14 @@ export function PurchaseBillDetailsModal({
                   return (
                     <div
                       key={rIdx}
-                      className="p-3.5 bg-rose-50/30 rounded-xl border border-rose-200/80 text-[12.5px] space-y-2"
+                      className="p-3.5 bg-rose-50/30 rounded-[6px] border border-rose-200/80 text-[12.5px] space-y-2"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-galla-ink text-[13.5px]">
                             {ret.quantity}x {ret.productName}
                           </span>
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${stockTypeBadge.style}`}>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border ${stockTypeBadge.style}`}>
                             {stockTypeBadge.label}
                           </span>
                           {ret.returnNumber && (
@@ -952,7 +953,7 @@ export function PurchaseBillDetailsModal({
                       </div>
 
                       {ret.notes && (
-                        <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded border border-galla-line/60">
+                        <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/60">
                           {ret.notes}
                         </div>
                       )}
@@ -965,14 +966,14 @@ export function PurchaseBillDetailsModal({
 
           {/* Card 5: Internal Remarks / Terms */}
           {bill.notes && (
-            <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-3">
+            <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-3">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-amber-700" />
                 <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
                   Notes &amp; Terms
                 </h2>
               </div>
-              <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-xl text-[12.5px] text-amber-950 leading-relaxed">
+              <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-[6px] text-[12.5px] text-amber-950 leading-relaxed">
                 {bill.notes}
               </div>
             </section>
@@ -984,7 +985,7 @@ export function PurchaseBillDetailsModal({
         {/* ====================================================== */}
         <aside className="space-y-6 order-2 lg:sticky lg:top-[76px]">
           {/* Card 1: Bill & Settlement Summary */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Receipt className="h-4 w-4 text-galla-teal" />
@@ -1047,7 +1048,7 @@ export function PurchaseBillDetailsModal({
                   <Wallet className="h-3.5 w-3.5" />
                   <span>Amount Paid:</span>
                   {bill.paymentMode && (
-                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
+                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-[4px] bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
                       {bill.paymentMode}
                     </span>
                   )}
@@ -1059,7 +1060,7 @@ export function PurchaseBillDetailsModal({
 
               {/* Balance Due / Fully Settled Box */}
               {isDue ? (
-                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 space-y-1">
+                <div className="p-3.5 rounded-[6px] bg-rose-50 border border-rose-200 space-y-1">
                   <div className="flex justify-between items-center text-rose-800">
                     <span className="font-bold text-[13px] flex items-center gap-1.5">
                       <AlertCircle className="h-4 w-4 text-rose-600" />
@@ -1074,7 +1075,7 @@ export function PurchaseBillDetailsModal({
                   </p>
                 </div>
               ) : (
-                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-emerald-800">
+                <div className="p-3.5 rounded-[6px] bg-emerald-50 border border-emerald-200 flex items-center justify-between text-emerald-800">
                   <span className="font-bold text-[13px] flex items-center gap-1.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     <span>Payment Status:</span>
@@ -1089,7 +1090,7 @@ export function PurchaseBillDetailsModal({
 
           {/* Card 2: Payment History Log */}
           {resolvedPayments.length > 0 && (
-            <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-3">
+            <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Wallet className="h-4 w-4 text-galla-teal" />
@@ -1112,11 +1113,11 @@ export function PurchaseBillDetailsModal({
                   return (
                     <div
                       key={pIdx}
-                      className="p-3 bg-galla-paper/30 border border-galla-line/70 rounded-xl space-y-1.5 text-[12.5px]"
+                      className="p-3 bg-galla-paper/30 border border-galla-line/70 rounded-[6px] space-y-1.5 text-[12.5px]"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${badge.style}`}>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border ${badge.style}`}>
                             {badge.label}
                           </span>
                           <span
@@ -1156,7 +1157,7 @@ export function PurchaseBillDetailsModal({
                       </div>
 
                       {p.notes && (
-                        <div className="text-[11.5px] text-galla-ink-soft bg-galla-surface p-2 rounded border border-galla-line/50 mt-1">
+                        <div className="text-[11.5px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/50 mt-1">
                           {p.notes}
                         </div>
                       )}
@@ -1168,7 +1169,7 @@ export function PurchaseBillDetailsModal({
           )}
 
           {/* Card 3: Action Buttons */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-3">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-3">
             <div className="text-[12px] text-galla-ink-soft pb-1">
               {isDue ? (
                 <span className="text-amber-800 font-medium">
@@ -1193,7 +1194,7 @@ export function PurchaseBillDetailsModal({
                   onClose();
                   onOpenPayNow(bill);
                 }}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-[5px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>
@@ -1212,7 +1213,7 @@ export function PurchaseBillDetailsModal({
                       onClose();
                       onOpenReschedule(bill, "delivery");
                     }}
-                    className="flex-1 py-2 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
+                    className="flex-1 py-2 rounded-[5px] text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
                   >
                     {deliveryTarget ? "Reschedule Delivery" : "Set Delivery Date"}
                   </button>
@@ -1225,7 +1226,7 @@ export function PurchaseBillDetailsModal({
                       onClose();
                       onOpenReschedule(bill, "due_date");
                     }}
-                    className="flex-1 py-2 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
+                    className="flex-1 py-2 rounded-[5px] text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
                   >
                     {bill.dueDate ? "Change Due Date" : "Set Due Date"}
                   </button>
@@ -1236,7 +1237,7 @@ export function PurchaseBillDetailsModal({
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-2.5 rounded-xl border border-galla-line hover:bg-galla-paper text-galla-ink font-semibold text-[13px] transition-colors cursor-pointer"
+              className="w-full py-2.5 rounded-[5px] border border-galla-line hover:bg-galla-paper text-galla-ink font-semibold text-[13px] transition-colors cursor-pointer"
             >
               Close
             </button>

@@ -363,7 +363,7 @@ function TransferStockModalContent({
       className="fixed inset-0 z-50 bg-galla-paper flex flex-col overflow-y-auto"
     >
       {/* Top Header (Sticky) */}
-      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3 flex items-center justify-between shadow-2xs shrink-0">
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -376,7 +376,7 @@ function TransferStockModalContent({
           </button>
           <div className="flex items-center gap-2.5">
             <div
-              className={`p-1.5 rounded-md border ${
+              className={`p-1.5 rounded-[5px] border ${
                 mode === "consume"
                   ? "bg-amber-100 text-amber-800 border-amber-200"
                   : mode === "return_supplier"
@@ -425,7 +425,7 @@ function TransferStockModalContent({
       {/* Global Error Banner */}
       {errorMsg && (
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4">
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[6px] flex items-center justify-between gap-2 shadow-2xs">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errorMsg}</span>
@@ -451,7 +451,7 @@ function TransferStockModalContent({
         {/* ====================================================== */}
         <main className="space-y-6 min-w-0 order-1">
           {/* Card 1: Operation Mode Tabs */}
-          <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-3">
+          <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold text-galla-ink uppercase tracking-wider">
                 1. Select Operation Mode
@@ -468,14 +468,14 @@ function TransferStockModalContent({
                   setMode("transfer");
                   setErrorMsg(null);
                 }}
-                className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                   mode === "transfer"
                     ? "bg-galla-teal-soft/40 border-galla-teal text-galla-teal shadow-xs ring-1 ring-galla-teal/30"
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className={`p-2 rounded-md ${mode === "transfer" ? "bg-galla-teal text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
+                  <div className={`p-2 rounded-[5px] ${mode === "transfer" ? "bg-galla-teal text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
                     <ArrowRightLeft className="h-4 w-4" />
                   </div>
                   {mode === "transfer" && <Check className="h-4 w-4 text-galla-teal" />}
@@ -492,14 +492,14 @@ function TransferStockModalContent({
                   setMode("consume");
                   setErrorMsg(null);
                 }}
-                className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                   mode === "consume"
                     ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-300"
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className={`p-2 rounded-md ${mode === "consume" ? "bg-amber-600 text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
+                  <div className={`p-2 rounded-[5px] ${mode === "consume" ? "bg-amber-600 text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
                     <PackageMinus className="h-4 w-4" />
                   </div>
                   {mode === "consume" && <Check className="h-4 w-4 text-amber-700" />}
@@ -516,14 +516,14 @@ function TransferStockModalContent({
                   setMode("return_supplier");
                   setErrorMsg(null);
                 }}
-                className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                   mode === "return_supplier"
                     ? "bg-rose-50 border-rose-400 text-rose-900 shadow-xs ring-1 ring-rose-300"
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className={`p-2 rounded-md ${mode === "return_supplier" ? "bg-rose-600 text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
+                  <div className={`p-2 rounded-[5px] ${mode === "return_supplier" ? "bg-rose-600 text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
                     <Undo2 className="h-4 w-4" />
                   </div>
                   {mode === "return_supplier" && <Check className="h-4 w-4 text-rose-700" />}
@@ -538,7 +538,7 @@ function TransferStockModalContent({
 
           {/* Card 2: Mode Parameters Form */}
           {mode === "transfer" && (
-            <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-5">
+            <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-semibold text-galla-ink uppercase tracking-wider">
                   2. Transfer Parameters
@@ -560,7 +560,7 @@ function TransferStockModalContent({
                       setDirection("sell_to_use");
                       setErrorMsg(null);
                     }}
-                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
                       direction === "sell_to_use"
                         ? "border-galla-teal bg-galla-teal-soft/60 ring-1 ring-galla-teal text-galla-teal shadow-xs"
                         : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
@@ -577,7 +577,7 @@ function TransferStockModalContent({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded bg-galla-paper border border-galla-line tabular-nums text-galla-ink">
+                      <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-[4px] bg-galla-paper border border-galla-line tabular-nums text-galla-ink">
                         Avail: {product.sell}
                       </span>
                       {direction === "sell_to_use" && (
@@ -596,7 +596,7 @@ function TransferStockModalContent({
                       setDirection("use_to_sell");
                       setErrorMsg(null);
                     }}
-                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
                       direction === "use_to_sell"
                         ? "border-galla-teal bg-galla-teal-soft/60 ring-1 ring-galla-teal text-galla-teal shadow-xs"
                         : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
@@ -613,7 +613,7 @@ function TransferStockModalContent({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded bg-galla-paper border border-galla-line tabular-nums text-galla-ink">
+                      <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-[4px] bg-galla-paper border border-galla-line tabular-nums text-galla-ink">
                         Avail: {product.use}
                       </span>
                       {direction === "use_to_sell" && (
@@ -648,7 +648,7 @@ function TransferStockModalContent({
                     required
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg bg-galla-surface border border-galla-line font-sans tabular-nums text-[14px] font-medium text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
+                    className="w-full px-4 py-2.5 rounded-[5px] bg-galla-surface border border-galla-line font-sans tabular-nums text-[14px] font-medium text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
                   />
                   <span className="absolute right-4 font-sans text-xs font-semibold text-galla-ink-soft pointer-events-none">
                     Units / Pcs
@@ -662,7 +662,7 @@ function TransferStockModalContent({
                       type="button"
                       disabled={q > maxAvailable}
                       onClick={() => setQuantity(String(q))}
-                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-lg border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-[5px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                         quantity === String(q)
                           ? "bg-galla-teal-soft text-galla-teal border-galla-teal/30 font-semibold"
                           : "border-galla-line bg-galla-paper/40 text-galla-ink-soft hover:bg-galla-paper hover:text-galla-ink"
@@ -675,20 +675,20 @@ function TransferStockModalContent({
                     type="button"
                     disabled={maxAvailable <= 0}
                     onClick={() => setQuantity(String(maxAvailable))}
-                    className="ml-auto px-3.5 py-1.5 text-xs font-sans font-semibold rounded-lg border border-galla-line bg-galla-paper/40 text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="ml-auto px-3.5 py-1.5 text-xs font-sans font-semibold rounded-[5px] border border-galla-line bg-galla-paper/40 text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     All ({maxAvailable} pcs)
                   </button>
                 </div>
 
                 {/* Live Stock Balance Flow Preview */}
-                <div className="p-4 rounded-xl border border-galla-line bg-galla-paper/40 space-y-2.5 mt-3">
+                <div className="p-4 rounded-[6px] border border-galla-line bg-galla-paper/40 space-y-2.5 mt-3">
                   <div className="text-[11.5px] font-semibold uppercase tracking-wider text-galla-ink-soft flex items-center justify-between">
                     <span>Live Stock Balance Preview</span>
                     <span className="text-[11px] font-normal lowercase">calculated instantly</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-sans pt-1">
-                    <div className="p-3 rounded-lg bg-galla-surface border border-galla-line/70">
+                    <div className="p-3 rounded-[5px] bg-galla-surface border border-galla-line/70">
                       <div className="text-galla-ink-soft text-xs font-medium">Retail Shelf Stock</div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-base font-semibold text-galla-ink tabular-nums">{product.sell}</span>
@@ -698,7 +698,7 @@ function TransferStockModalContent({
                         </span>
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-galla-surface border border-galla-line/70">
+                    <div className="p-3 rounded-[5px] bg-galla-surface border border-galla-line/70">
                       <div className="text-galla-ink-soft text-xs font-medium">Salon Internal Use Stock</div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-base font-semibold text-galla-ink tabular-nums">{product.use}</span>
@@ -715,7 +715,7 @@ function TransferStockModalContent({
           )}
 
           {mode === "consume" && (
-            <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-5">
+            <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-semibold text-galla-ink uppercase tracking-wider">
                   2. Consumption Details
@@ -741,7 +741,7 @@ function TransferStockModalContent({
                       key={r.id}
                       type="button"
                       onClick={() => setConsumeReason(r.id as ConsumeReason)}
-                      className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                      className={`p-3 rounded-[5px] border text-left transition-all cursor-pointer ${
                         consumeReason === r.id
                           ? "bg-amber-100/80 text-amber-950 border-amber-300 ring-1 ring-amber-300 shadow-xs"
                           : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
@@ -767,7 +767,7 @@ function TransferStockModalContent({
                   value={consumeNotes}
                   onChange={(e) => setConsumeNotes(e.target.value)}
                   placeholder="e.g., hair spa station 2, opened for today's client treatment..."
-                  className="w-full px-3.5 py-2 rounded-lg bg-galla-surface border border-galla-line font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all"
+                  className="w-full px-3.5 py-2 rounded-[5px] bg-galla-surface border border-galla-line font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all"
                 />
               </div>
 
@@ -791,7 +791,7 @@ function TransferStockModalContent({
                     required
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg bg-galla-surface border border-galla-line font-sans tabular-nums text-[14px] font-medium text-galla-ink focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all"
+                    className="w-full px-4 py-2.5 rounded-[5px] bg-galla-surface border border-galla-line font-sans tabular-nums text-[14px] font-medium text-galla-ink focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all"
                   />
                   <span className="absolute right-4 font-sans text-xs font-semibold text-galla-ink-soft pointer-events-none">
                     Units / Pcs
@@ -805,7 +805,7 @@ function TransferStockModalContent({
                       type="button"
                       disabled={q > maxAvailable}
                       onClick={() => setQuantity(String(q))}
-                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-lg border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-[5px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                         quantity === String(q)
                           ? "bg-amber-100 text-amber-900 border-amber-300 font-semibold"
                           : "border-galla-line bg-galla-paper/40 text-galla-ink-soft hover:bg-galla-paper hover:text-galla-ink"
@@ -818,14 +818,14 @@ function TransferStockModalContent({
                     type="button"
                     disabled={maxAvailable <= 0}
                     onClick={() => setQuantity(String(maxAvailable))}
-                    className="ml-auto px-3.5 py-1.5 text-xs font-sans font-semibold rounded-lg border border-galla-line bg-galla-paper/40 text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="ml-auto px-3.5 py-1.5 text-xs font-sans font-semibold rounded-[5px] border border-galla-line bg-galla-paper/40 text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     All ({maxAvailable} pcs)
                   </button>
                 </div>
 
                 {isValidQty && (
-                  <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/80 space-y-2 mt-3">
+                  <div className="p-4 rounded-[6px] border border-amber-200 bg-amber-50/80 space-y-2 mt-3">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-amber-950 text-sm">
                         Auto-logged Internal Expense:
@@ -845,7 +845,7 @@ function TransferStockModalContent({
           )}
 
           {mode === "return_supplier" && (
-            <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-5">
+            <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-semibold text-galla-ink uppercase tracking-wider">
                   2. Supplier Return Parameters
@@ -864,13 +864,13 @@ function TransferStockModalContent({
                   <button
                     type="button"
                     onClick={() => setSupplierRefundMode("reduce_due")}
-                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${
                       supplierRefundMode === "reduce_due"
                         ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
                         : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
                     }`}
                   >
-                    <div className={`p-2 rounded-md mt-0.5 ${supplierRefundMode === "reduce_due" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
+                    <div className={`p-2 rounded-[5px] mt-0.5 ${supplierRefundMode === "reduce_due" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
                       <Receipt className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -887,13 +887,13 @@ function TransferStockModalContent({
                   <button
                     type="button"
                     onClick={() => setSupplierRefundMode("replacement_pending")}
-                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${
                       supplierRefundMode === "replacement_pending"
                         ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
                         : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
                     }`}
                   >
-                    <div className={`p-2 rounded-md mt-0.5 ${supplierRefundMode === "replacement_pending" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
+                    <div className={`p-2 rounded-[5px] mt-0.5 ${supplierRefundMode === "replacement_pending" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
                       <RotateCcw className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -927,11 +927,11 @@ function TransferStockModalContent({
                 </div>
 
                 {isLoadingPOs ? (
-                  <div className="p-6 border border-galla-line rounded-lg bg-galla-paper/30 flex items-center justify-center">
+                  <div className="p-6 border border-galla-line rounded-[6px] bg-galla-paper/30 flex items-center justify-center">
                     <Loader2 className="h-5 w-5 animate-spin text-galla-teal" />
                   </div>
                 ) : pos.length === 0 ? (
-                  <div className="p-5 border border-dashed border-galla-line rounded-lg text-xs font-sans text-galla-ink-soft text-center bg-galla-paper/20">
+                  <div className="p-5 border border-dashed border-galla-line rounded-[6px] text-xs font-sans text-galla-ink-soft text-center bg-galla-paper/20">
                     No supplier purchase bills found for &ldquo;{product.name}&rdquo;.
                   </div>
                 ) : (
@@ -959,7 +959,7 @@ function TransferStockModalContent({
                             setSelectedPOId(po.id);
                             setErrorMsg(null);
                           }}
-                          className={`w-full text-left p-3 px-3.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          className={`w-full text-left p-3 px-3.5 rounded-[6px] border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                             isSelected
                               ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-galla-ink shadow-xs"
                               : isNoStockOnBill
@@ -972,7 +972,7 @@ function TransferStockModalContent({
                               <span className="font-sans font-bold text-[13.5px] truncate">
                                 {po.supplierName}
                               </span>
-                              <span className="tabular-nums text-xs font-medium text-galla-ink-soft bg-galla-paper px-2 py-0.5 rounded border border-galla-line/60">
+                              <span className="tabular-nums text-xs font-medium text-galla-ink-soft bg-galla-paper px-2 py-0.5 rounded-[4px] border border-galla-line/60">
                                 {po.purchaseOrderNumber}
                               </span>
                             </div>
@@ -991,7 +991,7 @@ function TransferStockModalContent({
 
                           <div className="text-right shrink-0">
                             <span
-                              className={`inline-block font-sans text-xs font-semibold px-2.5 py-1 rounded-md ${
+                              className={`inline-block font-sans text-xs font-semibold px-2.5 py-1 rounded-[4px] ${
                                 maxRet > 0
                                   ? isSelected
                                     ? "bg-rose-100 text-rose-800 font-bold"
@@ -1025,14 +1025,14 @@ function TransferStockModalContent({
                       type="button"
                       onClick={handleReturnAllStock}
                       disabled={maxAutoAll <= 0}
-                      className="px-2.5 py-1 text-xs font-semibold rounded-md border border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-2.5 py-1 text-xs font-semibold rounded-[5px] border border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Return All ({maxAutoAll} pcs)
                     </button>
                     <button
                       type="button"
                       onClick={handleClearReturnBreakdown}
-                      className="px-2.5 py-1 text-xs font-sans text-galla-ink-soft hover:text-galla-ink rounded-md border border-galla-line bg-galla-surface hover:bg-galla-paper transition-colors cursor-pointer"
+                      className="px-2.5 py-1 text-xs font-sans text-galla-ink-soft hover:text-galla-ink rounded-[5px] border border-galla-line bg-galla-surface hover:bg-galla-paper transition-colors cursor-pointer"
                     >
                       Reset
                     </button>
@@ -1041,7 +1041,7 @@ function TransferStockModalContent({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Retail Shelf Card */}
-                  <div className={`p-3.5 rounded-lg border transition-all ${parsedReturnSell > 0 ? "border-rose-400 bg-rose-50/50 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
+                  <div className={`p-3.5 rounded-[6px] border transition-all ${parsedReturnSell > 0 ? "border-rose-400 bg-rose-50/50 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
                     <div className="flex items-center justify-between text-xs mb-2">
                       <span className="font-sans font-bold text-galla-ink">Retail Shelf</span>
                       <span className="tabular-nums text-xs text-galla-ink-soft">
@@ -1056,7 +1056,7 @@ function TransferStockModalContent({
                           setRetSellInput(String(Math.max(0, parsedReturnSell - 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-8 w-8 rounded-md border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        className="h-8 w-8 rounded-[5px] border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>
@@ -1070,7 +1070,7 @@ function TransferStockModalContent({
                           setRetSellInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-md text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-[5px] text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1079,7 +1079,7 @@ function TransferStockModalContent({
                           setRetSellInput(String(Math.min(product.sell, parsedReturnSell + 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-8 w-8 rounded-md border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        className="h-8 w-8 rounded-[5px] border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
@@ -1101,7 +1101,7 @@ function TransferStockModalContent({
                   </div>
 
                   {/* Salon Use Card */}
-                  <div className={`p-3.5 rounded-lg border transition-all ${parsedReturnUse > 0 ? "border-rose-400 bg-rose-50/50 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
+                  <div className={`p-3.5 rounded-[6px] border transition-all ${parsedReturnUse > 0 ? "border-rose-400 bg-rose-50/50 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
                     <div className="flex items-center justify-between text-xs mb-2">
                       <span className="font-sans font-bold text-galla-ink">Salon Use</span>
                       <span className="tabular-nums text-xs text-galla-ink-soft">
@@ -1116,7 +1116,7 @@ function TransferStockModalContent({
                           setRetUseInput(String(Math.max(0, parsedReturnUse - 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-8 w-8 rounded-md border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        className="h-8 w-8 rounded-[5px] border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>
@@ -1130,7 +1130,7 @@ function TransferStockModalContent({
                           setRetUseInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-md text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-[5px] text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1139,7 +1139,7 @@ function TransferStockModalContent({
                           setRetUseInput(String(Math.min(product.use, parsedReturnUse + 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-8 w-8 rounded-md border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        className="h-8 w-8 rounded-[5px] border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
@@ -1161,7 +1161,7 @@ function TransferStockModalContent({
                   </div>
 
                   {/* Defective Card */}
-                  <div className={`p-3.5 rounded-lg border transition-all ${parsedReturnDef > 0 ? "border-rose-400 bg-rose-50/50 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
+                  <div className={`p-3.5 rounded-[6px] border transition-all ${parsedReturnDef > 0 ? "border-rose-400 bg-rose-50/50 ring-1 ring-rose-300" : "border-galla-line bg-galla-surface"}`}>
                     <div className="flex items-center justify-between text-xs mb-2">
                       <span className="font-sans font-bold text-galla-ink">Defective Stock</span>
                       <span className="tabular-nums text-xs text-galla-ink-soft">
@@ -1176,7 +1176,7 @@ function TransferStockModalContent({
                           setRetDefInput(String(Math.max(0, parsedReturnDef - 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-8 w-8 rounded-md border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        className="h-8 w-8 rounded-[5px] border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>
@@ -1190,7 +1190,7 @@ function TransferStockModalContent({
                           setRetDefInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-md text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-[5px] text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1199,7 +1199,7 @@ function TransferStockModalContent({
                           setRetDefInput(String(Math.min(product.defectiveStock || 0, parsedReturnDef + 1)));
                           setErrorMsg(null);
                         }}
-                        className="h-8 w-8 rounded-md border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        className="h-8 w-8 rounded-[5px] border border-galla-line bg-galla-paper flex items-center justify-center font-bold text-galla-ink hover:bg-galla-line/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
@@ -1232,7 +1232,7 @@ function TransferStockModalContent({
                   value={consumeNotes}
                   onChange={(e) => setConsumeNotes(e.target.value)}
                   placeholder="e.g. damaged seal on delivery, defective pump, batch return..."
-                  className="w-full px-3.5 py-2 rounded-lg bg-galla-surface border border-galla-line font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all"
+                  className="w-full px-3.5 py-2 rounded-[5px] bg-galla-surface border border-galla-line font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all"
                 />
               </div>
             </section>
@@ -1242,12 +1242,12 @@ function TransferStockModalContent({
         {/* ====================================================== */}
         {/* RIGHT COLUMN: PRODUCT METRICS, SUMMARY & SUBMIT        */}
         {/* ====================================================== */}
-        <aside className="bg-galla-surface border border-galla-line rounded-xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] order-2 space-y-0">
+        <aside className="bg-galla-surface border border-galla-line rounded-[8px] shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] order-2 space-y-0">
           {/* Header */}
           <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0 bg-galla-paper/30">
             <h2 className="text-[14px] font-bold text-galla-ink">Product &amp; Action Summary</h2>
             <span
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] ${
                 mode === "consume"
                   ? "bg-amber-100 text-amber-800"
                   : mode === "return_supplier"
@@ -1270,7 +1270,7 @@ function TransferStockModalContent({
                   <span>Price: <strong className="text-galla-ink font-semibold">{formatRupee(product.price)}</strong></span>
                   <span>&bull;</span>
                   <span>Cost: <strong className="text-galla-ink font-semibold">{formatRupee(estUnitCost)}</strong></span>
-                  <span className="text-[10.5px] tabular-nums font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded shrink-0">
+                  <span className="text-[10.5px] tabular-nums font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-[4px] shrink-0">
                     +{formatRupee(unitProfit)} ({marginPct}%)
                   </span>
                 </div>
@@ -1278,22 +1278,22 @@ function TransferStockModalContent({
 
               {/* 4 Stock Metric Cards */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-lg bg-galla-paper/50 border border-galla-line/70 text-center">
+                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
                   <span className="block text-[10.5px] font-medium text-galla-ink-soft uppercase tracking-wider">Retail Shelf</span>
                   <span className="text-base font-bold tabular-nums text-galla-ink">{product.sell}</span>
                   <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
                 </div>
-                <div className="p-2.5 rounded-lg bg-galla-paper/50 border border-galla-line/70 text-center">
+                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
                   <span className="block text-[10.5px] font-medium text-galla-teal uppercase tracking-wider">Salon Use</span>
                   <span className="text-base font-bold tabular-nums text-galla-teal">{product.use}</span>
                   <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
                 </div>
-                <div className="p-2.5 rounded-lg bg-galla-paper/50 border border-galla-line/70 text-center">
+                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
                   <span className="block text-[10.5px] font-medium text-rose-700 uppercase tracking-wider">Defective</span>
                   <span className="text-base font-bold tabular-nums text-rose-700">{product.defectiveStock || 0}</span>
                   <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
                 </div>
-                <div className="p-2.5 rounded-lg bg-galla-paper/50 border border-galla-line/70 text-center">
+                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
                   <span className="block text-[10.5px] font-medium text-galla-ink uppercase tracking-wider">Total Stock</span>
                   <span className="text-base font-bold tabular-nums text-galla-ink">{totalPhysicalStock}</span>
                   <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
@@ -1302,14 +1302,14 @@ function TransferStockModalContent({
 
               {/* Sibling batch advice */}
               {lowerProfitSibling ? (
-                <div className="text-[11.5px] font-sans text-amber-900 bg-amber-50/90 border border-amber-200/90 p-2.5 rounded-lg leading-relaxed flex items-start gap-2">
+                <div className="text-[11.5px] font-sans text-amber-900 bg-amber-50/90 border border-amber-200/90 p-2.5 rounded-[6px] leading-relaxed flex items-start gap-2">
                   <span className="text-base shrink-0">⚠️</span>
                   <div>
                     <strong>Keep for Retail:</strong> This batch earns {formatRupee(unitProfit)} profit. Use &ldquo;{lowerProfitSibling.name}&rdquo; ({formatRupee(Math.max(0, lowerProfitSibling.price - (lowerProfitSibling.purchaseCost || 0)))}/unit) for salon use instead.
                   </div>
                 </div>
               ) : siblingBatches.length > 0 ? (
-                <div className="text-[11.5px] font-sans text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-lg leading-relaxed flex items-center gap-2">
+                <div className="text-[11.5px] font-sans text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-[6px] leading-relaxed flex items-center gap-2">
                   <Check className="h-4 w-4 shrink-0 text-emerald-600" />
                   <div>
                     <strong>Best for Internal Use:</strong> Lowest profit batch at {formatRupee(unitProfit)}/unit. Recommended for salon service usage.
@@ -1325,7 +1325,7 @@ function TransferStockModalContent({
               </div>
 
               {mode === "transfer" && (
-                <div className="p-3 rounded-lg border border-galla-teal/30 bg-galla-teal-soft/30 text-xs space-y-2">
+                <div className="p-3 rounded-[6px] border border-galla-teal/30 bg-galla-teal-soft/30 text-xs space-y-2">
                   <div className="flex justify-between items-center text-galla-ink font-semibold">
                     <span>Moving Quantity:</span>
                     <span className="tabular-nums font-bold text-sm text-galla-teal">{numQty || 0} pcs</span>
@@ -1339,7 +1339,7 @@ function TransferStockModalContent({
               )}
 
               {mode === "consume" && (
-                <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/70 text-xs space-y-2">
+                <div className="p-3 rounded-[6px] border border-amber-200 bg-amber-50/70 text-xs space-y-2">
                   <div className="flex justify-between items-center text-amber-950 font-semibold">
                     <span>Deducting:</span>
                     <span className="tabular-nums font-bold text-sm">{numQty || 0} pcs</span>
@@ -1352,7 +1352,7 @@ function TransferStockModalContent({
               )}
 
               {mode === "return_supplier" && (
-                <div className="p-3.5 rounded-lg border border-rose-200 bg-rose-50/70 text-xs space-y-2.5">
+                <div className="p-3.5 rounded-[6px] border border-rose-200 bg-rose-50/70 text-xs space-y-2.5">
                   <div className="flex justify-between items-center text-rose-950 font-semibold">
                     <span>Total Returning:</span>
                     <span className="tabular-nums font-bold text-sm text-rose-900">{totalReturnSupplierQty} pcs</span>
@@ -1385,7 +1385,7 @@ function TransferStockModalContent({
                   !isValidQty ||
                   (mode === "return_supplier" ? totalReturnSupplierQty <= 0 || !selectedPOId : maxAvailable <= 0)
                 }
-                className={`w-full py-3 px-4 rounded-xl text-white font-sans text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`w-full py-3 px-4 rounded-[5px] text-white font-sans text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   mode === "consume"
                     ? "bg-amber-800 hover:bg-amber-900"
                     : mode === "return_supplier"
@@ -1411,7 +1411,7 @@ function TransferStockModalContent({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="w-full py-2.5 px-4 rounded-xl border border-galla-line font-sans text-xs font-semibold text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-[5px] border border-galla-line font-sans text-xs font-semibold text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancel &amp; Return
               </button>
