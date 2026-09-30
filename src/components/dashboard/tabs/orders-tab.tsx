@@ -240,8 +240,20 @@ export function OrdersTab({
     setDisplayedOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
     );
+    setSelectedOrderDetails((prev) =>
+      prev && prev.id === updatedOrder.id ? updatedOrder : prev
+    );
     onRescheduleOrder?.(updatedOrder);
   };
+
+  useEffect(() => {
+    if (selectedOrderDetails) {
+      const refreshed = orders.find((o) => o.id === selectedOrderDetails.id);
+      if (refreshed && refreshed !== selectedOrderDetails) {
+        setSelectedOrderDetails(refreshed);
+      }
+    }
+  }, [orders, selectedOrderDetails]);
 
   // On-demand fast GET fetch for pagination and filters (with auto-abort of previous in-flight queries)
   const fetchPage = useCallback(
@@ -1359,7 +1371,6 @@ export function OrdersTab({
         salonName={salonName}
         onOpenSettle={onOpenSettle}
         onOpenReschedule={(ord) => {
-          setSelectedOrderDetails(null);
           setReschedulingOrder(ord);
         }}
         onOpenRefund={onOpenRefund}

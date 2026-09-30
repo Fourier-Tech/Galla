@@ -95,6 +95,7 @@ export function CustomerDetailsView({
         return updated ? { ...o, ...updated } : o;
       })
     );
+    setSelectedOrder((prev) => (prev && globalMap.has(prev.id) ? { ...prev, ...globalMap.get(prev.id)! } : prev));
   }, [globalOrders]);
 
   useEffect(() => {
@@ -752,7 +753,6 @@ export function CustomerDetailsView({
         onOpenSettle={onOpenSettle}
         onOpenRefund={onOpenRefund}
         onOpenReschedule={(ord) => {
-          setSelectedOrder(null);
           setRescheduleOrder(ord);
         }}
       />

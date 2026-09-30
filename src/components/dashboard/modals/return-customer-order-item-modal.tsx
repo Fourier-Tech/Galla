@@ -604,7 +604,7 @@ export function ReturnCustomerOrderItemModal({
                         max={availableToReturn}
                         value={quantity}
                         onChange={(e) => handleQuantityChange(e.target.value)}
-                        className="w-full h-10 px-3 pr-10 bg-white border border-galla-line rounded-[6px] tabular-nums text-[14px] font-semibold text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
+                        className="w-full h-10 px-3 pr-10 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
                         required
                       />
                       <span className="absolute right-3 font-sans text-[12px] text-galla-ink-soft pointer-events-none font-medium">
@@ -644,7 +644,7 @@ export function ReturnCustomerOrderItemModal({
                         disabled={!isGoodCondition && defectiveResolution === "replacement"}
                         value={customAmountStr}
                         onChange={(e) => setCustomAmountStr(e.target.value)}
-                        className="w-full h-10 pl-7 pr-3 bg-white border border-galla-line rounded-[6px] tabular-nums text-[14px] font-semibold text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs disabled:bg-galla-paper/60 disabled:text-galla-ink-soft/70 disabled:cursor-not-allowed"
+                        className="w-full h-10 pl-7 pr-3 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs disabled:bg-galla-paper/60 disabled:text-galla-ink-soft/70 disabled:cursor-not-allowed"
                         placeholder={String(defaultReturnTotal)}
                         required={isGoodCondition || defectiveResolution === "refund"}
                       />
@@ -919,7 +919,7 @@ export function ReturnCustomerOrderItemModal({
                                   <select
                                     value={selectedNewMRPProduct.id}
                                     onChange={(e) => setSelectedReplacementBatchId(e.target.value)}
-                                    className="h-8 px-2.5 bg-white border border-galla-line rounded font-sans text-[12px] text-galla-ink font-semibold focus:outline-none focus:border-galla-teal"
+                                    className="h-8 px-2.5 bg-white border border-galla-line rounded font-sans text-[12.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal shadow-2xs"
                                   >
                                     {newMRPProducts.map((b) => (
                                       <option key={b.id} value={b.id}>
@@ -970,7 +970,7 @@ export function ReturnCustomerOrderItemModal({
                                       value={customNewPriceStr}
                                       onChange={(e) => setCustomNewPriceStr(e.target.value)}
                                       placeholder={String(selectedNewMRPProduct.price)}
-                                      className="w-28 h-8 px-2 text-right bg-white border border-amber-300 rounded tabular-nums font-bold text-[14px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
+                                      className="w-28 h-8 px-2 text-right bg-white border border-amber-300 rounded font-sans tabular-nums font-medium text-[13.5px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
                                     />
                                   </div>
                                 </div>
@@ -1079,7 +1079,7 @@ export function ReturnCustomerOrderItemModal({
                                   value={expectedPickupDate}
                                   onChange={(e) => setExpectedPickupDate(e.target.value)}
                                   required
-                                  className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
+                                  className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
                                 />
                               </div>
                             )}
@@ -1105,7 +1105,7 @@ export function ReturnCustomerOrderItemModal({
                                 value={expectedPickupDate}
                                 onChange={(e) => setExpectedPickupDate(e.target.value)}
                                 required
-                                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
+                                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
                               />
                             </div>
                           </div>
@@ -1168,7 +1168,7 @@ export function ReturnCustomerOrderItemModal({
                                 value={expectedPickupDate}
                                 onChange={(e) => setExpectedPickupDate(e.target.value)}
                                 required
-                                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] tabular-nums text-[13px] text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
+                                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
                               />
                             </div>
                           </div>
@@ -1189,7 +1189,7 @@ export function ReturnCustomerOrderItemModal({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="e.g. Defective nozzle, client preference change, damaged box during transit..."
-                  className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
+                  className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
                 />
               </div>
             </div>

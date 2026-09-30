@@ -220,7 +220,7 @@ export function SettleReplacementModal({
                 max={maxDefective}
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                className="w-full h-10 px-3 pr-10 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[14px] font-semibold text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
+                className="w-full h-10 px-3 pr-10 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
                 required
               />
               <span className="absolute right-3 font-sans text-[12px] text-galla-ink-soft pointer-events-none font-medium">
@@ -416,7 +416,7 @@ export function SettleReplacementModal({
                   setErrorMsg(null);
                 }}
                 required
-                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors cursor-pointer shadow-2xs"
+                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors cursor-pointer shadow-2xs"
               >
                 <option value="">-- Select Original Supplier Bill * --</option>
                 {pos.map((p) => (
@@ -438,7 +438,7 @@ export function SettleReplacementModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Delivered by distributor agent; verified fresh seal..."
-              className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
+              className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors shadow-2xs"
             />
           </div>
 

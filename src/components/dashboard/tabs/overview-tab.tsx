@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
 import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
@@ -66,6 +66,15 @@ export function OverviewTab({
   const [reschedulingOrder, setReschedulingOrder] = useState<DashboardOrder | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<DashboardOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (selectedOrderDetails) {
+      const refreshed = orders.find((o) => o.id === selectedOrderDetails.id);
+      if (refreshed && refreshed !== selectedOrderDetails) {
+        setSelectedOrderDetails(refreshed);
+      }
+    }
+  }, [orders, selectedOrderDetails]);
 
   const [replacementsList, setReplacementsList] = useState<DashboardCustomerReplacement[]>(customerReplacements || []);
   const [prevReplacements, setPrevReplacements] = useState(customerReplacements);
@@ -1210,6 +1219,9 @@ export function OverviewTab({
         isOpen={Boolean(reschedulingOrder)}
         onClose={() => setReschedulingOrder(null)}
         onRescheduleSuccess={(updated) => {
+          setSelectedOrderDetails((prev) =>
+            prev && prev.id === updated.id ? updated : prev
+          );
           if (onRescheduleOrder) {
             onRescheduleOrder(updated);
           }
@@ -1224,7 +1236,6 @@ export function OverviewTab({
         salonName={salonName}
         onOpenSettle={onOpenSettle}
         onOpenReschedule={(ord) => {
-          setSelectedOrderDetails(null);
           setReschedulingOrder(ord);
         }}
         onOpenRefund={onOpenRefund}

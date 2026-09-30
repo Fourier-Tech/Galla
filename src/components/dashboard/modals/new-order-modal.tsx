@@ -1317,8 +1317,13 @@ export function NewOrderModal({
                     setShowSuggestions(true);
                   }}
                   onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => {
+                    if (customer.trim()) {
+                      setCustomer(formatCustomerName(customer));
+                    }
+                  }}
                   placeholder="e.g. John Doe"
-                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
+                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
                 />
 
                 {/* Autocomplete Suggestions */}
@@ -1350,14 +1355,25 @@ export function NewOrderModal({
                 </label>
                 <input
                   type="tel"
+                  maxLength={15}
                   value={phone}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    const digits = getPhoneDigits(raw);
-                    if (!raw.trim() || !digits) {
+                    if (!raw.trim()) {
                       setPhone("");
                       return;
                     }
+                    let s = raw.trim();
+                    if (s.startsWith("+91") || s.startsWith("+ 91")) {
+                      s = s.replace(/^\+\s*91[\s-]*/, "");
+                    }
+                    const rawDigits = s.replace(/\D/g, "");
+                    if (!rawDigits) {
+                      setPhone("");
+                      return;
+                    }
+                    // Limit strictly to 10 digits
+                    const digits = rawDigits.slice(0, 10);
                     const formatted = formatPhoneNumber(digits);
                     setPhone(formatted);
                     if (digits.length === 10) {
@@ -1371,11 +1387,12 @@ export function NewOrderModal({
                   }}
                   onBlur={() => {
                     if (phone.trim()) {
-                      setPhone(formatPhoneNumber(phone));
+                      const digits = getPhoneDigits(phone).slice(0, 10);
+                      setPhone(digits ? formatPhoneNumber(digits) : "");
                     }
                   }}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs font-mono"
+                  className="w-full bg-galla-surface border border-galla-line rounded-lg px-3 py-2 font-sans tabular-nums text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
                 />
               </div>
             </div>
@@ -1405,14 +1422,14 @@ export function NewOrderModal({
               </h2>
 
               {/* All 3 Catalog Tabs */}
-              <div className="inline-flex border border-galla-line rounded-lg p-0.5 bg-galla-paper/60 self-start sm:self-auto">
+              <div className="inline-flex border border-galla-line rounded-lg p-1 bg-galla-paper/70 self-start sm:self-auto gap-1">
                 <button
                   type="button"
                   onClick={() => setCatalogTab("services")}
-                  className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${
                     catalogTab === "services"
-                      ? "bg-galla-surface text-galla-ink shadow-2xs font-bold"
-                      : "text-galla-ink-soft hover:text-galla-ink"
+                      ? "bg-galla-teal text-white shadow-xs font-semibold"
+                      : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                   }`}
                 >
                   Services ({services.length})
@@ -1420,10 +1437,10 @@ export function NewOrderModal({
                 <button
                   type="button"
                   onClick={() => setCatalogTab("packages")}
-                  className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${
                     catalogTab === "packages"
-                      ? "bg-galla-surface text-galla-ink shadow-2xs font-bold"
-                      : "text-galla-ink-soft hover:text-galla-ink"
+                      ? "bg-galla-teal text-white shadow-xs font-semibold"
+                      : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                   }`}
                 >
                   Packages ({packages.length})
@@ -1434,10 +1451,10 @@ export function NewOrderModal({
                     setCatalogTab("products");
                     fetchLiveProducts();
                   }}
-                  className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${
                     catalogTab === "products"
-                      ? "bg-galla-surface text-galla-ink shadow-2xs font-bold"
-                      : "text-galla-ink-soft hover:text-galla-ink"
+                      ? "bg-galla-teal text-white shadow-xs font-semibold"
+                      : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                   }`}
                 >
                   Products ({liveProducts.length})

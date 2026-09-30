@@ -1161,16 +1161,15 @@ export function OrderDetailsModal({
               </button>
             )}
 
-            {/* Secondary Buttons Row */}
+            {/* Action Buttons Row */}
             <div className="flex items-center gap-2">
               {(isAdvance || isDue || isReplacement) && onOpenReschedule && (
                 <button
                   type="button"
                   onClick={() => {
-                    onClose();
                     onOpenReschedule(order);
                   }}
-                  className="flex-1 py-2 rounded-lg text-[12.5px] font-medium bg-galla-surface text-galla-ink border border-galla-line hover:border-galla-ink-soft hover:bg-galla-paper/50 transition-colors cursor-pointer text-center"
+                  className="flex-1 py-2.5 rounded-xl border border-galla-line bg-galla-surface hover:bg-galla-paper/70 text-galla-ink font-sans font-medium text-[13px] transition-colors cursor-pointer text-center"
                 >
                   {order.scheduledFor
                     ? isDue && !hasPendingDelivery
@@ -1188,23 +1187,27 @@ export function OrderDetailsModal({
                 <button
                   type="button"
                   onClick={() => {
-                    onClose();
                     onOpenRefund(order);
                   }}
-                  className="py-2 px-3.5 rounded-lg text-[12.5px] font-medium bg-red-50 text-red-800 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl border border-galla-line bg-galla-surface hover:bg-galla-paper/70 text-galla-ink font-sans font-medium text-[13px] transition-colors cursor-pointer text-center"
                 >
                   Refund
                 </button>
               )}
-            </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full py-2.5 rounded-xl border border-galla-line hover:bg-galla-paper text-galla-ink font-semibold text-[13px] transition-colors cursor-pointer"
-            >
-              Close
-            </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`${
+                  ((isAdvance || isDue || isReplacement) && onOpenReschedule) ||
+                  (canOrderBeRefunded(order) && onOpenRefund)
+                    ? "flex-1"
+                    : "w-full"
+                } py-2.5 rounded-xl bg-galla-teal hover:bg-galla-teal/90 text-white font-sans font-medium text-[13px] transition-colors cursor-pointer text-center shadow-xs`}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </aside>
       </div>

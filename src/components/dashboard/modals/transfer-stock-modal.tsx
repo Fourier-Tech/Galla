@@ -663,7 +663,7 @@ function TransferStockModalContent({
                     required
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg bg-galla-surface border border-galla-line font-sans text-lg font-bold text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all tabular-nums"
+                    className="w-full px-4 py-2.5 rounded-lg bg-galla-surface border border-galla-line font-sans tabular-nums text-[14px] font-medium text-galla-ink focus:border-galla-teal focus:ring-1 focus:ring-galla-teal outline-none transition-all"
                   />
                   <span className="absolute right-4 font-sans text-xs font-semibold text-galla-ink-soft pointer-events-none">
                     Units / Pcs
@@ -782,7 +782,7 @@ function TransferStockModalContent({
                   value={consumeNotes}
                   onChange={(e) => setConsumeNotes(e.target.value)}
                   placeholder="e.g., hair spa station 2, opened for today's client treatment..."
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-galla-surface border border-galla-line font-sans text-xs text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all"
+                  className="w-full px-3.5 py-2 rounded-lg bg-galla-surface border border-galla-line font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all"
                 />
               </div>
 
@@ -806,7 +806,7 @@ function TransferStockModalContent({
                     required
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg bg-galla-surface border border-galla-line font-sans text-lg font-bold text-galla-ink focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all tabular-nums"
+                    className="w-full px-4 py-2.5 rounded-lg bg-galla-surface border border-galla-line font-sans tabular-nums text-[14px] font-medium text-galla-ink focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none transition-all"
                   />
                   <span className="absolute right-4 font-sans text-xs font-semibold text-galla-ink-soft pointer-events-none">
                     Units / Pcs
@@ -1085,7 +1085,7 @@ function TransferStockModalContent({
                           setRetSellInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-8 text-center tabular-nums text-sm bg-galla-surface border border-galla-line rounded-md font-bold text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-md text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1145,7 +1145,7 @@ function TransferStockModalContent({
                           setRetUseInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-8 text-center tabular-nums text-sm bg-galla-surface border border-galla-line rounded-md font-bold text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-md text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1205,7 +1205,7 @@ function TransferStockModalContent({
                           setRetDefInput(e.target.value);
                           setErrorMsg(null);
                         }}
-                        className="flex-1 h-8 text-center tabular-nums text-sm bg-galla-surface border border-galla-line rounded-md font-bold text-galla-ink focus:border-rose-500 outline-none"
+                        className="flex-1 h-8 text-center font-sans tabular-nums text-[13.5px] font-medium bg-galla-surface border border-galla-line rounded-md text-galla-ink focus:border-rose-500 outline-none"
                       />
                       <button
                         type="button"
@@ -1247,7 +1247,7 @@ function TransferStockModalContent({
                   value={consumeNotes}
                   onChange={(e) => setConsumeNotes(e.target.value)}
                   placeholder="e.g. damaged seal on delivery, defective pump, batch return..."
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-galla-surface border border-galla-line font-sans text-xs text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all"
+                  className="w-full px-3.5 py-2 rounded-lg bg-galla-surface border border-galla-line font-sans text-[13.5px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all"
                 />
               </div>
             </section>

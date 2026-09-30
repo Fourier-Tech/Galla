@@ -49,3 +49,17 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Ensure all form controls and placeholders uniformly use the design system's Inter font */
+input,
+select,
+textarea,
+button {
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+input::placeholder,
+textarea::placeholder {
+  font-family: inherit;
+}
+

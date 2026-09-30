@@ -151,7 +151,7 @@ function RefundOrderModalContent({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
     >
       <div className={`w-full ${isProductOrder ? "max-w-[460px]" : "max-w-[420px]"} bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-2xl transition-all max-h-[90vh] overflow-y-auto`}>
         {/* Header */}
