@@ -35,18 +35,20 @@ interface ServicesTabProps {
   services: DashboardService[];
   packages: DashboardPackage[];
   products: DashboardProduct[];
-  onAddService: (service: DashboardService) => void;
-  onUpdateService: (service: DashboardService) => void;
-  onDeleteService: (serviceId: string) => void;
-  onAddPackage: (pkg: DashboardPackage) => void;
-  onUpdatePackage: (pkg: DashboardPackage) => void;
-  onDeletePackage: (packageId: string) => void;
+  isReadOnly?: boolean;
+  onAddService?: (service: DashboardService) => void;
+  onUpdateService?: (service: DashboardService) => void;
+  onDeleteService?: (serviceId: string) => void;
+  onAddPackage?: (pkg: DashboardPackage) => void;
+  onUpdatePackage?: (pkg: DashboardPackage) => void;
+  onDeletePackage?: (packageId: string) => void;
 }
 
 export function ServicesTab({
   services,
   packages,
   products,
+  isReadOnly = false,
   onAddService,
   onUpdateService,
   onDeleteService,
@@ -120,59 +122,63 @@ export function ServicesTab({
 
   // Handlers for Services
   const handleToggleService = async (service: DashboardService) => {
+    if (isReadOnly) return;
     // Optimistic update
     const updated: DashboardService = { ...service, isActive: !service.isActive };
-    onUpdateService(updated);
+    onUpdateService?.(updated);
     try {
       const res = await toggleServiceStatusAction(service.id);
       if (!res.success) {
         // Rollback
-        onUpdateService(service);
+        onUpdateService?.(service);
       }
     } catch {
-      onUpdateService(service);
+      onUpdateService?.(service);
     }
   };
 
   const handleEditService = (service: DashboardService) => {
+    if (isReadOnly) return;
     setServiceToEdit(service);
     setIsServiceModalOpen(true);
   };
 
   // Handlers for Packages
   const handleTogglePackage = async (pkg: DashboardPackage) => {
+    if (isReadOnly) return;
     const updated: DashboardPackage = { ...pkg, isActive: !pkg.isActive };
-    onUpdatePackage(updated);
+    onUpdatePackage?.(updated);
     try {
       const res = await togglePackageStatusAction(pkg.id);
       if (!res.success) {
-        onUpdatePackage(pkg);
+        onUpdatePackage?.(pkg);
       }
     } catch {
-      onUpdatePackage(pkg);
+      onUpdatePackage?.(pkg);
     }
   };
 
   const handleEditPackage = (pkg: DashboardPackage) => {
+    if (isReadOnly) return;
     setPackageToEdit(pkg);
     setIsPackageModalOpen(true);
   };
 
   // Delete handler
   const handleConfirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (isReadOnly || !deleteConfirm) return;
     setIsDeleting(true);
     try {
       if (deleteConfirm.type === "service") {
         const res = await deleteServiceAction(deleteConfirm.id);
         if (res.success) {
-          onDeleteService(deleteConfirm.id);
+          onDeleteService?.(deleteConfirm.id);
           setDeleteConfirm(null);
         }
       } else {
         const res = await deletePackageAction(deleteConfirm.id);
         if (res.success) {
-          onDeletePackage(deleteConfirm.id);
+          onDeletePackage?.(deleteConfirm.id);
           setDeleteConfirm(null);
         }
       }
@@ -196,7 +202,11 @@ export function ServicesTab({
           </p>
         </div>
 
-        {subView === "services" ? (
+        {isReadOnly ? (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-galla-paper border border-galla-line text-galla-ink-soft text-[12.5px] font-sans font-medium shrink-0">
+            Read-Only Menu
+          </span>
+        ) : subView === "services" ? (
           <button
             type="button"
             onClick={() => {
@@ -387,11 +397,13 @@ export function ServicesTab({
               <table className="w-full text-left border-collapse min-w-[760px]">
                 <thead>
                   <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
-                    <th className="w-[42%] py-3.5 pl-6 pr-4 text-left font-medium">Service &amp; Notes</th>
-                    <th className="w-[24%] py-3.5 px-4 text-left font-medium">Category</th>
+                    <th className={`${isReadOnly ? "w-[48%]" : "w-[42%]"} py-3.5 pl-6 pr-4 text-left font-medium`}>Service &amp; Notes</th>
+                    <th className={`${isReadOnly ? "w-[28%]" : "w-[24%]"} py-3.5 px-4 text-left font-medium`}>Category</th>
                     <th className="w-[12%] py-3.5 px-4 text-right font-medium whitespace-nowrap">Price</th>
                     <th className="w-[12%] py-3.5 px-4 text-center font-medium whitespace-nowrap">Status</th>
-                    <th className="w-[10%] py-3.5 pl-4 pr-6 text-right font-medium whitespace-nowrap">Actions</th>
+                    {!isReadOnly && (
+                      <th className="w-[10%] py-3.5 pl-4 pr-6 text-right font-medium whitespace-nowrap">Actions</th>
+                    )}
                   </tr>
                 </thead>
 
@@ -437,61 +449,85 @@ export function ServicesTab({
                         {formatRupee(service.price)}
                       </td>
 
-                      {/* Status Toggle */}
+                      {/* Status Toggle / Badge */}
                       <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
                         <div className="flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleService(service)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold transition-colors cursor-pointer border ${
-                              service.isActive
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                                : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
-                            }`}
-                            title="Click to toggle availability"
-                          >
-                            {service.isActive ? (
-                              <>
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                                <span>Active</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                                <span>Disabled</span>
-                              </>
-                            )}
-                          </button>
+                          {isReadOnly ? (
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold border ${
+                                service.isActive
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  : "bg-gray-100 text-gray-600 border-gray-200"
+                              }`}
+                            >
+                              {service.isActive ? (
+                                <>
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                  <span>Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                  <span>Disabled</span>
+                                </>
+                              )}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleService(service)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold transition-colors cursor-pointer border ${
+                                service.isActive
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                              }`}
+                              title="Click to toggle availability"
+                            >
+                              {service.isActive ? (
+                                <>
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                  <span>Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                  <span>Disabled</span>
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 pl-4 pr-6 text-right align-middle whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleEditService(service)}
-                            className="p-1.5 rounded-[4px] hover:bg-galla-paper text-galla-ink-soft hover:text-galla-teal transition-colors cursor-pointer"
-                            title="Edit Service"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteConfirm({
-                                type: "service",
-                                id: service.id,
-                                name: service.name,
-                              })
-                            }
-                            className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
-                            title="Delete Service"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
+                      {!isReadOnly && (
+                        <td className="py-3.5 pl-4 pr-6 text-right align-middle whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleEditService(service)}
+                              className="p-1.5 rounded-[4px] hover:bg-galla-paper text-galla-ink-soft hover:text-galla-teal transition-colors cursor-pointer"
+                              title="Edit Service"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteConfirm({
+                                  type: "service",
+                                  id: service.id,
+                                  name: service.name,
+                                })
+                              }
+                              className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
+                              title="Delete Service"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -508,6 +544,8 @@ export function ServicesTab({
               <p className="font-sans text-[12.5px] text-galla-ink-soft max-w-md mx-auto">
                 {searchQuery || selectedCategory !== "all"
                   ? "No services match your current filters. Try changing keywords or category."
+                  : isReadOnly
+                  ? "No services have been added to the salon menu yet."
                   : "Start creating your salon's treatment and styling menu by clicking 'Add Service'."}
               </p>
             </div>
@@ -553,17 +591,29 @@ export function ServicesTab({
                           )}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePackage(pkg)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[3px] text-[11px] font-semibold shrink-0 transition-colors cursor-pointer ${
-                            pkg.isActive
-                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              : "bg-gray-100 text-gray-600 border border-gray-200"
-                          }`}
-                        >
-                          {pkg.isActive ? "Active Deal" : "Disabled"}
-                        </button>
+                        {isReadOnly ? (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[3px] text-[11px] font-semibold shrink-0 select-none ${
+                              pkg.isActive
+                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                : "bg-gray-100 text-gray-600 border border-gray-200"
+                            }`}
+                          >
+                            {pkg.isActive ? "Active Deal" : "Disabled"}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePackage(pkg)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[3px] text-[11px] font-semibold shrink-0 transition-colors cursor-pointer ${
+                              pkg.isActive
+                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                : "bg-gray-100 text-gray-600 border border-gray-200"
+                            }`}
+                          >
+                            {pkg.isActive ? "Active Deal" : "Disabled"}
+                          </button>
+                        )}
                       </div>
 
                       {/* Pricing Tagline */}
@@ -640,30 +690,32 @@ export function ServicesTab({
                       <span className="font-sans">
                         {pkg.pricingType === "fixed" ? "Fixed Combo Price" : "Sum of Items"}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditPackage(pkg)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-galla-paper hover:bg-galla-paper/80 border border-galla-line text-galla-ink text-[12px] transition-colors cursor-pointer"
-                        >
-                          <Edit2 className="h-3 w-3" />
-                          <span>Edit</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDeleteConfirm({
-                              type: "package",
-                              id: pkg.id,
-                              name: pkg.name,
-                            })
-                          }
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] hover:bg-red-50 border border-transparent text-galla-ink-soft hover:text-red-600 text-[12px] transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          <span>Delete</span>
-                        </button>
-                      </div>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEditPackage(pkg)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-galla-paper hover:bg-galla-paper/80 border border-galla-line text-galla-ink text-[12px] transition-colors cursor-pointer"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteConfirm({
+                                type: "package",
+                                id: pkg.id,
+                                name: pkg.name,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] hover:bg-red-50 border border-transparent text-galla-ink-soft hover:text-red-600 text-[12px] transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -678,8 +730,9 @@ export function ServicesTab({
                 No package deals created yet
               </div>
               <p className="font-sans text-[13px] text-galla-ink-soft max-w-md mx-auto">
-                Package deals help sell combinations of high-margin services &amp; retail products
-                with bundled pricing. Click &apos;Create Package&apos; to build your first offer.
+                {isReadOnly
+                  ? "No package deals have been configured for the salon yet."
+                  : "Package deals help sell combinations of high-margin services & retail products with bundled pricing. Click 'Create Package' to build your first offer."}
               </p>
             </div>
           )}
@@ -687,41 +740,45 @@ export function ServicesTab({
       )}
 
       {/* SERVICE MODAL */}
-      <ServiceModal
-        key={serviceToEdit?.id || (isServiceModalOpen ? "service-open" : "service-closed")}
-        isOpen={isServiceModalOpen}
-        onClose={() => setIsServiceModalOpen(false)}
-        serviceToEdit={serviceToEdit}
-        existingCategories={existingCategories}
-        availableProducts={products}
-        onSaveService={(saved) => {
-          if (serviceToEdit) {
-            onUpdateService(saved);
-          } else {
-            onAddService(saved);
-          }
-        }}
-      />
+      {!isReadOnly && (
+        <ServiceModal
+          key={serviceToEdit?.id || (isServiceModalOpen ? "service-open" : "service-closed")}
+          isOpen={isServiceModalOpen}
+          onClose={() => setIsServiceModalOpen(false)}
+          serviceToEdit={serviceToEdit}
+          existingCategories={existingCategories}
+          availableProducts={products}
+          onSaveService={(saved) => {
+            if (serviceToEdit) {
+              onUpdateService?.(saved);
+            } else {
+              onAddService?.(saved);
+            }
+          }}
+        />
+      )}
 
       {/* PACKAGE MODAL */}
-      <PackageModal
-        key={packageToEdit?.id || (isPackageModalOpen ? "pkg-open" : "pkg-closed")}
-        isOpen={isPackageModalOpen}
-        onClose={() => setIsPackageModalOpen(false)}
-        packageToEdit={packageToEdit}
-        availableServices={services}
-        availableProducts={products}
-        onSavePackage={(saved) => {
-          if (packageToEdit) {
-            onUpdatePackage(saved);
-          } else {
-            onAddPackage(saved);
-          }
-        }}
-      />
+      {!isReadOnly && (
+        <PackageModal
+          key={packageToEdit?.id || (isPackageModalOpen ? "pkg-open" : "pkg-closed")}
+          isOpen={isPackageModalOpen}
+          onClose={() => setIsPackageModalOpen(false)}
+          packageToEdit={packageToEdit}
+          availableServices={services}
+          availableProducts={products}
+          onSavePackage={(saved) => {
+            if (packageToEdit) {
+              onUpdatePackage?.(saved);
+            } else {
+              onAddPackage?.(saved);
+            }
+          }}
+        />
+      )}
 
       {/* DELETE CONFIRMATION MODAL */}
-      {deleteConfirm && (
+      {!isReadOnly && deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="w-full max-w-md bg-galla-surface border border-galla-line rounded-[8px] p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 text-red-600">

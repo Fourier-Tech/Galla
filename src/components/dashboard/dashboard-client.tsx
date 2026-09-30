@@ -848,11 +848,12 @@ export function DashboardClient({
             />
           )}
 
-          {activeTab === "services" && role === "owner" && (
+          {activeTab === "services" && (
             <ServicesTab
               services={services}
               packages={packages}
               products={products}
+              isReadOnly={role !== "owner"}
               onAddService={handleAddService}
               onUpdateService={handleUpdateService}
               onDeleteService={handleDeleteService}
