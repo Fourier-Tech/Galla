@@ -22,7 +22,7 @@ interface AnalyticsTabProps {
 }
 
 export function AnalyticsTab({}: AnalyticsTabProps) {
-  const [range, setRange] = useState<AnalyticsRangePreset>("30d");
+  const [range, setRange] = useState<AnalyticsRangePreset>("today");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
   const [data, setData] = useState<AnalyticsResponseData | null>(null);

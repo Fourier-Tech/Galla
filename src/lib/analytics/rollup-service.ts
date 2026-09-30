@@ -350,7 +350,7 @@ export async function ensureDailyRollupsForRange(
     targetKeys.push({ periodKey: endKeyInfo.periodKey, date: new Date(endDate.getTime()) });
   }
 
-  // Find existing rollups in DB
+  // 1. Find existing rollups in DB (single fast indexed query)
   const existingDocs = await AnalyticsRollup.find({
     tenantId,
     periodType: "daily",
@@ -362,33 +362,125 @@ export async function ensureDailyRollupsForRange(
     existingMap.set(doc.periodKey, doc);
   }
 
-  // Determine what needs syncing:
-  // 1. Missing historical dates
-  // 2. Today's date (always refreshed live for real-time order tracking)
-  const toSync = targetKeys.filter(
-    (k) => !existingMap.has(k.periodKey) || k.periodKey === todayKey
-  );
+  // 2. Identify missing keys and today's key if not yet initialized
+  const missingKeys = targetKeys.filter((k) => !existingMap.has(k.periodKey));
+  const needsTodaySync = !existingMap.has(todayKey) && targetKeys.some((k) => k.periodKey === todayKey);
 
-  if (toSync.length > 0) {
-    const batchSize = 5;
-    for (let i = 0; i < toSync.length; i += batchSize) {
-      const batch = toSync.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map((item) => syncRollupForPeriod(tenantId, "daily", item.date))
-      );
+  if (missingKeys.length > 0) {
+    // Only check transaction activity for missing date windows in TWO fast aggregation queries
+    const [activeOrderDays, activeExpenseDays] = await Promise.all([
+      Order.aggregate([
+        {
+          $match: {
+            tenantId,
+            createdAt: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$createdAt",
+                timezone: "+05:30",
+              },
+            },
+          },
+        },
+      ]),
+      Expense.aggregate([
+        {
+          $match: {
+            tenantId,
+            expenseDate: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$expenseDate",
+                timezone: "+05:30",
+              },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const activeDateSet = new Set<string>();
+    activeOrderDays.forEach((d: any) => {
+      if (d._id) activeDateSet.add(d._id);
+    });
+    activeExpenseDays.forEach((d: any) => {
+      if (d._id) activeDateSet.add(d._id);
+    });
+
+    // Only sync missing dates that actually have transactions
+    const toSync = missingKeys.filter((k) => activeDateSet.has(k.periodKey));
+
+    if (toSync.length > 0) {
+      const batchSize = 10;
+      for (let i = 0; i < toSync.length; i += batchSize) {
+        const batch = toSync.slice(i, i + batchSize);
+        const syncedDocs = await Promise.all(
+          batch.map((item) => syncRollupForPeriod(tenantId, "daily", item.date))
+        );
+        for (const doc of syncedDocs) {
+          if (doc) existingMap.set(doc.periodKey, doc.toObject ? doc.toObject() : doc);
+        }
+      }
     }
   }
 
-  // Return all rollups in range sorted chronologically
-  const finalDocs = await AnalyticsRollup.find({
-    tenantId,
-    periodType: "daily",
-    periodKey: { $in: targetKeys.map((k) => k.periodKey) },
-  })
-    .sort({ periodKey: 1 })
-    .lean();
+  // If today was completely missing, sync it once
+  if (needsTodaySync && !existingMap.has(todayKey)) {
+    const todayDoc = await syncRollupForPeriod(tenantId, "daily", now);
+    if (todayDoc) {
+      existingMap.set(todayKey, todayDoc.toObject ? todayDoc.toObject() : todayDoc);
+    }
+  }
 
-  return finalDocs as unknown as IAnalyticsRollup[];
+  // 3. Assemble complete chronological list of rollups
+  // For inactive days without data, synthesize clean zero-rollups in memory without hitting the DB
+  const result: IAnalyticsRollup[] = targetKeys.map((k) => {
+    if (existingMap.has(k.periodKey)) {
+      return existingMap.get(k.periodKey);
+    }
+    const { startDate: sDate, endDate: eDate } = getPeriodKey(k.date, "daily");
+    return {
+      tenantId,
+      periodType: "daily",
+      periodKey: k.periodKey,
+      startDate: sDate,
+      endDate: eDate,
+      metrics: {
+        revenue: { total: 0, product: 0, service: 0, package: 0 },
+        expenses: {
+          total: 0,
+          inventoryPurchases: 0,
+          internalStockConsumables: 0,
+          salary: 0,
+          rent: 0,
+          dayToDay: 0,
+          refunds: 0,
+        },
+        netProfit: 0,
+        totalOrders: 0,
+        completedOrders: 0,
+        advancePayment: 0,
+        footfall: 0,
+        averageTicketValue: 0,
+        uncollectedDues: 0,
+        newCustomersCount: 0,
+        returningCustomersCount: 0,
+        paymentModes: { cash: 0, upi: 0, card: 0, split: 0 },
+      },
+    } as unknown as IAnalyticsRollup;
+  });
+
+  return result;
 }
 
 // Fast O(1) read of today's saved rollup in MongoDB; syncs once if not yet initialized for today

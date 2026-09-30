@@ -166,7 +166,7 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const rangeParam = (searchParams.get("range") || "30d") as AnalyticsRangePreset;
+    const rangeParam = (searchParams.get("range") || "today") as AnalyticsRangePreset;
     const customStart = searchParams.get("startDate");
     const customEnd = searchParams.get("endDate");
 
@@ -310,7 +310,10 @@ export async function GET(request: Request) {
         : Promise.resolve([]),
 
       // Active product catalog for margin & slow-moving stock
-      Product.find({ tenantId, isActive: true }).lean(),
+      Product.find(
+        { tenantId, isActive: true },
+        { name: 1, category: 1, expectedSellPrice: 1, purchaseCost: 1, sellStock: 1 }
+      ).lean(),
 
       // Procurement Spend in window
       PurchaseOrder.aggregate([
@@ -347,7 +350,10 @@ export async function GET(request: Request) {
       ]),
 
       // Top VIP Clients
-      Customer.find({ tenantId, isActive: true })
+      Customer.find(
+        { tenantId, isActive: true },
+        { name: 1, phone: 1, stats: 1 }
+      )
         .sort({ "stats.totalSpend": -1 })
         .limit(5)
         .lean(),
