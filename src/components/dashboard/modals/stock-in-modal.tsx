@@ -49,7 +49,7 @@ import { PaymentModeSelect } from "../payment-mode-select";
 const SETTLEMENT_MODE_OPTIONS = [
   {
     value: "completed",
-    label: "Paid in full now",
+    label: "Complete",
     sublabel: "Receive stock & pay dealer immediately",
     icon: CheckCircle2,
     badge: "Instant",
@@ -976,18 +976,17 @@ export function StockInModal({
       className="fixed inset-0 z-50 bg-galla-paper flex flex-col overflow-y-auto"
     >
       {/* Top Header (Sticky) */}
-      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3 flex items-center justify-between shadow-2xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-galla-line text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/70 text-[13px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+            className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0 disabled:opacity-50"
+            title="Back to inventory"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back to inventory</span>
           </button>
-          <div className="h-4 w-px bg-galla-line hidden sm:block" />
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-[5px] bg-galla-teal-soft text-galla-teal">
               <PackagePlus className="h-4 w-4" />
@@ -996,15 +995,15 @@ export function StockInModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft">
-          <span>
-            {items.length} {items.length === 1 ? "product" : "products"} ({totalUnits} pcs)
-          </span>
-          <span className="text-galla-line">&bull;</span>
-          <span className="font-bold text-galla-ink tabular-nums">
-            {formatRupee(effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost)}
-          </span>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isSubmitting}
+          className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0 disabled:opacity-50"
+          title="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </header>
 
       {/* Global Error Banner */}

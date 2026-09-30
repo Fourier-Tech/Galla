@@ -18,6 +18,7 @@ import {
   Wallet,
   Undo2,
   ArrowLeft,
+  X,
 } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
 import { StatusPill } from "@/components/dashboard/status-pill";
@@ -154,8 +155,8 @@ export function OrderDetailsModal({
   const isToday = urgency?.tone === "today";
   const isScheduledDateArrived = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
-  // Prefill reminder text for advance booking, payment due, or replacement orders
-  const shouldPrefillMsg = isAdvance || isDue || isReplacement;
+  // Prefill reminder text for advance booking, paid in full pre-order, payment due, or replacement orders
+  const shouldPrefillMsg = isAdvance || isPaidFull || isDue || isReplacement;
 
   const waUrl = order.customerPhone
     ? shouldPrefillMsg
@@ -258,17 +259,16 @@ export function OrderDetailsModal({
       {/* ======================================================== */}
       {/* TOP HEADER (Sticky)                                      */}
       {/* ======================================================== */}
-      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3 flex items-center justify-between shadow-2xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-galla-line text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/70 text-[13px] font-medium transition-colors cursor-pointer"
+            className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0"
+            title="Back to orders"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back to orders</span>
           </button>
-          <div className="h-4 w-px bg-galla-line hidden sm:block" />
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-[5px] bg-galla-teal-soft text-galla-teal">
               <Receipt className="h-4 w-4" />
@@ -283,26 +283,14 @@ export function OrderDetailsModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft">
-          <span>
-            {order.lineItems?.length || (order.itemsSummary ? 1 : 0)}{" "}
-            {(order.lineItems?.length || 1) === 1 ? "item" : "items"}{" "}
-            ({totalUnits} {totalUnits === 1 ? "unit" : "units"})
-          </span>
-          <span className="text-galla-line">&bull;</span>
-          {hasReturns && totalReturnRefundAmount > 0 ? (
-            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-rose-800">
-              <span>{formatRupee(netBillAmount)}</span>
-              <span className="line-through text-rose-400 font-normal text-[11px]">
-                {formatRupee(originalBillAmount)}
-              </span>
-            </span>
-          ) : (
-            <span className="font-bold text-galla-ink tabular-nums text-[13px]">
-              {formatRupee(originalBillAmount)}
-            </span>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0"
+          title="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </header>
 
       {/* ======================================================== */}
@@ -1137,7 +1125,6 @@ export function OrderDetailsModal({
               <button
                 type="button"
                 onClick={() => {
-                  onClose();
                   onOpenSettle(order);
                 }}
                 className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
@@ -1151,7 +1138,6 @@ export function OrderDetailsModal({
               <button
                 type="button"
                 onClick={() => {
-                  onClose();
                   onOpenSettle(order);
                 }}
                 className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
@@ -1163,7 +1149,7 @@ export function OrderDetailsModal({
 
             {/* Action Buttons Row */}
             <div className="flex items-center gap-2">
-              {(isAdvance || isDue || isReplacement) && onOpenReschedule && (
+              {(isAdvance || isPaidFull || isDue || isReplacement) && onOpenReschedule && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1199,7 +1185,7 @@ export function OrderDetailsModal({
                 type="button"
                 onClick={onClose}
                 className={`${
-                  ((isAdvance || isDue || isReplacement) && onOpenReschedule) ||
+                  ((isAdvance || isPaidFull || isDue || isReplacement) && onOpenReschedule) ||
                   (canOrderBeRefunded(order) && onOpenRefund)
                     ? "flex-1"
                     : "w-full"

@@ -13,6 +13,9 @@ import {
   CheckCircle2,
   Clock,
   ChevronDown,
+  Eye,
+  Package,
+  Plus,
 } from "lucide-react";
 import {
   DashboardCustomer,
@@ -256,7 +259,7 @@ export interface SelectedOrderItem {
 const SETTLEMENT_MODE_OPTIONS = [
   {
     value: "completed",
-    label: "Paid in full now",
+    label: "Complete",
     sublabel: "Fulfill & collect payment immediately",
     icon: CheckCircle2,
     badge: "Instant",
@@ -288,10 +291,14 @@ function SettlementModeSelect({
   value,
   onChange,
   hasOutOfStockItems,
+  needsSellStock,
+  allowSellStockUsage,
 }: {
   value: "completed" | "pay_later" | "advance" | "paid_full";
   onChange: (val: "completed" | "pay_later" | "advance" | "paid_full") => void;
   hasOutOfStockItems: boolean;
+  needsSellStock: boolean;
+  allowSellStockUsage: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -364,9 +371,36 @@ function SettlementModeSelect({
             {SETTLEMENT_MODE_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               const isSelected = opt.value === value;
-              const isDisabled =
-                hasOutOfStockItems &&
-                (opt.value === "completed" || opt.value === "pay_later");
+              const isDisabled = (() => {
+                if (hasOutOfStockItems) {
+                  return opt.value === "completed" || opt.value === "pay_later";
+                }
+                if (needsSellStock) {
+                  if (allowSellStockUsage) {
+                    // Checkbox selected -> only Complete or Pending (Pay Later)
+                    return opt.value === "advance" || opt.value === "paid_full";
+                  } else {
+                    // Checkbox not selected -> only Advance or Paid in Full
+                    return opt.value === "completed" || opt.value === "pay_later";
+                  }
+                }
+                return false;
+              })();
+
+              const disabledReason = (() => {
+                if (!isDisabled) return null;
+                if (hasOutOfStockItems) {
+                  return "Disabled (some items out of stock)";
+                }
+                if (needsSellStock) {
+                  if (allowSellStockUsage) {
+                    return "Disabled (shelf transfer selected for immediate fulfillment)";
+                  } else {
+                    return "Disabled (in-use stock unavailable — confirm shelf transfer above to enable)";
+                  }
+                }
+                return "Disabled";
+              })();
 
               return (
                 <button
@@ -383,8 +417,8 @@ function SettlementModeSelect({
                     isDisabled
                       ? "opacity-50 cursor-not-allowed bg-galla-paper/40"
                       : isSelected
-                      ? "bg-galla-teal/10 cursor-pointer"
-                      : "hover:bg-galla-paper/70 cursor-pointer"
+                        ? "bg-galla-teal/10 cursor-pointer"
+                        : "hover:bg-galla-paper/70 cursor-pointer"
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -412,7 +446,7 @@ function SettlementModeSelect({
                       </div>
                       <div className="text-[11px] text-galla-ink-soft truncate">
                         {isDisabled
-                          ? "Disabled (some items out of stock)"
+                          ? disabledReason
                           : opt.sublabel}
                       </div>
                     </div>
@@ -513,7 +547,19 @@ export function NewOrderModal({
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<DashboardOrder | null>(null);
+  const [viewingPackage, setViewingPackage] = useState<DashboardPackage | null>(null);
   const [createdOrderResult, setCreatedOrderResult] = useState<DashboardOrder | null>(null);
+
+  useEffect(() => {
+    if (!viewingPackage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setViewingPackage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [viewingPackage]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -668,14 +714,26 @@ export function NewOrderModal({
     return Array.from(map.entries()).map(([name, neededFromSell]) => ({ name, neededFromSell }));
   }, [selectedItems, services, packages, liveProducts]);
 
-  // Adjust settlement mode automatically if out of stock items chosen
+  // Adjust settlement mode automatically based on stock availability and shelf-transfer opt-in
   useEffect(() => {
     if (hasOutOfStockItems) {
       if (settlementMode === "completed" || settlementMode === "pay_later") {
         setSettlementMode("advance");
       }
+    } else if (orderSellStockItems.length > 0) {
+      if (!allowSellStockUsage) {
+        // Shelf transfer not confirmed -> only advance or paid_full allowed
+        if (settlementMode === "completed" || settlementMode === "pay_later") {
+          setSettlementMode("advance");
+        }
+      } else {
+        // Shelf transfer confirmed -> only complete or pay_later (pending) allowed
+        if (settlementMode === "advance" || settlementMode === "paid_full") {
+          setSettlementMode("completed");
+        }
+      }
     }
-  }, [hasOutOfStockItems, settlementMode]);
+  }, [hasOutOfStockItems, orderSellStockItems.length, allowSellStockUsage, settlementMode]);
 
   // Filter catalog items
   const filteredServices = useMemo(() => {
@@ -816,6 +874,17 @@ export function NewOrderModal({
       }
     }
 
+    if (orderSellStockItems.length > 0) {
+      if (allowSellStockUsage && (settlementMode === "advance" || settlementMode === "paid_full")) {
+        setErrorMsg("Shelf transfer is confirmed for immediate fulfillment. Please choose Complete or Pay Later (Due).");
+        return;
+      }
+      if (!allowSellStockUsage && (settlementMode === "completed" || settlementMode === "pay_later")) {
+        setErrorMsg("In-use stock is insufficient. Confirm shelf transfer to complete now, or choose Advance Booking / Paid in Full.");
+        return;
+      }
+    }
+
     if ((settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
       setErrorMsg("Please select the appointment / delivery date for this booking");
       return;
@@ -836,12 +905,12 @@ export function NewOrderModal({
           ? "paid_full"
           : "advance_paid"
         : settlementMode === "completed"
-        ? "completed"
-        : settlementMode === "paid_full"
-        ? "paid_full"
-        : settlementMode === "pay_later"
-        ? "created"
-        : "advance_paid";
+          ? "completed"
+          : settlementMode === "paid_full"
+            ? "paid_full"
+            : settlementMode === "pay_later"
+              ? "created"
+              : "advance_paid";
 
       const hasProductsOnly = selectedItems.length > 0 && selectedItems.every((i) => i.type === "product");
       const hasPackages = selectedItems.some((i) => i.type === "package");
@@ -855,8 +924,8 @@ export function NewOrderModal({
       const resolvedBookingDate = settlementMode === "pay_later"
         ? (dueDate ? dueDate : undefined)
         : (settlementMode === "advance" || settlementMode === "paid_full")
-        ? (bookingDate ? bookingDate : undefined)
-        : undefined;
+          ? (bookingDate ? bookingDate : undefined)
+          : undefined;
 
       const resolvedBookingTime =
         settlementMode === "advance" || settlementMode === "paid_full"
@@ -975,13 +1044,21 @@ export function NewOrderModal({
                 </span>
               </div>
               <div className="flex justify-between items-center">
+                <span className="text-galla-ink-soft text-[12.5px]">Payment Mode</span>
+                <span className="font-medium text-galla-ink uppercase">
+                  {createdOrderResult.paymentMode || paymentMode}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
                 <span className="text-galla-ink-soft text-[12.5px]">Settlement</span>
                 <span className="font-medium text-galla-ink">
                   {createdOrderResult.status === "completed"
-                    ? "Paid in full"
-                    : createdOrderResult.status === "advance_paid"
-                    ? `Advance: ${formatRupee(createdOrderResult.paid)}`
-                    : `Due: ${formatRupee((createdOrderResult.amount || 0) - (createdOrderResult.paid || 0))}`}
+                    ? "Complete"
+                    : createdOrderResult.status === "paid_full"
+                      ? "Paid in Full (Advance)"
+                      : createdOrderResult.status === "advance_paid"
+                        ? `Advance: ${formatRupee(createdOrderResult.paid)}`
+                        : `Due: ${formatRupee((createdOrderResult.amount || 0) - (createdOrderResult.paid || 0))}`}
                 </span>
               </div>
             </div>
@@ -1000,26 +1077,29 @@ export function NewOrderModal({
       {/* ======================================================== */}
       {/* TOP HEADER (Sticky, covers sidebar, cancel button)       */}
       {/* ======================================================== */}
-      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs shrink-0">
+      <header className="sticky top-0 z-30 bg-galla-surface border-b border-galla-line px-5 sm:px-8 py-3 flex items-center justify-between shadow-2xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleClose}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-galla-line text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/70 text-[13px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+            className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0 disabled:opacity-50"
+            title="Back to counter"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back to counter</span>
           </button>
-          <div className="h-4 w-px bg-galla-line hidden sm:block" />
           <h1 className="text-[16px] font-bold text-galla-ink">New Order</h1>
         </div>
 
-        <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft">
-          <span>{selectedItems.length} {selectedItems.length === 1 ? "item" : "items"}</span>
-          <span className="text-galla-line">&bull;</span>
-          <span className="font-bold text-galla-ink tabular-nums">{formatRupee(finalTotal)}</span>
-        </div>
+        <button
+          type="button"
+          onClick={handleClose}
+          disabled={isSubmitting}
+          className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0 disabled:opacity-50"
+          title="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </header>
 
       {/* Global Error Banner */}
@@ -1047,7 +1127,7 @@ export function NewOrderModal({
       {/* RIGHT: Bill Summary (Cart, Discount, Total, Create Button)*/}
       {/* ======================================================== */}
       <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start flex-1">
-        
+
         {/* ====================================================== */}
         {/* RIGHT COLUMN: BILL                                     */}
         {/* ====================================================== */}
@@ -1086,9 +1166,31 @@ export function NewOrderModal({
                 return (
                   <div key={`${item.type}-${item.id}`} className="py-2.5 flex items-center gap-2.5">
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-medium text-galla-ink truncate">{item.name}</div>
-                      <div className="text-[11px] text-galla-ink-soft tabular-nums">
-                        {formatRupee(item.price)} each
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[13px] font-medium text-galla-ink truncate">{item.name}</span>
+                        {item.type === "package" && (
+                          <span className="text-[10px] font-medium bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded shrink-0">
+                            Package
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-galla-ink-soft tabular-nums mt-0.5">
+                        <span>{formatRupee(item.price)} each</span>
+                        {item.type === "package" && (() => {
+                          const pkg = packages.find((p) => p.id === item.id);
+                          if (!pkg) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setViewingPackage(pkg)}
+                              className="inline-flex items-center gap-0.5 text-[10.5px] font-medium text-galla-teal hover:underline cursor-pointer"
+                              title={`View services included in ${pkg.name}`}
+                            >
+                              <Eye className="h-2.5 w-2.5" />
+                              <span>View</span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -1173,22 +1275,20 @@ export function NewOrderModal({
                   <button
                     type="button"
                     onClick={() => setDiscountType("percentage")}
-                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
-                      discountType === "percentage"
+                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${discountType === "percentage"
                         ? "bg-galla-teal text-white shadow-2xs"
                         : "text-galla-ink-soft hover:text-galla-ink"
-                    }`}
+                      }`}
                   >
                     %
                   </button>
                   <button
                     type="button"
                     onClick={() => setDiscountType("flat")}
-                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${
-                      discountType === "flat"
+                    className={`px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors cursor-pointer ${discountType === "flat"
                         ? "bg-galla-teal text-white shadow-2xs"
                         : "text-galla-ink-soft hover:text-galla-ink"
-                    }`}
+                      }`}
                   >
                     ₹
                   </button>
@@ -1295,7 +1395,7 @@ export function NewOrderModal({
         {/* LEFT COLUMN: CUSTOMER, CATALOG & PAYMENT               */}
         {/* ====================================================== */}
         <main className="space-y-5 min-w-0 order-1">
-          
+
           {/* Card 1: Customer Details */}
           <section className="bg-galla-surface border border-galla-line rounded-xl p-5 shadow-xs space-y-4">
             <h2 className="text-[14px] font-bold text-galla-ink uppercase tracking-wider">
@@ -1426,22 +1526,20 @@ export function NewOrderModal({
                 <button
                   type="button"
                   onClick={() => setCatalogTab("services")}
-                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${
-                    catalogTab === "services"
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${catalogTab === "services"
                       ? "bg-galla-teal text-white shadow-xs font-semibold"
                       : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
-                  }`}
+                    }`}
                 >
                   Services ({services.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setCatalogTab("packages")}
-                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${
-                    catalogTab === "packages"
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${catalogTab === "packages"
                       ? "bg-galla-teal text-white shadow-xs font-semibold"
                       : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
-                  }`}
+                    }`}
                 >
                   Packages ({packages.length})
                 </button>
@@ -1451,11 +1549,10 @@ export function NewOrderModal({
                     setCatalogTab("products");
                     fetchLiveProducts();
                   }}
-                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${
-                    catalogTab === "products"
+                  className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-md transition-all cursor-pointer ${catalogTab === "products"
                       ? "bg-galla-teal text-white shadow-xs font-semibold"
                       : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
-                  }`}
+                    }`}
                 >
                   Products ({liveProducts.length})
                 </button>
@@ -1473,8 +1570,8 @@ export function NewOrderModal({
                   catalogTab === "products"
                     ? "Search products by name or category..."
                     : catalogTab === "packages"
-                    ? "Search bundled packages..."
-                    : "Search services by name or category..."
+                      ? "Search bundled packages..."
+                      : "Search services by name or category..."
                 }
                 className="w-full bg-galla-surface border border-galla-line rounded-lg pl-9 pr-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none focus:border-galla-teal transition-all shadow-2xs"
               />
@@ -1505,19 +1602,17 @@ export function NewOrderModal({
                             price: price,
                           })
                         }
-                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
-                          isSelected
+                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${isSelected
                             ? "bg-galla-teal/8 hover:bg-galla-teal/12"
                             : "hover:bg-galla-paper/60"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
-                              isSelected
+                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${isSelected
                                 ? "bg-galla-teal border-galla-teal text-white"
                                 : "border-galla-line bg-galla-surface"
-                            }`}
+                              }`}
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
@@ -1573,19 +1668,17 @@ export function NewOrderModal({
                             price: s.price,
                           })
                         }
-                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
-                          isSelected
+                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${isSelected
                             ? "bg-galla-teal/8 hover:bg-galla-teal/12"
                             : "hover:bg-galla-paper/60"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
-                              isSelected
+                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${isSelected
                                 ? "bg-galla-teal border-galla-teal text-white"
                                 : "border-galla-line bg-galla-surface"
-                            }`}
+                              }`}
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
@@ -1597,11 +1690,11 @@ export function NewOrderModal({
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
                                   <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
-                                    Out of stock: {stockInfo.missingNames.join(", ")}
+                                    Out of Stock
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
                                   <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                                    In-use short ({stockInfo.itemsNeedingSellStock.map((it) => `${it.neededFromSell}x ${it.name}`).join(", ")}) &bull; shelf available
+                                    In-use short &bull; shelf available
                                   </span>
                                 ) : (
                                   <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -1614,11 +1707,6 @@ export function NewOrderModal({
                               {s.category && (
                                 <span className="bg-galla-paper px-1.5 py-0.5 rounded border border-galla-line/60">
                                   {s.category}
-                                </span>
-                              )}
-                              {s.products && s.products.length > 0 && (
-                                <span className="text-galla-teal font-medium">
-                                  &bull; Consumes: {s.products.map((p) => `${p.quantity}x ${p.name}`).join(", ")}
                                 </span>
                               )}
                             </div>
@@ -1657,19 +1745,17 @@ export function NewOrderModal({
                             price: price,
                           })
                         }
-                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
-                          isSelected
+                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${isSelected
                             ? "bg-galla-teal/8 hover:bg-galla-teal/12"
                             : "hover:bg-galla-paper/60"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
-                              isSelected
+                            className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${isSelected
                                 ? "bg-galla-teal border-galla-teal text-white"
                                 : "border-galla-line bg-galla-surface"
-                            }`}
+                              }`}
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                           </div>
@@ -1681,7 +1767,7 @@ export function NewOrderModal({
                               {stockInfo.hasProducts && (
                                 stockInfo.isOutOfStock ? (
                                   <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200">
-                                    Out of stock: {stockInfo.missingNames.join(", ")}
+                                    Out of Stock
                                   </span>
                                 ) : stockInfo.needsSellStock ? (
                                   <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
@@ -1694,8 +1780,23 @@ export function NewOrderModal({
                                 )
                               )}
                             </div>
-                            <div className="text-[11.5px] text-galla-ink-soft mt-0.5">
-                              {pkg.services.length} services ({pkg.services.map((s) => s.name).join(", ")})
+                            <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft mt-0.5">
+                              <span>
+                                {pkg.services.length} {pkg.services.length === 1 ? "service" : "services"}
+                                {pkg.products && pkg.products.length > 0 && ` • ${pkg.products.length} product${pkg.products.length > 1 ? "s" : ""}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewingPackage(pkg);
+                                }}
+                                className="inline-flex items-center gap-1 font-sans text-[11px] font-medium text-galla-teal hover:text-galla-teal/80 bg-galla-teal/10 hover:bg-galla-teal/15 px-2 py-0.5 rounded-[4px] border border-galla-teal/20 transition-all cursor-pointer shadow-2xs"
+                                title={`View all services and items included in ${pkg.name}`}
+                              >
+                                <Eye className="h-3 w-3" />
+                                <span>View</span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1717,12 +1818,55 @@ export function NewOrderModal({
               3. Payment &amp; Settlement
             </h2>
 
+            {/* Retail Shelf Stock Transfer Opt-in (if services/packages need shelf backup) */}
+            {orderSellStockItems.length > 0 && (
+              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl text-[12px] space-y-2">
+                <div className="font-semibold text-amber-900 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
+                  <span>Transfer Shelf Stock to In-Use?</span>
+                </div>
+                <p className="text-amber-900 leading-snug">
+                  Some services require products that are low in operational stock, but available on your retail shelf:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {orderSellStockItems.map((it) => (
+                    <span key={it.name} className="px-2 py-0.5 bg-amber-100/90 text-amber-950 font-medium rounded border border-amber-300/80">
+                      {it.neededFromSell}x {it.name}
+                    </span>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 pt-1 font-semibold text-amber-950 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={allowSellStockUsage}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setAllowSellStockUsage(checked);
+                      if (checked) {
+                        if (settlementMode === "advance" || settlementMode === "paid_full") {
+                          setSettlementMode("completed");
+                        }
+                      } else {
+                        if (settlementMode === "completed" || settlementMode === "pay_later") {
+                          setSettlementMode("advance");
+                        }
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
+                  />
+                  <span>Confirm transfer from retail shelf inventory for this order</span>
+                </label>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Settlement Mode Dropdown */}
               <SettlementModeSelect
                 value={settlementMode}
                 onChange={setSettlementMode}
                 hasOutOfStockItems={hasOutOfStockItems}
+                needsSellStock={orderSellStockItems.length > 0}
+                allowSellStockUsage={allowSellStockUsage}
               />
 
               {/* Payment Mode Dropdown */}
@@ -1811,35 +1955,6 @@ export function NewOrderModal({
               </div>
             )}
 
-            {/* Retail Shelf Stock Transfer Opt-in (if services/packages need shelf backup) */}
-            {orderSellStockItems.length > 0 && (
-              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl text-[12px] space-y-2">
-                <div className="font-semibold text-amber-900 flex items-center gap-1.5">
-                  <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
-                  <span>Transfer Shelf Stock to In-Use?</span>
-                </div>
-                <p className="text-amber-900 leading-snug">
-                  Some services require products that are low in operational stock, but available on your retail shelf:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {orderSellStockItems.map((it) => (
-                    <span key={it.name} className="px-2 py-0.5 bg-amber-100/90 text-amber-950 font-medium rounded border border-amber-300/80">
-                      {it.neededFromSell}x {it.name}
-                    </span>
-                  ))}
-                </div>
-                <label className="flex items-center gap-2 pt-1 font-semibold text-amber-950 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={allowSellStockUsage}
-                    onChange={(e) => setAllowSellStockUsage(e.target.checked)}
-                    className="h-4 w-4 rounded border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
-                  />
-                  <span>Confirm transfer from retail shelf inventory for this order</span>
-                </label>
-              </div>
-            )}
-
             {/* Notes */}
             <div>
               <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
@@ -1900,6 +2015,188 @@ export function NewOrderModal({
           onClose={() => setInspectingOrder(null)}
           zIndex="z-[70]"
         />
+      )}
+
+      {/* View Package Services Modal */}
+      {viewingPackage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+          onClick={() => setViewingPackage(null)}
+        >
+          <div
+            className="w-full max-w-[480px] bg-galla-surface border border-galla-line rounded-[10px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-galla-line bg-galla-paper/50 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-9 w-9 rounded-lg bg-galla-teal/10 border border-galla-teal/20 flex items-center justify-center text-galla-teal shrink-0">
+                  <Package className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-bold text-galla-ink truncate leading-tight">
+                    {viewingPackage.name}
+                  </h3>
+                  <p className="text-[11.5px] text-galla-ink-soft mt-0.5">
+                    Package Details &amp; Included Services
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingPackage(null)}
+                className="text-galla-ink-soft hover:text-galla-ink p-1 rounded transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Price & Summary Info Banner */}
+            <div className="px-5 py-3 bg-galla-paper/20 border-b border-galla-line/60 flex items-center justify-between gap-3 shrink-0">
+              <div>
+                <span className="text-[11px] text-galla-ink-soft uppercase tracking-wider font-semibold block">
+                  Package Price
+                </span>
+                <span className="text-[18px] font-bold text-galla-ink tabular-nums">
+                  {formatRupee(viewingPackage.packagePrice || 0)}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] bg-galla-teal/10 border border-galla-teal/20 text-galla-teal text-[12px] font-semibold">
+                  <Check className="h-3 w-3 stroke-[2.5]" />
+                  {viewingPackage.services.length} {viewingPackage.services.length === 1 ? "Service" : "Services"} Included
+                </span>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 overflow-y-auto space-y-4">
+              {viewingPackage.description && (
+                <div className="text-[12.5px] text-galla-ink-soft bg-galla-paper/50 p-3 rounded-lg border border-galla-line/70">
+                  <p className="leading-relaxed">{viewingPackage.description}</p>
+                </div>
+              )}
+
+              <div>
+                <h4 className="text-[12.5px] font-bold text-galla-ink uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <span>Provided Services</span>
+                  <span className="text-[11px] font-normal text-galla-ink-soft">
+                    ({viewingPackage.services.length})
+                  </span>
+                </h4>
+
+                <div className="border border-galla-line/80 rounded-lg divide-y divide-galla-line/60 overflow-hidden bg-galla-surface">
+                  {viewingPackage.services.map((svc, idx) => {
+                    const fullService = services.find((s) => s.id === svc.serviceId);
+                    return (
+                      <div
+                        key={svc.serviceId || idx}
+                        className="p-3 flex items-center justify-between gap-3 hover:bg-galla-paper/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-6 w-6 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-[11px] font-bold text-galla-ink-soft shrink-0 tabular-nums">
+                            {idx + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-semibold text-galla-ink truncate">
+                              {svc.name}
+                            </div>
+                            {fullService && fullService.category && (
+                              <div className="text-[11px] text-galla-ink-soft flex items-center gap-1.5 mt-0.5">
+                                <span className="px-1.5 py-0.2 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {fullService.category}
+                                </span>
+                                {fullService.description && (
+                                  <span className="truncate max-w-[240px] italic">
+                                    {fullService.description}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {svc.componentPrice > 0 && (
+                          <div className="text-[12.5px] font-semibold text-galla-ink tabular-nums shrink-0">
+                            {formatRupee(svc.componentPrice)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {viewingPackage.products && viewingPackage.products.length > 0 && (
+                <div>
+                  <h4 className="text-[12.5px] font-bold text-galla-ink uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <span>Included Products / Materials</span>
+                    <span className="text-[11px] font-normal text-galla-ink-soft">
+                      ({viewingPackage.products.length})
+                    </span>
+                  </h4>
+                  <div className="border border-galla-line/80 rounded-lg divide-y divide-galla-line/60 overflow-hidden bg-galla-surface">
+                    {viewingPackage.products.map((prod, pIdx) => (
+                      <div
+                        key={prod.productId || pIdx}
+                        className="p-3 flex items-center justify-between gap-3 hover:bg-galla-paper/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-6 w-6 rounded-full bg-galla-paper border border-galla-line flex items-center justify-center text-[11px] font-bold text-galla-ink-soft shrink-0 tabular-nums">
+                            {pIdx + 1}
+                          </div>
+                          <div className="text-[13px] font-medium text-galla-ink truncate">
+                            {prod.name}
+                          </div>
+                        </div>
+                        <div className="text-[11.5px] font-medium text-galla-ink-soft px-2 py-0.5 bg-galla-paper rounded border border-galla-line shrink-0">
+                          Qty: {prod.quantity}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-galla-line bg-galla-paper/40 flex items-center justify-between gap-3 shrink-0">
+              {selectedItems.some((i) => i.id === viewingPackage.id && i.type === "package") ? (
+                <div className="flex items-center gap-1.5 text-emerald-800 text-[12.5px] font-medium">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>Added to Current Order</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleToggleItem({
+                      id: viewingPackage.id,
+                      type: "package",
+                      name: viewingPackage.name,
+                      price: viewingPackage.packagePrice || 0,
+                    });
+                    setViewingPackage(null);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-galla-teal hover:opacity-95 text-white font-medium text-[13px] transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Package to Order</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setViewingPackage(null)}
+                className="px-4 py-2 rounded-lg border border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink font-medium text-[13px] transition-colors cursor-pointer ml-auto"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

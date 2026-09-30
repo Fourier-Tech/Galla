@@ -477,7 +477,7 @@ export function ReturnCustomerOrderItemModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 md:p-6 bg-black/50 backdrop-blur-[3px] overscroll-contain animate-in fade-in duration-200"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 md:p-6 bg-black/50 backdrop-blur-[3px] overscroll-contain animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div

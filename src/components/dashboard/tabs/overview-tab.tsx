@@ -685,12 +685,23 @@ export function OverviewTab({
                 {recent24hOrders.map((order) => {
                   const refundBreakdown = getOrderRefundBreakdown(order);
                   const isPartialRefund = refundBreakdown.isPartialRefund;
-                  const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full";
+                  const isReplacementOrder =
+                    order.status === "replacement" ||
+                    order.status === "replacement_pending" ||
+                    order.status === "replacement_completed" ||
+                    Boolean(order.returns?.some((r) => r.customerResolution === "replacement"));
+                  const isPendingOrder =
+                    order.status === "advance_paid" ||
+                    order.status === "created" ||
+                    order.status === "paid_full" ||
+                    isReplacementOrder;
                   const isDueOrder =
                     order.status === "created" ||
                     (order.paid < order.amount &&
                       order.status !== "advance_paid" &&
                       order.status !== "paid_full" &&
+                      order.status !== "replacement" &&
+                      order.status !== "replacement_pending" &&
                       order.status !== "cancelled_refunded" &&
                       order.status !== "cancelled_converted");
                   const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
@@ -756,6 +767,25 @@ export function OverviewTab({
                             >
                               <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
                               <span>Set Due Date</span>
+                              <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                + Add
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                        {isReplacementOrder && !order.scheduledFor && (
+                          <div className="mt-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReschedulingOrder(order);
+                              }}
+                              className="inline-flex items-center gap-1 font-sans text-[11px] text-purple-800 bg-purple-50/90 border border-purple-200/80 px-2 py-0.5 rounded-[4px] font-medium hover:bg-purple-100 transition-all cursor-pointer group"
+                              title="Click to set expected replacement delivery date"
+                            >
+                              <Calendar className="h-3 w-3 text-purple-700 shrink-0" />
+                              <span>Set Delivery Date</span>
                               <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
                                 + Add
                               </span>
@@ -851,27 +881,68 @@ export function OverviewTab({
                               </div>
                             );
                           }
+
                           const isProductSale = order.type === "Product sale";
                           const isToday = urgency?.tone === "today";
                           const isTomorrow = urgency?.tone === "tomorrow";
                           const isIn2Days = urgency?.tone === "in_2_days";
+                          const isOverdue = urgency?.tone === "overdue";
 
-                          const badgeStyle = (isProductSale && isTomorrow)
+                          const badgeStyle = isReplacementOrder
+                            ? isTomorrow
+                              ? "text-rose-900 bg-rose-50 border-rose-300 font-semibold shadow-xs ring-1 ring-rose-300/40"
+                              : isToday
+                              ? "text-rose-800 bg-rose-50 border-rose-200 font-semibold"
+                              : isIn2Days
+                              ? "text-blue-800 bg-blue-50 border-blue-200"
+                              : isOverdue
+                              ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                              : "text-amber-900 bg-amber-50 border-amber-200/90"
+                            : (isProductSale && isTomorrow)
                             ? "text-rose-800 bg-rose-50/90 border-rose-300 font-semibold"
                             : isToday
                               ? "text-rose-800 bg-rose-50/90 border-rose-200"
                               : isTomorrow
                                 ? "text-amber-800 bg-amber-50/90 border-amber-200"
                                 : isIn2Days
-                                  ? "text-blue-800 bg-blue-50/90 border-blue-200"
-                                  : "text-amber-800 bg-amber-50/90 border-amber-200/80";
+                                  ? "text-blue-800 bg-blue-50 border-blue-200"
+                                  : isOverdue
+                                    ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                                    : "text-amber-800 bg-amber-50/90 border-amber-200/80";
 
                           const dateStr = formatBookingDate(order.scheduledFor);
                           const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
                           const suffix = timeStr ? ` • ${timeStr}` : "";
+                          const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
 
-                          const showContactOptions = isProductSale
-                            ? (isToday || urgency?.tone === "overdue")
+                          const badgeLabel = isReplacementOrder
+                            ? isTomorrow
+                              ? `🚨 Urgent: Replacement Delivery Tomorrow (${fullSlotStr})`
+                              : isToday
+                              ? `🛍️ Replacement Delivery Today (${fullSlotStr})`
+                              : isOverdue
+                              ? `⚠️ Replacement Delivery Overdue (${fullSlotStr})`
+                              : isIn2Days
+                              ? `📦 Expected in 2 Days (${fullSlotStr})`
+                              : `Expected Delivery: ${fullSlotStr}`
+                            : isOverdue
+                              ? `⚠️ Overdue (${dateStr}${suffix})`
+                              : isProductSale && isTomorrow
+                              ? `🚨 Urgent (Tomorrow${suffix})`
+                              : isProductSale && isToday
+                                ? `🛍️ Pickup Today${suffix}`
+                                : isToday
+                                  ? `🚨 Today${suffix}`
+                                  : isTomorrow
+                                    ? `⏰ Tomorrow${suffix}`
+                                    : isIn2Days
+                                      ? `📅 In 2 Days${suffix}`
+                                      : `Booked: ${dateStr}${suffix}`;
+
+                          const showContactOptions = isReplacementOrder
+                            ? (isTomorrow || isToday || isOverdue)
+                            : isProductSale
+                            ? (isToday || isOverdue)
                             : isTomorrow;
 
                           const waUrl = showContactOptions
@@ -885,27 +956,35 @@ export function OverviewTab({
                               productName: order.itemsSummary,
                               orderId: order.id,
                               pendingAmount: Math.max(0, order.amount - order.paid),
+                              isReplacement: isReplacementOrder,
+                              isTomorrow: isTomorrow,
+                              isToday: isToday,
                             })
                             : null;
 
                           return (
                             <div className="space-y-1 mt-0.5">
-                              <div className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium ${badgeStyle}`}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReschedulingOrder(order);
+                                }}
+                                className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${badgeStyle}`}
+                                title={
+                                  isReplacementOrder
+                                    ? "Click to reschedule replacement delivery date"
+                                    : isProductSale
+                                    ? "Click to reschedule product pickup date"
+                                    : "Click to reschedule appointment date and time"
+                                }
+                              >
                                 <Calendar className="h-3 w-3 shrink-0" />
-                                <span>
-                                  {isProductSale && isTomorrow
-                                    ? `🚨 Urgent (Tomorrow${suffix})`
-                                    : isProductSale && isToday
-                                      ? `🛍️ Pickup Today${suffix}`
-                                      : isToday
-                                        ? `🚨 Today${suffix}`
-                                        : isTomorrow
-                                          ? `⏰ Tomorrow${suffix}`
-                                          : isIn2Days
-                                            ? `📅 In 2 Days${suffix}`
-                                            : `Booked: ${dateStr}${suffix}`}
+                                <span>{badgeLabel}</span>
+                                <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                  Reschedule
                                 </span>
-                              </div>
+                              </button>
 
                               {showContactOptions && (
                                 <div className="flex items-center gap-1.5 pt-0.5">

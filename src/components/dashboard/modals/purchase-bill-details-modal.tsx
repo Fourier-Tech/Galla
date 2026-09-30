@@ -418,15 +418,15 @@ export function PurchaseBillDetailsModal({
       {/* ======================================================== */}
       {/* TOP STICKY HEADER                                        */}
       {/* ======================================================== */}
-      <header className="sticky top-0 z-20 bg-galla-surface/95 backdrop-blur-md border-b border-galla-line px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shrink-0 shadow-2xs">
+      <header className="sticky top-0 z-20 bg-galla-surface/95 backdrop-blur-md border-b border-galla-line px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shrink-0 shadow-2xs">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onClose}
-            className="p-2 -ml-2 rounded-xl text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper border border-transparent hover:border-galla-line transition-colors cursor-pointer"
+            className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0"
             title="Back to purchase orders"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -445,34 +445,14 @@ export function PurchaseBillDetailsModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-galla-paper/70 border border-galla-line/80 text-[12.5px] text-galla-ink-soft">
-            <span>
-              {bill.items?.length || 0} {bill.items?.length === 1 ? "Product" : "Products"} ({totalUnits} {totalUnits === 1 ? "unit" : "units"})
-            </span>
-            <span className="text-galla-line">&bull;</span>
-            {totalDueDeductions > 0 || totalSupplierCredits > 0 ? (
-              <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-rose-800">
-                <span>{formatRupee(Math.max(0, originalBillAmount - totalDueDeductions))}</span>
-                <span className="line-through text-rose-400 font-normal text-[11px]">
-                  {formatRupee(originalBillAmount)}
-                </span>
-              </span>
-            ) : (
-              <span className="font-bold text-galla-ink tabular-nums text-[13px]">
-                {formatRupee(originalBillAmount)}
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper border border-transparent hover:border-galla-line transition-colors cursor-pointer"
-            title="Close modal"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 w-9 rounded-[6px] bg-galla-surface border border-galla-line hover:bg-galla-paper flex items-center justify-center text-galla-ink shadow-2xs transition-all cursor-pointer shrink-0"
+          title="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </header>
 
       {/* ======================================================== */}

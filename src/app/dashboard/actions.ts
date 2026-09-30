@@ -321,8 +321,8 @@ async function deductServiceProductsFromStock(
           typeof pItem.unitCost === "number" && pItem.unitCost > 0
             ? pItem.unitCost
             : typeof batch.purchaseCost === "number" && !isNaN(batch.purchaseCost)
-            ? batch.purchaseCost
-            : 0;
+              ? batch.purchaseCost
+              : 0;
         const consumptionCost = unitCost * takeUnits;
 
         if (consumptionCost > 0) {
@@ -697,40 +697,40 @@ export async function createOrderAction(rawInput: unknown): Promise<{
     const mappedLineItems: IOrderLineItem[] =
       input.lineItems && input.lineItems.length > 0
         ? input.lineItems.map((item) => ({
-            itemType: item.itemType,
-            itemId: Types.ObjectId.isValid(item.itemId)
-              ? new Types.ObjectId(item.itemId)
-              : new Types.ObjectId(),
-            name: item.name,
-            unitPrice: item.unitPrice,
-            quantity: item.quantity || 1,
-            discount:
-              typeof (item as any).discount === "number"
-                ? (item as any).discount
-                : Math.max(
-                    0,
-                    item.unitPrice * (item.quantity || 1) - item.finalPrice
-                  ),
-            finalPrice: item.finalPrice,
-            fulfilled: isImmediateSale || isFullPayment,
-          }))
+          itemType: item.itemType,
+          itemId: Types.ObjectId.isValid(item.itemId)
+            ? new Types.ObjectId(item.itemId)
+            : new Types.ObjectId(),
+          name: item.name,
+          unitPrice: item.unitPrice,
+          quantity: item.quantity || 1,
+          discount:
+            typeof (item as any).discount === "number"
+              ? (item as any).discount
+              : Math.max(
+                0,
+                item.unitPrice * (item.quantity || 1) - item.finalPrice
+              ),
+          finalPrice: item.finalPrice,
+          fulfilled: isImmediateSale || isFullPayment,
+        }))
         : [
-            {
-              itemType:
-                input.orderType === "Service booking"
-                  ? "service"
-                  : input.orderType === "Package sale"
-                    ? "package"
-                    : "product",
-              itemId: new Types.ObjectId(),
-              name: `${input.orderType} — ${input.customerName}`,
-              unitPrice: input.totalAmount,
-              quantity: 1,
-              discount: 0,
-              finalPrice: input.totalAmount,
-              fulfilled: isImmediateSale || isFullPayment,
-            },
-          ];
+          {
+            itemType:
+              input.orderType === "Service booking"
+                ? "service"
+                : input.orderType === "Package sale"
+                  ? "package"
+                  : "product",
+            itemId: new Types.ObjectId(),
+            name: `${input.orderType} — ${input.customerName}`,
+            unitPrice: input.totalAmount,
+            quantity: 1,
+            discount: 0,
+            finalPrice: input.totalAmount,
+            fulfilled: isImmediateSale || isFullPayment,
+          },
+        ];
 
     // Determine order type based on item types: P (product), S (service), K (package), or M (mixed)
     const distinctItemTypes = new Set(
@@ -895,7 +895,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             category: p.category,
             sell: p.sellStock,
             use: p.useStock,
-        defectiveStock: p.defectiveStock || 0,
+            defectiveStock: p.defectiveStock || 0,
             price: p.expectedSellPrice,
             purchaseCost: p.purchaseCost,
             lowStockThreshold: p.lowStockThreshold,
@@ -904,6 +904,12 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             isActive: p.isActive,
           });
         }
+      }
+
+      if (input.status === "completed" && hasUnfulfilledProduct && !isAdvancePreOrder) {
+        throw new Error(
+          "Cannot complete order: required product stock is insufficient. Please confirm shelf inventory transfer or record as advance booking.",
+        );
       }
 
       let orderInitialStatus = input.status;
@@ -949,21 +955,21 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             payments:
               input.paidAmount > 0
                 ? [
-                    {
-                      amount: input.paidAmount,
-                      mode: input.paymentMode || "cash",
-                      recordedAt: new Date(),
-                      recordedBy:
-                        session.user.role === "staff" ? "staff" : "owner",
-                      type:
-                        orderInitialStatus === "advance_paid" ||
+                  {
+                    amount: input.paidAmount,
+                    mode: input.paymentMode || "cash",
+                    recordedAt: new Date(),
+                    recordedBy:
+                      session.user.role === "staff" ? "staff" : "owner",
+                    type:
+                      orderInitialStatus === "advance_paid" ||
                         isAdvancePreOrder
-                          ? "advance"
-                          : amountPending > 0
+                        ? "advance"
+                        : amountPending > 0
                           ? "partial_payment"
                           : "full_payment",
-                    },
-                  ]
+                  },
+                ]
                 : [],
             recordedBy: session.user.role === "staff" ? "staff" : "owner",
           },
@@ -1031,10 +1037,10 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             { phone: formattedPhone },
             ...(rawDigits.length === 10
               ? [
-                  { phone: rawDigits },
-                  { phone: `+91${rawDigits}` },
-                  { phone: `0${rawDigits}` },
-                ]
+                { phone: rawDigits },
+                { phone: `+91${rawDigits}` },
+                { phone: `0${rawDigits}` },
+              ]
               : []),
           ],
         }).session(dbSession);
@@ -1069,7 +1075,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           existingCustomer.stats.outstandingBalance = Math.max(
             0,
             (existingCustomer.stats.outstandingBalance || 0) +
-              netBalanceAdjustment,
+            netBalanceAdjustment,
           );
           existingCustomer.stats.lastVisitAt = new Date();
           await existingCustomer.save({ session: dbSession });
@@ -1087,13 +1093,13 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                   { "customerSnapshot.phone": formattedPhone },
                   ...(rawDigits.length === 10
                     ? [
-                        { "customerSnapshot.phone": rawDigits },
-                        { "customerSnapshot.phone": `+91${rawDigits}` },
-                        {
-                          "customerSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}`,
-                        },
-                        { "customerSnapshot.phone": `0${rawDigits}` },
-                      ]
+                      { "customerSnapshot.phone": rawDigits },
+                      { "customerSnapshot.phone": `+91${rawDigits}` },
+                      {
+                        "customerSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}`,
+                      },
+                      { "customerSnapshot.phone": `0${rawDigits}` },
+                    ]
                     : []),
                 ],
               },
@@ -1221,14 +1227,14 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           returnCondition: li.returnCondition,
           packageDetails: li.packageDetails
             ? {
-                isCustomized: li.packageDetails.isCustomized,
-                components: Array.isArray(li.packageDetails.components)
-                  ? li.packageDetails.components.map((c: any) => ({
-                      name: c.name,
-                      componentPrice: c.componentPrice,
-                    }))
-                  : [],
-              }
+              isCustomized: li.packageDetails.isCustomized,
+              components: Array.isArray(li.packageDetails.components)
+                ? li.packageDetails.components.map((c: any) => ({
+                  name: c.name,
+                  componentPrice: c.componentPrice,
+                }))
+                : [],
+            }
             : undefined,
         })),
       },
@@ -1520,11 +1526,11 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     const calculatedTodayPaid =
       order.payments && Array.isArray(order.payments)
         ? order.payments
-            .filter((p) => p.recordedAt && checkIsToday(p.recordedAt))
-            .reduce(
-              (sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0),
-              0,
-            )
+          .filter((p) => p.recordedAt && checkIsToday(p.recordedAt))
+          .reduce(
+            (sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0),
+            0,
+          )
         : amountToCollect;
 
     return {
@@ -1594,14 +1600,14 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
           returnCondition: li.returnCondition,
           packageDetails: li.packageDetails
             ? {
-                isCustomized: li.packageDetails.isCustomized,
-                components: Array.isArray(li.packageDetails.components)
-                  ? li.packageDetails.components.map((c: any) => ({
-                      name: c.name,
-                      componentPrice: c.componentPrice,
-                    }))
-                  : [],
-              }
+              isCustomized: li.packageDetails.isCustomized,
+              components: Array.isArray(li.packageDetails.components)
+                ? li.packageDetails.components.map((c: any) => ({
+                  name: c.name,
+                  componentPrice: c.componentPrice,
+                }))
+                : [],
+            }
             : undefined,
         })),
       },
@@ -1756,14 +1762,14 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     // Determine if refund happened on the same calendar day the order was created
     const isSameDay = order.createdAt
       ? (() => {
-          const d = new Date(order.createdAt);
-          const now = new Date();
-          return (
-            d.getDate() === now.getDate() &&
-            d.getMonth() === now.getMonth() &&
-            d.getFullYear() === now.getFullYear()
-          );
-        })()
+        const d = new Date(order.createdAt);
+        const now = new Date();
+        return (
+          d.getDate() === now.getDate() &&
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
+      })()
       : true;
 
     // Record formal refund details in order
@@ -2047,18 +2053,18 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
           refundMode: ret.refundMode,
           supplierClaim:
             ret.supplierClaim &&
-            (ret.supplierClaim.poId ||
-              ret.supplierClaim.purchaseOrderNumber ||
-              ret.supplierClaim.supplierName)
+              (ret.supplierClaim.poId ||
+                ret.supplierClaim.purchaseOrderNumber ||
+                ret.supplierClaim.supplierName)
               ? {
-                  poId: ret.supplierClaim.poId
-                    ? ret.supplierClaim.poId.toString()
-                    : undefined,
-                  purchaseOrderNumber:
-                    ret.supplierClaim.purchaseOrderNumber || undefined,
-                  supplierName: ret.supplierClaim.supplierName || undefined,
-                  refundMode: ret.supplierClaim.refundMode || undefined,
-                }
+                poId: ret.supplierClaim.poId
+                  ? ret.supplierClaim.poId.toString()
+                  : undefined,
+                purchaseOrderNumber:
+                  ret.supplierClaim.purchaseOrderNumber || undefined,
+                supplierName: ret.supplierClaim.supplierName || undefined,
+                refundMode: ret.supplierClaim.refundMode || undefined,
+              }
               : undefined,
           customerReplacementId: ret.customerReplacementId
             ? ret.customerReplacementId.toString()
@@ -2365,13 +2371,13 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
       },
       newExpense: result.expense
         ? {
-            id: result.expense._id.toString(),
-            desc: result.expense.title,
-            amount: result.expense.amount,
-            category: "Day-to-day",
-            time: "Today, Just now",
-            isToday: true,
-          }
+          id: result.expense._id.toString(),
+          desc: result.expense.title,
+          amount: result.expense.amount,
+          category: "Day-to-day",
+          time: "Today, Just now",
+          isToday: true,
+        }
         : undefined,
     };
   } catch (error) {
@@ -2652,10 +2658,10 @@ export async function returnInventoryToSupplierAction(
           sellQty > 0 && useQty === 0 && defQty === 0
             ? "sell"
             : useQty > 0 && sellQty === 0 && defQty === 0
-            ? "use"
-            : defQty > 0 && sellQty === 0 && useQty === 0
-            ? "defective"
-            : "mixed";
+              ? "use"
+              : defQty > 0 && sellQty === 0 && useQty === 0
+                ? "defective"
+                : "mixed";
 
         const parts: string[] = [];
         if (sellQty > 0) parts.push(`${sellQty} retail`);
@@ -2947,7 +2953,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             category: createdProduct.category,
             sell: createdProduct.sellStock,
             use: createdProduct.useStock,
-        defectiveStock: createdProduct.defectiveStock || 0,
+            defectiveStock: createdProduct.defectiveStock || 0,
             price: createdProduct.expectedSellPrice,
             purchaseCost: createdProduct.purchaseCost,
             lowStockThreshold: createdProduct.lowStockThreshold,
@@ -2963,7 +2969,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
           const priceChanged =
             !isReplacement &&
             (product.expectedSellPrice !== item.expectedSellPrice ||
-            product.purchaseCost !== item.purchaseCost);
+              product.purchaseCost !== item.purchaseCost);
 
           if (!priceChanged) {
             targetProduct = product;
@@ -3002,7 +3008,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                 category: product.category,
                 sell: product.sellStock,
                 use: product.useStock,
-        defectiveStock: product.defectiveStock || 0,
+                defectiveStock: product.defectiveStock || 0,
                 price: product.expectedSellPrice,
                 purchaseCost: product.purchaseCost,
                 lowStockThreshold: product.lowStockThreshold,
@@ -3124,7 +3130,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                   category: s.category,
                   sell: s.sellStock,
                   use: s.useStock,
-        defectiveStock: s.defectiveStock || 0,
+                  defectiveStock: s.defectiveStock || 0,
                   price: s.expectedSellPrice,
                   purchaseCost: s.purchaseCost,
                   lowStockThreshold: s.lowStockThreshold,
@@ -3143,7 +3149,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                   category: targetProduct.category,
                   sell: targetProduct.sellStock,
                   use: targetProduct.useStock,
-        defectiveStock: targetProduct.defectiveStock || 0,
+                  defectiveStock: targetProduct.defectiveStock || 0,
                   price: targetProduct.expectedSellPrice,
                   purchaseCost: targetProduct.purchaseCost,
                   lowStockThreshold: targetProduct.lowStockThreshold,
@@ -3253,10 +3259,10 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             { phone: input.supplierPhone?.trim() },
             ...(rawSupplierDigits.length === 10
               ? [
-                  { phone: rawSupplierDigits },
-                  { phone: `+91${rawSupplierDigits}` },
-                  { phone: `0${rawSupplierDigits}` },
-                ]
+                { phone: rawSupplierDigits },
+                { phone: `+91${rawSupplierDigits}` },
+                { phone: `0${rawSupplierDigits}` },
+              ]
               : []),
           ],
         }).session(dbSession);
@@ -3322,13 +3328,13 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                 { "supplierSnapshot.phone": normalizedSupplierPhone },
                 ...(rawSupplierDigits.length === 10
                   ? [
-                      { "supplierSnapshot.phone": rawSupplierDigits },
-                      { "supplierSnapshot.phone": `+91${rawSupplierDigits}` },
-                      {
-                        "supplierSnapshot.phone": `+91 ${rawSupplierDigits.slice(0, 5)} ${rawSupplierDigits.slice(5)}`,
-                      },
-                      { "supplierSnapshot.phone": `0${rawSupplierDigits}` },
-                    ]
+                    { "supplierSnapshot.phone": rawSupplierDigits },
+                    { "supplierSnapshot.phone": `+91${rawSupplierDigits}` },
+                    {
+                      "supplierSnapshot.phone": `+91 ${rawSupplierDigits.slice(0, 5)} ${rawSupplierDigits.slice(5)}`,
+                    },
+                    { "supplierSnapshot.phone": `0${rawSupplierDigits}` },
+                  ]
                   : []),
               ],
             },
@@ -3363,21 +3369,21 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             payments:
               finalAmountPaid > 0
                 ? [
-                    {
-                      amount: finalAmountPaid,
-                      paymentMode:
-                        effectivePaymentMode === "credit"
-                          ? "cash"
-                          : effectivePaymentMode,
-                      notes: input.notes || undefined,
-                      recordedBy:
-                        session.user.role === "staff" ? "staff" : "owner",
-                      type:
-                        finalAmountPaid >= totalAmount
-                          ? "full_payment"
-                          : "initial",
-                    },
-                  ]
+                  {
+                    amount: finalAmountPaid,
+                    paymentMode:
+                      effectivePaymentMode === "credit"
+                        ? "cash"
+                        : effectivePaymentMode,
+                    notes: input.notes || undefined,
+                    recordedBy:
+                      session.user.role === "staff" ? "staff" : "owner",
+                    type:
+                      finalAmountPaid >= totalAmount
+                        ? "full_payment"
+                        : "initial",
+                  },
+                ]
                 : [],
             totalAmount,
             amountPaid: finalAmountPaid,
@@ -3421,9 +3427,9 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               amount: finalAmountPaid,
               paymentMode:
                 effectivePaymentMode === "cash" ||
-                effectivePaymentMode === "upi" ||
-                effectivePaymentMode === "card" ||
-                effectivePaymentMode === "bank_transfer"
+                  effectivePaymentMode === "upi" ||
+                  effectivePaymentMode === "card" ||
+                  effectivePaymentMode === "bank_transfer"
                   ? effectivePaymentMode
                   : "cash",
               linkedPurchaseOrderId: createdPO._id,
@@ -3585,18 +3591,18 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
 
     const mappedExpense: DashboardExpense | undefined = exp
       ? {
-          id: exp._id.toString(),
-          expenseNumber: exp.expenseNumber,
-          desc: exp.title,
-          amount: exp.amount,
-          category: "Inventory purchase",
-          time: "Today, Just now",
-          isToday: true,
-          createdAt: new Date().toISOString(),
-          paymentMode: exp.paymentMode,
-          recordedBy: exp.recordedBy,
-          linkedPurchaseOrderId: po._id.toString(),
-        }
+        id: exp._id.toString(),
+        expenseNumber: exp.expenseNumber,
+        desc: exp.title,
+        amount: exp.amount,
+        category: "Inventory purchase",
+        time: "Today, Just now",
+        isToday: true,
+        createdAt: new Date().toISOString(),
+        paymentMode: exp.paymentMode,
+        recordedBy: exp.recordedBy,
+        linkedPurchaseOrderId: po._id.toString(),
+      }
       : undefined;
 
     return {
@@ -3651,16 +3657,16 @@ export async function recordPurchaseOrderPaymentAction(
       // Find purchase order
       const query = Types.ObjectId.isValid(input.purchaseOrderId)
         ? {
-            tenantId: tenantObjectId,
-            $or: [
-              { _id: new Types.ObjectId(input.purchaseOrderId) },
-              { purchaseOrderNumber: input.purchaseOrderId },
-            ],
-          }
+          tenantId: tenantObjectId,
+          $or: [
+            { _id: new Types.ObjectId(input.purchaseOrderId) },
+            { purchaseOrderNumber: input.purchaseOrderId },
+          ],
+        }
         : {
-            tenantId: tenantObjectId,
-            purchaseOrderNumber: input.purchaseOrderId,
-          };
+          tenantId: tenantObjectId,
+          purchaseOrderNumber: input.purchaseOrderId,
+        };
 
       const po = await PurchaseOrder.findOne(query).session(dbSession);
       if (!po) {
@@ -3771,7 +3777,7 @@ export async function recordPurchaseOrderPaymentAction(
               category: prod.category,
               sell: prod.sellStock,
               use: prod.useStock,
-        defectiveStock: prod.defectiveStock || 0,
+              defectiveStock: prod.defectiveStock || 0,
               price: prod.expectedSellPrice,
               purchaseCost: prod.purchaseCost,
               lowStockThreshold: prod.lowStockThreshold,
@@ -3903,36 +3909,36 @@ export async function recordPurchaseOrderPaymentAction(
       },
       supplier: result.supplier
         ? {
-            id: result.supplier._id.toString(),
-            name: result.supplier.name,
-            companyName: result.supplier.companyName,
-            phone: result.supplier.phone || "",
-            email: result.supplier.email,
-            address: result.supplier.address,
-            gstin: result.supplier.gstin,
-            notes: result.supplier.notes,
-            totalPurchases: result.supplier.totalPurchases ?? 0,
-            totalPaid: result.supplier.totalPaid ?? 0,
-            totalPending: result.supplier.totalPending ?? 0,
-            isActive: result.supplier.isActive !== false,
-          }
+          id: result.supplier._id.toString(),
+          name: result.supplier.name,
+          companyName: result.supplier.companyName,
+          phone: result.supplier.phone || "",
+          email: result.supplier.email,
+          address: result.supplier.address,
+          gstin: result.supplier.gstin,
+          notes: result.supplier.notes,
+          totalPurchases: result.supplier.totalPurchases ?? 0,
+          totalPaid: result.supplier.totalPaid ?? 0,
+          totalPending: result.supplier.totalPending ?? 0,
+          isActive: result.supplier.isActive !== false,
+        }
         : undefined,
       newExpense: result.createdExp
         ? {
-            id: result.createdExp._id.toString(),
-            expenseNumber: result.createdExp.expenseNumber,
-            desc: result.createdExp.title,
-            amount: result.createdExp.amount,
-            category: "Inventory purchase",
-            time: "Today, Just now",
-            isToday: true,
-            createdAt: new Date().toISOString(),
-            paymentMode: result.createdExp.paymentMode,
-            recordedBy: result.createdExp.recordedBy,
-            linkedPurchaseOrderId: (
-              result.createdExp.linkedPurchaseOrderId || result.po._id
-            ).toString(),
-          }
+          id: result.createdExp._id.toString(),
+          expenseNumber: result.createdExp.expenseNumber,
+          desc: result.createdExp.title,
+          amount: result.createdExp.amount,
+          category: "Inventory purchase",
+          time: "Today, Just now",
+          isToday: true,
+          createdAt: new Date().toISOString(),
+          paymentMode: result.createdExp.paymentMode,
+          recordedBy: result.createdExp.recordedBy,
+          linkedPurchaseOrderId: (
+            result.createdExp.linkedPurchaseOrderId || result.po._id
+          ).toString(),
+        }
         : undefined,
       updatedProducts: result.updatedProductsList,
     };
@@ -3974,16 +3980,16 @@ export async function reschedulePurchaseOrderAction(
     const tenantObjectId = new Types.ObjectId(tenantId);
     const query = Types.ObjectId.isValid(input.purchaseOrderId)
       ? {
-          tenantId: tenantObjectId,
-          $or: [
-            { _id: new Types.ObjectId(input.purchaseOrderId) },
-            { purchaseOrderNumber: input.purchaseOrderId },
-          ],
-        }
+        tenantId: tenantObjectId,
+        $or: [
+          { _id: new Types.ObjectId(input.purchaseOrderId) },
+          { purchaseOrderNumber: input.purchaseOrderId },
+        ],
+      }
       : {
-          tenantId: tenantObjectId,
-          purchaseOrderNumber: input.purchaseOrderId,
-        };
+        tenantId: tenantObjectId,
+        purchaseOrderNumber: input.purchaseOrderId,
+      };
 
     const po = await PurchaseOrder.findOne(query);
     if (!po) {
@@ -4109,9 +4115,9 @@ export async function getPurchaseOrdersAction(options?: {
     const suppliersList =
       supplierIds.length > 0
         ? await Supplier.find({
-            _id: { $in: supplierIds },
-            tenantId: tenantObjectId,
-          }).lean()
+          _id: { $in: supplierIds },
+          tenantId: tenantObjectId,
+        }).lean()
         : [];
 
     const suppliersById = new Map(
@@ -5219,9 +5225,9 @@ export async function getCustomerOrdersAction(input: {
         itemsSummary:
           o.lineItems && Array.isArray(o.lineItems)
             ? o.lineItems
-                .map((li: any) => li.name)
-                .filter(Boolean)
-                .join(", ")
+              .map((li: any) => li.name)
+              .filter(Boolean)
+              .join(", ")
             : undefined,
         amount:
           typeof o.totalAmount === "number" && !isNaN(o.totalAmount)
@@ -5345,10 +5351,10 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
           { phone: normalizedPhone },
           ...(rawDigits.length === 10
             ? [
-                { phone: rawDigits },
-                { phone: `+91${rawDigits}` },
-                { phone: `0${rawDigits}` },
-              ]
+              { phone: rawDigits },
+              { phone: `+91${rawDigits}` },
+              { phone: `0${rawDigits}` },
+            ]
             : []),
         ],
       });
@@ -5380,13 +5386,13 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
               { "supplierSnapshot.phone": normalizedPhone },
               ...(rawDigits.length === 10
                 ? [
-                    { "supplierSnapshot.phone": rawDigits },
-                    { "supplierSnapshot.phone": `+91${rawDigits}` },
-                    {
-                      "supplierSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}`,
-                    },
-                    { "supplierSnapshot.phone": `0${rawDigits}` },
-                  ]
+                  { "supplierSnapshot.phone": rawDigits },
+                  { "supplierSnapshot.phone": `+91${rawDigits}` },
+                  {
+                    "supplierSnapshot.phone": `+91 ${rawDigits.slice(0, 5)} ${rawDigits.slice(5)}`,
+                  },
+                  { "supplierSnapshot.phone": `0${rawDigits}` },
+                ]
                 : []),
             ],
           },
@@ -5396,9 +5402,9 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
               "supplierSnapshot.phone": normalizedPhone,
               ...(existingSupplier.companyName
                 ? {
-                    "supplierSnapshot.companyName":
-                      existingSupplier.companyName,
-                  }
+                  "supplierSnapshot.companyName":
+                    existingSupplier.companyName,
+                }
                 : {}),
             },
           },
@@ -5683,9 +5689,9 @@ export async function updateCustomerAction(rawInput: unknown): Promise<{
       visits: customer.stats?.totalVisits ?? 0,
       lastVisit: customer.stats?.lastVisitAt
         ? new Date(customer.stats.lastVisitAt).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-          })
+          day: "numeric",
+          month: "short",
+        })
         : "Never",
       lastVisitRaw: customer.stats?.lastVisitAt
         ? new Date(customer.stats.lastVisitAt).toISOString()
@@ -5954,7 +5960,7 @@ async function processSupplierReturn(
     ? new Types.ObjectId(tenantId)
     : tenantId;
 
-  const po = await PurchaseOrder.findOne({ 
+  const po = await PurchaseOrder.findOne({
     tenantId: tenantObj,
     $or: [
       ...(poId.length === 24 && Types.ObjectId.isValid(poId) ? [{ _id: new Types.ObjectId(poId) }] : []),
@@ -6225,8 +6231,8 @@ export async function returnPurchaseOrderItemAction(
           stockSource === "sellStock"
             ? "sell"
             : stockSource === "useStock"
-            ? "use"
-            : "defective",
+              ? "use"
+              : "defective",
         unitCost: item.purchaseCost,
         totalRefundAmount: refundMode === "replacement_pending" ? 0 : returnValue,
         refundMode,
@@ -6699,12 +6705,12 @@ export async function returnCustomerOrderItemAction(
         }
       }
 
-        if (customerResolution === "replacement") {
-          item.replacedQuantity = (item.replacedQuantity || 0) + quantityToReturn;
-        } else {
-          item.returnedQuantity = (item.returnedQuantity || 0) + quantityToReturn;
-        }
-        item.returnCondition = returnCondition;
+      if (customerResolution === "replacement") {
+        item.replacedQuantity = (item.replacedQuantity || 0) + quantityToReturn;
+      } else {
+        item.returnedQuantity = (item.returnedQuantity || 0) + quantityToReturn;
+      }
+      item.returnCondition = returnCondition;
 
       let supplierClaimData: any = undefined;
       const supplierReturnDetails = options?.supplierReturnDetails;
@@ -7114,19 +7120,19 @@ export async function settleSupplierReplacementAction(
 
       const updatedSupplier: DashboardSupplier | undefined = updatedSupplierDoc
         ? {
-            id: updatedSupplierDoc._id.toString(),
-            name: updatedSupplierDoc.name,
-            companyName: updatedSupplierDoc.companyName,
-            phone: formatPhoneNumber(updatedSupplierDoc.phone || ""),
-            email: updatedSupplierDoc.email,
-            address: updatedSupplierDoc.address,
-            gstin: updatedSupplierDoc.gstin,
-            notes: updatedSupplierDoc.notes,
-            totalPurchases: updatedSupplierDoc.totalPurchases ?? 0,
-            totalPaid: updatedSupplierDoc.totalPaid ?? 0,
-            totalPending: updatedSupplierDoc.totalPending ?? 0,
-            isActive: updatedSupplierDoc.isActive !== false,
-          }
+          id: updatedSupplierDoc._id.toString(),
+          name: updatedSupplierDoc.name,
+          companyName: updatedSupplierDoc.companyName,
+          phone: formatPhoneNumber(updatedSupplierDoc.phone || ""),
+          email: updatedSupplierDoc.email,
+          address: updatedSupplierDoc.address,
+          gstin: updatedSupplierDoc.gstin,
+          notes: updatedSupplierDoc.notes,
+          totalPurchases: updatedSupplierDoc.totalPurchases ?? 0,
+          totalPaid: updatedSupplierDoc.totalPaid ?? 0,
+          totalPending: updatedSupplierDoc.totalPending ?? 0,
+          isActive: updatedSupplierDoc.isActive !== false,
+        }
         : undefined;
 
       return { success: true, updatedProduct, updatedSupplier };
@@ -7461,19 +7467,19 @@ export async function getProductBatchesForReturnAction(
 
     const mappedProduct: DashboardProduct | undefined = productDoc
       ? {
-          id: productDoc._id.toString(),
-          name: productDoc.name,
-          category: productDoc.category,
-          sell: productDoc.sellStock,
-          use: productDoc.useStock,
-          defectiveStock: productDoc.defectiveStock || 0,
-          price: productDoc.expectedSellPrice,
-          purchaseCost: productDoc.purchaseCost,
-          lowStockThreshold: productDoc.lowStockThreshold,
-          description: productDoc.description,
-          barcode: productDoc.barcode,
-          isActive: productDoc.isActive,
-        }
+        id: productDoc._id.toString(),
+        name: productDoc.name,
+        category: productDoc.category,
+        sell: productDoc.sellStock,
+        use: productDoc.useStock,
+        defectiveStock: productDoc.defectiveStock || 0,
+        price: productDoc.expectedSellPrice,
+        purchaseCost: productDoc.purchaseCost,
+        lowStockThreshold: productDoc.lowStockThreshold,
+        description: productDoc.description,
+        barcode: productDoc.barcode,
+        isActive: productDoc.isActive,
+      }
       : undefined;
 
     return {
