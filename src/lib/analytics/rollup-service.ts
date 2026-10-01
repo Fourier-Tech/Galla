@@ -113,12 +113,52 @@ export async function syncRollupForPeriod(
           },
         },
         {
+          $addFields: {
+            orderCashRefunds: {
+              $reduce: {
+                input: { $ifNull: ["$returns", []] },
+                initialValue: 0,
+                in: {
+                  $add: [
+                    "$$value",
+                    {
+                      $cond: [
+                        { $gt: ["$$this.cashRefund", 0] },
+                        "$$this.cashRefund",
+                        {
+                          $cond: [
+                            {
+                              $and: [
+                                { $eq: ["$$this.customerResolution", "refund"] },
+                                { $ne: ["$$this.refundMode", "reduce_due"] },
+                              ],
+                            },
+                            { $ifNull: ["$$this.refundAmount", 0] },
+                            0,
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            netPaid: {
+              $max: [0, { $subtract: ["$amountPaid", "$orderCashRefunds"] }],
+            },
+          },
+        },
+        {
           $facet: {
             orderLevel: [
               {
                 $group: {
                   _id: null,
-                  totalRevenue: { $sum: "$amountPaid" },
+                  totalRevenue: { $sum: "$netPaid" },
                   totalOrders: { $sum: 1 },
                   completedOrders: {
                     $sum: {
@@ -129,22 +169,22 @@ export async function syncRollupForPeriod(
                     $sum: {
                       $cond: [
                         { $in: ["$status", ["advance_paid", "paid_full"]] },
-                        { $ifNull: ["$advanceAmount", "$amountPaid"] },
+                        { $ifNull: ["$advanceAmount", "$netPaid"] },
                         0,
                       ],
                     },
                   },
                   cash: {
-                    $sum: { $cond: [{ $eq: ["$paymentMode", "cash"] }, "$amountPaid", 0] },
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "cash"] }, "$netPaid", 0] },
                   },
                   upi: {
-                    $sum: { $cond: [{ $eq: ["$paymentMode", "upi"] }, "$amountPaid", 0] },
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "upi"] }, "$netPaid", 0] },
                   },
                   card: {
-                    $sum: { $cond: [{ $eq: ["$paymentMode", "card"] }, "$amountPaid", 0] },
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "card"] }, "$netPaid", 0] },
                   },
                   split: {
-                    $sum: { $cond: [{ $eq: ["$paymentMode", "split"] }, "$amountPaid", 0] },
+                    $sum: { $cond: [{ $eq: ["$paymentMode", "split"] }, "$netPaid", 0] },
                   },
                 },
               },
@@ -158,7 +198,22 @@ export async function syncRollupForPeriod(
                     $sum: {
                       $multiply: [
                         { $ifNull: ["$lineItems.unitPrice", 0] },
-                        { $ifNull: ["$lineItems.quantity", 1] },
+                        {
+                          $max: [
+                            0,
+                            {
+                              $subtract: [
+                                { $ifNull: ["$lineItems.quantity", 1] },
+                                {
+                                  $add: [
+                                    { $ifNull: ["$lineItems.returnedQuantity", 0] },
+                                    { $ifNull: ["$lineItems.replacedQuantity", 0] },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
                       ],
                     },
                   },
@@ -176,6 +231,8 @@ export async function syncRollupForPeriod(
             tenantId,
             expenseDate: { $gte: startDate, $lte: endDate },
             category: { $ne: "stock_transfer_internal" },
+            // ponytail: Same-day customer refunds directly reduce totalRevenue at source; isSameDay: true expenses are excluded from totalExpense to avoid double deduction. Upgrade path: configurable tenant policy if gross accrual accounting is requested.
+            isSameDay: { $ne: true },
           },
         },
         {

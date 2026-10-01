@@ -1004,9 +1004,20 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         }).session(dbSession);
 
         for (const prevOrder of previousOrders) {
+          const priorDueDeductions = prevOrder.returns
+            ? prevOrder.returns.reduce(
+                (sum: number, r: any) =>
+                  sum +
+                  (r.dueDeduction ||
+                    (r.refundMode === "reduce_due"
+                      ? r.refundAmount || 0
+                      : 0)),
+                0,
+              )
+            : 0;
           const remainingToSettle = Math.max(
             0,
-            prevOrder.totalAmount - prevOrder.amountPaid,
+            prevOrder.totalAmount - prevOrder.amountPaid - priorDueDeductions,
           );
           if (remainingToSettle > 0) {
             prevOrder.amountPaid += remainingToSettle;
@@ -1799,9 +1810,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 
     let newExpense: DashboardExpense | undefined = undefined;
 
-    if (!isSameDay) {
-      // Next-day (or later) refund: past day's income stays closed, and an outflow Expense is recorded for TODAY
-      // so today's counter cash drawer reconciles with physical cash handed out
+    if (refundAmount > 0) {
       const { fullNumber: expenseNumber } = await Counter.getNextSequence({
         tenantId,
         type: "expense",
@@ -1814,47 +1823,12 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         amount: refundAmount,
         paymentMode: refundMode,
         linkedOrderId: order._id,
+        recipient: order.customerSnapshot?.name || undefined,
         notes:
           refundReason || `Refund processed for order ${order.orderNumber}`,
         expenseDate: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
-      });
-
-      newExpense = {
-        id: expenseDoc._id.toString(),
-        expenseNumber: expenseDoc.expenseNumber,
-        desc: expenseDoc.title,
-        amount: expenseDoc.amount,
-        category: "Refund",
-        time: "Today, Just now",
-        isToday: true,
-        paymentMode: refundMode,
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
-        linkedOrderId: order._id.toString(),
-        createdAt: expenseDoc.expenseDate
-          ? new Date(expenseDoc.expenseDate).toISOString()
-          : new Date().toISOString(),
-      };
-    } else if (refundAmount > remainingPaid) {
-      // Same-day refund where refund exceeds collected amount: record the excess compensation as an expense
-      const excessAmount = refundAmount - remainingPaid;
-      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
-        tenantId,
-        type: "expense",
-      });
-      const expenseDoc = await Expense.create({
-        tenantId,
-        expenseNumber,
-        title: `Customer Compensation (Excess Refund) — Order ${formatDisplayNumber(order.orderNumber)} (${order.customerSnapshot?.name || "Customer"})`,
-        category: "refund",
-        amount: excessAmount,
-        paymentMode: refundMode,
-        linkedOrderId: order._id,
-        notes:
-          refundReason ||
-          `Excess refund compensation for order ${order.orderNumber}`,
-        expenseDate: new Date(),
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        isSameDay,
       });
 
       newExpense = {
@@ -6410,41 +6384,38 @@ export async function returnCustomerOrderItemAction(
 
         if (actualCashRefund > 0) {
           const actualMode = refundMode === "reduce_due" ? "cash" : refundMode;
-          const excessCash = isSameDay
-            ? Math.max(0, actualCashRefund - (order.amountPaid || 0))
-            : actualCashRefund;
 
-          if (excessCash > 0) {
-            // Past-day order return OR same-day replacement/excess refund: log an Expense of today
-            const { fullNumber: expenseNumber } = await Counter.getNextSequence({
-              tenantId: new Types.ObjectId(tenantId),
-              type: "expense",
-              session: dbSession,
-            });
+          // Always record an Expense entry so it is visible in the Expenses tab under Refunds
+          const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+            tenantId: new Types.ObjectId(tenantId),
+            type: "expense",
+            session: dbSession,
+          });
 
-            const restockNote =
-              returnCondition === "restocked"
-                ? `Restocked in ${(options?.restockLocation || "sellStock") === "sellStock" ? "retail" : "salon use"}.`
-                : "Piece held in defective stock.";
+          const restockNote =
+            returnCondition === "restocked"
+              ? `Restocked in ${(options?.restockLocation || "sellStock") === "sellStock" ? "retail" : "salon use"}.`
+              : "Piece held in defective stock.";
 
-            await Expense.create(
-              [
-                {
-                  tenantId: new Types.ObjectId(tenantId),
-                  expenseNumber,
-                  title: `Customer Return${returnCondition === "defective_dealer_claim" ? " (Defective)" : ""}: ${quantityToReturn}x ${item.name}`,
-                  category: "refund",
-                  amount: excessCash,
-                  paymentMode: actualMode,
-                  linkedOrderId: order._id,
-                  notes: `Refunded customer for returned product. ${restockNote} ${notes || ""}`.trim(),
-                  recordedBy: session.user.role === "staff" ? "staff" : "owner",
-                  expenseDate: new Date(),
-                },
-              ],
-              { session: dbSession }
-            );
-          }
+          await Expense.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                expenseNumber,
+                title: `Customer Return${returnCondition === "defective_dealer_claim" ? " (Defective)" : ""}: ${quantityToReturn}x ${item.name}`,
+                category: "refund",
+                amount: actualCashRefund,
+                paymentMode: actualMode,
+                linkedOrderId: order._id,
+                recipient: order.customerSnapshot?.name || undefined,
+                notes: `Refunded customer for returned product. ${restockNote} ${notes || ""}`.trim(),
+                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                expenseDate: new Date(),
+                isSameDay,
+              },
+            ],
+            { session: dbSession }
+          );
 
           order.payments.push({
             amount: -actualCashRefund,

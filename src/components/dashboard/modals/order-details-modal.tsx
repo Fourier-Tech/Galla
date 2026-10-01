@@ -871,7 +871,7 @@ export function OrderDetailsModal({
           {/* Scrollable Summary Body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {/* Financial Breakdown */}
-            <div className="space-y-2 text-[12.5px]">
+            <div className="space-y-2 text-[13px]">
               <span className="block text-[12px] font-semibold text-galla-ink-soft border-b border-galla-line/60 pb-1.5 uppercase tracking-wider">
                 Financial Breakdown
               </span>
@@ -905,9 +905,9 @@ export function OrderDetailsModal({
               )}
 
               {/* 3. Total Bill Amount */}
-              <div className="flex justify-between items-baseline pt-2 border-t border-galla-line text-[14.5px] font-semibold text-galla-ink">
+              <div className="flex justify-between items-center pt-2 border-t border-galla-line text-[15px] font-bold text-galla-ink">
                 <span>Total Bill Amount</span>
-                <span className="text-[17px] font-bold tabular-nums text-galla-ink">
+                <span className="tabular-nums text-galla-ink">
                   {formatRupee(originalBillAmount)}
                 </span>
               </div>
@@ -925,7 +925,7 @@ export function OrderDetailsModal({
                     </span>
                   </div>
 
-                  <div className="flex justify-between text-[13.5px] font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
+                  <div className="flex justify-between text-[13px] font-semibold text-galla-ink pt-1 border-t border-galla-line/40">
                     <span>Reduced Net Bill</span>
                     <span className="tabular-nums font-bold text-galla-teal">
                       {formatRupee(netBillAmount)}
@@ -973,12 +973,12 @@ export function OrderDetailsModal({
                     <span className="tabular-nums font-bold">{formatRupee(netAmountPaid)}</span>
                   </div>
 
-                  <div className="flex justify-between items-baseline text-[14px] text-rose-700 font-bold pt-1.5 border-t border-rose-200">
+                  <div className="flex justify-between items-center text-[15px] text-rose-700 font-bold pt-1.5 border-t border-rose-200">
                     <span className="flex items-center gap-1.5">
                       <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
                       <span>Balance Due</span>
                     </span>
-                    <span className="text-xl tabular-nums font-extrabold text-rose-700">
+                    <span className="tabular-nums font-bold text-rose-700">
                       {formatRupee(dueAmount)}
                     </span>
                   </div>
@@ -995,7 +995,7 @@ export function OrderDetailsModal({
                     </span>
                   </div>
 
-                  <div className="flex justify-between text-[12.5px] text-emerald-800 font-semibold pt-1 border-t border-emerald-200">
+                  <div className="flex justify-between text-[13px] text-emerald-800 font-semibold pt-1 border-t border-emerald-200">
                     <span className="flex items-center gap-1">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <span>Settlement Status</span>

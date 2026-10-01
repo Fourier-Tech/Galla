@@ -205,12 +205,9 @@ export function OverviewTab({
   const dueOrdersToClear = useMemo(() => {
     return orders.filter((o) => {
       const isDue =
-        o.status === "created" ||
-        (o.paid < o.amount &&
-          o.status !== "advance_paid" &&
-          o.status !== "paid_full" &&
-          o.status !== "cancelled_refunded" &&
-          o.status !== "cancelled_converted");
+        getOrderPendingDue(o) > 0 &&
+        o.status !== "advance_paid" &&
+        o.status !== "paid_full";
       if (!isDue || !o.scheduledFor) return false;
       const urgency = getBookingUrgency(o.scheduledFor);
       if (!urgency) return false;

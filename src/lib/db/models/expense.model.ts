@@ -33,6 +33,7 @@ export interface IExpense extends Document {
   linkedPurchaseOrderId?: Types.ObjectId;
   linkedOrderId?: Types.ObjectId;
   notes?: string;
+  isSameDay?: boolean;
   recordedBy: "owner" | "staff";
   createdAt: Date;
   updatedAt: Date;
@@ -116,6 +117,10 @@ const ExpenseSchema = new Schema<IExpense>(
     notes: {
       type: String,
       trim: true,
+    },
+    isSameDay: {
+      type: Boolean,
+      default: false,
     },
     recordedBy: {
       type: String,

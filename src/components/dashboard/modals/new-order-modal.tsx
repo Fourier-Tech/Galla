@@ -32,6 +32,7 @@ import {
   getLocalDateString,
   formatDisplayNumber,
   getPhoneDigits,
+  getOrderPendingDue,
 } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 import { OrderDetailsModal } from "./order-details-modal";
@@ -607,7 +608,7 @@ export function NewOrderModal({
     const cleanPhone = getPhoneDigits(phone);
     return orders.filter((o) => {
       if (o.status !== "created" && o.status !== "advance_paid") return false;
-      const orderPending = (o.amount || 0) - (o.paid || 0);
+      const orderPending = getOrderPendingDue(o);
       if (orderPending <= 0) return false;
       if (cleanPhone && o.customerPhone && getPhoneDigits(o.customerPhone) === cleanPhone) {
         return true;
@@ -620,10 +621,7 @@ export function NewOrderModal({
   }, [customer, phone, orders]);
 
   const totalPreviousDue = useMemo(() => {
-    return customerDueOrders.reduce((sum, o) => {
-      const orderPending = Math.max(0, (o.amount || 0) - (o.paid || 0));
-      return sum + orderPending;
-    }, 0);
+    return customerDueOrders.reduce((sum, o) => sum + getOrderPendingDue(o), 0);
   }, [customerDueOrders]);
 
   // Financial calculations
