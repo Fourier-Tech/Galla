@@ -691,16 +691,9 @@ export function ReturnCustomerOrderItemModal({
                         : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-bold text-[13.5px]">
-                        <CheckCircle2 className={`h-4.5 w-4.5 ${isGoodCondition ? "text-emerald-600" : "text-galla-ink-soft"}`} />
-                        <span>Good Condition</span>
-                      </div>
-                      {isGoodCondition && (
-                        <span className="text-[10.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-200/70 text-emerald-900">
-                          Selected
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2 font-bold text-[13.5px]">
+                      <CheckCircle2 className={`h-4.5 w-4.5 ${isGoodCondition ? "text-emerald-600" : "text-galla-ink-soft"}`} />
+                      <span>Good Condition</span>
                     </div>
                     <p className="font-sans text-[11.5px] text-galla-ink-soft mt-1.5 leading-relaxed">
                       Product is sealed/undamaged. Restock to salon shelf and refund customer.
@@ -719,16 +712,9 @@ export function ReturnCustomerOrderItemModal({
                         : "bg-white border-galla-line text-galla-ink hover:border-rose-400/40 hover:bg-galla-paper/30"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-bold text-[13.5px]">
-                        <AlertTriangle className={`h-4.5 w-4.5 ${!isGoodCondition ? "text-rose-600" : "text-galla-ink-soft"}`} />
-                        <span>Defective / Damaged</span>
-                      </div>
-                      {!isGoodCondition && (
-                        <span className="text-[10.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-200/70 text-rose-900">
-                          Selected
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2 font-bold text-[13.5px]">
+                      <AlertTriangle className={`h-4.5 w-4.5 ${!isGoodCondition ? "text-rose-600" : "text-galla-ink-soft"}`} />
+                      <span>Defective / Damaged</span>
                     </div>
                     <p className="font-sans text-[11.5px] text-galla-ink-soft mt-1.5 leading-relaxed">
                       Faulty or damaged. Hold in defective quarantine for dealer claim.
