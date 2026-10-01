@@ -53,8 +53,8 @@ export async function POST(request: Request) {
     // Hash passwords and PINs
     const bcrypt = await import("bcryptjs");
     const rawPassword = password || "password123";
-    const rawOwnerPin = ownerPin || "8888";
-    const rawStaffPin = staffPin || "5678";
+    const rawOwnerPin = ownerPin || "888888";
+    const rawStaffPin = staffPin || "567890";
 
     const passwordHash = await bcrypt.hash(rawPassword, 10);
     const ownerPinHash = await bcrypt.hash(rawOwnerPin, 10);

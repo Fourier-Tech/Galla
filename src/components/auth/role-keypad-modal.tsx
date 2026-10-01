@@ -57,36 +57,14 @@ export function RoleKeypadModal({
     return () => clearInterval(interval);
   }, [retryCooldown]);
 
-  const handleDigit = useCallback(
-    (digit: string) => {
-      if (retryCooldown || loading) return;
-      if (pin.length < 6) {
-        setPin((prev) => prev + digit);
-        if (error) setError(null);
-      }
-    },
-    [pin.length, retryCooldown, loading, error]
-  );
-
-  const handleBackspace = useCallback(() => {
-    if (retryCooldown || loading) return;
-    setPin((prev) => prev.slice(0, -1));
-    if (error) setError(null);
-  }, [retryCooldown, loading, error]);
-
-  const handleClear = useCallback(() => {
-    if (retryCooldown || loading) return;
-    setPin("");
-    if (error) setError(null);
-  }, [retryCooldown, loading, error]);
-
-  const handleSubmitPin = useCallback(async () => {
-    if (pin.length < 4 || loading || retryCooldown) return;
+  const handleSubmitPin = useCallback(async (pinToVerify?: string) => {
+    const targetPin = pinToVerify || pin;
+    if (targetPin.length !== 6 || loading || retryCooldown) return;
     setLoading(true);
     setError(null);
 
     try {
-      const res = await verifyRolePinAction(pin);
+      const res = await verifyRolePinAction(targetPin);
       if (!res.success) {
         setError(res.error || "Incorrect Role PIN.");
         if (res.retryAfterSeconds) {
@@ -109,6 +87,33 @@ export function RoleKeypadModal({
     }
   }, [pin, loading, retryCooldown, onRoleVerified]);
 
+  const handleDigit = useCallback(
+    (digit: string) => {
+      if (retryCooldown || loading) return;
+      if (pin.length < 6) {
+        const nextPin = pin + digit;
+        setPin(nextPin);
+        if (error) setError(null);
+        if (nextPin.length === 6) {
+          handleSubmitPin(nextPin);
+        }
+      }
+    },
+    [pin, retryCooldown, loading, error, handleSubmitPin]
+  );
+
+  const handleBackspace = useCallback(() => {
+    if (retryCooldown || loading) return;
+    setPin((prev) => prev.slice(0, -1));
+    if (error) setError(null);
+  }, [retryCooldown, loading, error]);
+
+  const handleClear = useCallback(() => {
+    if (retryCooldown || loading) return;
+    setPin("");
+    if (error) setError(null);
+  }, [retryCooldown, loading, error]);
+
   // Physical keyboard listener for digits, backspace, and enter
   useEffect(() => {
     if (!isOpen || isForgotMode) return;
@@ -120,7 +125,7 @@ export function RoleKeypadModal({
       } else if (e.key === "Backspace") {
         e.preventDefault();
         handleBackspace();
-      } else if (e.key === "Enter" && pin.length >= 4) {
+      } else if (e.key === "Enter" && pin.length === 6) {
         e.preventDefault();
         handleSubmitPin();
       } else if (e.key === "Escape") {
@@ -166,14 +171,14 @@ export function RoleKeypadModal({
       return;
     }
 
-    if (newOwnerPin.length < 4 || newOwnerPin.length > 6) {
-      setForgotError("New Owner PIN must be 4 to 6 digits.");
+    if (newOwnerPin.length !== 6) {
+      setForgotError("New Owner PIN must be exactly 6 digits.");
       setForgotLoading(false);
       return;
     }
 
-    if (newStaffPin.length < 4 || newStaffPin.length > 6) {
-      setForgotError("New Staff PIN must be 4 to 6 digits.");
+    if (newStaffPin.length !== 6) {
+      setForgotError("New Staff PIN must be exactly 6 digits.");
       setForgotLoading(false);
       return;
     }
@@ -235,7 +240,7 @@ export function RoleKeypadModal({
                 {salonName}
               </h2>
               <p className="text-[12.5px] text-galla-ink-soft">
-                Enter your 4 to 6-digit Role Code (Owner or Staff)
+                Enter your 6-digit Role Code (Owner or Staff)
               </p>
             </div>
 
@@ -322,8 +327,8 @@ export function RoleKeypadModal({
             {/* Unlock Action Button */}
             <button
               type="button"
-              disabled={loading || pin.length < 4 || Boolean(retryCooldown)}
-              onClick={handleSubmitPin}
+              disabled={loading || pin.length !== 6 || Boolean(retryCooldown)}
+              onClick={() => handleSubmitPin()}
               className="w-full inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[13.5px] font-medium py-2.5 rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -447,7 +452,7 @@ export function RoleKeypadModal({
                 {/* New Owner PIN */}
                 <div>
                   <label className="block text-[12px] font-medium text-galla-ink mb-1">
-                    New Owner PIN (4-6 digits)
+                    New Owner PIN (6 digits)
                   </label>
                   <input
                     type="password"
@@ -458,7 +463,7 @@ export function RoleKeypadModal({
                     onChange={(e) =>
                       setNewOwnerPin(e.target.value.replace(/\D/g, ""))
                     }
-                    placeholder="4-6 digits"
+                    placeholder="6 digits"
                     className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
                   />
                 </div>
@@ -466,7 +471,7 @@ export function RoleKeypadModal({
                 {/* New Staff PIN */}
                 <div>
                   <label className="block text-[12px] font-medium text-galla-ink mb-1">
-                    New Staff PIN (4-6 digits)
+                    New Staff PIN (6 digits)
                   </label>
                   <input
                     type="password"
@@ -477,7 +482,7 @@ export function RoleKeypadModal({
                     onChange={(e) =>
                       setNewStaffPin(e.target.value.replace(/\D/g, ""))
                     }
-                    placeholder="4-6 digits"
+                    placeholder="6 digits"
                     className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
                   />
                 </div>
@@ -487,8 +492,8 @@ export function RoleKeypadModal({
                   disabled={
                     forgotLoading ||
                     otp.length !== 6 ||
-                    newOwnerPin.length < 4 ||
-                    newStaffPin.length < 4
+                    newOwnerPin.length !== 6 ||
+                    newStaffPin.length !== 6
                   }
                   className="w-full inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[13px] font-medium py-2.5 rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                 >

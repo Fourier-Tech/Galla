@@ -34,13 +34,13 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
       return;
     }
 
-    if (newOwnerPin && (newOwnerPin.length < 4 || newOwnerPin.length > 6)) {
-      setError("New Owner PIN must be 4 to 6 digits.");
+    if (newOwnerPin && newOwnerPin.length !== 6) {
+      setError("New Owner PIN must be exactly 6 digits.");
       return;
     }
 
-    if (newStaffPin && (newStaffPin.length < 4 || newStaffPin.length > 6)) {
-      setError("New Staff PIN must be 4 to 6 digits.");
+    if (newStaffPin && newStaffPin.length !== 6) {
+      setError("New Staff PIN must be exactly 6 digits.");
       return;
     }
 
@@ -159,7 +159,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
                 onChange={(e) =>
                   setNewOwnerPin(e.target.value.replace(/\D/g, ""))
                 }
-                placeholder="4-6 digits"
+                placeholder="6 digits"
                 className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
               />
             </div>
@@ -178,7 +178,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
                 onChange={(e) =>
                   setNewStaffPin(e.target.value.replace(/\D/g, ""))
                 }
-                placeholder="4-6 digits"
+                placeholder="6 digits"
                 className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
               />
             </div>
@@ -196,7 +196,13 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
             </button>
             <button
               type="submit"
-              disabled={loading || !emailPassword || (!newOwnerPin && !newStaffPin)}
+              disabled={
+                loading ||
+                !emailPassword ||
+                (!newOwnerPin && !newStaffPin) ||
+                (Boolean(newOwnerPin) && newOwnerPin.length !== 6) ||
+                (Boolean(newStaffPin) && newStaffPin.length !== 6)
+              }
               className="px-4 py-1.5 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {loading ? (

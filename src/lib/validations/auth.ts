@@ -19,7 +19,7 @@ export const verifyRolePinSchema = z.object({
   pin: z
     .string()
     .transform((val) => val.replace(/\s+/g, ""))
-    .pipe(z.string().regex(/^\d{4,6}$/, "Role PIN must be between 4 and 6 digits")),
+    .pipe(z.string().regex(/^\d{6}$/, "Role PIN must be exactly 6 digits")),
 });
 
 export type VerifyRolePinInput = z.infer<typeof verifyRolePinSchema>;
@@ -32,13 +32,13 @@ export const changeRolePinsSchema = z.object({
   newOwnerPin: z
     .string()
     .transform((val) => val.replace(/\s+/g, ""))
-    .pipe(z.string().regex(/^\d{4,6}$/, "New Owner PIN must be 4 to 6 digits"))
+    .pipe(z.string().regex(/^\d{6}$/, "New Owner PIN must be exactly 6 digits"))
     .optional()
     .or(z.literal("")),
   newStaffPin: z
     .string()
     .transform((val) => val.replace(/\s+/g, ""))
-    .pipe(z.string().regex(/^\d{4,6}$/, "New Staff PIN must be 4 to 6 digits"))
+    .pipe(z.string().regex(/^\d{6}$/, "New Staff PIN must be exactly 6 digits"))
     .optional()
     .or(z.literal("")),
 }).refine(
@@ -57,11 +57,11 @@ export const resetPinOtpSchema = z.object({
   newOwnerPin: z
     .string()
     .transform((val) => val.replace(/\s+/g, ""))
-    .pipe(z.string().regex(/^\d{4,6}$/, "New Owner PIN must be 4 to 6 digits")),
+    .pipe(z.string().regex(/^\d{6}$/, "New Owner PIN must be exactly 6 digits")),
   newStaffPin: z
     .string()
     .transform((val) => val.replace(/\s+/g, ""))
-    .pipe(z.string().regex(/^\d{4,6}$/, "New Staff PIN must be 4 to 6 digits")),
+    .pipe(z.string().regex(/^\d{6}$/, "New Staff PIN must be exactly 6 digits")),
 });
 
 export type ResetPinOtpInput = z.infer<typeof resetPinOtpSchema>;
@@ -80,8 +80,8 @@ export const registerSchema = z.object({
   salonName: z.string().min(2, "Salon name must be at least 2 characters"),
   ownerEmail: z.string().email("Please enter a valid owner email address"),
   password: z.string().min(6, "Password must be at least 6 characters").optional(),
-  ownerPin: z.string().regex(/^\d{4,6}$/, "Owner PIN must be 4 to 6 digits").optional(),
-  staffPin: z.string().regex(/^\d{4,6}$/, "Staff PIN must be 4 to 6 digits").optional(),
+  ownerPin: z.string().regex(/^\d{6}$/, "Owner PIN must be exactly 6 digits").optional(),
+  staffPin: z.string().regex(/^\d{6}$/, "Staff PIN must be exactly 6 digits").optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

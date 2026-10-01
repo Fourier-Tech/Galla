@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import bcrypt from "bcryptjs";
 
 const envLocalPath = path.resolve(process.cwd(), ".env.local");
 let uri = process.env.MONGODB_URI;
@@ -61,6 +62,12 @@ async function seed() {
     }
 
     // 3. Create Tenant (Deterministic ID so browser sessions survive re-seeding)
+    const ownerPin = "888888";
+    const staffPin = "567890";
+    const passwordHash = await bcrypt.hash("shreehari123", 10);
+    const ownerPinHash = await bcrypt.hash(ownerPin, 10);
+    const staffPinHash = await bcrypt.hash(staffPin, 10);
+
     const tenantId = new mongoose.Types.ObjectId("65f000000000000000000001");
     const tenant = {
       _id: tenantId,
@@ -71,6 +78,8 @@ async function seed() {
       address: "Shop 4, Ground Floor, Shivam Complex, Surat, Gujarat",
       profileImageUrl: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=400&q=80",
       profileImagePublicId: null,
+      ownerPinHash,
+      staffPinHash,
       settings: {
         allowBackorders: true,
         lowStockNotification: true,
@@ -82,7 +91,7 @@ async function seed() {
     await db.collection("tenants").insertOne(tenant);
     console.log("✅ Created Tenant: ShreeHari (slug: shreehari, ID: 65f000000000000000000001)");
 
-    // 4. Create Single Salon User Record with 8-Digit Access Codes
+    // 4. Create Single Salon User Record with 6-Digit PINs
     let authSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
     if (!authSecret && fs.existsSync(envLocalPath)) {
       const content = fs.readFileSync(envLocalPath, "utf8");
@@ -109,6 +118,9 @@ async function seed() {
       _id: new mongoose.Types.ObjectId("65f000000000000000000002"),
       tenantId: tenantId,
       ownerEmail: "shreehari@gmail.com",
+      passwordHash,
+      ownerPinHash,
+      staffPinHash,
       ownerCodeHash: hashAccessCode(ownerCode),
       staffCodeHash: hashAccessCode(staffCode),
       previousOwnerCodeHash: null,
@@ -122,9 +134,9 @@ async function seed() {
     };
     await db.collection("users").insertOne(user);
     console.log("✅ Created Single Salon User Record for ShreeHari:");
-    console.log(`   👑 Owner 8-Digit Code: ${ownerCode}`);
-    console.log(`   🏷️  Staff 8-Digit Code: ${staffCode}`);
-    console.log(`   📅 Next 7 AM Rotation: ${target.toLocaleString("en-IN")}`);
+    console.log(`   🔑 Email: shreehari@gmail.com (Password: shreehari123)`);
+    console.log(`   👑 Owner 6-Digit PIN: ${ownerPin}`);
+    console.log(`   🏷️  Staff 6-Digit PIN: ${staffPin}`);
 
     // 5. Create Initial Products
     const products = [

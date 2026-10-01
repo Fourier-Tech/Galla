@@ -39,7 +39,7 @@ function maskEmail(email: string): string {
 }
 
 /**
- * Verifies the 4-6 digit Role Code (Owner vs Staff PIN) for the counter.
+ * Verifies the 6-digit Role Code (Owner vs Staff PIN) for the counter.
  * Evicts any existing active session of the same role on other devices.
  */
 export async function verifyRolePinAction(rawPin: unknown): Promise<{
@@ -53,7 +53,7 @@ export async function verifyRolePinAction(rawPin: unknown): Promise<{
     if (!parsed.success) {
       return {
         success: false,
-        error: "Please enter a valid 4 to 6-digit numeric PIN.",
+        error: "Please enter a valid 6-digit numeric PIN.",
       };
     }
 
@@ -94,14 +94,14 @@ export async function verifyRolePinAction(rawPin: unknown): Promise<{
     else if (user.staffPinHash && (await bcrypt.compare(pin, user.staffPinHash))) {
       resolvedRole = "staff";
     }
-    // Fallback migration: If PINs not yet set in new format, check default demo PINs
+    // Fallback migration: If PINs not yet set in new format, check default demo PINs (6 digits)
     else if (!user.ownerPinHash && !user.staffPinHash) {
-      if (pin === "8888" || pin === "1234" || pin === "88888888") {
+      if (pin === "888888" || pin === "123456") {
         resolvedRole = "owner";
-        user.ownerPinHash = await bcrypt.hash("8888", 10);
-      } else if (pin === "5678" || pin === "0000" || pin === "12345678") {
+        user.ownerPinHash = await bcrypt.hash(pin, 10);
+      } else if (pin === "567890" || pin === "654321") {
         resolvedRole = "staff";
-        user.staffPinHash = await bcrypt.hash("5678", 10);
+        user.staffPinHash = await bcrypt.hash(pin, 10);
       }
     }
 
