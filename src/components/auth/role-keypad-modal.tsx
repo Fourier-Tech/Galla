@@ -24,7 +24,7 @@ interface RoleKeypadModalProps {
   isOpen: boolean;
   salonName?: string;
   isEvicted?: boolean;
-  onRoleVerified: (role: UserRole) => void;
+  onRoleVerified: (role: UserRole, activeSessionId?: string) => void;
 }
 
 export function RoleKeypadModal({
@@ -77,7 +77,7 @@ export function RoleKeypadModal({
 
       if (res.role) {
         setPin("");
-        onRoleVerified(res.role);
+        onRoleVerified(res.role, res.activeSessionId);
       }
     } catch {
       setError("An unexpected connection error occurred.");
@@ -202,7 +202,7 @@ export function RoleKeypadModal({
       setOtp("");
       setNewOwnerPin("");
       setNewStaffPin("");
-      onRoleVerified("owner");
+      onRoleVerified("owner", res.activeSessionId);
     } catch {
       setForgotError("Connection failed while resetting PINs.");
     } finally {

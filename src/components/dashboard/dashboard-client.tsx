@@ -44,6 +44,7 @@ interface DashboardClientProps {
   tenantId?: string;
   salonName?: string;
   initialRole?: UserRole;
+  initialActiveSessionId?: string;
   isRoleLocked?: boolean;
   isEvicted?: boolean;
   initialOrders?: DashboardOrder[];
@@ -72,8 +73,9 @@ export function DashboardClient({
   tenantId,
   salonName = "Salon",
   initialRole = "owner",
+  initialActiveSessionId,
   isRoleLocked: initialIsRoleLocked = false,
-  isEvicted = false,
+  isEvicted: initialIsEvicted = false,
   initialOrders = [],
   initialTotalOrdersCount = 0,
   initialProducts = [],
@@ -98,16 +100,51 @@ export function DashboardClient({
   const router = useRouter();
   const [role, setRole] = useState<UserRole>(initialRole);
   const [isRoleLocked, setIsRoleLocked] = useState<boolean>(initialIsRoleLocked);
+  const [isEvicted, setIsEvicted] = useState<boolean>(initialIsEvicted);
+  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(initialActiveSessionId);
   const [isChangePinOpen, setIsChangePinOpen] = useState(false);
+
+  // Sync refs so realtime websocket subscriptions always see current values without re-subscribing
+  const roleRef = React.useRef(role);
+  React.useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
+
+  const currentSessionIdRef = React.useRef(currentSessionId);
+  React.useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
 
   const handleLockCounter = async () => {
     await lockRoleSessionAction();
     setIsRoleLocked(true);
   };
 
-  const handleRoleVerified = (newRole: UserRole) => {
+  const handleRoleVerified = (newRole: UserRole, newActiveSessionId?: string) => {
     setRole(newRole);
+    roleRef.current = newRole;
+    if (newActiveSessionId) {
+      setCurrentSessionId(newActiveSessionId);
+      currentSessionIdRef.current = newActiveSessionId;
+    }
     setIsRoleLocked(false);
+    setIsEvicted(false);
+
+    // Cross-tab broadcast to displace any open tabs with this role in the same browser instantly
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("galla_role_channel");
+        bc.postMessage({
+          type: "ROLE_LOGIN",
+          role: newRole,
+          newSessionId: newActiveSessionId,
+        });
+        bc.close();
+      }
+    } catch {
+      // Ignore broadcast errors
+    }
+
     if (newRole === "owner") {
       router.refresh();
     }
@@ -316,6 +353,49 @@ export function DashboardClient({
       router.refresh();
     },
   });
+
+  // Real-time instant displacement: instantly lock and evict if another device logs into this role
+  useTenantSubscription<{ role: UserRole; newSessionId: string }>({
+    tenantId,
+    event: "role_session_displaced",
+    onEvent: (data) => {
+      if (!data || !data.role || !data.newSessionId) return;
+      // If incoming event is for our active role and has a different session ID
+      if (
+        data.role === roleRef.current &&
+        (!currentSessionIdRef.current || data.newSessionId !== currentSessionIdRef.current)
+      ) {
+        console.warn(
+          `[Realtime] Session for role "${data.role}" displaced by a new login on another device. Instantly locking.`
+        );
+        setIsRoleLocked(true);
+        setIsEvicted(true);
+        lockRoleSessionAction().catch(console.error);
+      }
+    },
+  });
+
+  // Same-browser cross-tab listener for instant multi-tab displacement
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
+    const bc = new BroadcastChannel("galla_role_channel");
+    bc.onmessage = (event) => {
+      const data = event.data;
+      if (data?.type === "ROLE_LOGIN" && data.role === roleRef.current) {
+        if (data.newSessionId && data.newSessionId !== currentSessionIdRef.current) {
+          console.warn(
+            `[Cross-Tab] Session for role "${data.role}" displaced by a new login in another tab. Instantly locking.`
+          );
+          setIsRoleLocked(true);
+          setIsEvicted(true);
+          lockRoleSessionAction().catch(console.error);
+        }
+      }
+    };
+    return () => {
+      bc.close();
+    };
+  }, []);
 
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);

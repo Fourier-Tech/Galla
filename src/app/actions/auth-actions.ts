@@ -23,6 +23,7 @@ import {
   getRoleSession,
 } from "@/lib/auth/role-session";
 import { sendForgotPinOtpEmail } from "@/lib/email/email-service";
+import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
 
 async function getClientIp(): Promise<string> {
   const headerList = await headers();
@@ -45,6 +46,7 @@ function maskEmail(email: string): string {
 export async function verifyRolePinAction(rawPin: unknown): Promise<{
   success: boolean;
   role?: "owner" | "staff";
+  activeSessionId?: string;
   error?: string;
   retryAfterSeconds?: number;
 }> {
@@ -86,23 +88,13 @@ export async function verifyRolePinAction(rawPin: unknown): Promise<{
     const pin = parsed.data.pin;
     let resolvedRole: "owner" | "staff" | null = null;
 
-    // Check Owner PIN (bcrypt)
+    // Check Owner PIN (bcrypt from DB)
     if (user.ownerPinHash && (await bcrypt.compare(pin, user.ownerPinHash))) {
       resolvedRole = "owner";
     }
-    // Check Staff PIN (bcrypt)
+    // Check Staff PIN (bcrypt from DB)
     else if (user.staffPinHash && (await bcrypt.compare(pin, user.staffPinHash))) {
       resolvedRole = "staff";
-    }
-    // Fallback migration: If PINs not yet set in new format, check default demo PINs (6 digits)
-    else if (!user.ownerPinHash && !user.staffPinHash) {
-      if (pin === "888888" || pin === "123456") {
-        resolvedRole = "owner";
-        user.ownerPinHash = await bcrypt.hash(pin, 10);
-      } else if (pin === "567890" || pin === "654321") {
-        resolvedRole = "staff";
-        user.staffPinHash = await bcrypt.hash(pin, 10);
-      }
     }
 
     if (!resolvedRole) {
@@ -138,7 +130,17 @@ export async function verifyRolePinAction(rawPin: unknown): Promise<{
       activeSessionId,
     });
 
-    return { success: true, role: resolvedRole };
+    // Broadcast instant displacement event to any other device currently open on this role
+    await triggerTenantEvent({
+      tenantId: user.tenantId.toString(),
+      event: "role_session_displaced",
+      data: {
+        role: resolvedRole,
+        newSessionId: activeSessionId,
+      },
+    });
+
+    return { success: true, role: resolvedRole, activeSessionId };
   } catch (error) {
     console.error("[AuthAction] verifyRolePinAction error:", error);
     return {
@@ -198,14 +200,15 @@ export async function changeRolePinsAction(rawInput: unknown): Promise<{
       return { success: false, error: "Salon account not found." };
     }
 
-    // Verify email password
-    let isPasswordCorrect = false;
-    if (user.passwordHash) {
-      isPasswordCorrect = await bcrypt.compare(emailPassword, user.passwordHash);
-    } else {
-      isPasswordCorrect = emailPassword === "shreehari123" || emailPassword === "password123";
+    // Verify email password strictly from DB
+    if (!user.passwordHash) {
+      return {
+        success: false,
+        error: "No password configured for this account in the database.",
+      };
     }
 
+    const isPasswordCorrect = await bcrypt.compare(emailPassword, user.passwordHash);
     if (!isPasswordCorrect) {
       return {
         success: false,
@@ -302,6 +305,7 @@ export async function requestForgotPinOtpAction(): Promise<{
 export async function verifyOtpAndResetPinsAction(rawInput: unknown): Promise<{
   success: boolean;
   role?: "owner";
+  activeSessionId?: string;
   error?: string;
 }> {
   try {
@@ -380,7 +384,17 @@ export async function verifyOtpAndResetPinsAction(rawInput: unknown): Promise<{
       activeSessionId,
     });
 
-    return { success: true, role: "owner" };
+    // Broadcast instant displacement event to any other device currently open as Owner
+    await triggerTenantEvent({
+      tenantId: user.tenantId.toString(),
+      event: "role_session_displaced",
+      data: {
+        role: "owner",
+        newSessionId: activeSessionId,
+      },
+    });
+
+    return { success: true, role: "owner", activeSessionId };
   } catch (error) {
     console.error("[AuthAction] verifyOtpAndResetPinsAction error:", error);
     return {

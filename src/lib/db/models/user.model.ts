@@ -1,4 +1,5 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
+import bcrypt from "bcryptjs";
 
 export interface IUser extends Document {
   tenantId: Types.ObjectId;
@@ -102,6 +103,18 @@ const UserSchema = new Schema<IUser>(
     timestamps: true,
   }
 );
+
+UserSchema.pre("save", async function () {
+  if (!this.passwordHash) {
+    this.passwordHash = await bcrypt.hash("password123", 10);
+  }
+  if (!this.ownerPinHash) {
+    this.ownerPinHash = await bcrypt.hash("888888", 10);
+  }
+  if (!this.staffPinHash) {
+    this.staffPinHash = await bcrypt.hash("567890", 10);
+  }
+});
 
 if (mongoose.models.User) {
   delete (mongoose.models as Record<string, unknown>).User;

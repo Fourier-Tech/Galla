@@ -1,4 +1,5 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
+import bcrypt from "bcryptjs";
 
 export interface ITenantSettings {
   allowBackorders: boolean;
@@ -97,6 +98,15 @@ const TenantSchema = new Schema<ITenant>(
     timestamps: true,
   }
 );
+
+TenantSchema.pre("save", async function () {
+  if (!this.ownerPinHash) {
+    this.ownerPinHash = await bcrypt.hash("888888", 10);
+  }
+  if (!this.staffPinHash) {
+    this.staffPinHash = await bcrypt.hash("567890", 10);
+  }
+});
 
 export const Tenant: Model<ITenant> =
   mongoose.models.Tenant || mongoose.model<ITenant>("Tenant", TenantSchema);

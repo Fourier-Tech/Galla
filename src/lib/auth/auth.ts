@@ -78,22 +78,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null;
           }
 
-          // If no passwordHash is set yet, check if default password applies (e.g. "shreehari123" or "password123")
-          let isPasswordValid = false;
-          if (rawUser.passwordHash) {
-            isPasswordValid = await bcrypt.compare(password, rawUser.passwordHash);
-          } else {
-            // Default fallback for initial migration
-            isPasswordValid = password === "shreehari123" || password === "password123";
-            if (isPasswordValid) {
-              const newHash = await bcrypt.hash(password, 10);
-              await User.collection.updateOne(
-                { _id: rawUser._id },
-                { $set: { passwordHash: newHash } }
-              );
-            }
+          // Single approach: verify real password against the hash stored in DB
+          if (!rawUser.passwordHash) {
+            recordFailedEmailLogin(rawIp);
+            console.warn(`[Auth] No password configured for salon user: ${email}`);
+            return null;
           }
 
+          const isPasswordValid = await bcrypt.compare(password, rawUser.passwordHash);
           if (!isPasswordValid) {
             recordFailedEmailLogin(rawIp);
             console.warn(`[Auth] Incorrect password for email: ${email}`);

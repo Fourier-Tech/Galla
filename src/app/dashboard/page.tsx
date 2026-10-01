@@ -695,6 +695,7 @@ export default async function DashboardPage() {
       tenantId={resolvedTenantId}
       salonName={salonName}
       initialRole={initialRole}
+      initialActiveSessionId={roleSessionResult?.activeSessionId}
       isRoleLocked={isRoleLocked}
       isEvicted={isEvicted}
       initialOrders={initialOrders}
