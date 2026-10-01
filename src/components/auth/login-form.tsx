@@ -4,7 +4,17 @@ import React, { useState, Suspense } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { AlertTriangle, KeyRound, ArrowRight, Loader2, ShieldCheck, Clock } from "lucide-react";
+import {
+  AlertTriangle,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Loader2,
+  ShieldCheck,
+  Clock,
+} from "lucide-react";
 
 function LoginFormContent() {
   const searchParams = useSearchParams();
@@ -12,51 +22,50 @@ function LoginFormContent() {
   const urlCode = searchParams.get("code");
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
-  const [rawCode, setRawCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Map NextAuth error query codes to human-readable error messages
+  // Map error query codes to human-readable error messages
   const getErrorMessage = () => {
     if (error) return error;
     if (urlCode === "rate_limited" || urlError === "rate_limited") {
-      return "Too many failed attempts. For your salon's security, login is temporarily locked. Please try again in 15 minutes.";
+      return "Too many failed attempts. For your salon's security, login is temporarily locked for 15 minutes.";
     }
     if (urlError === "CredentialsSignin") {
-      return "Invalid 8-digit access code. Please check your salon code or email dispatch.";
+      return "Invalid email address or password. Please check your credentials.";
+    }
+    if (urlError === "inactive_session") {
+      return "Your counter session expired after 7 days of inactivity. Please sign in again.";
+    }
+    if (urlError === "session_expired") {
+      return "Your shop session has expired. Please sign in again.";
     }
     if (urlError === "AccessDenied") {
       return "Access denied. Your salon account is not active.";
     }
-    if (urlError === "session_expired") {
-      return "You were logged out because this account was opened on another device.";
-    }
     if (urlError) {
-      return "Authentication failed. Please verify your access code.";
+      return "Authentication failed. Please verify your shop account.";
     }
     return null;
   };
 
   const activeError = getErrorMessage();
 
-  // Format code input with a clean space in the middle: e.g. "8291 0394"
-  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 8);
-    setRawCode(digitsOnly);
-    if (error) setError(null);
-  };
-
-  const formattedDisplay =
-    rawCode.length > 4
-      ? `${rawCode.slice(0, 4)}  ${rawCode.slice(4)}`
-      : rawCode;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (rawCode.length !== 8) {
-      setError("Please enter a complete 8-digit access code.");
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Please enter a valid shop email address.");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
@@ -64,7 +73,8 @@ function LoginFormContent() {
 
     try {
       const res = await signIn("credentials", {
-        code: rawCode,
+        email: cleanEmail,
+        password,
         callbackUrl: callbackUrl.startsWith("/") ? callbackUrl : "/dashboard",
         redirect: false,
       });
@@ -76,14 +86,14 @@ function LoginFormContent() {
           );
         } else {
           setError(
-            "Invalid 8-digit access code. Please check your salon code or email dispatch."
+            "Invalid email address or password. Please check your salon credentials."
           );
         }
         setLoading(false);
         return;
       }
 
-      // Always navigate using relative path so the browser stays on the current origin (production Vercel or localhost)
+      // Navigate to dashboard where Role Keypad will authenticate role
       const targetUrl =
         callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
           ? callbackUrl
@@ -116,10 +126,10 @@ function LoginFormContent() {
       {/* Form Title */}
       <div className="mt-7 mb-6 text-center">
         <h1 className="font-bold text-[18px] text-galla-ink">
-          Shop Access Code
+          Counter Sign In
         </h1>
         <p className="text-[13px] text-galla-ink-soft mt-1">
-          Enter your 8-digit salon code (Owner or Staff)
+          Sign in to your salon&apos;s billing counter account
         </p>
       </div>
 
@@ -139,65 +149,108 @@ function LoginFormContent() {
 
       {/* Login Form */}
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        {/* Email Field */}
         <div>
           <label
-            htmlFor="accessCode"
-            className="block text-[13px] font-medium text-galla-ink mb-2 text-center"
+            htmlFor="email"
+            className="block text-[13px] font-medium text-galla-ink mb-1.5"
           >
-            8-Digit Code
+            Shop Email
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-galla-ink-soft">
-              <KeyRound className="h-4 w-4" />
+              <Mail className="h-4 w-4" />
             </div>
             <input
-              id="accessCode"
-              name="accessCode"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
               autoFocus
               required
               disabled={loading}
-              value={formattedDisplay}
-              onChange={handleCodeChange}
-              placeholder="••••  ••••"
-              className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-4 py-3 text-[18px] text-center tabular-nums font-bold tracking-[4px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="owner@example.com"
+              className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-4 py-2.5 text-[14px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />
           </div>
-          <p className="text-[11px] text-galla-ink-soft text-center mt-2">
-            Weekly codes are sent to the shop owner&apos;s registered email
-          </p>
         </div>
 
+        {/* Password Field */}
+        <div>
+          <label
+            htmlFor="password"
+            className="block text-[13px] font-medium text-galla-ink mb-1.5"
+          >
+            Shop Password
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-galla-ink-soft">
+              <Lock className="h-4 w-4" />
+            </div>
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              disabled={loading}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="••••••••••••"
+              className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-10 py-2.5 text-[14px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer"
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Submit Button */}
         <button
           type="submit"
-          disabled={loading || rawCode.length !== 8}
-          className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[15px] font-normal px-[13px] py-[11px] rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+          disabled={loading || !email.trim() || !password}
+          className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[14px] font-medium px-[13px] py-[10px] rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
         >
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Verifying Code...</span>
+              <span>Verifying Credentials...</span>
             </>
           ) : (
             <>
-              <span>Enter Workspace</span>
+              <span>Sign In to Counter</span>
               <ArrowRight className="h-4 w-4" />
             </>
           )}
         </button>
       </form>
 
-      {/* Security & Grace Period Info */}
+      {/* Security & Lifecycle Info */}
       <div className="mt-6 pt-5 border-t border-galla-line/80 space-y-2">
-        <div className="flex items-center gap-2 text-[11px] text-galla-ink-soft">
+        <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft">
           <Clock className="h-3.5 w-3.5 text-galla-teal shrink-0" />
-          <span>Codes rotate weekly at 7:00 AM with a 12h grace period</span>
+          <span>30-day counter session with 7-day inactivity protection</span>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-galla-ink-soft">
+        <div className="flex items-center gap-2 text-[11.5px] text-galla-ink-soft">
           <ShieldCheck className="h-3.5 w-3.5 text-galla-teal shrink-0" />
-          <span>Single-device session protection &amp; anti-brute force active</span>
+          <span>Two-tier authentication &amp; single-device counter security</span>
         </div>
       </div>
     </div>

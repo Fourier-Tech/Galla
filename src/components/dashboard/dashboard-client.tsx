@@ -24,6 +24,9 @@ import { NewOrderModal } from "@/components/dashboard/modals/new-order-modal";
 import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal";
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
 import { SettleOrderModal } from "@/components/dashboard/modals/settle-order-modal";
+import { RoleKeypadModal } from "@/components/auth/role-keypad-modal";
+import { ChangePinModal } from "@/components/dashboard/modals/change-pin-modal";
+import { lockRoleSessionAction } from "@/app/actions/auth-actions";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
 import { calculatePendingAmount, formatPhoneNumber, getPhoneDigits, BillStatusKey } from "@/lib/utils";
 import {
@@ -41,6 +44,8 @@ interface DashboardClientProps {
   tenantId?: string;
   salonName?: string;
   initialRole?: UserRole;
+  isRoleLocked?: boolean;
+  isEvicted?: boolean;
   initialOrders?: DashboardOrder[];
   initialTotalOrdersCount?: number;
   initialProducts?: DashboardProduct[];
@@ -67,6 +72,8 @@ export function DashboardClient({
   tenantId,
   salonName = "Salon",
   initialRole = "owner",
+  isRoleLocked: initialIsRoleLocked = false,
+  isEvicted = false,
   initialOrders = [],
   initialTotalOrdersCount = 0,
   initialProducts = [],
@@ -89,7 +96,23 @@ export function DashboardClient({
   initialCustomerDues = 0,
 }: DashboardClientProps) {
   const router = useRouter();
-  const role: UserRole = initialRole;
+  const [role, setRole] = useState<UserRole>(initialRole);
+  const [isRoleLocked, setIsRoleLocked] = useState<boolean>(initialIsRoleLocked);
+  const [isChangePinOpen, setIsChangePinOpen] = useState(false);
+
+  const handleLockCounter = async () => {
+    await lockRoleSessionAction();
+    setIsRoleLocked(true);
+  };
+
+  const handleRoleVerified = (newRole: UserRole) => {
+    setRole(newRole);
+    setIsRoleLocked(false);
+    if (newRole === "owner") {
+      router.refresh();
+    }
+  };
+
   const activeTabDefault: TabId = "overview";
   const [activeTab, setActiveTab] = useState<TabId>(activeTabDefault);
   const [ordersFilter, setOrdersFilter] = useState<OrderStatus | "all" | "replacement">("all");
@@ -785,6 +808,8 @@ export function DashboardClient({
         role={role}
         salonName={salonProfile.name || salonName}
         profileImageUrl={salonProfile.profileImageUrl}
+        onLockCounter={handleLockCounter}
+        onOpenChangePins={() => setIsChangePinOpen(true)}
       />
 
       {/* Main Tab Canvas (Table scrollable on overview, full scroll on other tabs) */}
@@ -967,6 +992,20 @@ export function DashboardClient({
         isOpen={Boolean(settleOrder)}
         onClose={() => setSettleOrder(null)}
         onSettleSuccess={handleSettleSuccess}
+      />
+
+      {/* Role PIN Gate Keypad (Session / Window Lock) */}
+      <RoleKeypadModal
+        isOpen={isRoleLocked}
+        salonName={salonProfile.name || salonName}
+        isEvicted={isEvicted}
+        onRoleVerified={handleRoleVerified}
+      />
+
+      {/* Owner PIN Management Modal */}
+      <ChangePinModal
+        isOpen={isChangePinOpen}
+        onClose={() => setIsChangePinOpen(false)}
       />
     </div>
   );

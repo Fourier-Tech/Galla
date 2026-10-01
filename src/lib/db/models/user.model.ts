@@ -3,14 +3,20 @@ import mongoose, { Document, Model, Schema, Types } from "mongoose";
 export interface IUser extends Document {
   tenantId: Types.ObjectId;
   ownerEmail: string;
-  ownerCodeHash: string;
-  staffCodeHash: string;
+  passwordHash?: string;
+  ownerPinHash?: string;
+  staffPinHash?: string;
+  ownerCodeHash?: string;
+  staffCodeHash?: string;
   previousOwnerCodeHash?: string | null;
   previousStaffCodeHash?: string | null;
-  codeExpiresAt: Date;
+  codeExpiresAt?: Date;
   graceExpiresAt?: Date | null;
   ownerActiveSessionId?: string | null;
   staffActiveSessionId?: string | null;
+  lastRoleLoginAt?: Date | null;
+  resetOtpHash?: string | null;
+  resetOtpExpiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,30 +38,39 @@ const UserSchema = new Schema<IUser>(
       trim: true,
       index: true,
     },
+    passwordHash: {
+      type: String,
+      required: false,
+    },
+    ownerPinHash: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    staffPinHash: {
+      type: String,
+      default: null,
+      index: true,
+    },
     ownerCodeHash: {
       type: String,
-      required: [true, "Owner code hash is required"],
-      index: true,
+      default: null,
     },
     staffCodeHash: {
       type: String,
-      required: [true, "Staff code hash is required"],
-      index: true,
+      default: null,
     },
     previousOwnerCodeHash: {
       type: String,
       default: null,
-      index: true,
     },
     previousStaffCodeHash: {
       type: String,
       default: null,
-      index: true,
     },
     codeExpiresAt: {
       type: Date,
-      required: [true, "Code expiration date is required"],
-      index: true,
+      default: null,
     },
     graceExpiresAt: {
       type: Date,
@@ -67,6 +82,19 @@ const UserSchema = new Schema<IUser>(
     },
     staffActiveSessionId: {
       type: String,
+      default: null,
+    },
+    lastRoleLoginAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    resetOtpHash: {
+      type: String,
+      default: null,
+    },
+    resetOtpExpiresAt: {
+      type: Date,
       default: null,
     },
   },

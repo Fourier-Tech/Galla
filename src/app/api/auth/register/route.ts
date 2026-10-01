@@ -3,12 +3,6 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Counter } from "@/lib/db/models/counter.model";
-import {
-  generateUnique8DigitCode,
-  calculateRotationDate,
-  calculateGraceExpiry,
-} from "@/lib/auth/code-service";
-import { sendAccessCodesEmail } from "@/lib/email/email-service";
 
 export async function POST(request: Request) {
   const adminSecret = request.headers.get("x-admin-provisioning-secret");
@@ -26,7 +20,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { salonName, ownerEmail } = body;
+    const { salonName, ownerEmail, password, ownerPin, staffPin } = body;
 
     if (!salonName || !ownerEmail) {
       return NextResponse.json(
@@ -56,6 +50,16 @@ export async function POST(request: Request) {
     // Global sequential tenant code
     const tenantCode = await Counter.getNextTenantCode();
 
+    // Hash passwords and PINs
+    const bcrypt = await import("bcryptjs");
+    const rawPassword = password || "password123";
+    const rawOwnerPin = ownerPin || "8888";
+    const rawStaffPin = staffPin || "5678";
+
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+    const ownerPinHash = await bcrypt.hash(rawOwnerPin, 10);
+    const staffPinHash = await bcrypt.hash(rawStaffPin, 10);
+
     // Create Tenant with slug collision retry loop (max 5 attempts)
     let tenant = null;
     const maxAttempts = 5;
@@ -68,6 +72,8 @@ export async function POST(request: Request) {
           slug: tenantSlug,
           tenantCode,
           status: "active",
+          ownerPinHash,
+          staffPinHash,
         });
         break;
       } catch (err: any) {
@@ -86,41 +92,24 @@ export async function POST(request: Request) {
     }
 
     const now = new Date();
-    const rotationDate = calculateRotationDate(now);
-    const graceExpiresAt = calculateGraceExpiry(rotationDate);
-
-    // Generate unique 8-digit codes for Owner and Staff
-    const exclude = new Set<string>();
-    const ownerGen = await generateUnique8DigitCode(exclude);
-    const staffGen = await generateUnique8DigitCode(exclude);
 
     // Create single User record for the salon
     await User.create({
       tenantId: tenant._id,
       ownerEmail: cleanEmail,
-      ownerCodeHash: ownerGen.hash,
-      staffCodeHash: staffGen.hash,
-      codeExpiresAt: rotationDate,
-      graceExpiresAt: null,
-    });
-
-    // Send initial access codes email
-    await sendAccessCodesEmail({
-      to: cleanEmail,
-      ownerCode: ownerGen.code,
-      staffCode: staffGen.code,
-      rotationDate: now,
-      graceExpiresAt,
+      passwordHash,
+      ownerPinHash,
+      staffPinHash,
+      lastRoleLoginAt: now,
     });
 
     return NextResponse.json(
       {
-        message: "Salon workspace provisioned successfully. Access codes sent to owner email.",
+        message: "Salon workspace provisioned successfully with email/password and Role PINs.",
         tenantId: tenant._id.toString(),
         tenantCode: tenant.tenantCode,
         salonName: tenant.name,
         ownerEmail: cleanEmail,
-        codeExpiresAt: rotationDate.toISOString(),
       },
       { status: 201 }
     );

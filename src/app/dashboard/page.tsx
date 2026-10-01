@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Types } from "mongoose";
 import { auth } from "@/auth";
+import { getRoleSession } from "@/lib/auth/role-session";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
@@ -97,6 +98,12 @@ export default async function DashboardPage() {
   if (!session?.user) {
     redirect("/login?error=session_expired");
   }
+
+  // Check ephemeral role session (window / tab state)
+  const roleSessionResult = await getRoleSession();
+  const isRoleLocked = !roleSessionResult || !roleSessionResult.role;
+  const isEvicted = roleSessionResult?.evicted === true;
+  const initialRole: UserRole = roleSessionResult?.role || "owner";
 
   let salonName = "";
   let resolvedTenantId = session.user.tenantId || "";
@@ -683,14 +690,13 @@ export default async function DashboardPage() {
     console.error("Failed to load dashboard data from database:", error);
   }
 
-  const initialRole: UserRole =
-    session.user.role === "staff" ? "staff" : "owner";
-
   return (
     <DashboardClient
       tenantId={resolvedTenantId}
       salonName={salonName}
       initialRole={initialRole}
+      isRoleLocked={isRoleLocked}
+      isEvicted={isEvicted}
       initialOrders={initialOrders}
       initialTotalOrdersCount={initialTotalOrdersCount}
       initialProducts={initialProducts}

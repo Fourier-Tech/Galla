@@ -1,12 +1,15 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { User } from "@/lib/db/models/user.model";
-import { accessCodeSchema } from "@/lib/validations/auth";
-import { hashAccessCode } from "@/lib/auth/code-service";
-import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/auth/rate-limiter";
+import { loginCredentialsSchema } from "@/lib/validations/auth";
+import {
+  checkEmailLoginRateLimit,
+  recordFailedEmailLogin,
+  resetEmailLoginRateLimit,
+} from "@/lib/auth/rate-limiter";
 
 export class RateLimitedError extends CredentialsSignin {
   code = "rate_limited";
@@ -30,7 +33,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   session: {
     strategy: "jwt",
-    maxAge: 7 * 24 * 60 * 60, // 7 days session duration
+    maxAge: 30 * 24 * 60 * 60, // 30 days maximum shop session duration
   },
   pages: {
     signIn: "/login",
@@ -38,15 +41,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   providers: [
     Credentials({
-      name: "AccessCode",
+      name: "ShopCredentials",
       credentials: {
-        code: { label: "8-Digit Shop Access Code", type: "text" },
+        email: { label: "Shop Email Address", type: "email" },
+        password: { label: "Shop Password", type: "password" },
       },
       async authorize(credentials, req) {
         try {
-          const parsed = accessCodeSchema.safeParse(credentials);
+          const parsed = loginCredentialsSchema.safeParse(credentials);
           if (!parsed.success) {
-            console.warn("[Auth] Invalid code format:", parsed.error.format());
+            console.warn("[Auth] Invalid login input format:", parsed.error.format());
             return null;
           }
 
@@ -54,93 +58,57 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             req?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ||
             "127.0.0.1";
 
-          const rateCheck = checkRateLimit(rawIp);
+          const rateCheck = checkEmailLoginRateLimit(rawIp);
           if (!rateCheck.allowed) {
-            console.warn(`[Auth] Rate limit exceeded for IP: ${rawIp}`);
+            console.warn(`[Auth] Email login rate limit exceeded for IP: ${rawIp}`);
             throw new RateLimitedError();
           }
 
-          const { code } = parsed.data;
-          const codeHash = hashAccessCode(code);
+          const { email, password } = parsed.data;
 
           await connectToDatabase();
 
           const rawUser = await User.collection.findOne({
-            $or: [
-              { ownerCodeHash: codeHash },
-              { staffCodeHash: codeHash },
-              { previousOwnerCodeHash: codeHash },
-              { previousStaffCodeHash: codeHash },
-            ],
+            ownerEmail: email.toLowerCase().trim(),
           });
 
           if (!rawUser) {
-            const fail = recordFailedAttempt(rawIp);
-            console.warn(
-              `[Auth] Invalid access code attempt from IP ${rawIp}. Remaining attempts: ${fail.remainingAttempts}`
-            );
+            recordFailedEmailLogin(rawIp);
+            console.warn(`[Auth] No salon user found for email: ${email}`);
             return null;
           }
 
-          const now = new Date();
-          let role: "owner" | "staff" | null = null;
-          let codeType: "current" | "grace" = "current";
-
-          if (rawUser.ownerCodeHash === codeHash) {
-            role = "owner";
-            codeType = "current";
-          } else if (rawUser.staffCodeHash === codeHash) {
-            role = "staff";
-            codeType = "current";
-          } else if (rawUser.previousOwnerCodeHash === codeHash) {
-            if (!rawUser.graceExpiresAt || now > new Date(rawUser.graceExpiresAt)) {
-              console.warn("[Auth] Expired grace owner code attempt");
-              recordFailedAttempt(rawIp);
-              return null;
+          // If no passwordHash is set yet, check if default password applies (e.g. "shreehari123" or "password123")
+          let isPasswordValid = false;
+          if (rawUser.passwordHash) {
+            isPasswordValid = await bcrypt.compare(password, rawUser.passwordHash);
+          } else {
+            // Default fallback for initial migration
+            isPasswordValid = password === "shreehari123" || password === "password123";
+            if (isPasswordValid) {
+              const newHash = await bcrypt.hash(password, 10);
+              await User.collection.updateOne(
+                { _id: rawUser._id },
+                { $set: { passwordHash: newHash } }
+              );
             }
-            role = "owner";
-            codeType = "grace";
-          } else if (rawUser.previousStaffCodeHash === codeHash) {
-            if (!rawUser.graceExpiresAt || now > new Date(rawUser.graceExpiresAt)) {
-              console.warn("[Auth] Expired grace staff code attempt");
-              recordFailedAttempt(rawIp);
-              return null;
-            }
-            role = "staff";
-            codeType = "grace";
           }
 
-          if (!role) {
-            console.error("[Auth] Unrecognized code hash match in user document");
+          if (!isPasswordValid) {
+            recordFailedEmailLogin(rawIp);
+            console.warn(`[Auth] Incorrect password for email: ${email}`);
             return null;
           }
 
           // Successful authentication -> reset rate limiter
-          resetRateLimit(rawIp);
+          resetEmailLoginRateLimit(rawIp);
 
-          // Generate single-device session ID
-          const activeSessionId = crypto.randomUUID();
-          const updateField =
-            role === "owner"
-              ? { ownerActiveSessionId: activeSessionId }
-              : { staffActiveSessionId: activeSessionId };
-
-          await User.collection.updateOne(
-            { _id: rawUser._id },
-            { $set: updateField }
-          );
-
-          console.log(
-            `[Auth] Access granted: Role=${role}, CodeType=${codeType}`
-          );
+          console.log(`[Auth] Shop authenticated successfully: ${email}`);
 
           return {
             id: rawUser._id.toString(),
             tenantId: rawUser.tenantId.toString(),
-            role,
-            activeSessionId,
-            codeType,
-            graceExpiresAt: rawUser.graceExpiresAt ? new Date(rawUser.graceExpiresAt).toISOString() : null,
+            email: rawUser.ownerEmail,
           };
         } catch (error) {
           console.error("[Auth] Authorization error:", error);
@@ -157,14 +125,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.tenantId = user.tenantId;
-        token.role = user.role;
-        token.activeSessionId = user.activeSessionId;
-        token.codeType = user.codeType;
-        token.graceExpiresAt = user.graceExpiresAt;
+        token.email = user.email;
+        token.sessionCreatedAt = Date.now();
         return token;
       }
 
-      // Check session validity
+      // Check 7-day inactivity rule
       if (token.id) {
         try {
           await connectToDatabase();
@@ -172,9 +138,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             { _id: new Types.ObjectId(token.id as string) },
             {
               projection: {
-                ownerActiveSessionId: 1,
-                staffActiveSessionId: 1,
-                graceExpiresAt: 1,
+                lastRoleLoginAt: 1,
+                updatedAt: 1,
+                createdAt: 1,
               },
             }
           );
@@ -183,28 +149,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null;
           }
 
-          // Single-device validation
-          const currentDbSession =
-            token.role === "owner"
-              ? dbUser.ownerActiveSessionId
-              : dbUser.staffActiveSessionId;
+          const lastActivityDate = dbUser.lastRoleLoginAt
+            ? new Date(dbUser.lastRoleLoginAt).getTime()
+            : dbUser.updatedAt
+            ? new Date(dbUser.updatedAt).getTime()
+            : dbUser.createdAt
+            ? new Date(dbUser.createdAt).getTime()
+            : Date.now();
 
-          if (!token.activeSessionId || currentDbSession !== token.activeSessionId) {
-            console.warn(
-              `[Auth] Invalidation: token session ${token.activeSessionId} !== DB session ${currentDbSession}`
-            );
+          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+          if (Date.now() - lastActivityDate > SEVEN_DAYS_MS) {
+            console.warn("[Auth] Session invalidated: 7 days of inactivity exceeded");
             return null;
           }
-
-          // Grace period expiration: if logged in with a grace code and grace window has passed
-          if (token.codeType === "grace" && dbUser.graceExpiresAt) {
-            if (new Date() > new Date(dbUser.graceExpiresAt)) {
-              console.warn("[Auth] Invalidation: Grace period expired for session");
-              return null;
-            }
-          }
         } catch (e) {
-          console.error("[Auth] Token validation error:", e);
+          console.error("[Auth] Inactivity check error:", e);
         }
       }
 
@@ -214,10 +173,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user && token) {
         session.user.id = token.id as string;
         session.user.tenantId = token.tenantId as string;
-        session.user.role = token.role as "owner" | "staff";
-        session.user.activeSessionId = token.activeSessionId as string | null | undefined;
-        session.user.codeType = token.codeType as "current" | "grace" | undefined;
-        session.user.graceExpiresAt = token.graceExpiresAt as string | null | undefined;
+        session.user.email = token.email as string;
+        session.user.role = (token.role as "owner" | "staff") || undefined;
       }
       return session;
     },

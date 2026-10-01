@@ -15,6 +15,8 @@ import {
   Store,
   Sparkles,
   Truck,
+  Lock,
+  KeyRound,
 } from "lucide-react";
 import { TabId, UserRole } from "@/types/dashboard";
 
@@ -44,6 +46,8 @@ interface SidebarProps {
   onRoleChange?: (role: UserRole) => void;
   salonName?: string;
   profileImageUrl?: string;
+  onLockCounter?: () => void;
+  onOpenChangePins?: () => void;
 }
 
 export function Sidebar({
@@ -52,6 +56,8 @@ export function Sidebar({
   role,
   salonName = "Salon",
   profileImageUrl,
+  onLockCounter,
+  onOpenChangePins,
 }: SidebarProps) {
   // Gated navigation: Staff cannot see Analytics tab
   const visibleNav = NAV_ITEMS.filter((item) => !item.ownerOnly || role === "owner");
@@ -124,14 +130,14 @@ export function Sidebar({
         </nav>
       </div>
 
-      {/* Footer Area: Account Role & Sign Out */}
-      <div className="px-4 space-y-3">
-        <div className="bg-galla-paper/80 border border-galla-line rounded-[5px] px-3 py-2 flex items-center justify-between shadow-2xs">
+      {/* Footer Area: Account Role, Screen Lock & Sign Out */}
+      <div className="px-3.5 space-y-2">
+        <div className="bg-galla-paper/80 border border-galla-line rounded-[5px] px-3 py-1.5 flex items-center justify-between shadow-2xs">
           <span className="text-[12px] font-normal text-galla-ink-soft">
-            Logged in as
+            Counter Role
           </span>
           <span
-            className={`text-[12px] font-semibold px-2 py-0.5 rounded-[3px] ${
+            className={`text-[11.5px] font-semibold px-2 py-0.5 rounded-[3px] ${
               role === "owner"
                 ? "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
                 : "bg-galla-brass-soft text-galla-brass border border-galla-brass/20"
@@ -141,11 +147,36 @@ export function Sidebar({
           </span>
         </div>
 
+        {/* Lock Counter */}
+        {onLockCounter && (
+          <button
+            type="button"
+            onClick={onLockCounter}
+            className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 transition-colors cursor-pointer"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            <span>Lock Counter</span>
+          </button>
+        )}
+
+        {/* Manage PINs (Owner Only) */}
+        {role === "owner" && onOpenChangePins && (
+          <button
+            type="button"
+            onClick={onOpenChangePins}
+            className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 transition-colors cursor-pointer"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            <span>Manage Role PINs</span>
+          </button>
+        )}
+
         <button
+          type="button"
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="w-full flex items-center gap-2 px-[13px] py-[8px] rounded-[5px] text-[13px] font-sans font-medium text-galla-ink-soft hover:text-red-700 hover:bg-red-50/60 transition-colors cursor-pointer"
+          className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-red-700 hover:bg-red-50/60 transition-colors cursor-pointer"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-3.5 w-3.5" />
           <span>Sign Out</span>
         </button>
       </div>

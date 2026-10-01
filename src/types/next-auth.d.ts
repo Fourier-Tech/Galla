@@ -31,5 +31,6 @@ declare module "next-auth/jwt" {
     activeSessionId?: string | null;
     codeType?: "current" | "grace";
     graceExpiresAt?: string | null;
+    sessionCreatedAt?: number;
   }
 }
