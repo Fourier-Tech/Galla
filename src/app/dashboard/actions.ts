@@ -6456,7 +6456,23 @@ export async function returnCustomerOrderItemAction(
           });
         }
 
-        // ponytail: Main order checkout fields (totalAmount, subtotal, amountPaid, amountPending) are kept untouched as permanent record. All bill calculations are performed event-wise at display time.
+        // ponytail: Settles order at source when due deduction clears remaining debt and all items are fulfilled. Upgrade path: configurable settlement workflow if owner confirmation is required.
+        const remainingPendingDue = Math.max(0, currentPending - actualDueDeduction);
+        order.amountPending = remainingPendingDue;
+
+        if (remainingPendingDue === 0) {
+          const hasUnfulfilledItems = order.lineItems && order.lineItems.some((li: any) => {
+            const unhandledQty = (li.quantity || 1) - ((li.returnedQuantity || 0) + (li.replacedQuantity || 0));
+            return unhandledQty > 0 && !li.fulfilled;
+          });
+
+          if (!hasUnfulfilledItems) {
+            order.status = "completed";
+            order.completedAt = order.completedAt || new Date();
+          } else if (order.status === "created" || order.status === "advance_paid") {
+            order.status = "paid_full";
+          }
+        }
 
         if (returnCondition === "defective_dealer_claim" && product) {
           await product.save({ session: dbSession });

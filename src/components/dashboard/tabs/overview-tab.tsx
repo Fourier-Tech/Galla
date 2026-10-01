@@ -2,10 +2,10 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
-import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement } from "@/types/dashboard";
+import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement, OrderStatus } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus, canOrderBeRefunded, getOrderRefundBreakdown } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, getOrderPendingDue, getOrderEffectiveStatus, getOrderEffectiveBilling, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus, canOrderBeRefunded, getOrderRefundBreakdown } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { ChangeReplacementDateModal } from "@/components/dashboard/modals/change-replacement-date-modal";
@@ -685,25 +685,19 @@ export function OverviewTab({
                 {recent24hOrders.map((order) => {
                   const refundBreakdown = getOrderRefundBreakdown(order);
                   const isPartialRefund = refundBreakdown.isPartialRefund;
+                  const { effectiveOrderAmount, effectivePaid, effectiveDue } = getOrderEffectiveBilling(order);
+                  const effectiveStatus = getOrderEffectiveStatus(order) as OrderStatus;
                   const isReplacementOrder =
-                    order.status === "replacement" ||
-                    order.status === "replacement_pending" ||
-                    order.status === "replacement_completed" ||
+                    effectiveStatus === "replacement" ||
+                    effectiveStatus === "replacement_pending" ||
+                    effectiveStatus === "replacement_completed" ||
                     Boolean(order.returns?.some((r) => r.customerResolution === "replacement"));
+                  const isDueOrder = getOrderPendingDue(order) > 0;
                   const isPendingOrder =
-                    order.status === "advance_paid" ||
-                    order.status === "created" ||
-                    order.status === "paid_full" ||
-                    isReplacementOrder;
-                  const isDueOrder =
-                    order.status === "created" ||
-                    (order.paid < order.amount &&
-                      order.status !== "advance_paid" &&
-                      order.status !== "paid_full" &&
-                      order.status !== "replacement" &&
-                      order.status !== "replacement_pending" &&
-                      order.status !== "cancelled_refunded" &&
-                      order.status !== "cancelled_converted");
+                    effectiveStatus === "advance_paid" ||
+                    effectiveStatus === "paid_full" ||
+                    isReplacementOrder ||
+                    (effectiveStatus === "created" && isDueOrder);
                   const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
                   // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
                   const isAppointmentDue = !isPendingOrder || !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
@@ -1032,101 +1026,54 @@ export function OverviewTab({
                           )}
                       </div>
 
-                      {(() => {
-                        const returnEvents = Array.isArray(order.returns) ? order.returns : [];
-                        const returnRefundTotal = returnEvents
-                          .filter((r) => r.customerResolution === "refund")
-                          .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
-                        const cashRefundTotal = returnEvents.reduce((sum, r) => {
-                          if (typeof r.cashRefund === "number") return sum + r.cashRefund;
-                          return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0);
-                        }, 0);
-                        const effectiveOrderAmount = Math.max(0, order.amount - returnRefundTotal);
-                        const effectivePaid = Math.max(0, order.paid - cashRefundTotal);
-                        const effectiveDue = Math.max(0, effectiveOrderAmount - effectivePaid);
-
-                        return (
-                          <div className="text-right">
-                            <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
-                              {formatRupee(effectiveOrderAmount)}
-                            </div>
-                            {order.status === "cancelled_refunded" ? (
-                              <div className="space-y-0.5 mt-0.5">
-                                {order.advanceAmount && order.advanceAmount > 0 && (
-                                  <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                                    <span>{formatRupee(order.advanceAmount)} adv. paid</span>
-                                    {(order.advancePaymentMode || order.paymentMode) && (
-                                      <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                        {order.advancePaymentMode || order.paymentMode}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
-                                  <span>
-                                    {order.refundAmount
-                                      ? `${formatRupee(order.refundAmount)} refunded`
-                                      : "Refunded"}
+                      <div className="text-right">
+                        <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
+                          {formatRupee(effectiveOrderAmount)}
+                        </div>
+                        {order.status === "cancelled_refunded" ? (
+                          <div className="space-y-0.5 mt-0.5">
+                            {order.advanceAmount && order.advanceAmount > 0 && (
+                              <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                                <span>{formatRupee(order.advanceAmount)} adv. paid</span>
+                                {(order.advancePaymentMode || order.paymentMode) && (
+                                  <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                    {order.advancePaymentMode || order.paymentMode}
                                   </span>
-                                  {order.refundMode && (
-                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                      {order.refundMode}
-                                    </span>
-                                  )}
-                                </div>
-                                {isPartialRefund && refundBreakdown.retainedAmount > 0 && (
-                                  <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
-                                    {formatRupee(refundBreakdown.retainedAmount)} kept
-                                  </div>
                                 )}
                               </div>
-                            ) : order.status === "cancelled_converted" ? (
-                              <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
-                                Converted
+                            )}
+                            <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>
+                                {order.refundAmount
+                                  ? `${formatRupee(order.refundAmount)} refunded`
+                                  : "Refunded"}
+                              </span>
+                              {order.refundMode && (
+                                <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.refundMode}
+                                </span>
+                              )}
+                            </div>
+                            {isPartialRefund && refundBreakdown.retainedAmount > 0 && (
+                              <div className="font-sans text-[12px] text-galla-teal font-medium tabular-nums">
+                                {formatRupee(refundBreakdown.retainedAmount)} kept
                               </div>
-                            ) : effectiveDue > 0 ? (
-                              <div className="space-y-0.5 mt-0.5">
-                                {effectivePaid > 0 && (
-                                  <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                                    <span>
-                                      {formatRupee(effectivePaid)}{" "}
-                                      {order.status === "advance_paid" || order.status === "paid_full" || order.scheduledFor
-                                        ? "adv."
-                                        : "paid"}
-                                    </span>
-                                    {order.paymentMode && (
-                                      <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                        {order.paymentMode}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
-                                  {formatRupee(effectiveDue)} due
-                                </div>
-                              </div>
-                            ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < effectiveOrderAmount ? (
-                              <div className="space-y-0.5 mt-0.5">
-                                <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
-                                  <span>{formatRupee(order.advanceAmount)} adv.</span>
-                                  {order.advancePaymentMode && (
-                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                      {order.advancePaymentMode}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
-                                  <span>{formatRupee(effectiveOrderAmount - order.advanceAmount)} settled</span>
-                                  {order.paymentMode && (
-                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                      {order.paymentMode}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
-                                <span>Settled</span>
+                            )}
+                          </div>
+                        ) : order.status === "cancelled_converted" ? (
+                          <div className="font-sans text-[12px] text-purple-700 font-medium mt-0.5">
+                            Converted
+                          </div>
+                        ) : effectiveDue > 0 ? (
+                          <div className="space-y-0.5 mt-0.5">
+                            {effectivePaid > 0 && (
+                              <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                                <span>
+                                  {formatRupee(effectivePaid)}{" "}
+                                  {order.status === "advance_paid" || order.status === "paid_full" || order.scheduledFor
+                                    ? "adv."
+                                    : "paid"}
+                                </span>
                                 {order.paymentMode && (
                                   <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
                                     {order.paymentMode}
@@ -1134,13 +1081,44 @@ export function OverviewTab({
                                 )}
                               </div>
                             )}
+                            <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
+                              {formatRupee(effectiveDue)} due
+                            </div>
                           </div>
-                        );
-                      })()}
+                        ) : order.advanceAmount && order.advanceAmount > 0 && order.advanceAmount < effectiveOrderAmount ? (
+                          <div className="space-y-0.5 mt-0.5">
+                            <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>{formatRupee(order.advanceAmount)} adv.</span>
+                              {order.advancePaymentMode && (
+                                <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.advancePaymentMode}
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                              <span>{formatRupee(effectiveOrderAmount - order.advanceAmount)} settled</span>
+                              {order.paymentMode && (
+                                <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                  {order.paymentMode}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="font-sans text-[12px] text-galla-ink-soft/80 mt-0.5 flex items-center justify-end gap-1">
+                            <span>Settled</span>
+                            {order.paymentMode && (
+                              <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                {order.paymentMode}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       <div className="flex justify-center">
                         <StatusPill
-                          status={order.status}
+                          status={effectiveStatus}
                           customLabel={
                             isPartialRefund && order.refundAmount
                               ? `${formatRupee(order.refundAmount)} Refunded`
@@ -1151,7 +1129,7 @@ export function OverviewTab({
                       </div>
 
                       <div className="flex items-center justify-end gap-2">
-                        {order.status === "completed" || order.status === "replacement_completed" ? (
+                        {effectiveStatus === "completed" || effectiveStatus === "replacement_completed" ? (
                           canOrderBeRefunded(order) && onOpenRefund ? (
                             <button
                               onClick={(e) => {
@@ -1166,13 +1144,13 @@ export function OverviewTab({
                           ) : (
                             <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                           )
-                        ) : order.status === "paid_full" || order.status === "replacement_pending" || order.status === "replacement" ? (
+                        ) : effectiveStatus === "paid_full" || effectiveStatus === "replacement_pending" || effectiveStatus === "replacement" ? (
                           <>
                             {isAppointmentDue && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const isRep = order.status === "replacement_pending" || order.status === "replacement";
+                                  const isRep = effectiveStatus === "replacement_pending" || effectiveStatus === "replacement";
                                   const hasDeliverable = isRep || order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
                                   if (hasDeliverable && onOpenSettle) {
                                     onOpenSettle(order);
@@ -1183,7 +1161,7 @@ export function OverviewTab({
                                 disabled={loadingId === order.id}
                                 className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
                                 title={
-                                  order.status === "replacement_pending" || order.status === "replacement"
+                                  effectiveStatus === "replacement_pending" || effectiveStatus === "replacement"
                                     ? "Deliver replacement product and complete order"
                                     : order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
                                     ? "Deliver products and complete order"
@@ -1195,7 +1173,7 @@ export function OverviewTab({
                                 ) : (
                                   <>
                                     <span>
-                                      {order.status === "replacement_pending" || order.status === "replacement" || order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
+                                      {effectiveStatus === "replacement_pending" || effectiveStatus === "replacement" || order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
                                         ? "Deliver & Done"
                                         : "Mark Done"}
                                     </span>
@@ -1219,7 +1197,7 @@ export function OverviewTab({
                               <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                             ) : null}
                           </>
-                        ) : order.status === "advance_paid" || order.status === "created" ? (
+                        ) : effectiveStatus === "advance_paid" || effectiveStatus === "created" ? (
                           <>
                             {isAppointmentDue && (
                               <button

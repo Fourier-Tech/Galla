@@ -20,7 +20,7 @@ import {
   ArrowLeft,
   X,
 } from "lucide-react";
-import { DashboardOrder } from "@/types/dashboard";
+import { DashboardOrder, OrderStatus } from "@/types/dashboard";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import {
   formatRupee,
@@ -31,6 +31,7 @@ import {
   getBookingUrgency,
   formatDisplayNumber,
   canOrderBeRefunded,
+  getOrderEffectiveStatus,
 } from "@/lib/utils";
 import { ReturnCustomerOrderItemModal } from "@/components/dashboard/modals/return-customer-order-item-modal";
 import { useState } from "react";
@@ -141,11 +142,12 @@ export function OrderDetailsModal({
 
   const dueAmount = balanceDue;
   const isDue = dueAmount > 0 && order.status !== "cancelled_refunded" && order.status !== "cancelled_converted";
-  const isAdvance = order.status === "advance_paid";
-  const isPaidFull = order.status === "paid_full";
-  const isCompleted = order.status === "completed" || order.status === "replacement_completed";
-  const isReplacement = order.status === "replacement_pending" || order.status === "replacement";
-  const isRefunded = order.status === "cancelled_refunded";
+  const effectiveStatus: OrderStatus = getOrderEffectiveStatus(order) as OrderStatus;
+  const isAdvance = effectiveStatus === "advance_paid";
+  const isPaidFull = effectiveStatus === "paid_full";
+  const isCompleted = effectiveStatus === "completed" || effectiveStatus === "replacement_completed";
+  const isReplacement = effectiveStatus === "replacement_pending" || effectiveStatus === "replacement";
+  const isRefunded = effectiveStatus === "cancelled_refunded";
   const hasPendingDelivery = Boolean(
     (order.lineItems && order.lineItems.some((li) => !li.fulfilled)) || isReplacement
   );
@@ -276,7 +278,7 @@ export function OrderDetailsModal({
             <h1 className="text-[16px] font-bold text-galla-ink">
               Order {formatDisplayNumber(order.id)}
             </h1>
-            <StatusPill status={order.status} />
+            <StatusPill status={effectiveStatus} />
             <span className="text-[12px] text-galla-ink-soft hidden md:inline">
               &bull; {order.type} &bull; {order.time}
             </span>
@@ -863,7 +865,7 @@ export function OrderDetailsModal({
               <Receipt className="h-4 w-4 text-galla-teal" />
               <h2 className="text-[15px] font-bold text-galla-ink">Bill &amp; Settlement</h2>
             </div>
-            <StatusPill status={order.status} />
+            <StatusPill status={effectiveStatus} />
           </div>
 
           {/* Scrollable Summary Body */}

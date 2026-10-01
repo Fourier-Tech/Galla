@@ -14,28 +14,54 @@ export function formatRupee(amount: number): string {
   return "₹" + floored.toLocaleString("en-IN");
 }
 
+export function getOrderEffectiveBilling(order: {
+  amount?: number;
+  paid?: number;
+  returns?: { refundAmount?: number; cashRefund?: number; dueDeduction?: number; refundMode?: string; customerResolution?: string }[];
+}) {
+  const returnEvents = Array.isArray(order.returns) ? order.returns : [];
+  const returnRefundTotal = returnEvents
+    .filter((r) => r.customerResolution === "refund")
+    .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+  const cashRefundTotal = returnEvents.reduce((sum, r) => {
+    if (typeof r.cashRefund === "number") return sum + r.cashRefund;
+    return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0);
+  }, 0);
+  const effectiveOrderAmount = Math.max(0, (order.amount || 0) - returnRefundTotal);
+  const effectivePaid = Math.max(0, (order.paid || 0) - cashRefundTotal);
+  const effectiveDue = Math.max(0, effectiveOrderAmount - effectivePaid);
+
+  return { effectiveOrderAmount, effectivePaid, effectiveDue };
+}
+
+export function getOrderPendingDue(order: {
+  status?: string;
+  amount?: number;
+  paid?: number;
+  returns?: { refundAmount?: number; cashRefund?: number; dueDeduction?: number; refundMode?: string; customerResolution?: string }[];
+}): number {
+  if (
+    order.status === "completed" ||
+    order.status === "replacement_completed" ||
+    order.status === "cancelled_refunded" ||
+    order.status === "cancelled_converted"
+  ) {
+    return 0;
+  }
+  return getOrderEffectiveBilling(order).effectiveDue;
+}
+
 export function calculatePendingAmount(
-  orders: {
-    status: string;
-    amount?: number;
-    paid?: number;
-    returns?: { refundAmount?: number; dueDeduction?: number; customerResolution?: string }[];
-  }[]
+  orders: Parameters<typeof getOrderPendingDue>[0][]
 ): number {
-  return orders
-    .filter(
-      (o) =>
-        o.status !== "cancelled_refunded" &&
-        o.status !== "cancelled_converted"
-    )
-    .reduce((sum, o) => {
-      const amt = typeof o.amount === "number" && !isNaN(o.amount) ? o.amount : 0;
-      const paid = typeof o.paid === "number" && !isNaN(o.paid) ? o.paid : 0;
-      const dueDeductions = o.returns && Array.isArray(o.returns)
-        ? o.returns.reduce((dSum, r) => dSum + (r.dueDeduction || 0), 0)
-        : 0;
-      return sum + Math.max(0, amt - paid - dueDeductions);
-    }, 0);
+  return orders.reduce((sum, o) => sum + getOrderPendingDue(o), 0);
+}
+
+export function getOrderEffectiveStatus(order: Parameters<typeof getOrderPendingDue>[0]): string {
+  if (order.status === "created" && getOrderPendingDue(order) <= 0) {
+    return "completed";
+  }
+  return order.status || "created";
 }
 
 export function getPhoneDigits(phone?: string | null): string {

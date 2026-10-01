@@ -31,6 +31,9 @@ import {
   formatDisplayNumber,
   canOrderBeRefunded,
   getOrderRefundBreakdown,
+  getOrderPendingDue,
+  getOrderEffectiveStatus,
+  getOrderEffectiveBilling,
 } from "@/lib/utils";
 
 interface OrdersTabProps {
@@ -629,15 +632,15 @@ export function OrdersTab({
               {sortedOrders.map((order) => {
                 const refundBreakdown = getOrderRefundBreakdown(order);
                 const isPartialRefund = refundBreakdown.isPartialRefund;
-                const isReplacementOrder = order.status === "replacement_pending" || order.status === "replacement";
-                const isPendingOrder = order.status === "advance_paid" || order.status === "created" || order.status === "paid_full" || isReplacementOrder;
-                const isDueOrder =
-                  order.status === "created" ||
-                  (order.paid < order.amount &&
-                    order.status !== "advance_paid" &&
-                    order.status !== "paid_full" &&
-                    order.status !== "cancelled_refunded" &&
-                    order.status !== "cancelled_converted");
+                const { effectiveOrderAmount, effectivePaid, effectiveDue } = getOrderEffectiveBilling(order);
+                const effectiveStatus = getOrderEffectiveStatus(order) as OrderStatus;
+                const isReplacementOrder = effectiveStatus === "replacement_pending" || effectiveStatus === "replacement";
+                const isDueOrder = getOrderPendingDue(order) > 0;
+                const isPendingOrder =
+                  effectiveStatus === "advance_paid" ||
+                  effectiveStatus === "paid_full" ||
+                  isReplacementOrder ||
+                  (effectiveStatus === "created" && isDueOrder);
                 const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
                 // ponytail: Settle/Done actions only show once appointment date has arrived (today or overdue). Upgrade path: tenant config for strictly today if past-date locks are requested.
                 const isAppointmentDue = !isPendingOrder || !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
@@ -879,13 +882,7 @@ export function OrdersTab({
                         const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
                         const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
 
-                        const isPaymentDueOrder =
-                          order.status === "created" ||
-                          (order.paid < order.amount &&
-                            order.status !== "advance_paid" &&
-                            order.status !== "paid_full" &&
-                            order.status !== "replacement" &&
-                            order.status !== "replacement_pending");
+                        const isPaymentDueOrder = isDueOrder;
 
                         const badgeLabel = isReplacementOrder
                           ? isTomorrow
@@ -1034,21 +1031,7 @@ export function OrdersTab({
                         )}
                     </div>
 
-                    {(() => {
-                      const returnEvents = Array.isArray(order.returns) ? order.returns : [];
-                      const returnRefundTotal = returnEvents
-                        .filter((r) => r.customerResolution === "refund")
-                        .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
-                      const cashRefundTotal = returnEvents.reduce((sum, r) => {
-                        if (typeof r.cashRefund === "number") return sum + r.cashRefund;
-                        return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? r.refundAmount || 0 : 0);
-                      }, 0);
-                      const effectiveOrderAmount = Math.max(0, order.amount - returnRefundTotal);
-                      const effectivePaid = Math.max(0, order.paid - cashRefundTotal);
-                      const effectiveDue = Math.max(0, effectiveOrderAmount - effectivePaid);
-
-                      return (
-                        <div className="text-right">
+                      <div className="text-right">
                           <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                             {formatRupee(effectiveOrderAmount)}
                           </div>
@@ -1137,12 +1120,10 @@ export function OrdersTab({
                             </div>
                           )}
                         </div>
-                      );
-                    })()}
 
                     <div className="flex justify-center">
                       <StatusPill
-                        status={order.status}
+                        status={effectiveStatus}
                         customLabel={
                           isPartialRefund && order.refundAmount
                             ? `${formatRupee(order.refundAmount)} Refunded`
@@ -1153,7 +1134,7 @@ export function OrdersTab({
                     </div>
 
                     <div className="flex items-center justify-end gap-2">
-                      {order.status === "completed" || order.status === "replacement_completed" ? (
+                      {effectiveStatus === "completed" || effectiveStatus === "replacement_completed" ? (
                         canOrderBeRefunded(order) && onOpenRefund ? (
                           <button
                             onClick={(e) => {
@@ -1168,13 +1149,13 @@ export function OrdersTab({
                         ) : (
                           <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                         )
-                      ) : order.status === "paid_full" || order.status === "replacement_pending" || order.status === "replacement" ? (
+                      ) : effectiveStatus === "paid_full" || effectiveStatus === "replacement_pending" || effectiveStatus === "replacement" ? (
                         <>
                           {isAppointmentDue && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const isRep = order.status === "replacement_pending" || order.status === "replacement";
+                                const isRep = effectiveStatus === "replacement_pending" || effectiveStatus === "replacement";
                                 const hasDeliverable = isRep || order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
                                 if (hasDeliverable && onOpenSettle) {
                                   onOpenSettle(order);
@@ -1185,7 +1166,7 @@ export function OrdersTab({
                               disabled={loadingId === order.id}
                               className="inline-flex items-center gap-1 text-[12px] font-sans font-medium px-2.5 py-1 rounded-[4px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 hover:border-green-400 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
                               title={
-                                order.status === "replacement_pending" || order.status === "replacement"
+                                effectiveStatus === "replacement_pending" || effectiveStatus === "replacement"
                                   ? "Deliver replacement product and complete order"
                                   : order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
                                   ? "Deliver products and complete order"
@@ -1197,7 +1178,7 @@ export function OrdersTab({
                               ) : (
                                 <>
                                   <span>
-                                    {order.status === "replacement_pending" || order.status === "replacement" || order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
+                                    {effectiveStatus === "replacement_pending" || effectiveStatus === "replacement" || order.type === "Product sale" || order.lineItems?.some((li) => !li.fulfilled)
                                       ? "Deliver & Done"
                                       : "Mark Done"}
                                   </span>
@@ -1221,7 +1202,7 @@ export function OrdersTab({
                             <span className="text-[12px] font-sans text-galla-ink-soft/40">—</span>
                           ) : null}
                         </>
-                      ) : order.status === "advance_paid" || order.status === "created" ? (
+                      ) : effectiveStatus === "advance_paid" || effectiveStatus === "created" ? (
                         <>
                           {isAppointmentDue && (
                             <button
