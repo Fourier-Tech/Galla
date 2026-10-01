@@ -165,16 +165,23 @@ export async function GET(request: Request) {
     const totalCount = products.length;
     const paginatedProducts = products.slice((page - 1) * pageSize, page * pageSize);
 
-    return NextResponse.json({
-      success: true,
-      products: paginatedProducts,
-      totalCount,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
-      categoryCounts,
-      inactiveCount,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        products: paginatedProducts,
+        totalCount,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+        categoryCounts,
+        inactiveCount,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        },
+      }
+    );
   } catch (error) {
     console.error("GET /api/products error:", error);
     return NextResponse.json(

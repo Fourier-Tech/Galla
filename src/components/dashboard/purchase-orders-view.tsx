@@ -32,6 +32,7 @@ import {
   getLocalDateString,
   getFirstDayOfCurrentMonth,
   formatDisplayNumber,
+  formatNoteDisplay,
   type BillStatusKey,
 } from "@/lib/utils";
 import {
@@ -774,12 +775,12 @@ export function PurchaseOrdersView({
                         {po.notes && (
                           <div
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                            title={`Note: ${po.notes}`}
+                            title={`Note: ${formatNoteDisplay(po.notes)}`}
                           >
                             <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                               Note
                             </span>
-                            <span className="truncate font-medium">{po.notes}</span>
+                            <span className="truncate font-medium">{formatNoteDisplay(po.notes)}</span>
                           </div>
                         )}
 

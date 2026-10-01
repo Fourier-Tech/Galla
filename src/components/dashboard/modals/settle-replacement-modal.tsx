@@ -15,7 +15,7 @@ import {
   Check,
 } from "lucide-react";
 import { DashboardProduct, DashboardSupplier } from "@/types/dashboard";
-import { formatRupee } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber } from "@/lib/utils";
 import { settleSupplierReplacementAction, getPurchaseOrdersForProductAction } from "@/app/dashboard/actions";
 import { PaymentModeSelect } from "../payment-mode-select";
 
@@ -421,7 +421,7 @@ export function SettleReplacementModal({
                 <option value="">-- Select Original Supplier Bill * --</option>
                 {pos.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.purchaseOrderNumber} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })})
+                    {formatDisplayNumber(p.purchaseOrderNumber)} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })})
                   </option>
                 ))}
               </select>

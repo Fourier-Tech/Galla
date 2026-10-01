@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { getCustomerOrdersAction } from "@/app/dashboard/actions";
-import { formatRupee, formatDisplayNumber, calculatePendingAmount, getBookingUrgency, canOrderBeRefunded } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber, formatNoteDisplay, calculatePendingAmount, getBookingUrgency, canOrderBeRefunded } from "@/lib/utils";
 import { StatusPill } from "@/components/dashboard/status-pill";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
@@ -357,7 +357,7 @@ export function CustomerDetailsView({
               Client Preferences &amp; Notes
             </span>
             <p className="text-[12.5px] text-amber-900/90 mt-0.5 whitespace-pre-wrap font-sans">
-              {customer.notes}
+              {formatNoteDisplay(customer.notes)}
             </p>
           </div>
         </div>
@@ -641,12 +641,12 @@ export function CustomerDetailsView({
                         {order.notes && (
                           <div
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                            title={`Note: ${order.notes}`}
+                            title={`Note: ${formatNoteDisplay(order.notes)}`}
                           >
                             <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                               Note
                             </span>
-                            <span className="truncate font-medium">{order.notes}</span>
+                            <span className="truncate font-medium">{formatNoteDisplay(order.notes)}</span>
                           </div>
                         )}
                       </div>
@@ -704,6 +704,7 @@ export function CustomerDetailsView({
                         {/* 2. Reschedule: for upcoming scheduled appointments or pending due orders */}
                         {(Boolean(order.scheduledFor) || !isPaidFull) &&
                           order.status !== "completed" &&
+                          order.status !== "replacement_completed" &&
                           order.status !== "cancelled_refunded" &&
                           order.status !== "cancelled_converted" && (
                             <button

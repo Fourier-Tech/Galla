@@ -29,6 +29,7 @@ import {
   getWhatsAppReminderUrl,
   formatPhoneNumber,
   formatDisplayNumber,
+  formatNoteDisplay,
   canOrderBeRefunded,
   getOrderRefundBreakdown,
   getOrderPendingDue,
@@ -348,8 +349,7 @@ export function OrdersTab({
           (o) =>
             o.status === "replacement" ||
             o.status === "replacement_pending" ||
-            o.status === "replacement_completed" ||
-            o.returns?.some((r) => r.customerResolution === "replacement")
+            o.status === "replacement_completed"
         );
         setDisplayedOrders(inMemory);
       } else {
@@ -395,6 +395,11 @@ export function OrdersTab({
       if (!urgencyA && !urgencyB) {
         const dateA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const dateB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        if (Math.abs(dateB - dateA) < 5000) {
+          if (a.id && b.id) {
+            return b.id.localeCompare(a.id, undefined, { numeric: true });
+          }
+        }
         return dateB - dateA;
       }
 
@@ -420,6 +425,11 @@ export function OrdersTab({
       // 4. Secondary sort for identical dates: newest activity/creation first
       const dateA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
       const dateB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      if (Math.abs(dateB - dateA) < 5000) {
+        if (a.id && b.id) {
+          return b.id.localeCompare(a.id, undefined, { numeric: true });
+        }
+      }
       return dateB - dateA;
     });
   }, [displayedOrders, filter, searchQuery, startDate, endDate]);
@@ -683,12 +693,12 @@ export function OrdersTab({
                       {order.notes && (
                         <div
                           className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                          title={`Note: ${order.notes}`}
+                          title={`Note: ${formatNoteDisplay(order.notes)}`}
                         >
                           <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                             Note
                           </span>
-                          <span className="truncate font-medium">{order.notes}</span>
+                          <span className="truncate font-medium">{formatNoteDisplay(order.notes)}</span>
                         </div>
                       )}
                       {isDueOrder && !order.scheduledFor && (

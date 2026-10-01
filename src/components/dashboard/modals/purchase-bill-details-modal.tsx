@@ -33,6 +33,7 @@ import {
   getBookingUrgency,
   getSupplierWhatsAppReminderUrl,
   formatDisplayNumber,
+  formatNoteDisplay,
   getBillStatus,
 } from "@/lib/utils";
 
@@ -114,7 +115,7 @@ export function PurchaseBillDetailsModal({
           )
         ) {
           directReturns.push({
-            returnNumber: `RET-${bill.purchaseOrderNumber}`,
+            returnNumber: `RET-${formatDisplayNumber(bill.purchaseOrderNumber)}`,
             productId: "",
             productName: name,
             quantity: qty,
@@ -903,7 +904,7 @@ export function PurchaseBillDetailsModal({
                           </span>
                           {ret.returnNumber && (
                             <span className="text-[11px] text-galla-ink-soft tabular-nums">
-                              #{ret.returnNumber}
+                              #{formatDisplayNumber(ret.returnNumber)}
                             </span>
                           )}
                         </div>
@@ -954,7 +955,7 @@ export function PurchaseBillDetailsModal({
 
                       {ret.notes && (
                         <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/60">
-                          {ret.notes}
+                          {formatNoteDisplay(ret.notes)}
                         </div>
                       )}
                     </div>
@@ -974,7 +975,7 @@ export function PurchaseBillDetailsModal({
                 </h2>
               </div>
               <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-[6px] text-[12.5px] text-amber-950 leading-relaxed">
-                {bill.notes}
+                {formatNoteDisplay(bill.notes)}
               </div>
             </section>
           )}
@@ -1158,7 +1159,7 @@ export function PurchaseBillDetailsModal({
 
                       {p.notes && (
                         <div className="text-[11.5px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/50 mt-1">
-                          {p.notes}
+                          {formatNoteDisplay(p.notes)}
                         </div>
                       )}
                     </div>

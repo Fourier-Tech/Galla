@@ -22,6 +22,7 @@ import {
   getFirstDayOfCurrentMonth,
   formatDisplayDate,
   formatDisplayNumber,
+  formatNoteDisplay,
 } from "@/lib/utils";
 import { ExpenseDetailsModal } from "@/components/dashboard/modals/expense-details-modal";
 import { PurchaseBillDetailsModal } from "@/components/dashboard/modals/purchase-bill-details-modal";
@@ -618,12 +619,12 @@ export function ExpensesTab({
                   {expense.notes && (
                     <div
                       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                      title={`Note: ${expense.notes}`}
+                      title={`Note: ${formatNoteDisplay(expense.notes)}`}
                     >
                       <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                         Note
                       </span>
-                      <span className="truncate font-medium">{expense.notes}</span>
+                      <span className="truncate font-medium">{formatNoteDisplay(expense.notes)}</span>
                     </div>
                   )}
                 </div>

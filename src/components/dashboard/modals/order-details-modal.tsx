@@ -30,6 +30,7 @@ import {
   getWhatsAppReminderUrl,
   getBookingUrgency,
   formatDisplayNumber,
+  formatNoteDisplay,
   canOrderBeRefunded,
   getOrderEffectiveStatus,
 } from "@/lib/utils";
@@ -796,7 +797,7 @@ export function OrderDetailsModal({
 
                     {ret.notes && (
                       <div className="text-[11.5px] text-galla-ink-soft/80 italic pt-1 border-t border-rose-200/50">
-                        &ldquo;{ret.notes}&rdquo;
+                        &ldquo;{formatNoteDisplay(ret.notes)}&rdquo;
                       </div>
                     )}
                   </div>
@@ -848,8 +849,8 @@ export function OrderDetailsModal({
                   Notes &amp; Settlement Memo
                 </h2>
               </div>
-              <p className="pt-1 text-galla-ink leading-relaxed">
-                {order.notes}
+              <p className="pt-1 text-galla-ink leading-relaxed whitespace-pre-wrap break-words">
+                {formatNoteDisplay(order.notes)}
               </p>
             </section>
           )}
@@ -1088,7 +1089,7 @@ export function OrderDetailsModal({
                           </div>
                           {p.notes && (
                             <div className="px-3 pb-2 pt-0.5 text-[11px] text-galla-ink-soft/80 bg-galla-paper/50">
-                              {p.notes}
+                              {formatNoteDisplay(p.notes)}
                             </div>
                           )}
                         </div>

@@ -356,19 +356,30 @@ export function getWhatsAppReminderUrl(options: {
 }
 
 /**
- * Strips the 4-digit tenant code prefix from standard Galla sequence numbers
- * for in-app display (e.g. "0007-S-2609-0014" -> "S-2609-0014", "0007-PO-2609-0004" -> "PO-2609-0004", "0007-EXP-2609-0032" -> "EXP-2609-0032").
+ * Strips tenant sequence prefixes from standard Galla sequence numbers
+ * for in-app display (e.g. "0001-S-2609-0014" -> "S-2609-0014", "0001-PO-2609-0004" -> "PO-2609-0004", "0001-EXP-2609-0032" -> "EXP-2609-0032").
  * Leaves legacy or non-matching numbers (e.g. "#1042", "PO-2026-0001") unchanged.
  */
 export function formatDisplayNumber(num?: string | null): string {
   if (!num) return "";
   const clean = num.startsWith("#") ? num.slice(1) : num;
-  const match = clean.match(/^\d{4}-([A-Z]+-\d{4}-\d{4}(?:-\d+)?)$/);
+  const retPrefix = clean.startsWith("RET-") ? "RET-" : "";
+  const toMatch = retPrefix ? clean.slice(4) : clean;
+  const match = toMatch.match(/^\d{3,6}-([A-Za-z]+-\d{4}-\d{4}(?:-\d+)?)$/);
   if (match) {
-    return match[1];
+    return retPrefix + match[1];
   }
   return clean;
 }
+
+/**
+ * Strips tenant sequence prefixes from order/expense/PO IDs found anywhere inside free-form notes, memos, or text
+ * (e.g. "Replacement order for 1x ... (Original Order #0001-P-2610-0006)." -> "... #P-2610-0006).")
+ */
+export function formatNoteDisplay(text?: string | null): string {
+  return text ? text.replace(/\b\d{3,6}-([A-Za-z]+-\d{4}-\d{4}(?:-\d+)?)\b/g, "$1") : "";
+}
+
 
 export function getSupplierWhatsAppReminderUrl(options: {
   phone?: string;

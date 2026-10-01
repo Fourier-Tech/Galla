@@ -42,6 +42,7 @@ import {
   formatBookingDate,
   formatAppointmentTime,
   getLocalDateString,
+  formatDisplayNumber,
 } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 import { PaymentModeSelect } from "../payment-mode-select";
@@ -1217,7 +1218,7 @@ export function StockInModal({
                               {rep.quantity} pcs defective
                             </span>
                             <span className="text-[11.5px] tabular-nums text-galla-ink-soft">
-                              From PO #{rep.purchaseOrderNumber}
+                              From PO #{formatDisplayNumber(rep.purchaseOrderNumber)}
                             </span>
                           </div>
                         </div>

@@ -67,6 +67,7 @@ import {
   checkIsLast24Hours,
   formatOrderTime,
   formatDisplayNumber,
+  formatNoteDisplay,
   getBillLastUpdatedTime,
   resolveOrderLineItems,
   resolvePurchaseOrderItems,
@@ -338,7 +339,7 @@ async function deductServiceProductsFromStock(
                 linkedProductId: batch._id,
                 linkedQuantity: takeUnits,
                 linkedOrderId: orderId,
-                notes: `Automatically recorded product expense for service "${service.name}"${orderNumber ? ` in order ${orderNumber}` : ""}.`,
+                notes: `Automatically recorded product expense for service "${service.name}"${orderNumber ? ` in order ${formatDisplayNumber(orderNumber)}` : ""}.`,
               },
             ],
             session ? { session } : undefined,
@@ -578,7 +579,7 @@ async function deductPackageProductsFromStock(
                 linkedProductId: batch._id,
                 linkedQuantity: takeUnits,
                 linkedOrderId: orderId,
-                notes: `Automatically deducted ${takeUnits} units from salon stock during package "${templateName}" fulfillment${orderNumber ? ` in order ${orderNumber}` : ""}.`,
+                notes: `Automatically deducted ${takeUnits} units from salon stock during package "${templateName}" fulfillment${orderNumber ? ` in order ${formatDisplayNumber(orderNumber)}` : ""}.`,
               },
             ],
             session ? { session } : undefined,
@@ -1032,8 +1033,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               type: "settlement",
             });
             prevOrder.notes = prevOrder.notes
-              ? `${prevOrder.notes} | Cleared via Order ${orderNumber}`
-              : `Cleared via Order ${orderNumber}`;
+              ? `${prevOrder.notes} | Cleared via Order ${formatDisplayNumber(orderNumber)}`
+              : `Cleared via Order ${formatDisplayNumber(orderNumber)}`;
             await prevOrder.save({ session: dbSession });
           }
         }
@@ -1825,7 +1826,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         linkedOrderId: order._id,
         recipient: order.customerSnapshot?.name || undefined,
         notes:
-          refundReason || `Refund processed for order ${order.orderNumber}`,
+          refundReason || `Refund processed for order ${formatDisplayNumber(order.orderNumber)}`,
         expenseDate: new Date(),
         recordedBy: session.user.role === "staff" ? "staff" : "owner",
         isSameDay,
@@ -4185,7 +4186,7 @@ export async function getPurchaseOrdersAction(options?: {
           const mappedReturns: DashboardPurchaseOrderReturn[] = (
             po.returns || []
           ).map((r: any) => ({
-            returnNumber: r.returnNumber || `RET-${po.purchaseOrderNumber}`,
+            returnNumber: r.returnNumber || `RET-${formatDisplayNumber(po.purchaseOrderNumber)}`,
             productId: r.productId?.toString() || "",
             productName: r.productName || "Product",
             quantity: r.quantity || 0,
@@ -4221,7 +4222,7 @@ export async function getPurchaseOrdersAction(options?: {
                 )
               ) {
                 mappedReturns.push({
-                  returnNumber: `RET-${po.purchaseOrderNumber}`,
+                  returnNumber: `RET-${formatDisplayNumber(po.purchaseOrderNumber)}`,
                   productId: "",
                   productName: pName,
                   quantity: q,
@@ -6453,10 +6454,14 @@ export async function returnCustomerOrderItemAction(
         // Customer wants replacement
         let replacementProductDoc: any = null;
         if (options?.replacementProductId && Types.ObjectId.isValid(options.replacementProductId)) {
-          replacementProductDoc = await Product.findOne({
-            _id: new Types.ObjectId(options.replacementProductId),
-            tenantId,
-          }).session(dbSession);
+          if (product && product._id.equals(new Types.ObjectId(options.replacementProductId))) {
+            replacementProductDoc = product;
+          } else {
+            replacementProductDoc = await Product.findOne({
+              _id: new Types.ObjectId(options.replacementProductId),
+              tenantId,
+            }).session(dbSession);
+          }
         }
 
         if (!replacementProductDoc && product) {
@@ -6596,7 +6601,7 @@ export async function returnCustomerOrderItemAction(
                 paymentMode: order.paymentMode || "cash",
                 payments: [],
                 scheduledFor: expectedDate,
-                notes: `Replacement order for ${pendingQty}x ${replacementProductName} (Original Order #${order.orderNumber}).${notes ? ` ${notes}` : ""}`,
+                notes: `Replacement order for ${pendingQty}x ${replacementProductName} (Original Order #${formatDisplayNumber(order.orderNumber)}).${notes ? ` ${notes}` : ""}`,
                 recordedBy: session.user.role === "staff" ? "staff" : "owner",
               },
             ],
@@ -6607,8 +6612,12 @@ export async function returnCustomerOrderItemAction(
             [
               {
                 tenantId: new Types.ObjectId(tenantId),
+                orderId: newRepOrder._id,
                 orderNumber: replacementOrderNumber,
-                customerId: order.customerId,
+                customerId:
+                  order.customerId && Types.ObjectId.isValid(order.customerId)
+                    ? new Types.ObjectId(order.customerId)
+                    : undefined,
                 customerName: order.customerSnapshot?.name || (order as any).customer || "Customer",
                 customerPhone: order.customerSnapshot?.phone || (order as any).customerPhone,
                 productId: targetItemId,
@@ -6626,7 +6635,7 @@ export async function returnCustomerOrderItemAction(
           );
           customerReplacementId = newCR._id as Types.ObjectId;
 
-          const repNote = `[Replacement Order #${replacementOrderNumber} Created] ${handedQty}x handed now, ${pendingQty}x scheduled for pickup on ${expectedDate.toLocaleDateString("en-IN")}`;
+          const repNote = `[Replacement Order #${formatDisplayNumber(replacementOrderNumber)} Created] ${quantityToReturn}x ${replacementProductName}`;
           order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
         } else {
           // Immediate full replacement from shelf stock: also create completed replacement order
@@ -6670,7 +6679,7 @@ export async function returnCustomerOrderItemAction(
                 amountPending: 0,
                 paymentMode: order.paymentMode || "cash",
                 payments: [],
-                notes: `Immediate replacement for ${quantityToReturn}x ${replacementProductName} handed from shelf stock (Original Order #${order.orderNumber}).${priceDiff !== 0 ? ` Price difference: ${priceDiff > 0 ? `+₹${priceDiff} paid` : `-₹${Math.abs(priceDiff)} refunded`}.` : ""}${notes ? ` ${notes}` : ""}`,
+                notes: `Immediate replacement for ${quantityToReturn}x ${replacementProductName} handed from shelf stock (Original Order #${formatDisplayNumber(order.orderNumber)}).${priceDiff !== 0 ? ` Price difference: ${priceDiff > 0 ? `+₹${priceDiff} paid` : `-₹${Math.abs(priceDiff)} refunded`}.` : ""}${notes ? ` ${notes}` : ""}`,
                 recordedBy: session.user.role === "staff" ? "staff" : "owner",
                 completedAt: new Date(),
               },
@@ -6678,7 +6687,7 @@ export async function returnCustomerOrderItemAction(
             { session: dbSession }
           );
 
-          const repNote = `[Replacement Order #${replacementOrderNumber} Handed] ${quantityToReturn}x ${replacementProductName} handed from shelf stock.${priceDiff !== 0 ? ` Price diff: ${priceDiff > 0 ? `+₹${priceDiff}` : `-₹${Math.abs(priceDiff)}`}.` : ""}`;
+          const repNote = `[Replacement Order #${formatDisplayNumber(replacementOrderNumber)} Handed] ${quantityToReturn}x ${replacementProductName}`;
           order.notes = order.notes ? `${order.notes}\n${repNote}` : repNote;
         }
 

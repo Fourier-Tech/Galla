@@ -6,7 +6,7 @@ import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Order } from "@/lib/db/models/order.model";
 import { DashboardOrder, DashboardPaymentMode, DashboardRefundMode } from "@/types/dashboard";
-import { formatOrderTime, checkIsToday, checkIsLast24Hours, resolveOrderLineItems } from "@/lib/utils";
+import { formatOrderTime, checkIsToday, checkIsLast24Hours, resolveOrderLineItems, formatNoteDisplay } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
@@ -60,10 +60,7 @@ export async function GET(request: Request) {
         conditions.push({ status: { $in: ["advance_paid", "paid_full"] } });
       } else if (status === "replacement") {
         conditions.push({
-          $or: [
-            { status: { $in: ["replacement", "replacement_pending", "replacement_completed"] } },
-            { "returns.customerResolution": "replacement" },
-          ],
+          status: { $in: ["replacement", "replacement_pending", "replacement_completed"] },
         });
       } else {
         conditions.push({ status });
@@ -132,10 +129,7 @@ export async function GET(request: Request) {
       Order.countDocuments({ tenantId }),
       Order.countDocuments({
         tenantId,
-        $or: [
-          { status: { $in: ["replacement", "replacement_pending", "replacement_completed"] } },
-          { "returns.customerResolution": "replacement" },
-        ],
+        status: { $in: ["replacement", "replacement_pending", "replacement_completed"] },
       }),
     ]);
 
@@ -284,7 +278,7 @@ export async function GET(request: Request) {
         discountType: o.discountType,
         discountValue: o.discountValue,
         discountAmount: o.discountAmount,
-        notes: o.notes || undefined,
+        notes: o.notes ? formatNoteDisplay(o.notes) : undefined,
         recordedBy: o.recordedBy || undefined,
         payments: o.payments && Array.isArray(o.payments) ? o.payments.map((p: any) => ({
           amount: p.amount,
@@ -292,7 +286,7 @@ export async function GET(request: Request) {
           recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
           recordedBy: p.recordedBy,
           type: p.type || undefined,
-          notes: p.notes || undefined,
+          notes: p.notes ? formatNoteDisplay(p.notes) : undefined,
         })) : undefined,
         lineItems: resolveOrderLineItems(o.lineItems, o.returns),
         returns: o.returns && Array.isArray(o.returns) ? o.returns.map((r: any) => ({
@@ -340,6 +334,11 @@ export async function GET(request: Request) {
       orders.sort((a, b) => {
         const timeA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const timeB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        if (Math.abs(timeB - timeA) < 5000) {
+          if (a.id && b.id) {
+            return b.id.localeCompare(a.id, undefined, { numeric: true });
+          }
+        }
         return timeB - timeA;
       });
     }

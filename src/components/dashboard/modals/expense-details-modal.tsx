@@ -12,7 +12,7 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { DashboardExpense } from "@/types/dashboard";
-import { formatRupee, formatDisplayNumber } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber, formatNoteDisplay } from "@/lib/utils";
 
 interface ExpenseDetailsModalProps {
   expense: DashboardExpense | null;
@@ -200,7 +200,7 @@ export function ExpenseDetailsModal({
               <span className="font-semibold text-[12px]">Note</span>
             </div>
             <p className="text-[12px] text-amber-900 leading-relaxed font-sans break-words whitespace-pre-wrap">
-              {expense.notes}
+              {formatNoteDisplay(expense.notes)}
             </p>
           </div>
         )}

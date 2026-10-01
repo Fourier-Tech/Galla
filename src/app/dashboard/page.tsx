@@ -25,6 +25,7 @@ import {
   getBillLastUpdatedTime,
   resolveOrderLineItems,
   resolvePurchaseOrderItems,
+  formatNoteDisplay,
 } from "@/lib/utils";
 import {
   DashboardCustomer,
@@ -239,10 +240,7 @@ export default async function DashboardPage() {
         }).sort({ expectedDate: 1 }).lean(),
         Order.countDocuments({
           tenantId: tenantObjectId,
-          $or: [
-            { status: { $in: ["replacement", "replacement_pending", "replacement_completed"] } },
-            { "returns.customerResolution": "replacement" },
-          ],
+          status: { $in: ["replacement", "replacement_pending", "replacement_completed"] },
         }),
         getOrSyncTodayRollup(tenantObjectId),
         Customer.aggregate([
@@ -399,7 +397,7 @@ export default async function DashboardPage() {
           discountType: o.discountType,
           discountValue: o.discountValue,
           discountAmount: o.discountAmount,
-          notes: o.notes || undefined,
+          notes: o.notes ? formatNoteDisplay(o.notes) : undefined,
           recordedBy: o.recordedBy || undefined,
           payments: o.payments && Array.isArray(o.payments) ? o.payments.map((p: any) => ({
             amount: p.amount,
@@ -407,7 +405,7 @@ export default async function DashboardPage() {
             recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : new Date().toISOString(),
             recordedBy: p.recordedBy,
             type: p.type || undefined,
-            notes: p.notes || undefined,
+            notes: p.notes ? formatNoteDisplay(p.notes) : undefined,
           })) : undefined,
           lineItems: resolveOrderLineItems(o.lineItems, o.returns),
           returns: o.returns && Array.isArray(o.returns) ? o.returns.map((r: any) => ({
@@ -455,6 +453,11 @@ export default async function DashboardPage() {
       initialOrders.sort((a, b) => {
         const timeA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const timeB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        if (Math.abs(timeB - timeA) < 5000) {
+          if (a.id && b.id) {
+            return b.id.localeCompare(a.id, undefined, { numeric: true });
+          }
+        }
         return timeB - timeA;
       });
 
@@ -574,7 +577,7 @@ export default async function DashboardPage() {
         pendingQuantity: cr.pendingQuantity,
         expectedDate: new Date(cr.expectedDate).toISOString(),
         status: cr.status,
-        notes: cr.notes,
+        notes: cr.notes ? formatNoteDisplay(cr.notes) : undefined,
         recordedBy: cr.recordedBy,
         completedAt: cr.completedAt ? new Date(cr.completedAt).toISOString() : undefined,
         createdAt: new Date(cr.createdAt).toISOString(),
@@ -599,12 +602,12 @@ export default async function DashboardPage() {
       initialExpenses = rawExpenses.map((e) => ({
         id: e._id.toString(),
         expenseNumber: e.expenseNumber,
-        desc: e.title,
+        desc: formatNoteDisplay(e.title),
         amount: e.amount,
         category: mapExpenseCategory(e.category, e.title),
         time: formatOrderTime(e.expenseDate || e.createdAt),
         isToday: checkIsToday(e.expenseDate || e.createdAt),
-        notes: e.notes || undefined,
+        notes: e.notes ? formatNoteDisplay(e.notes) : undefined,
         createdAt: (e.expenseDate || e.createdAt)
           ? new Date(e.expenseDate || e.createdAt).toISOString()
           : undefined,

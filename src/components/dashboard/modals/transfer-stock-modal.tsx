@@ -23,7 +23,7 @@ import {
   returnInventoryToSupplierAction,
   getPurchaseOrdersForProductAction,
 } from "@/app/dashboard/actions";
-import { formatRupee } from "@/lib/utils";
+import { formatRupee, formatDisplayNumber } from "@/lib/utils";
 import { ConfirmModal } from "./confirm-modal";
 
 interface TransferStockModalProps {
@@ -973,7 +973,7 @@ function TransferStockModalContent({
                                 {po.supplierName}
                               </span>
                               <span className="tabular-nums text-xs font-medium text-galla-ink-soft bg-galla-paper px-2 py-0.5 rounded-[4px] border border-galla-line/60">
-                                {po.purchaseOrderNumber}
+                                {formatDisplayNumber(po.purchaseOrderNumber)}
                               </span>
                             </div>
                             <div className="text-xs text-galla-ink-soft mt-1 flex items-center gap-2 flex-wrap">

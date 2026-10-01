@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { Search, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
-import { formatPhoneNumber, formatRupee } from "@/lib/utils";
+import { formatPhoneNumber, formatRupee, formatNoteDisplay } from "@/lib/utils";
 import { CustomerDetailsView } from "@/components/dashboard/customer-details-view";
 import { CustomerModal } from "@/components/dashboard/modals/customer-modal";
 
@@ -199,12 +199,12 @@ export function CustomersTab({
                     {customer.notes && (
                       <div
                         className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                        title={`Note: ${customer.notes}`}
+                        title={`Note: ${formatNoteDisplay(customer.notes)}`}
                       >
                         <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                           Note
                         </span>
-                        <span className="truncate font-medium">{customer.notes}</span>
+                        <span className="truncate font-medium">{formatNoteDisplay(customer.notes)}</span>
                       </div>
                     )}
                   </div>

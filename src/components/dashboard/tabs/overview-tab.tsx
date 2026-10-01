@@ -5,7 +5,7 @@ import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, Ar
 import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement, OrderStatus } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, getOrderPendingDue, getOrderEffectiveStatus, getOrderEffectiveBilling, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, getBillStatus, canOrderBeRefunded, getOrderRefundBreakdown } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, getOrderPendingDue, getOrderEffectiveStatus, getOrderEffectiveBilling, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, formatNoteDisplay, getBillStatus, canOrderBeRefunded, getOrderRefundBreakdown } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { ChangeReplacementDateModal } from "@/components/dashboard/modals/change-replacement-date-modal";
@@ -176,7 +176,7 @@ export function OverviewTab({
 
   // Recent 24h Orders
   const recent24hOrders = useMemo(() => {
-    return orders.filter((o) => {
+    const list = orders.filter((o) => {
       if (!(o.isToday || o.isLast24Hours)) return false;
       
       if (!searchQuery.trim()) return true;
@@ -188,6 +188,17 @@ export function OverviewTab({
       const statusMatch = o.status.toLowerCase().includes(q);
       const refundReasonMatch = o.refundReason?.toLowerCase().includes(q);
       return Boolean(idMatch || customerMatch || typeMatch || statusMatch || refundReasonMatch);
+    });
+
+    return [...list].sort((a, b) => {
+      const timeA = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      if (Math.abs(timeB - timeA) < 5000) {
+        if (a.id && b.id) {
+          return b.id.localeCompare(a.id, undefined, { numeric: true });
+        }
+      }
+      return timeB - timeA;
     });
   }, [orders, searchQuery]);
 
@@ -536,7 +547,7 @@ export function OverviewTab({
               <strong className="font-semibold">
                 {arrivedReplacements.length} client replacement{arrivedReplacements.length > 1 ? "s" : ""} arrived from dealer
               </strong>{" "}
-              &mdash; ready for client handover ({arrivedReplacements.map((r) => `${r.customerName} (#${r.orderNumber})`).join(", ")}).
+              &mdash; ready for client handover ({arrivedReplacements.map((r) => `${r.customerName} (#${formatDisplayNumber(r.orderNumber)})`).join(", ")}).
             </span>
           </div>
 
@@ -686,9 +697,7 @@ export function OverviewTab({
                   const effectiveStatus = getOrderEffectiveStatus(order) as OrderStatus;
                   const isReplacementOrder =
                     effectiveStatus === "replacement" ||
-                    effectiveStatus === "replacement_pending" ||
-                    effectiveStatus === "replacement_completed" ||
-                    Boolean(order.returns?.some((r) => r.customerResolution === "replacement"));
+                    effectiveStatus === "replacement_pending";
                   const isDueOrder = getOrderPendingDue(order) > 0;
                   const isPendingOrder =
                     effectiveStatus === "advance_paid" ||
@@ -737,12 +746,12 @@ export function OverviewTab({
                         {order.notes && (
                           <div
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                            title={`Note: ${order.notes}`}
+                            title={`Note: ${formatNoteDisplay(order.notes)}`}
                           >
                             <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
                               Note
                             </span>
-                            <span className="truncate font-medium">{order.notes}</span>
+                            <span className="truncate font-medium">{formatNoteDisplay(order.notes)}</span>
                           </div>
                         )}
                         {isDueOrder && !order.scheduledFor && (
