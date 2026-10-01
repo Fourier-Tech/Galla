@@ -115,9 +115,56 @@ export function DashboardClient({
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
 
+  const isRoleLockedRef = React.useRef(isRoleLocked);
+  React.useEffect(() => {
+    isRoleLockedRef.current = isRoleLocked;
+  }, [isRoleLocked]);
+
+  // Synchronize window-level role session from sessionStorage across in-place refreshes and new tab openings
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      if (initialIsEvicted) {
+        sessionStorage.removeItem("galla_role_session");
+        setIsRoleLocked(true);
+        isRoleLockedRef.current = true;
+        setIsEvicted(true);
+        return;
+      }
+
+      const rawStored = sessionStorage.getItem("galla_role_session");
+      if (rawStored) {
+        const parsed = JSON.parse(rawStored);
+        if (parsed?.role && parsed?.activeSessionId) {
+          // Keep window unlocked across in-place page refreshes
+          setRole(parsed.role);
+          roleRef.current = parsed.role;
+          setCurrentSessionId(parsed.activeSessionId);
+          currentSessionIdRef.current = parsed.activeSessionId;
+          setIsRoleLocked(false);
+          isRoleLockedRef.current = false;
+          return;
+        }
+      }
+
+      // If sessionStorage has no role session, this window was closed & reopened -> lock counter
+      if (!rawStored) {
+        setIsRoleLocked(true);
+        isRoleLockedRef.current = true;
+      }
+    } catch {
+      // Fallback to server props
+    }
+  }, [initialIsEvicted]);
+
   const handleLockCounter = async () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("galla_role_session");
+    }
     await lockRoleSessionAction();
     setIsRoleLocked(true);
+    isRoleLockedRef.current = true;
   };
 
   const handleRoleVerified = (newRole: UserRole, newActiveSessionId?: string) => {
@@ -128,7 +175,23 @@ export function DashboardClient({
       currentSessionIdRef.current = newActiveSessionId;
     }
     setIsRoleLocked(false);
+    isRoleLockedRef.current = false;
     setIsEvicted(false);
+
+    // Save to window sessionStorage so in-place page refreshes never lock
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(
+          "galla_role_session",
+          JSON.stringify({
+            role: newRole,
+            activeSessionId: newActiveSessionId,
+          })
+        );
+      } catch {
+        // Ignore sessionStorage errors
+      }
+    }
 
     // Cross-tab broadcast to displace any open tabs with this role in the same browser instantly
     try {
@@ -360,15 +423,21 @@ export function DashboardClient({
     event: "role_session_displaced",
     onEvent: (data) => {
       if (!data || !data.role || !data.newSessionId) return;
-      // If incoming event is for our active role and has a different session ID
+      // Only displace if this screen is currently UNLOCKED, has an active session, for the same role, and the incoming ID is different
       if (
+        !isRoleLockedRef.current &&
         data.role === roleRef.current &&
-        (!currentSessionIdRef.current || data.newSessionId !== currentSessionIdRef.current)
+        Boolean(currentSessionIdRef.current) &&
+        data.newSessionId !== currentSessionIdRef.current
       ) {
         console.warn(
           `[Realtime] Session for role "${data.role}" displaced by a new login on another device. Instantly locking.`
         );
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("galla_role_session");
+        }
         setIsRoleLocked(true);
+        isRoleLockedRef.current = true;
         setIsEvicted(true);
         lockRoleSessionAction().catch(console.error);
       }
@@ -381,15 +450,24 @@ export function DashboardClient({
     const bc = new BroadcastChannel("galla_role_channel");
     bc.onmessage = (event) => {
       const data = event.data;
-      if (data?.type === "ROLE_LOGIN" && data.role === roleRef.current) {
-        if (data.newSessionId && data.newSessionId !== currentSessionIdRef.current) {
-          console.warn(
-            `[Cross-Tab] Session for role "${data.role}" displaced by a new login in another tab. Instantly locking.`
-          );
-          setIsRoleLocked(true);
-          setIsEvicted(true);
-          lockRoleSessionAction().catch(console.error);
+      if (
+        !isRoleLockedRef.current &&
+        data?.type === "ROLE_LOGIN" &&
+        data.role === roleRef.current &&
+        Boolean(currentSessionIdRef.current) &&
+        Boolean(data.newSessionId) &&
+        data.newSessionId !== currentSessionIdRef.current
+      ) {
+        console.warn(
+          `[Cross-Tab] Session for role "${data.role}" displaced by a new login in another tab. Instantly locking.`
+        );
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("galla_role_session");
         }
+        setIsRoleLocked(true);
+        isRoleLockedRef.current = true;
+        setIsEvicted(true);
+        lockRoleSessionAction().catch(console.error);
       }
     };
     return () => {

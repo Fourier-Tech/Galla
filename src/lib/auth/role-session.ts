@@ -37,13 +37,19 @@ export async function setRoleSessionCookie(payload: Omit<RoleSessionPayload, "is
     .setIssuedAt()
     .sign(getJwtSecret());
 
+  const isSecure = Boolean(
+    process.env.VERCEL ||
+    (process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.startsWith("https://")) ||
+    (process.env.AUTH_URL && process.env.AUTH_URL.startsWith("https://"))
+  );
+
   const cookieStore = await cookies();
   cookieStore.set(ROLE_SESSION_COOKIE, jwt, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL),
+    secure: isSecure,
     sameSite: "lax",
     path: "/",
-    // Omit maxAge and expires to create an ephemeral browser session cookie!
+    maxAge: 30 * 24 * 60 * 60, // 30 days, matches shop session duration so refresh in place never loses cookie
   });
 
   return jwt;
