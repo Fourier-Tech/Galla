@@ -739,7 +739,7 @@ export function resolvePurchaseOrderItems(items: any[], returns?: any[]) {
 }
 
 export function canOrderBeRefunded(order: {
-  status: string;
+  status?: string;
   paid?: number;
   amount?: number;
   refundAmount?: number;
@@ -760,14 +760,15 @@ export function canOrderBeRefunded(order: {
     productName?: string;
   }>;
 }): boolean {
+  const effectiveStatus = getOrderEffectiveStatus(order);
   if (
-    order.status === "cancelled_refunded" ||
-    order.status === "cancelled_converted"
+    effectiveStatus === "cancelled_refunded" ||
+    effectiveStatus === "cancelled_converted"
   ) {
     return false;
   }
   const isCompleted =
-    order.status === "completed" || order.status === "replacement_completed";
+    effectiveStatus === "completed" || effectiveStatus === "replacement_completed";
   if (!isCompleted) return false;
 
   const lineItems = order.lineItems || [];
