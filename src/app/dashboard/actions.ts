@@ -2380,7 +2380,7 @@ export async function transferStockAction(rawInput: unknown): Promise<{
     };
   } catch (error) {
     const errorMsg =
-      error instanceof Error ? error.message : "Failed to transfer inventory";
+      "Failed to transfer inventory";
     return { success: false, error: errorMsg };
   }
 }
@@ -2505,9 +2505,7 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
     };
   } catch (error) {
     const errorMsg =
-      error instanceof Error
-        ? error.message
-        : "Failed to consume internal stock";
+      "Failed to consume internal stock";
     return { success: false, error: errorMsg };
   }
 }
@@ -2888,7 +2886,7 @@ export async function returnInventoryToSupplierAction(
     });
   } catch (error: any) {
     console.error("Failed to return inventory to supplier:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
@@ -3763,9 +3761,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
     };
   } catch (error) {
     const errorMsg =
-      error instanceof Error
-        ? error.message
-        : "Failed to create purchase order";
+      "Failed to create purchase order";
     return { success: false, error: errorMsg };
   }
 }
@@ -4094,9 +4090,7 @@ export async function recordPurchaseOrderPaymentAction(
     };
   } catch (error) {
     const errorMsg =
-      error instanceof Error
-        ? error.message
-        : "Failed to record purchase order payment";
+      "Failed to record purchase order payment";
     return { success: false, error: errorMsg };
   }
 }
@@ -4187,9 +4181,7 @@ export async function reschedulePurchaseOrderAction(
     };
   } catch (error) {
     const errorMsg =
-      error instanceof Error
-        ? error.message
-        : "Failed to reschedule purchase order";
+      "Failed to reschedule purchase order";
     return { success: false, error: errorMsg };
   }
 }
@@ -4690,7 +4682,7 @@ export async function uploadSalonProfileImageAction(
   } catch (error) {
     console.error("Failed to upload salon image to Cloudinary:", error);
     const message =
-      error instanceof Error ? error.message : "Failed to upload image";
+      "Failed to upload image";
     return { success: false, error: message };
   }
 }
@@ -6531,7 +6523,7 @@ export async function returnPurchaseOrderItemAction(
     console.error("Return PO Item Error:", error);
     return {
       success: false,
-      error: error.message || "Failed to process return",
+      error: "Failed to process return",
     };
   }
 }
@@ -7111,7 +7103,7 @@ export async function returnCustomerOrderItemAction(
     });
   } catch (error: any) {
     console.error("Failed to return order item:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
@@ -7181,7 +7173,7 @@ export async function getPurchaseOrdersForProductAction(
     return { success: true, pos: formatted };
   } catch (error: any) {
     console.error("Failed to fetch pos:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
@@ -7507,7 +7499,7 @@ export async function settleSupplierReplacementAction(
     });
   } catch (error: any) {
     console.error("Failed to settle supplier replacement:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
@@ -7541,7 +7533,7 @@ export async function updateCustomerReplacementDateAction(
     return { success: true };
   } catch (error: any) {
     console.error("Failed to update customer replacement date:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
@@ -7620,7 +7612,7 @@ export async function markCustomerReplacementCollectedAction(
     });
   } catch (error: any) {
     console.error("Failed to mark replacement collected:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
@@ -7668,7 +7660,7 @@ export async function getPendingCustomerReplacementsAction(): Promise<{
     return { success: true, replacements: formatted };
   } catch (error: any) {
     console.error("Failed to fetch customer replacements:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
@@ -7741,7 +7733,7 @@ export async function getSupplierPendingReplacementsAction(
     return { success: true, pendingReplacements: pendingList };
   } catch (error: any) {
     console.error("Failed to fetch pending replacements for supplier:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "An unexpected error occurred. Please try again." };
   }
 }
 
