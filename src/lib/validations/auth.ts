@@ -64,14 +64,22 @@ export const resetPinOtpSchema = z
     newOwnerPin: z
       .string()
       .transform((val) => val.replace(/\s+/g, ""))
-      .pipe(z.string().regex(/^\d{6}$/, "New Owner PIN must be exactly 6 digits")),
+      .pipe(z.string().regex(/^\d{6}$/, "New Owner PIN must be exactly 6 digits"))
+      .optional()
+      .or(z.literal("")),
     newStaffPin: z
       .string()
       .transform((val) => val.replace(/\s+/g, ""))
-      .pipe(z.string().regex(/^\d{6}$/, "New Staff PIN must be exactly 6 digits")),
+      .pipe(z.string().regex(/^\d{6}$/, "New Staff PIN must be exactly 6 digits"))
+      .optional()
+      .or(z.literal("")),
   })
   .refine(
-    (data) => data.newOwnerPin !== data.newStaffPin,
+    (data) => Boolean(data.newOwnerPin || data.newStaffPin),
+    { message: "Please specify at least one new PIN to reset", path: ["newOwnerPin"] }
+  )
+  .refine(
+    (data) => !(data.newOwnerPin && data.newStaffPin && data.newOwnerPin === data.newStaffPin),
     { message: "Owner PIN and Staff PIN cannot be the same", path: ["newStaffPin"] }
   );
 

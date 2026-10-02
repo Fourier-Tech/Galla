@@ -38,20 +38,12 @@ function createTransporter() {
  */
 export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): Promise<boolean> {
   const { to, salonName, otp, expiresInMinutes = 15 } = options;
-  const formattedOtp = `${otp.slice(0, 3)} ${otp.slice(3)}`;
 
-  console.log("\n============================================================");
-  console.log("🔐 GALLA SECURITY — ROLE PIN RESET OTP DISPATCH");
-  console.log("============================================================");
-  console.log(`Salon:       ${salonName}`);
-  console.log(`Recipient:   ${to}`);
-  console.log(`OTP Code:    ${otp} (${formattedOtp})`);
-  console.log(`Expires In:  ${expiresInMinutes} minutes`);
-  console.log("============================================================\n");
+  console.log(`[Email] Dispatching role PIN reset OTP to ${to} (${salonName})...`);
 
   const transporter = createTransporter();
   if (!transporter) {
-    console.warn("[Email] SMTP credentials missing (SMTP_USER / SMTP_PASS).");
+    console.error("[Email] SMTP credentials missing (SMTP_USER / SMTP_PASS).");
     return false;
   }
 
@@ -60,39 +52,33 @@ export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): P
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Reset Counter PINs</title>
+  <title>OTP Verification</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 40px 16px; background-color: #f7f7f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <div style="max-width: 440px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e5e0; border-radius: 8px; padding: 36px 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
-    
-    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #0d9488; margin-bottom: 18px;">
-      GALLA SECURITY
-    </div>
+<body style="margin: 0; padding: 20px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <div style="max-width: 440px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 28px 24px; color: #1e293b;">
+    <h2 style="margin: 0 0 14px 0; font-size: 20px; font-weight: 700; color: #0f172a;">
+      OTP Verification
+    </h2>
 
-    <h1 style="font-size: 21px; font-weight: 600; color: #18181b; margin: 0 0 10px 0; letter-spacing: -0.02em;">
-      Reset Counter Role PINs
-    </h1>
-
-    <p style="font-size: 14px; line-height: 1.6; color: #52525b; margin: 0 0 24px 0;">
-      A request was made to reset the counter PINs for <strong>${salonName}</strong>. Enter the verification code below on your terminal to set new PINs:
+    <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.5; color: #475569;">
+      Your One-Time Password (OTP) for <strong>${salonName}</strong> is:
     </p>
 
-    <div style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 6px; padding: 18px; text-align: center; margin-bottom: 24px;">
-      <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #09090b; display: inline-block;">
-        ${otp}
-      </span>
-      <div style="font-size: 12px; color: #71717a; margin-top: 6px;">
-        Expires in ${expiresInMinutes} minutes
-      </div>
+    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 34px; font-weight: 800; letter-spacing: 6px; color: #0d9488; margin: 20px 0; text-align: center;">
+      ${otp}
     </div>
 
-    <p style="font-size: 12.5px; line-height: 1.5; color: #71717a; margin: 0 0 20px 0;">
-      If you did not make this request, your account remains completely secure and no changes were made.
+    <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.5; color: #64748b;">
+      This OTP is valid for ${expiresInMinutes} minutes. Please do not share this code with anyone.
     </p>
 
-    <div style="border-top: 1px solid #f4f4f5; padding-top: 16px; font-size: 11.5px; color: #a1a1aa;">
-      Galla Counter &bull; Salon Management System
+    <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.4; color: #94a3b8;">
+      If you did not request this OTP, you can safely ignore this email.
+    </p>
+
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 14px; font-size: 11.5px; color: #94a3b8;">
+      Galla &bull; Salon Management
     </div>
   </div>
 </body>
@@ -103,15 +89,17 @@ export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): P
     const fromAddress =
       process.env.EMAIL_FROM ||
       process.env.SMTP_FROM ||
-      `"Galla Security" <${process.env.SMTP_USER || "no-reply@galla.app"}>`;
-    await transporter.sendMail({
+      `"Galla" <${process.env.SMTP_USER || "no-reply@galla.app"}>`;
+
+    const info = await transporter.sendMail({
       from: fromAddress,
       to,
-      subject: `Reset Counter PINs: ${otp} — ${salonName}`,
+      subject: `Your OTP is ${otp} — Galla`,
       html: htmlContent,
-      text: `Reset Counter Role PINs for ${salonName}\n\nYour 6-digit verification code is: ${otp}\n\nThis code expires in ${expiresInMinutes} minutes. If you did not request this, no action is needed.`,
+      text: `Your OTP for ${salonName} is: ${otp}\n\nThis OTP is valid for ${expiresInMinutes} minutes. Please do not share this code with anyone.`,
     });
-    console.log(`[Email] PIN Reset OTP email sent to ${to}`);
+
+    console.log(`[Email] OTP email successfully sent to ${to} (Message-ID: ${info.messageId})`);
     return true;
   } catch (err) {
     console.error("[Email] Failed to send PIN reset OTP email:", err);

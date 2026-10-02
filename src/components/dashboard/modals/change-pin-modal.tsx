@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Lock, KeyRound, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { X, Lock, KeyRound, CheckCircle2, AlertTriangle, Loader2, Eye, EyeOff } from "lucide-react";
 import { changeRolePinsAction } from "@/app/actions/auth-actions";
 
 interface ChangePinModalProps {
@@ -13,11 +13,16 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
   const [emailPassword, setEmailPassword] = useState("");
   const [newOwnerPin, setNewOwnerPin] = useState("");
   const [newStaffPin, setNewStaffPin] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showOwnerPin, setShowOwnerPin] = useState(false);
+  const [showStaffPin, setShowStaffPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const isSamePin = Boolean(newOwnerPin && newStaffPin && newOwnerPin === newStaffPin);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +49,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
       return;
     }
 
-    if (newOwnerPin && newStaffPin && newOwnerPin === newStaffPin) {
+    if (isSamePin) {
       setError("Owner PIN and Staff PIN cannot be the same.");
       return;
     }
@@ -135,14 +140,23 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
                 <Lock className="h-4 w-4" />
               </div>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
+                autoFocus
                 disabled={loading}
                 value={emailPassword}
                 onChange={(e) => setEmailPassword(e.target.value)}
                 placeholder="Enter shop account password"
-                className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-3 py-2 text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+                className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-9 py-2 text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
               />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-galla-ink-soft hover:text-galla-ink cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
             <p className="text-[11px] text-galla-ink-soft mt-1">
               Required to verify owner authorization
@@ -155,18 +169,28 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
               <label className="block text-[12px] font-medium text-galla-ink mb-1">
                 New Owner PIN
               </label>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={6}
-                disabled={loading}
-                value={newOwnerPin}
-                onChange={(e) =>
-                  setNewOwnerPin(e.target.value.replace(/\D/g, ""))
-                }
-                placeholder="6 digits"
-                className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
-              />
+              <div className="relative">
+                <input
+                  type={showOwnerPin ? "text" : "password"}
+                  inputMode="numeric"
+                  maxLength={6}
+                  disabled={loading}
+                  value={newOwnerPin}
+                  onChange={(e) =>
+                    setNewOwnerPin(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="6 digits"
+                  className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-3 pr-8 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowOwnerPin(!showOwnerPin)}
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-galla-ink-soft hover:text-galla-ink cursor-pointer"
+                >
+                  {showOwnerPin ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
             </div>
 
             {/* New Staff PIN */}
@@ -174,19 +198,37 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
               <label className="block text-[12px] font-medium text-galla-ink mb-1">
                 New Staff PIN
               </label>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={6}
-                disabled={loading}
-                value={newStaffPin}
-                onChange={(e) =>
-                  setNewStaffPin(e.target.value.replace(/\D/g, ""))
-                }
-                placeholder="6 digits"
-                className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
-              />
+              <div className="relative">
+                <input
+                  type={showStaffPin ? "text" : "password"}
+                  inputMode="numeric"
+                  maxLength={6}
+                  disabled={loading}
+                  value={newStaffPin}
+                  onChange={(e) =>
+                    setNewStaffPin(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="6 digits"
+                  className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-3 pr-8 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowStaffPin(!showStaffPin)}
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-galla-ink-soft hover:text-galla-ink cursor-pointer"
+                >
+                  {showStaffPin ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
             </div>
+
+            {/* Inline Duplicate Warning */}
+            {isSamePin && (
+              <div className="col-span-2 p-2 rounded-[5px] bg-red-50 border border-red-200 text-red-800 text-[11.5px] flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                <span>Owner PIN and Staff PIN cannot be identical.</span>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -206,7 +248,8 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
                 !emailPassword ||
                 (!newOwnerPin && !newStaffPin) ||
                 (Boolean(newOwnerPin) && newOwnerPin.length !== 6) ||
-                (Boolean(newStaffPin) && newStaffPin.length !== 6)
+                (Boolean(newStaffPin) && newStaffPin.length !== 6) ||
+                isSamePin
               }
               className="px-4 py-1.5 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >

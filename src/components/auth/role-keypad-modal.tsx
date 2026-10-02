@@ -12,6 +12,8 @@ import {
   ArrowRight,
   ShieldAlert,
   ArrowLeft,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   verifyRolePinAction,
@@ -45,6 +47,8 @@ export function RoleKeypadModal({
   const [otp, setOtp] = useState("");
   const [newOwnerPin, setNewOwnerPin] = useState("");
   const [newStaffPin, setNewStaffPin] = useState("");
+  const [showForgotOwnerPin, setShowForgotOwnerPin] = useState(false);
+  const [showForgotStaffPin, setShowForgotStaffPin] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
 
@@ -184,19 +188,25 @@ export function RoleKeypadModal({
       return;
     }
 
-    if (newOwnerPin.length !== 6) {
+    if (!newOwnerPin && !newStaffPin) {
+      setForgotError("Please specify at least one new PIN to reset.");
+      setForgotLoading(false);
+      return;
+    }
+
+    if (newOwnerPin && newOwnerPin.length !== 6) {
       setForgotError("New Owner PIN must be exactly 6 digits.");
       setForgotLoading(false);
       return;
     }
 
-    if (newStaffPin.length !== 6) {
+    if (newStaffPin && newStaffPin.length !== 6) {
       setForgotError("New Staff PIN must be exactly 6 digits.");
       setForgotLoading(false);
       return;
     }
 
-    if (newOwnerPin === newStaffPin) {
+    if (newOwnerPin && newStaffPin && newOwnerPin === newStaffPin) {
       setForgotError("Owner PIN and Staff PIN cannot be the same.");
       setForgotLoading(false);
       return;
@@ -461,6 +471,7 @@ export function RoleKeypadModal({
                     inputMode="numeric"
                     maxLength={6}
                     required
+                    autoFocus
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••••"
@@ -471,48 +482,76 @@ export function RoleKeypadModal({
                 {/* New Owner PIN */}
                 <div>
                   <label className="block text-[12px] font-medium text-galla-ink mb-1">
-                    New Owner PIN (6 digits)
+                    New Owner PIN <span className="text-galla-ink-soft text-[11px] font-normal">(optional)</span>
                   </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    required
-                    value={newOwnerPin}
-                    onChange={(e) =>
-                      setNewOwnerPin(e.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder="6 digits"
-                    className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showForgotOwnerPin ? "text" : "password"}
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={newOwnerPin}
+                      onChange={(e) =>
+                        setNewOwnerPin(e.target.value.replace(/\D/g, ""))
+                      }
+                      placeholder="6 digits"
+                      className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-3 pr-8 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowForgotOwnerPin(!showForgotOwnerPin)}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-galla-ink-soft hover:text-galla-ink cursor-pointer"
+                    >
+                      {showForgotOwnerPin ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
 
                 {/* New Staff PIN */}
                 <div>
                   <label className="block text-[12px] font-medium text-galla-ink mb-1">
-                    New Staff PIN (6 digits)
+                    New Staff PIN <span className="text-galla-ink-soft text-[11px] font-normal">(optional)</span>
                   </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    required
-                    value={newStaffPin}
-                    onChange={(e) =>
-                      setNewStaffPin(e.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder="6 digits"
-                    className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] px-3 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showForgotStaffPin ? "text" : "password"}
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={newStaffPin}
+                      onChange={(e) =>
+                        setNewStaffPin(e.target.value.replace(/\D/g, ""))
+                      }
+                      placeholder="6 digits"
+                      className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-3 pr-8 py-2 text-[13px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowForgotStaffPin(!showForgotStaffPin)}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-galla-ink-soft hover:text-galla-ink cursor-pointer"
+                    >
+                      {showForgotStaffPin ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Inline Duplicate Warning */}
+                {Boolean(newOwnerPin && newStaffPin && newOwnerPin === newStaffPin) && (
+                  <div className="p-2 rounded-[5px] bg-red-50 border border-red-200 text-red-800 text-[11.5px] flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                    <span>Owner PIN and Staff PIN cannot be identical.</span>
+                  </div>
+                )}
 
                 <button
                   type="submit"
                   disabled={
                     forgotLoading ||
                     otp.length !== 6 ||
-                    newOwnerPin.length !== 6 ||
-                    newStaffPin.length !== 6
+                    (!newOwnerPin && !newStaffPin) ||
+                    (Boolean(newOwnerPin) && newOwnerPin.length !== 6) ||
+                    (Boolean(newStaffPin) && newStaffPin.length !== 6) ||
+                    Boolean(newOwnerPin && newStaffPin && newOwnerPin === newStaffPin)
                   }
                   className="w-full inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[13px] font-medium py-2.5 rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                 >
@@ -522,7 +561,7 @@ export function RoleKeypadModal({
                       <span>Saving &amp; Unlocking...</span>
                     </>
                   ) : (
-                    <span>Save PINs &amp; Unlock Counter</span>
+                    <span>Save &amp; Unlock Counter</span>
                   )}
                 </button>
               </form>

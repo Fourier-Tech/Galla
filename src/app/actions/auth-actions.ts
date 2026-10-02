@@ -359,7 +359,14 @@ export async function verifyOtpAndResetPinsAction(rawInput: unknown): Promise<{
 
     const { otp, newOwnerPin, newStaffPin } = parsed.data;
 
-    if (newOwnerPin === newStaffPin) {
+    if (!newOwnerPin && !newStaffPin) {
+      return {
+        success: false,
+        error: "Please enter at least one new PIN to reset.",
+      };
+    }
+
+    if (newOwnerPin && newStaffPin && newOwnerPin === newStaffPin) {
       return {
         success: false,
         error: "Owner PIN and Staff PIN cannot be the same.",
@@ -375,6 +382,28 @@ export async function verifyOtpAndResetPinsAction(rawInput: unknown): Promise<{
     const user = await User.findById(session.user.id);
     if (!user) {
       return { success: false, error: "Salon account not found." };
+    }
+
+    // If updating only Owner PIN, check it doesn't match current Staff PIN
+    if (newOwnerPin && !newStaffPin && user.staffPinHash) {
+      const matchesStaff = await bcrypt.compare(newOwnerPin, user.staffPinHash);
+      if (matchesStaff) {
+        return {
+          success: false,
+          error: "New Owner PIN cannot be identical to the current Staff PIN.",
+        };
+      }
+    }
+
+    // If updating only Staff PIN, check it doesn't match current Owner PIN
+    if (newStaffPin && !newOwnerPin && user.ownerPinHash) {
+      const matchesOwner = await bcrypt.compare(newStaffPin, user.ownerPinHash);
+      if (matchesOwner) {
+        return {
+          success: false,
+          error: "New Staff PIN cannot be identical to the current Owner PIN.",
+        };
+      }
     }
 
     if (!user.resetOtpHash || !user.resetOtpExpiresAt) {
@@ -399,31 +428,34 @@ export async function verifyOtpAndResetPinsAction(rawInput: unknown): Promise<{
       };
     }
 
-    // Hashes for new PINs
-    const ownerPinHash = await bcrypt.hash(newOwnerPin, 10);
-    const staffPinHash = await bcrypt.hash(newStaffPin, 10);
-
     // Generate new activeSessionId for Owner to unlock counter
     const activeSessionId = crypto.randomUUID();
 
-    await User.updateOne(
-      { _id: user._id },
-      {
-        $set: {
-          ownerPinHash,
-          staffPinHash,
-          ownerActiveSessionId: activeSessionId,
-          lastRoleLoginAt: new Date(),
-          resetOtpHash: null,
-          resetOtpExpiresAt: null,
-        },
-      }
-    );
+    const userUpdates: Record<string, unknown> = {
+      ownerActiveSessionId: activeSessionId,
+      lastRoleLoginAt: new Date(),
+      resetOtpHash: null,
+      resetOtpExpiresAt: null,
+    };
+    const tenantUpdates: Record<string, unknown> = {};
 
-    await Tenant.updateOne(
-      { _id: user.tenantId },
-      { $set: { ownerPinHash, staffPinHash } }
-    );
+    if (newOwnerPin) {
+      const ownerPinHash = await bcrypt.hash(newOwnerPin, 10);
+      userUpdates.ownerPinHash = ownerPinHash;
+      tenantUpdates.ownerPinHash = ownerPinHash;
+    }
+
+    if (newStaffPin) {
+      const staffPinHash = await bcrypt.hash(newStaffPin, 10);
+      userUpdates.staffPinHash = staffPinHash;
+      tenantUpdates.staffPinHash = staffPinHash;
+    }
+
+    await User.updateOne({ _id: user._id }, { $set: userUpdates });
+
+    if (Object.keys(tenantUpdates).length > 0) {
+      await Tenant.updateOne({ _id: user.tenantId }, { $set: tenantUpdates });
+    }
 
     // Set role session cookie for owner
     await setRoleSessionCookie({
