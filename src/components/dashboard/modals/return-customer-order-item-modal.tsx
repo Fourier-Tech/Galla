@@ -271,6 +271,9 @@ export function ReturnCustomerOrderItemModal({
 
   const handedQuantityPreview = useMemo(() => {
     if (isGoodCondition || defectiveResolution !== "replacement") return 0;
+    if (replaceFromUseStock) {
+      return parsedQty;
+    }
     if (isUpgradingToNewMRP) {
       const availableStock = targetReplacementProduct ? targetReplacementProduct.sell : 0;
       return Math.min(availableStock, parsedQty);
@@ -283,6 +286,7 @@ export function ReturnCustomerOrderItemModal({
   }, [
     isGoodCondition,
     defectiveResolution,
+    replaceFromUseStock,
     isUpgradingToNewMRP,
     targetReplacementProduct,
     samePriceStock,
@@ -1135,7 +1139,7 @@ export function ReturnCustomerOrderItemModal({
                                 />
                                 <p className="text-[11px] text-amber-800/90 mt-1 flex items-center gap-1">
                                   <Clock className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                                  <span>An urgency alert will appear on the Overview tab 2 days before this date.</span>
+                                  <span>An urgency alert will appear on the Overview tab 1 day before this date to inform the salon.</span>
                                 </p>
                               </div>
                             )}
@@ -1203,7 +1207,7 @@ export function ReturnCustomerOrderItemModal({
                               />
                               <p className="text-[11px] text-amber-800/90 mt-1 flex items-center gap-1">
                                 <Clock className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                                <span>An urgency alert will appear on the Overview tab 2 days before this date.</span>
+                                <span>An urgency alert will appear on the Overview tab 1 day before this date to inform the salon.</span>
                               </p>
                             </div>
                           </div>
@@ -1348,10 +1352,13 @@ export function ReturnCustomerOrderItemModal({
                     {handedQuantityPreview > 0 && (
                       <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
                         <Check className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>Immediate Handover: {handedQuantityPreview} unit(s)</span>
+                        <span>
+                          Immediate Handover: {handedQuantityPreview} unit(s)
+                          {replaceFromUseStock ? " (from salon use-stock)" : ""}
+                        </span>
                       </div>
                     )}
-                    {parsedQty - handedQuantityPreview > 0 && (
+                    {!replaceFromUseStock && parsedQty - handedQuantityPreview > 0 && (
                       <div className="flex items-center gap-1.5 text-amber-800 font-semibold">
                         <Calendar className="h-4 w-4 text-amber-600 shrink-0" />
                         <span>Scheduled Pickup: {parsedQty - handedQuantityPreview} unit(s) on {expectedPickupDate}</span>
@@ -1389,6 +1396,8 @@ export function ReturnCustomerOrderItemModal({
                             : totalPriceDiff < 0
                             ? `Confirm Replacement (Refund ${formatRupee(Math.abs(totalPriceDiff))})`
                             : "Confirm Replacement (₹0 Diff)"
+                          : replaceFromUseStock
+                          ? "Confirm Immediate Replacement"
                           : replacementResolutionType === "wait_original" || samePriceStock === 0
                           ? "Schedule Replacement"
                           : "Confirm Immediate Replacement"

@@ -763,6 +763,7 @@ export function CustomerDetailsView({
         order={rescheduleOrder}
         isOpen={Boolean(rescheduleOrder)}
         onClose={() => setRescheduleOrder(null)}
+        salonName={salonName}
         onRescheduleSuccess={(updated) => {
           setOrders((prev) =>
             prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o))

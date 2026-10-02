@@ -845,10 +845,10 @@ export function OrdersTab({
                                 e.stopPropagation();
                                 setReschedulingOrder(order);
                               }}
-                              className="inline-flex items-center gap-1 font-sans text-[11.5px] text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] mt-1 font-medium hover:opacity-85 transition-all cursor-pointer group"
+                              className="inline-flex items-center gap-1 font-sans text-[11.5px] text-galla-ink-soft bg-galla-paper border border-galla-line/80 px-2 py-0.5 rounded-[4px] mt-1 font-normal hover:opacity-85 transition-all cursor-pointer group"
                               title="Click to reschedule appointment date and time"
                             >
-                              <Calendar className="h-3 w-3 text-amber-700 shrink-0" />
+                              <Calendar className="h-3 w-3 text-galla-ink-soft shrink-0" />
                               <span>
                                 Booked for: {formatBookingDate(order.scheduledFor)}
                                 {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
@@ -863,7 +863,6 @@ export function OrdersTab({
                         const isProductSale = order.type === "Product sale";
                         const isToday = urgency.tone === "today";
                         const isTomorrow = urgency.tone === "tomorrow";
-                        const isIn2Days = urgency.tone === "in_2_days";
                         const isOverdue = urgency.tone === "overdue";
 
                         const badgeStyle = isReplacementOrder
@@ -871,22 +870,18 @@ export function OrdersTab({
                             ? "text-rose-900 bg-rose-50 border-rose-300 font-semibold shadow-xs ring-1 ring-rose-300/40"
                             : isToday
                             ? "text-rose-800 bg-rose-50 border-rose-200 font-semibold"
-                            : isIn2Days
-                            ? "text-blue-800 bg-blue-50 border-blue-200"
                             : isOverdue
                             ? "text-red-900 bg-red-100 border-red-300 font-semibold"
-                            : "text-amber-900 bg-amber-50 border-amber-200/90"
+                            : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal"
                           : (isProductSale && isTomorrow)
                           ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
                           : isToday
                             ? "text-rose-800 bg-rose-50 border-rose-200"
                             : isTomorrow
                               ? "text-amber-900 bg-amber-50 border-amber-300"
-                              : isIn2Days
-                                ? "text-blue-800 bg-blue-50 border-blue-200"
-                                : isOverdue
-                                  ? "text-gray-700 bg-gray-100 border-gray-300"
-                                  : "text-amber-800 bg-amber-50/90 border-amber-200/80";
+                              : isOverdue
+                                ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                                : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                         const dateStr = formatBookingDate(order.scheduledFor);
                         const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
@@ -901,8 +896,6 @@ export function OrdersTab({
                             ? `🛍️ Replacement Delivery Today (${fullSlotStr})`
                             : isOverdue
                             ? `⚠️ Replacement Delivery Overdue (${fullSlotStr})`
-                            : isIn2Days
-                            ? `📦 Expected in 2 Days (${fullSlotStr})`
                             : `Expected Delivery: ${fullSlotStr}`
                           : isPaymentDueOrder
                           ? isTomorrow
@@ -911,35 +904,29 @@ export function OrdersTab({
                             ? `⚠️ Payment Due Today (${fullSlotStr})`
                             : isOverdue
                             ? `⚠️ Payment Overdue (${fullSlotStr})`
-                            : isIn2Days
-                            ? `📅 Due in 2 Days (${fullSlotStr})`
                             : `Payment Due: ${fullSlotStr}`
                           : isProductSale
                           ? isTomorrow
                             ? `🚨 Urgent: Expected Tomorrow (${fullSlotStr})`
                             : isToday
                               ? `🛍️ Ready for Pickup Today (${fullSlotStr})`
-                              : isIn2Days
-                                ? `📦 Expected in 2 Days (${fullSlotStr})`
-                                : isOverdue
-                                  ? `⚠️ Pickup Overdue (${fullSlotStr})`
-                                  : `Expected Pickup: ${fullSlotStr}`
+                              : isOverdue
+                                ? `⚠️ Pickup Overdue (${fullSlotStr})`
+                                : `Expected Pickup: ${fullSlotStr}`
                           : isToday
                             ? `🚨 Today (${fullSlotStr})`
                             : isTomorrow
                               ? `⏰ Tomorrow (${fullSlotStr})`
-                              : isIn2Days
-                                ? `📅 In 2 Days (${fullSlotStr})`
-                                : isOverdue
-                                  ? `⚠️ Overdue (${fullSlotStr})`
-                                  : `Booked for: ${fullSlotStr}`;
+                              : isOverdue
+                                ? `⚠️ Overdue (${fullSlotStr})`
+                                : `Booked for: ${fullSlotStr}`;
 
                         // Show Call & Msg on:
-                        // - Replacement order: 1 day before (isTomorrow), on delivery day (isToday), or overdue
-                        // - Product sale: on the selected date that day (isToday) or overdue
+                        // - Replacement order: on delivery day (isToday) or overdue
+                        // - Product sale: on scheduled pickup day (isToday) or overdue
                         // - Service booking: 1 day before (isTomorrow)
                         const showContactOptions = isReplacementOrder
-                          ? (isTomorrow || isToday || isOverdue)
+                          ? (isToday || isOverdue)
                           : isProductSale
                           ? (isToday || isOverdue)
                           : isTomorrow;
@@ -979,13 +966,6 @@ export function OrdersTab({
                                   Reschedule
                                 </span>
                               </button>
-
-                              {/* 2 Days Before: Internal Notice for Staff & Salon Owner */}
-                              {isIn2Days && (
-                                <span className="inline-flex items-center text-[11px] font-sans font-medium text-blue-700 bg-blue-50/80 border border-blue-200 px-1.5 py-0.5 rounded">
-                                  Staff &amp; Owner Prep
-                                </span>
-                              )}
                             </div>
 
                             {/* Direct Call & WhatsApp Action Buttons */}
@@ -1010,7 +990,7 @@ export function OrdersTab({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
-                                    title={isReplacementOrder ? "Send replacement delivery update via WhatsApp" : isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
+                                    title={isReplacementOrder ? "Notify customer that replacement product has arrived via WhatsApp" : isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
                                   >
                                     <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
                                     <span>{isReplacementOrder ? "WhatsApp Msg" : isProductSale ? "WhatsApp (Msg)" : "WhatsApp Reminder"}</span>
@@ -1352,6 +1332,7 @@ export function OrdersTab({
         isOpen={Boolean(reschedulingOrder)}
         onClose={() => setReschedulingOrder(null)}
         onRescheduleSuccess={handleRescheduleSuccess}
+        salonName={salonName}
       />
 
       {/* Order Details Modal */}

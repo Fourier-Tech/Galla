@@ -156,6 +156,7 @@ export function OrderDetailsModal({
   const urgency = order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
   const isTomorrow = urgency?.tone === "tomorrow";
   const isToday = urgency?.tone === "today";
+  const isOverdue = urgency?.tone === "overdue";
   const isScheduledDateArrived = !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
 
   // Prefill reminder text for advance booking, paid in full pre-order, payment due, or replacement orders
@@ -441,19 +442,35 @@ export function OrderDetailsModal({
                   className={`p-3.5 rounded-[5px] flex items-start gap-3 ${
                     isReplacement && isTomorrow
                       ? "bg-rose-50 border border-rose-300 text-rose-950 ring-1 ring-rose-300/40"
-                      : "bg-amber-50/60 border border-amber-200/80 text-amber-950"
+                      : isReplacement && isToday
+                      ? "bg-rose-50 border border-rose-200 text-rose-950"
+                      : isReplacement && isOverdue
+                      ? "bg-red-50 border border-red-300 text-red-950"
+                      : isToday
+                      ? "bg-rose-50 border border-rose-200 text-rose-950"
+                      : isOverdue
+                      ? "bg-red-50 border border-red-300 text-red-950"
+                      : "bg-galla-paper border border-galla-line text-galla-ink"
                   }`}
                 >
                   <Clock
                     className={`h-4 w-4 shrink-0 mt-0.5 ${
-                      isReplacement && isTomorrow ? "text-rose-700" : "text-amber-700"
+                      (isReplacement && isTomorrow) || isToday
+                        ? "text-rose-700"
+                        : isOverdue
+                        ? "text-red-700"
+                        : "text-galla-ink-soft"
                     }`}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span
                         className={`block text-[12px] font-semibold ${
-                          isReplacement && isTomorrow ? "text-rose-900" : "text-amber-900"
+                          (isReplacement && isTomorrow) || isToday
+                            ? "text-rose-900"
+                            : isOverdue
+                            ? "text-red-900"
+                            : "text-galla-ink"
                         }`}
                       >
                         {isReplacement
@@ -468,13 +485,19 @@ export function OrderDetailsModal({
                         className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${
                           isReplacement && isTomorrow
                             ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
-                            : "bg-amber-100 text-amber-800 border-amber-300/80"
+                            : isToday
+                            ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
+                            : isOverdue
+                            ? "bg-red-100 text-red-800 border-red-300 font-semibold"
+                            : "bg-galla-surface text-galla-ink-soft border-galla-line font-medium"
                         }`}
                       >
                         {isReplacement && isTomorrow
                           ? "Urgent: Tomorrow"
                           : isToday
                           ? "Today"
+                          : isOverdue
+                          ? "Overdue"
                           : "Upcoming"}
                       </span>
                     </div>

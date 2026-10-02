@@ -299,14 +299,27 @@ export function getWhatsAppReminderUrl(options: {
   const formattedDate = formatBookingDate(options.bookingDate);
   const formattedTime = formatAppointmentTime(options.bookingTime);
 
-  // Replacement order pickup / delivery reminder format
+  // Replacement order pickup / delivery notification format
   if (options.isReplacement) {
     const productInfo = options.productName ? ` for *${options.productName}*` : "";
-    const timing = options.isTomorrow ? "tomorrow" : options.isToday ? "today" : `on *${formattedDate}*`;
+
+    // On the delivery day (today or when product arrives at store):
+    // Staff sends message to customer that replacement product has arrived at the store and is ready for pickup
+    if (options.isToday || !options.isTomorrow) {
+      const message =
+        `Hello ${options.customerName}! 👋\n\n` +
+        `Great news from *${options.salonName || "our salon"}*! Your replacement product${productInfo} has arrived at our store and is ready for pickup! 🛍️\n\n` +
+        `Please visit us at your convenience to collect your replacement. Let us know if you need any assistance!\n\n` +
+        `Thank you!`;
+
+      return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+    }
+
+    // 1 day before (tomorrow) if notified in advance:
     const message =
       `Hello ${options.customerName}! 👋\n\n` +
       `This is an update from *${options.salonName || "our salon"}* regarding your replacement product${productInfo}.\n\n` +
-      `Your replacement delivery is scheduled ${timing}. We will notify you as soon as it arrives for pickup!\n\n` +
+      `Your replacement delivery is scheduled for tomorrow. We will notify you as soon as it arrives at our store for pickup!\n\n` +
       `Please let us know if you have any questions or wish to reschedule.\n\n` +
       `Thank you!`;
 
@@ -352,6 +365,67 @@ export function getWhatsAppReminderUrl(options: {
     `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
     `We look forward to welcoming you!`;
 
+  return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+}
+
+export function getWhatsAppRescheduleUrl(options: {
+  phone?: string;
+  customerName: string;
+  salonName?: string;
+  orderNumber?: string;
+  newDate: Date | string | undefined;
+  newTime?: string;
+  orderType?: "Product sale" | "Service booking" | "Package sale" | string;
+  isReplacement?: boolean;
+  productName?: string;
+}): string | null {
+  if (!options.phone) return null;
+  const cleaned = options.phone.replace(/\D/g, "");
+  if (!cleaned) return null;
+
+  // ponytail: Assumes Indian 10-digit mobile numbers (+91). Upgrade path: Add country code support to tenant profile if expanding internationally.
+  const standardNumber =
+    cleaned.length === 10
+      ? `91${cleaned}`
+      : cleaned.startsWith("0") && cleaned.length === 11
+        ? `91${cleaned.slice(1)}`
+        : cleaned;
+
+  const formattedDate = formatBookingDate(options.newDate);
+  const formattedTime = formatAppointmentTime(options.newTime);
+  const timeStr = formattedTime ? ` at *${formattedTime}*` : "";
+  const salon = options.salonName || "our salon";
+
+  if (options.isReplacement) {
+    const itemStr = options.productName ? ` for *${options.productName}*` : "";
+    const message =
+      `Hello ${options.customerName}! 👋\n\n` +
+      `This is an update from *${salon}* regarding your replacement${itemStr}.\n\n` +
+      `Your expected replacement pickup date has been updated to *${formattedDate}*${timeStr}.\n\n` +
+      `We will notify you as soon as your item arrives and is ready for pickup!\n\n` +
+      `Thank you!`;
+    return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+  }
+
+  if (options.orderType === "Product sale") {
+    const itemStr = options.productName ? ` for *${options.productName}*` : "";
+    const orderStr = options.orderNumber ? ` (#${options.orderNumber})` : "";
+    const message =
+      `Hello ${options.customerName}! 👋\n\n` +
+      `This is an update from *${salon}* regarding your product order${orderStr}${itemStr}.\n\n` +
+      `Your scheduled pickup date has been updated to *${formattedDate}*${timeStr}.\n\n` +
+      `Please let us know if you have any questions or need to adjust your timing.\n\n` +
+      `Thank you!`;
+    return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
+  }
+
+  const orderStr = options.orderNumber ? ` (#${options.orderNumber})` : "";
+  const message =
+    `Hello ${options.customerName}! 👋\n\n` +
+    `This is an update from *${salon}* regarding your appointment${orderStr}.\n\n` +
+    `Your scheduled booking has been updated to *${formattedDate}*${timeStr}.\n\n` +
+    `Please let us know if you need to make any further adjustments.\n\n` +
+    `Thank you!`;
   return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
 }
 

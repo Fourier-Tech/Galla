@@ -11,6 +11,7 @@ interface RescheduleOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRescheduleSuccess: (updatedOrder: DashboardOrder) => void;
+  salonName?: string;
 }
 
 export function RescheduleOrderModal({
@@ -18,6 +19,7 @@ export function RescheduleOrderModal({
   isOpen,
   onClose,
   onRescheduleSuccess,
+  salonName,
 }: RescheduleOrderModalProps) {
   if (!isOpen || !order) return null;
 
@@ -32,6 +34,8 @@ export function RescheduleOrderModal({
   const isReplacementOrder =
     order.status === "replacement_pending" || order.status === "replacement";
 
+  const isProductSale = order.type === "Product sale";
+
   const title = isReplacementOrder
     ? order.scheduledFor
       ? "Reschedule Replacement Delivery Date"
@@ -40,24 +44,34 @@ export function RescheduleOrderModal({
     ? order.scheduledFor
       ? "Reschedule Due Date"
       : "Set Payment Due Date"
+    : isProductSale
+    ? order.scheduledFor
+      ? "Reschedule Scheduled Pickup Date"
+      : "Set Scheduled Pickup Date"
     : "Reschedule & Set Time";
 
   const currentSlotLabel = isReplacementOrder
     ? "Current Expected Delivery:"
     : isDueOrder
     ? "Current Due Date:"
+    : isProductSale
+    ? "Current Scheduled Pickup:"
     : "Current Booking:";
 
   const dateLabel = isReplacementOrder
     ? "Expected Delivery Date"
     : isDueOrder
     ? "Payment Due Date"
+    : isProductSale
+    ? "Scheduled Pickup Date"
     : "Booking Date";
 
   const submitButtonLabel = isReplacementOrder
     ? "Confirm Delivery Date"
     : isDueOrder
     ? "Confirm Due Date"
+    : isProductSale
+    ? "Confirm Pickup Date"
     : "Confirm Booking Slot";
 
   return (
@@ -67,6 +81,12 @@ export function RescheduleOrderModal({
       title={title}
       referenceText={`Order #${formatDisplayNumber(order.id)}`}
       entityName={order.customer}
+      customerPhone={order.customerPhone}
+      salonName={salonName}
+      orderType={order.type}
+      isReplacement={isReplacementOrder}
+      productName={order.itemsSummary}
+      orderNumber={formatDisplayNumber(order.id)}
       dueAmount={order.amount > order.paid ? order.amount - order.paid : undefined}
       dueAmountLabel="Due"
       currentSlotLabel={currentSlotLabel}
