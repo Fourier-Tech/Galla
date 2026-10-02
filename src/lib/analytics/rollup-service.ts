@@ -3,6 +3,7 @@ import { AnalyticsRollup, AnalyticsPeriodType, IAnalyticsRollup } from "@/lib/db
 import { Order } from "@/lib/db/models/order.model";
 import { Expense } from "@/lib/db/models/expense.model";
 import { Customer } from "@/lib/db/models/customer.model";
+import { PurchaseOrder } from "@/lib/db/models/purchase-order.model";
 
 // Calculate TTL expiration date based on tiered retention requirements:
 // Daily: 2 months (60 days)
@@ -101,7 +102,7 @@ export async function syncRollupForPeriod(
 ): Promise<IAnalyticsRollup | null> {
   const { periodKey, startDate, endDate } = getPeriodKey(date, periodType);
 
-  const [ordersSummary, expensesSummary, internalExpense, duesSummary, newCustomersCount] =
+  const [ordersSummary, expensesSummary, internalExpense, duesSummary, newCustomersCount, supplierRefundsSummary] =
     await Promise.all([
       // 1. Order metrics: Use $facet so lineItems unwinding never multiplies total amountPaid
       Order.aggregate([
@@ -308,23 +309,59 @@ export async function syncRollupForPeriod(
         tenantId,
         createdAt: { $gte: startDate, $lte: endDate },
       }),
+
+      // 6. Supplier Returns / Refunds Received
+      PurchaseOrder.aggregate([
+        {
+          $match: {
+            tenantId,
+            "payments.recordedAt": { $gte: startDate, $lte: endDate },
+          },
+        },
+        { $unwind: "$payments" },
+        {
+          $match: {
+            "payments.recordedAt": { $gte: startDate, $lte: endDate },
+            "payments.type": "refund",
+            "payments.amount": { $lt: 0 },
+            "payments.paymentMode": { $ne: "reduce_due" },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSupplierRefunds: { $sum: { $abs: "$payments.amount" } },
+            cash: {
+              $sum: { $cond: [{ $eq: ["$payments.paymentMode", "cash"] }, { $abs: "$payments.amount" }, 0] },
+            },
+            upi: {
+              $sum: { $cond: [{ $eq: ["$payments.paymentMode", "upi"] }, { $abs: "$payments.amount" }, 0] },
+            },
+            card: {
+              $sum: { $cond: [{ $eq: ["$payments.paymentMode", "card"] }, { $abs: "$payments.amount" }, 0] },
+            },
+          },
+        },
+      ]),
     ]);
 
   const ordMeta = ordersSummary[0]?.orderLevel?.[0] || {};
   const lineItemsList = ordersSummary[0]?.lineItemLevel || [];
   const exp = expensesSummary[0] || {};
+  const suppRefund = (supplierRefundsSummary as any)?.[0] || {};
+  const totalSuppRefund = suppRefund.totalSupplierRefunds || 0;
 
   let serviceRev = 0;
-  let productRev = 0;
+  let productRev = totalSuppRefund;
   let packageRev = 0;
 
   for (const item of lineItemsList) {
     if (item._id === "service") serviceRev = item.amount || 0;
-    else if (item._id === "product") productRev = item.amount || 0;
+    else if (item._id === "product") productRev += item.amount || 0;
     else if (item._id === "package") packageRev = item.amount || 0;
   }
 
-  const totalRev = ordMeta.totalRevenue || 0;
+  const totalRev = (ordMeta.totalRevenue || 0) + totalSuppRefund;
   const totalExp = exp.totalExpense || 0;
   const netProfit = totalRev - totalExp;
   const totalOrders = ordMeta.totalOrders || 0;
@@ -365,9 +402,9 @@ export async function syncRollupForPeriod(
           newCustomersCount,
           returningCustomersCount: Math.max(0, totalOrders - newCustomersCount),
           paymentModes: {
-            cash: ordMeta.cash || 0,
-            upi: ordMeta.upi || 0,
-            card: ordMeta.card || 0,
+            cash: (ordMeta.cash || 0) + (suppRefund.cash || 0),
+            upi: (ordMeta.upi || 0) + (suppRefund.upi || 0),
+            card: (ordMeta.card || 0) + (suppRefund.card || 0),
             split: ordMeta.split || 0,
           },
         },
@@ -424,8 +461,8 @@ export async function ensureDailyRollupsForRange(
   const needsTodaySync = !existingMap.has(todayKey) && targetKeys.some((k) => k.periodKey === todayKey);
 
   if (missingKeys.length > 0) {
-    // Only check transaction activity for missing date windows in TWO fast aggregation queries
-    const [activeOrderDays, activeExpenseDays] = await Promise.all([
+    // Only check transaction activity for missing date windows in THREE fast aggregation queries
+    const [activeOrderDays, activeExpenseDays, activeSupplierRefundDays] = await Promise.all([
       Order.aggregate([
         {
           $match: {
@@ -464,6 +501,37 @@ export async function ensureDailyRollupsForRange(
           },
         },
       ]),
+      PurchaseOrder.aggregate([
+        {
+          $match: {
+            tenantId,
+            "payments.recordedAt": { $gte: startDate, $lte: endDate },
+            "payments.type": "refund",
+            "payments.amount": { $lt: 0 },
+            "payments.paymentMode": { $ne: "reduce_due" },
+          },
+        },
+        { $unwind: "$payments" },
+        {
+          $match: {
+            "payments.recordedAt": { $gte: startDate, $lte: endDate },
+            "payments.type": "refund",
+            "payments.amount": { $lt: 0 },
+            "payments.paymentMode": { $ne: "reduce_due" },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$payments.recordedAt",
+                timezone: "+05:30",
+              },
+            },
+          },
+        },
+      ]),
     ]);
 
     const activeDateSet = new Set<string>();
@@ -471,6 +539,9 @@ export async function ensureDailyRollupsForRange(
       if (d._id) activeDateSet.add(d._id);
     });
     activeExpenseDays.forEach((d: any) => {
+      if (d._id) activeDateSet.add(d._id);
+    });
+    activeSupplierRefundDays.forEach((d: any) => {
       if (d._id) activeDateSet.add(d._id);
     });
 

@@ -8,11 +8,13 @@ import {
   Loader2,
   PackageMinus,
   Check,
+  CheckCircle2,
   Undo2,
   ArrowRight,
   Minus,
   Plus,
   RotateCcw,
+  RefreshCw,
   Receipt,
   ArrowLeft,
 } from "lucide-react";
@@ -24,6 +26,7 @@ import {
   getPurchaseOrdersForProductAction,
 } from "@/app/dashboard/actions";
 import { formatRupee, formatDisplayNumber } from "@/lib/utils";
+import { PaymentModeSelect } from "@/components/dashboard/payment-mode-select";
 import { ConfirmModal } from "./confirm-modal";
 
 interface TransferStockModalProps {
@@ -34,7 +37,8 @@ interface TransferStockModalProps {
   onTransferSuccess: (
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
-    updatedSupplier?: DashboardSupplier
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
   ) => void;
 }
 
@@ -74,7 +78,8 @@ function TransferStockModalContent({
   onTransferSuccess: (
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
-    updatedSupplier?: DashboardSupplier
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
   ) => void;
 }) {
   const [mode, setMode] = useState<ModalMode>("transfer");
@@ -89,7 +94,9 @@ function TransferStockModalContent({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Supplier Return State
-  const [supplierRefundMode, setSupplierRefundMode] = useState<"reduce_due" | "replacement_pending">("reduce_due");
+  const [supplierResolution, setSupplierResolution] = useState<"return" | "replacement">("return");
+  const [deductFromDue, setDeductFromDue] = useState<boolean>(true);
+  const [supplierPaymentMode, setSupplierPaymentMode] = useState<"cash" | "upi" | "card" | "bank_transfer" | "credit">("cash");
   const [pos, setPos] = useState<any[]>([]);
   const [isLoadingPOs, setIsLoadingPOs] = useState(false);
   const [selectedPOId, setSelectedPOId] = useState<string | null>(null);
@@ -199,6 +206,26 @@ function TransferStockModalContent({
       : isValidQty
       ? numQty * returnUnitCost
       : 0;
+
+  // Return to Supplier settlement breakdown calculations
+  const pendingDue = Math.max(0, selectedPO?.amountPending || 0);
+  const hasDue = pendingDue > 0;
+  const effectiveDeductFromDue = hasDue && deductFromDue;
+  const dueDeduction = effectiveDeductFromDue ? Math.min(pendingDue, estReturnCost) : 0;
+  const cashRefund = Math.max(0, estReturnCost - dueDeduction);
+  const remainingDueAfterReturn = Math.max(0, pendingDue - dueDeduction);
+
+  // Auto-adjust default due deduction when switching selected purchase bill
+  useEffect(() => {
+    if (selectedPO) {
+      if ((selectedPO.amountPending || 0) > 0) {
+        setDeductFromDue(true);
+      } else {
+        setDeductFromDue(false);
+      }
+    }
+  }, [selectedPOId, selectedPO?.amountPending]);
+
   const unitProfit = Math.max(0, product.price - estUnitCost);
   const marginPct = product.price > 0 ? Math.round((unitProfit / product.price) * 100) : 0;
 
@@ -288,17 +315,24 @@ function TransferStockModalContent({
             ? "defectiveStock"
             : "mixed";
 
+        const isReplacement = supplierResolution === "replacement";
+
         const res = await returnInventoryToSupplierAction(
           String(product.id),
           selectedPOId,
           totalReturnSupplierQty,
           effectiveStockSource,
-          supplierRefundMode,
+          isReplacement ? "replacement_pending" : "reduce_due",
           consumeNotes.trim() || undefined,
           {
             sellStock: parsedReturnSell,
             useStock: parsedReturnUse,
             defectiveStock: parsedReturnDef,
+          },
+          {
+            resolution: supplierResolution,
+            deductFromDue: effectiveDeductFromDue,
+            paymentMode: supplierPaymentMode,
           }
         );
 
@@ -311,12 +345,17 @@ function TransferStockModalContent({
               0,
               (product.defectiveStock || 0) -
                 parsedReturnDef +
-                (supplierRefundMode === "replacement_pending"
+                (isReplacement
                   ? parsedReturnSell + parsedReturnUse
                   : 0)
             ),
           };
-          onTransferSuccess(updated, undefined, res.updatedSupplier);
+          onTransferSuccess(
+            updated,
+            undefined,
+            res.updatedSupplier,
+            res.refundAmount ?? (cashRefund > 0 ? cashRefund : undefined)
+          );
           onClose();
         } else {
           setErrorMsg(res.error || "Failed to process supplier return");
@@ -863,43 +902,49 @@ function TransferStockModalContent({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setSupplierRefundMode("reduce_due")}
+                    onClick={() => {
+                      setSupplierResolution("return");
+                      setErrorMsg(null);
+                    }}
                     className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${
-                      supplierRefundMode === "reduce_due"
+                      supplierResolution === "return"
                         ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
                         : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
                     }`}
                   >
-                    <div className={`p-2 rounded-[5px] mt-0.5 ${supplierRefundMode === "reduce_due" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
-                      <Receipt className="h-4 w-4" />
+                    <div className={`p-2 rounded-[5px] mt-0.5 ${supplierResolution === "return" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
+                      <RotateCcw className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-sans text-[13.5px] font-bold text-galla-ink flex items-center justify-between">
-                        <span>Deduct from Supplier Due</span>
-                        {supplierRefundMode === "reduce_due" && <Check className="h-4 w-4 text-rose-600" />}
+                        <span>Return Product</span>
+                        {supplierResolution === "return" && <Check className="h-4 w-4 text-rose-600" />}
                       </div>
                       <div className="text-xs text-galla-ink-soft mt-1 leading-snug">
-                        Reduces pending balance owed on bill, or creates supplier credit if already paid
+                        Return units for bill refund, due deduction, or cash payout
                       </div>
                     </div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setSupplierRefundMode("replacement_pending")}
+                    onClick={() => {
+                      setSupplierResolution("replacement");
+                      setErrorMsg(null);
+                    }}
                     className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${
-                      supplierRefundMode === "replacement_pending"
+                      supplierResolution === "replacement"
                         ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
                         : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
                     }`}
                   >
-                    <div className={`p-2 rounded-[5px] mt-0.5 ${supplierRefundMode === "replacement_pending" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
-                      <RotateCcw className="h-4 w-4" />
+                    <div className={`p-2 rounded-[5px] mt-0.5 ${supplierResolution === "replacement" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
+                      <RefreshCw className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-sans text-[13.5px] font-bold text-galla-ink flex items-center justify-between">
-                        <span>Wait for Replacement Stock</span>
-                        {supplierRefundMode === "replacement_pending" && <Check className="h-4 w-4 text-rose-600" />}
+                        <span>Replace Product</span>
+                        {supplierResolution === "replacement" && <Check className="h-4 w-4 text-rose-600" />}
                       </div>
                       <div className="text-xs text-galla-ink-soft mt-1 leading-snug">
                         Removes defective units from stock and queues pending exchange from dealer
@@ -1222,6 +1267,138 @@ function TransferStockModalContent({
                 </div>
               </div>
 
+              {/* Settlement & Refund Section for Return Product */}
+              {supplierResolution === "return" ? (
+                <div className="space-y-3 pt-3 border-t border-galla-line/60">
+                  <div className="p-3.5 bg-galla-paper/50 border border-galla-line/80 rounded-[8px] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[12.5px] font-bold text-galla-ink">
+                        Settlement Breakdown
+                      </label>
+                      {selectedPO ? (
+                        hasDue ? (
+                          <span className="font-sans text-[11px] text-amber-900 font-semibold px-2 py-0.5 rounded bg-amber-50 border border-amber-200">
+                            Pending Bill Due: {formatRupee(pendingDue)}
+                          </span>
+                        ) : (
+                          <span className="font-sans text-[11px] text-emerald-800 font-semibold px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                            Bill Fully Paid
+                          </span>
+                        )
+                      ) : null}
+                    </div>
+
+                    {/* Checkbox: ONLY shown if there is pending due */}
+                    {hasDue && (
+                      <label className="flex items-center gap-2.5 p-2.5 rounded-[6px] bg-white border border-galla-line/80 cursor-pointer hover:bg-galla-paper/40 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={deductFromDue}
+                          onChange={(e) => setDeductFromDue(e.target.checked)}
+                          className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500 border-galla-line cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                          <span className="text-[12.5px] font-semibold text-galla-ink">
+                            Deduct from supplier pending due
+                          </span>
+                          <span className="text-[11.5px] font-medium text-galla-ink-soft">
+                            Max: {formatRupee(Math.min(pendingDue, estReturnCost))}
+                          </span>
+                        </div>
+                      </label>
+                    )}
+
+                    <div className="space-y-2 text-[12.5px] font-sans bg-white p-3 rounded-[6px] border border-galla-line/70 shadow-2xs">
+                      <div className="flex justify-between items-center text-galla-ink">
+                        <span className="text-galla-ink-soft">Total Return Value:</span>
+                        <span className="font-semibold tabular-nums">{formatRupee(estReturnCost)}</span>
+                      </div>
+
+                      {effectiveDeductFromDue && dueDeduction > 0 && (
+                        <div className="flex justify-between items-center text-emerald-800">
+                          <span>Deducted from Bill Due:</span>
+                          <span className="font-semibold tabular-nums">-{formatRupee(dueDeduction)}</span>
+                        </div>
+                      )}
+
+                      {hasDue && (
+                        <div className="flex justify-between items-center text-galla-ink-soft text-[11.5px]">
+                          <span>Remaining Bill Due (Retailer owes):</span>
+                          <span className="font-semibold tabular-nums text-galla-ink">
+                            {formatRupee(remainingDueAfterReturn)}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center pt-2 border-t border-galla-line/60">
+                        <span className="font-bold text-galla-ink">Net Money to Receive from Supplier:</span>
+                        <span
+                          className={`font-bold tabular-nums text-[14px] ${
+                            cashRefund > 0 ? "text-emerald-700" : "text-galla-ink-soft"
+                          }`}
+                        >
+                          {formatRupee(cashRefund)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {cashRefund > 0 ? (
+                      <div className="pt-1">
+                        <PaymentModeSelect
+                          label={effectiveDeductFromDue ? "Receive Remaining Refund Via" : "Receive Refund Via"}
+                          badge={
+                            <span className="text-[11.5px] font-semibold tabular-nums text-emerald-700">
+                              To Receive: {formatRupee(cashRefund)}
+                            </span>
+                          }
+                          value={supplierPaymentMode}
+                          onChange={setSupplierPaymentMode}
+                          allowedModes={[
+                            "cash",
+                            "upi",
+                            "card",
+                            "bank_transfer",
+                            {
+                              value: "credit",
+                              label: "Supplier Credit",
+                              sublabel: "Credit balance with supplier for next purchase",
+                              icon: Receipt,
+                              tone: "rose",
+                            },
+                          ]}
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-[6px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[12px] font-sans flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span>
+                          {formatRupee(dueDeduction)} applied to reduce pending due. Remaining due: {formatRupee(remainingDueAfterReturn)}. No money to receive.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Replacement Stock Info */
+                <div className="space-y-3 pt-3 border-t border-galla-line/60">
+                  <div className="p-3.5 bg-galla-paper/50 border border-galla-line/80 rounded-[8px] space-y-2.5">
+                    <div className="flex items-center gap-2 text-rose-900 font-bold text-[13px]">
+                      <RefreshCw className="h-4 w-4 text-rose-600 shrink-0" />
+                      <span>Wait for Replacement Stock</span>
+                    </div>
+                    <p className="text-xs text-galla-ink-soft leading-relaxed">
+                      {totalReturnSupplierQty > 0
+                        ? `${totalReturnSupplierQty} unit${totalReturnSupplierQty > 1 ? "s" : ""} will be returned to ${selectedPO?.supplierName || "dealer"} for 1-to-1 replacement exchange.`
+                        : "Units will be sent to dealer for replacement stock delivery."}
+                    </p>
+                    <div className="p-2.5 rounded-[6px] bg-white border border-galla-line/80 text-[11.5px] text-galla-ink-soft flex items-center justify-between">
+                      <span>Monetary Settlement:</span>
+                      <span className="font-semibold text-galla-ink">None (Stock exchange only)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Notes */}
               <div className="pt-2 border-t border-galla-line/60">
                 <label className="text-xs font-semibold text-galla-ink block uppercase tracking-wider mb-1.5">
@@ -1357,20 +1534,48 @@ function TransferStockModalContent({
                     <span>Total Returning:</span>
                     <span className="tabular-nums font-bold text-sm text-rose-900">{totalReturnSupplierQty} pcs</span>
                   </div>
-                  <div className="flex justify-between items-center text-rose-950 font-semibold border-t border-rose-200/60 pt-1.5">
-                    <span>Credit / Return Value:</span>
-                    <span className="tabular-nums font-bold text-base text-rose-900">{formatRupee(estReturnCost)}</span>
-                  </div>
-                  {selectedPO && (
-                    <p className="text-[11px] text-rose-900/90 leading-relaxed border-t border-rose-200/60 pt-1.5">
-                      {supplierRefundMode === "reduce_due"
-                        ? (selectedPO.amountPending || 0) <= 0
-                          ? `Bill is fully paid. Return value of ${formatRupee(estReturnCost)} credited to ${selectedPO.supplierName}'s balance.`
-                          : selectedPO.amountPending < estReturnCost
-                          ? `Deducts ${formatRupee(selectedPO.amountPending)} from bill due + ${formatRupee(estReturnCost - selectedPO.amountPending)} added as supplier credit.`
-                          : `Reduces ${formatRupee(estReturnCost)} from ${selectedPO.supplierName}'s pending dues on this bill.`
-                        : `Items removed from active stock to pending replacement. Dealer will deliver replacement units.`}
-                    </p>
+
+                  {supplierResolution === "return" ? (
+                    <>
+                      <div className="flex justify-between items-center text-rose-950 font-semibold border-t border-rose-200/60 pt-1.5">
+                        <span>Total Return Value:</span>
+                        <span className="tabular-nums font-bold text-base text-rose-900">{formatRupee(estReturnCost)}</span>
+                      </div>
+
+                      {effectiveDeductFromDue && dueDeduction > 0 && (
+                        <div className="flex justify-between items-center text-emerald-800 font-medium">
+                          <span>Deducted from Bill Due:</span>
+                          <span className="tabular-nums font-semibold">-{formatRupee(dueDeduction)}</span>
+                        </div>
+                      )}
+
+                      {cashRefund > 0 && (
+                        <div className="flex justify-between items-center text-emerald-800 font-semibold">
+                          <span>To Receive ({supplierPaymentMode === "credit" ? "Credit" : supplierPaymentMode.toUpperCase()}):</span>
+                          <span className="tabular-nums font-bold">{formatRupee(cashRefund)}</span>
+                        </div>
+                      )}
+
+                      {selectedPO && (
+                        <p className="text-[11px] text-rose-900/90 leading-relaxed border-t border-rose-200/60 pt-1.5">
+                          {effectiveDeductFromDue
+                            ? cashRefund > 0
+                              ? `Clears pending due of ${formatRupee(dueDeduction)} on this bill + ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}.`
+                              : `Reduces ${formatRupee(dueDeduction)} from pending due on this bill. Remaining due: ${formatRupee(remainingDueAfterReturn)}.`
+                            : `Full return value of ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}. Bill due remains ${formatRupee(pendingDue)}.`}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center text-rose-950 font-semibold border-t border-rose-200/60 pt-1.5">
+                        <span>Resolution:</span>
+                        <span className="font-bold text-xs text-rose-900">Replacement Pending</span>
+                      </div>
+                      <p className="text-[11px] text-rose-900/90 leading-relaxed border-t border-rose-200/60 pt-1.5">
+                        Items removed from active stock to pending replacement. Dealer will deliver replacement units. No monetary settlement.
+                      </p>
+                    </>
                   )}
                 </div>
               )}
@@ -1400,7 +1605,9 @@ function TransferStockModalContent({
                     : mode === "consume"
                     ? `Deduct ${numQty || 1} pcs`
                     : mode === "return_supplier"
-                    ? `Return ${totalReturnSupplierQty || 1} pcs to Supplier`
+                    ? supplierResolution === "replacement"
+                      ? `Replace ${totalReturnSupplierQty || 1} pcs with Supplier`
+                      : `Return ${totalReturnSupplierQty || 1} pcs to Supplier`
                     : direction === "sell_to_use"
                     ? `Move ${numQty || 1} pcs to Use`
                     : `Move ${numQty || 1} pcs to Retail`}
@@ -1460,13 +1667,13 @@ function TransferStockModalContent({
                 </span>
                 <span className="block mt-1 text-[12px] text-rose-800 font-medium">
                   Settlement:{" "}
-                  {supplierRefundMode === "reduce_due"
-                    ? selectedPO?.amountPending && selectedPO.amountPending > 0
-                      ? selectedPO.amountPending < estReturnCost
-                        ? `Deducts ${formatRupee(selectedPO.amountPending)} from bill due + ${formatRupee(estReturnCost - selectedPO.amountPending)} added as supplier credit`
-                        : "Deducts from supplier pending due balance"
-                      : "Bill is fully paid: full return value added as supplier credit"
-                    : "Wait for replacement stock from supplier"}
+                  {supplierResolution === "replacement"
+                    ? "Wait for replacement stock from supplier (no monetary transaction)"
+                    : effectiveDeductFromDue
+                    ? cashRefund > 0
+                      ? `Deducts ${formatRupee(dueDeduction)} from bill due + receives ${formatRupee(cashRefund)} via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}`
+                      : `Deducts full return value of ${formatRupee(dueDeduction)} from bill due (Remaining due: ${formatRupee(remainingDueAfterReturn)})`
+                    : `Full return value of ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}`}
                 </span>
               </>
             ) : direction === "sell_to_use" ? (
@@ -1488,7 +1695,9 @@ function TransferStockModalContent({
           mode === "consume"
             ? "Yes, Deduct Stock"
             : mode === "return_supplier"
-            ? "Yes, Return to Supplier"
+            ? supplierResolution === "replacement"
+              ? "Yes, Send for Replacement"
+              : "Yes, Return to Supplier"
             : "Yes, Move Stock"
         }
         cancelLabel="Cancel"

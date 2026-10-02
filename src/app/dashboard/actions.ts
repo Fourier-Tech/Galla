@@ -2640,19 +2640,29 @@ export async function returnInventoryToSupplierAction(
   poId: string,
   quantityToReturn: number,
   stockSource: "sellStock" | "useStock" | "defectiveStock" | "mixed",
-  refundMode: "reduce_due" | "replacement_pending",
+  refundMode: "reduce_due" | "replacement_pending" | "return" | "replacement",
   notes?: string,
   stockBreakdown?: {
     sellStock?: number;
     useStock?: number;
     defectiveStock?: number;
+  },
+  options?: {
+    resolution?: "return" | "replacement";
+    deductFromDue?: boolean;
+    paymentMode?: "cash" | "upi" | "card" | "bank_transfer" | "credit";
   }
-): Promise<{ success: boolean; error?: string; updatedSupplier?: DashboardSupplier; updatedPO?: DashboardPurchaseOrder }> {
+): Promise<{ success: boolean; error?: string; updatedSupplier?: DashboardSupplier; updatedPO?: DashboardPurchaseOrder; refundAmount?: number }> {
   try {
     const session = await auth();
     if (!session?.user) return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
+
+    const isReplacement =
+      refundMode === "replacement_pending" ||
+      refundMode === "replacement" ||
+      options?.resolution === "replacement";
 
     return await withTransaction(async (dbSession) => {
       const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
@@ -2680,7 +2690,7 @@ export async function returnInventoryToSupplierAction(
         product.useStock -= useQty;
         product.defectiveStock = (product.defectiveStock || 0) - defQty;
 
-        if (refundMode === "replacement_pending" && (sellQty > 0 || useQty > 0)) {
+        if (isReplacement && (sellQty > 0 || useQty > 0)) {
           product.defectiveStock = (product.defectiveStock || 0) + (sellQty + useQty);
         }
 
@@ -2713,28 +2723,33 @@ export async function returnInventoryToSupplierAction(
           effectiveStockType = "defective";
         }
 
-        if (refundMode === "replacement_pending" && stockSource !== "defectiveStock") {
+        if (isReplacement && stockSource !== "defectiveStock") {
           product.defectiveStock = (product.defectiveStock || 0) + quantityToReturn;
         }
       }
 
       const combinedNote = [breakdownNotes, notes?.trim()].filter(Boolean).join(" - ");
 
-      await processSupplierReturn(
+      const returnResult = await processSupplierReturn(
         tenantId,
         poId,
         product._id.toString(),
         effectiveQty,
-        refundMode,
+        isReplacement ? "replacement_pending" : "reduce_due",
         combinedNote || undefined,
         session.user.role || "owner",
         dbSession,
         product.name,
-        effectiveStockType
+        effectiveStockType,
+        options
       );
 
       await product.save({ session: dbSession });
       await cleanupProductBatchNames(tenantId, product.name, dbSession);
+
+      if (returnResult?.cashRefundReceived && returnResult.cashRefundReceived > 0) {
+        await triggerLiveRollupSync(new Types.ObjectId(tenantId));
+      }
 
       revalidatePath("/dashboard");
       broadcastUpdate(tenantId, "inventory_returned_to_supplier");
@@ -2770,7 +2785,7 @@ export async function returnInventoryToSupplierAction(
         }
       }
 
-      return { success: true, updatedSupplier };
+      return { success: true, updatedSupplier, refundAmount: returnResult?.cashRefundReceived || 0 };
     });
   } catch (error: any) {
     console.error("Failed to return inventory to supplier:", error);
@@ -5979,12 +5994,17 @@ async function processSupplierReturn(
   poId: string,
   productId: string,
   quantityToReturn: number,
-  refundMode: "reduce_due" | "replacement_pending",
+  refundMode: "reduce_due" | "replacement_pending" | "return" | "replacement",
   notes: string | undefined,
   userRole: string,
   dbSession: ClientSession,
   productName?: string,
-  stockType: "sell" | "use" | "defective" | "mixed" = "sell"
+  stockType: "sell" | "use" | "defective" | "mixed" = "sell",
+  options?: {
+    resolution?: "return" | "replacement";
+    deductFromDue?: boolean;
+    paymentMode?: "cash" | "upi" | "card" | "bank_transfer" | "credit";
+  }
 ) {
   const tenantObj = Types.ObjectId.isValid(tenantId)
     ? new Types.ObjectId(tenantId)
@@ -6013,8 +6033,13 @@ async function processSupplierReturn(
     throw new Error(`Invalid supplier return quantity. You can only return up to ${totalPurchased - (previouslyReturned + previouslyReplaced)} items for this PO.`);
   }
 
+  const isReplacement =
+    refundMode === "replacement_pending" ||
+    refundMode === "replacement" ||
+    options?.resolution === "replacement";
+
   const returnValue = quantityToReturn * item.purchaseCost;
-  if (refundMode === "replacement_pending") {
+  if (isReplacement) {
     item.replacedQuantity = previouslyReplaced + quantityToReturn;
   } else {
     item.returnedQuantity = previouslyReturned + quantityToReturn;
@@ -6023,23 +6048,51 @@ async function processSupplierReturn(
 
   let amountDeductedFromDue = 0;
   let creditAmount = 0;
+  let cashRefundReceived = 0;
 
-  if (refundMode === "reduce_due") {
+  if (!isReplacement) {
     const currentDue = Math.max(0, po.amountPending || 0);
-    amountDeductedFromDue = Math.min(currentDue, returnValue);
-    creditAmount = returnValue - amountDeductedFromDue;
+    const shouldDeduct =
+      options?.deductFromDue !== undefined
+        ? Boolean(options.deductFromDue)
+        : currentDue > 0;
 
-    po.amountPending = Math.max(0, currentDue - amountDeductedFromDue);
+    if (shouldDeduct && currentDue > 0) {
+      amountDeductedFromDue = Math.min(currentDue, returnValue);
+    } else {
+      amountDeductedFromDue = 0;
+    }
+
+    const excessOrDirectRefund = Math.max(0, returnValue - amountDeductedFromDue);
+    const chosenMode = options?.paymentMode || "cash";
+
+    if (amountDeductedFromDue > 0) {
+      po.amountPending = Math.max(0, currentDue - amountDeductedFromDue);
+    }
 
     const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId: tenantObj }).session(dbSession);
-    if (supplier) {
-      // Deduct full return value from supplier's balance; negative balance indicates credit owed to salon
-      supplier.totalPending = (supplier.totalPending || 0) - returnValue;
-      await supplier.save({ session: dbSession });
-    }
-  }
 
-  if (refundMode !== "replacement_pending") {
+    if (excessOrDirectRefund > 0) {
+      if (chosenMode === "credit") {
+        creditAmount = excessOrDirectRefund;
+        if (supplier) {
+          supplier.totalPending = (supplier.totalPending || 0) - (amountDeductedFromDue + creditAmount);
+          await supplier.save({ session: dbSession });
+        }
+      } else {
+        cashRefundReceived = excessOrDirectRefund;
+        if (supplier && amountDeductedFromDue > 0) {
+          supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
+          await supplier.save({ session: dbSession });
+        }
+      }
+    } else {
+      if (supplier && amountDeductedFromDue > 0) {
+        supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
+        await supplier.save({ session: dbSession });
+      }
+    }
+
     if (!po.payments) po.payments = [];
     if (amountDeductedFromDue > 0) {
       po.payments.push({
@@ -6061,15 +6114,36 @@ async function processSupplierReturn(
         recordedAt: new Date(),
       });
     }
+    if (cashRefundReceived > 0) {
+      po.payments.push({
+        amount: -cashRefundReceived,
+        paymentMode: chosenMode,
+        notes: `[Supplier Refund Received] ₹${cashRefundReceived} received via ${chosenMode.toUpperCase()} (${quantityToReturn}x ${item.productName}${notes ? ` - ${notes}` : ""})`,
+        recordedBy: userRole === "staff" ? "staff" : "owner",
+        type: "refund",
+        recordedAt: new Date(),
+      });
+    }
   }
 
   const creditSuffix = creditAmount > 0 ? ` (₹${creditAmount} credited to supplier balance)` : "";
+  const cashSuffix =
+    cashRefundReceived > 0
+      ? ` (₹${cashRefundReceived} received via ${(options?.paymentMode || "cash").toUpperCase()})`
+      : "";
   const finalNote = notes
-    ? `[${refundMode === "replacement_pending" ? "Replacement Pending" : "Refund"}] ${refundMode === "replacement_pending" ? "Sent for replacement" : "Returned"} ${quantityToReturn}x ${item.productName}${creditSuffix}. Note: ${notes}`
-    : `[${refundMode === "replacement_pending" ? "Replacement Pending" : "Refund"}] ${refundMode === "replacement_pending" ? "Sent for replacement" : "Returned"} ${quantityToReturn}x ${item.productName}${creditSuffix}.`;
+    ? `[${isReplacement ? "Replacement Pending" : "Refund"}] ${isReplacement ? "Sent for replacement" : "Returned"} ${quantityToReturn}x ${item.productName}${creditSuffix}${cashSuffix}. Note: ${notes}`
+    : `[${isReplacement ? "Replacement Pending" : "Refund"}] ${isReplacement ? "Sent for replacement" : "Returned"} ${quantityToReturn}x ${item.productName}${creditSuffix}${cashSuffix}.`;
   po.notes = po.notes ? `${po.notes}\n${finalNote}` : finalNote;
 
   po.returns = po.returns || [];
+
+  const chosenMode = options?.paymentMode || "cash";
+  const returnRefundMode = isReplacement
+    ? "replacement_pending"
+    : amountDeductedFromDue > 0 && cashRefundReceived === 0 && creditAmount === 0
+    ? "reduce_due"
+    : chosenMode;
 
   po.returns.push({
     returnNumber: `RET-${Date.now()}`,
@@ -6078,13 +6152,19 @@ async function processSupplierReturn(
     quantity: quantityToReturn,
     stockType,
     unitCost: item.purchaseCost,
-    totalRefundAmount: refundMode === "replacement_pending" ? 0 : returnValue,
-    refundMode,
+    totalRefundAmount: isReplacement ? 0 : returnValue,
+    refundMode: returnRefundMode,
     amountDeductedFromDue,
-    replacementStatus: refundMode === "replacement_pending" ? "pending" : undefined,
-    notes: creditAmount > 0
-      ? `[Supplier Credit ₹${creditAmount}] ${notes || ""}`.trim()
-      : notes,
+    replacementStatus: isReplacement ? "pending" : undefined,
+    notes: [
+      amountDeductedFromDue > 0 ? `₹${amountDeductedFromDue} deducted from bill due` : null,
+      creditAmount > 0 ? `₹${creditAmount} added as supplier credit` : null,
+      cashRefundReceived > 0 ? `₹${cashRefundReceived} received via ${chosenMode.toUpperCase()}` : null,
+      notes || "",
+    ]
+      .filter(Boolean)
+      .join(". ")
+      .trim() || undefined,
     returnedAt: new Date(),
     recordedBy: userRole === "staff" ? "staff" : "owner",
   });
@@ -6103,6 +6183,12 @@ async function processSupplierReturn(
   po.markModified("payments");
   po.markModified("notes");
   await po.save({ session: dbSession });
+
+  return {
+    amountDeductedFromDue,
+    cashRefundReceived,
+    creditAmount,
+  };
 }
 
 export async function returnPurchaseOrderItemAction(
@@ -6954,10 +7040,12 @@ export async function settleSupplierReplacementAction(
   resolutionType: "replace_stock" | "credit_refund",
   options?: {
     targetStock?: "sellStock" | "useStock";
-    refundMode?: "cash" | "upi" | "card" | "reduce_due";
+    refundMode?: "cash" | "upi" | "card" | "reduce_due" | "bank_transfer" | "credit";
     supplierId?: string;
     poId?: string;
     notes?: string;
+    deductFromDue?: boolean;
+    paymentMode?: "cash" | "upi" | "card" | "bank_transfer" | "credit";
   }
 ): Promise<{
   success: boolean;
@@ -7015,6 +7103,7 @@ export async function settleSupplierReplacementAction(
       const totalCreditAmount = quantity * unitCost;
 
       let updatedSupplierDoc: any = null;
+      let cashRefundReceived = 0;
 
       if (resolutionType === "replace_stock") {
         const target = options?.targetStock || "sellStock";
@@ -7066,20 +7155,55 @@ export async function settleSupplierReplacementAction(
         }
       } else {
         // Dealer cannot replace, gave credit / refund
-        const refundMode = options?.refundMode || "reduce_due";
+        const currentDue = Math.max(0, po.amountPending || 0);
+        const shouldDeduct =
+          options?.deductFromDue !== undefined
+            ? Boolean(options.deductFromDue)
+            : options?.refundMode === "reduce_due"
+            ? true
+            : currentDue > 0;
+
         let amountDeductedFromDue = 0;
-        let creditAmount = 0;
-
-        if (refundMode === "reduce_due") {
-          const currentDue = Math.max(0, po.amountPending || 0);
+        if (shouldDeduct && currentDue > 0) {
           amountDeductedFromDue = Math.min(currentDue, totalCreditAmount);
-          creditAmount = totalCreditAmount - amountDeductedFromDue;
+        } else {
+          amountDeductedFromDue = 0;
+        }
 
+        const excessOrDirectRefund = Math.max(0, totalCreditAmount - amountDeductedFromDue);
+        const chosenMode =
+          options?.paymentMode ||
+          (options?.refundMode !== "reduce_due" ? options?.refundMode : "cash") ||
+          "cash";
+
+        let creditAmount = 0;
+        cashRefundReceived = 0;
+
+        if (amountDeductedFromDue > 0) {
           po.amountPending = Math.max(0, currentDue - amountDeductedFromDue);
+        }
 
-          const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId }).session(dbSession);
-          if (supplier) {
-            supplier.totalPending = (supplier.totalPending || 0) - totalCreditAmount;
+        const supplier = await Supplier.findOne({ _id: po.supplierId, tenantId }).session(dbSession);
+
+        if (excessOrDirectRefund > 0) {
+          if (chosenMode === "credit") {
+            creditAmount = excessOrDirectRefund;
+            if (supplier) {
+              supplier.totalPending = (supplier.totalPending || 0) - (amountDeductedFromDue + creditAmount);
+              await supplier.save({ session: dbSession });
+              updatedSupplierDoc = supplier;
+            }
+          } else {
+            cashRefundReceived = excessOrDirectRefund;
+            if (supplier && amountDeductedFromDue > 0) {
+              supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
+              await supplier.save({ session: dbSession });
+              updatedSupplierDoc = supplier;
+            }
+          }
+        } else {
+          if (supplier && amountDeductedFromDue > 0) {
+            supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
             await supplier.save({ session: dbSession });
             updatedSupplierDoc = supplier;
           }
@@ -7087,32 +7211,31 @@ export async function settleSupplierReplacementAction(
 
         // Record in PO payment history
         po.payments = po.payments || [];
-        if (refundMode === "reduce_due") {
-          if (amountDeductedFromDue > 0) {
-            po.payments.push({
-              amount: -amountDeductedFromDue,
-              paymentMode: "reduce_due",
-              notes: options.notes || `[Defective Credit Settle] Deducted ₹${amountDeductedFromDue} from due for ${quantity}x ${product.name}`,
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
-              type: "return_due_deduction",
-              recordedAt: new Date(),
-            });
-          }
-          if (creditAmount > 0) {
-            po.payments.push({
-              amount: -creditAmount,
-              paymentMode: "reduce_due",
-              notes: `[Supplier Credit] ₹${creditAmount} credited to supplier balance (${quantity}x ${product.name}${options.notes ? ` - ${options.notes}` : ""})`,
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
-              type: "supplier_credit",
-              recordedAt: new Date(),
-            });
-          }
-        } else {
+        if (amountDeductedFromDue > 0) {
           po.payments.push({
-            amount: -totalCreditAmount,
-            paymentMode: refundMode as any,
-            notes: options.notes || `[Refund] Received ₹${totalCreditAmount} refund for ${quantity}x ${product.name}`,
+            amount: -amountDeductedFromDue,
+            paymentMode: "reduce_due",
+            notes: options?.notes || `[Defective Credit Settle] Deducted ₹${amountDeductedFromDue} from due for ${quantity}x ${product.name}`,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            type: "return_due_deduction",
+            recordedAt: new Date(),
+          });
+        }
+        if (creditAmount > 0) {
+          po.payments.push({
+            amount: -creditAmount,
+            paymentMode: "reduce_due",
+            notes: `[Supplier Credit] ₹${creditAmount} credited to supplier balance (${quantity}x ${product.name}${options?.notes ? ` - ${options.notes}` : ""})`,
+            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            type: "supplier_credit",
+            recordedAt: new Date(),
+          });
+        }
+        if (cashRefundReceived > 0) {
+          po.payments.push({
+            amount: -cashRefundReceived,
+            paymentMode: chosenMode as any,
+            notes: options?.notes || `[Supplier Refund Received] ₹${cashRefundReceived} received via ${chosenMode.toUpperCase()} (${quantity}x ${product.name})`,
             recordedBy: session.user.role === "staff" ? "staff" : "owner",
             type: "refund",
             recordedAt: new Date(),
@@ -7121,6 +7244,11 @@ export async function settleSupplierReplacementAction(
 
         // Record in PO returns
         po.returns = po.returns || [];
+        const returnRefundMode =
+          amountDeductedFromDue > 0 && cashRefundReceived === 0 && creditAmount === 0
+            ? "reduce_due"
+            : chosenMode;
+
         po.returns.push({
           returnNumber: `RET-${Date.now()}`,
           productId: product._id,
@@ -7129,11 +7257,17 @@ export async function settleSupplierReplacementAction(
           stockType: "defective",
           unitCost,
           totalRefundAmount: totalCreditAmount,
-          refundMode: refundMode as any,
+          refundMode: returnRefundMode as any,
           amountDeductedFromDue,
-          notes: creditAmount > 0
-            ? `[Supplier Credit ₹${creditAmount}] ${options.notes || ""}`.trim()
-            : options.notes,
+          notes: [
+            amountDeductedFromDue > 0 ? `₹${amountDeductedFromDue} deducted from bill due` : null,
+            creditAmount > 0 ? `₹${creditAmount} added as supplier credit` : null,
+            cashRefundReceived > 0 ? `₹${cashRefundReceived} received via ${chosenMode.toUpperCase()}` : null,
+            options?.notes || "",
+          ]
+            .filter(Boolean)
+            .join(". ")
+            .trim() || undefined,
           recordedBy: session.user.role === "staff" ? "staff" : "owner",
           returnedAt: new Date(),
         });
@@ -7204,9 +7338,11 @@ export async function settleSupplierReplacementAction(
         }
       : undefined;
       const refundAmount =
-        resolutionType === "credit_refund" && options?.refundMode !== "reduce_due"
-          ? totalCreditAmount
-          : 0;
+        resolutionType === "credit_refund" ? cashRefundReceived : 0;
+
+      if (refundAmount > 0) {
+        await triggerLiveRollupSync(new Types.ObjectId(tenantId));
+      }
 
       return {
         success: true,

@@ -39,7 +39,10 @@ export function SettleReplacementModal({
   const [quantity, setQuantity] = useState<string>("1");
   const [resolutionType, setResolutionType] = useState<"credit_refund" | "replace_stock">("credit_refund");
   const [targetStock, setTargetStock] = useState<"sellStock" | "useStock">("sellStock");
-  const [refundMode, setRefundMode] = useState<"reduce_due" | "cash" | "upi" | "card">("reduce_due");
+  const [deductFromDue, setDeductFromDue] = useState(true);
+  const [supplierPaymentMode, setSupplierPaymentMode] = useState<
+    "cash" | "upi" | "card" | "bank_transfer" | "credit"
+  >("cash");
   const [notes, setNotes] = useState("");
   const [pos, setPos] = useState<any[]>([]);
   const [selectedPOId, setSelectedPOId] = useState<string>("");
@@ -53,7 +56,8 @@ export function SettleReplacementModal({
       setQuantity(String(defQty));
       setResolutionType("credit_refund");
       setTargetStock("sellStock");
-      setRefundMode("reduce_due");
+      setDeductFromDue(true);
+      setSupplierPaymentMode("cash");
       setNotes("");
       setSelectedPOId("");
       setErrorMsg(null);
@@ -82,6 +86,14 @@ export function SettleReplacementModal({
   const isValidQty = !isNaN(numQty) && numQty > 0 && numQty <= maxDefective;
   const estimatedCost = (product.purchaseCost || 0) * (isValidQty ? numQty : 0);
 
+  const selectedPO = pos.find((p) => String(p.id) === String(selectedPOId));
+  const pendingDue = Math.max(0, selectedPO?.amountPending || 0);
+  const hasDue = Boolean(selectedPO && pendingDue > 0);
+  const effectiveDeductFromDue = hasDue && deductFromDue;
+  const dueDeduction = effectiveDeductFromDue ? Math.min(pendingDue, estimatedCost) : 0;
+  const remainingDueAfterReturn = hasDue ? Math.max(0, pendingDue - dueDeduction) : 0;
+  const cashRefund = Math.max(0, estimatedCost - dueDeduction);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValidQty) {
@@ -104,7 +116,8 @@ export function SettleReplacementModal({
         resolutionType,
         {
           targetStock: resolutionType === "replace_stock" ? targetStock : undefined,
-          refundMode: resolutionType === "credit_refund" ? refundMode : undefined,
+          deductFromDue: resolutionType === "credit_refund" ? effectiveDeductFromDue : undefined,
+          paymentMode: resolutionType === "credit_refund" ? supplierPaymentMode : undefined,
           poId: selectedPOId,
           notes: notes.trim() || undefined,
         }
@@ -239,6 +252,54 @@ export function SettleReplacementModal({
             </div>
           </div>
 
+          {/* Mandatory PO Selection */}
+          <div className="p-4 bg-galla-surface border border-galla-line rounded-[8px] space-y-2.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <label className="text-[12.5px] font-bold text-galla-ink">
+                Link to Original Purchase Bill <span className="text-red-600">*</span>
+              </label>
+              <span className="font-sans text-[11px] text-galla-ink-soft font-medium">
+                {isLoadingPOs ? (
+                  <span className="inline-flex items-center gap-1 text-galla-teal">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading bills...
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-galla-paper border border-galla-line text-galla-ink">
+                    {pos.length} bill{pos.length === 1 ? "" : "s"} found
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {isLoadingPOs ? (
+              <div className="p-3 border border-galla-line rounded-[6px] bg-galla-paper/30 flex items-center justify-center">
+                <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
+              </div>
+            ) : pos.length === 0 ? (
+              <div className="p-3 border border-dashed border-rose-300 rounded-[6px] text-[12px] font-sans text-rose-700 bg-rose-50/50 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                <span>No purchase bills found for &ldquo;{product.name}&rdquo;. A linked supplier bill is required to adjust dues or track settlement history.</span>
+              </div>
+            ) : (
+              <select
+                value={selectedPOId}
+                onChange={(e) => {
+                  setSelectedPOId(e.target.value);
+                  setErrorMsg(null);
+                }}
+                required
+                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors cursor-pointer shadow-2xs"
+              >
+                <option value="">-- Select Original Supplier Bill * --</option>
+                {pos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatDisplayNumber(p.purchaseOrderNumber)} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           {/* Resolution Type Section */}
           <div className="p-4 bg-galla-surface border border-galla-line rounded-[8px] space-y-3 shadow-2xs">
             <label className="block text-[12.5px] font-bold text-galla-ink">
@@ -333,88 +394,115 @@ export function SettleReplacementModal({
                 </div>
               </div>
             ) : (
-              <div className="pt-2 border-t border-galla-line/60">
-                <PaymentModeSelect
-                  label="Credit / Refund Mode"
-                  badge={
-                    <span className="font-sans text-[12px] font-semibold text-rose-700 tabular-nums">
-                      Total: {formatRupee(estimatedCost)}
-                    </span>
-                  }
-                  value={refundMode}
-                  onChange={setRefundMode}
-                  allowedModes={[
-                    {
-                      value: "reduce_due",
-                      label: "Reduce Supplier Due",
-                      sublabel: "Deduct from pending bills",
-                    },
-                    {
-                      value: "cash",
-                      label: "Cash / Direct Refund",
-                      sublabel: "Dealer handed cash or direct refund",
-                    },
-                    {
-                      value: "upi",
-                      label: "UPI / Online Refund",
-                      sublabel: "Dealer transferred via UPI / Netbanking",
-                    },
-                    {
-                      value: "card",
-                      label: "Card Reversal",
-                      sublabel: "Refunded to card terminal",
-                    },
-                  ]}
-                />
-              </div>
-            )}
-          </div>
+              <div className="space-y-3 pt-3 border-t border-galla-line/60">
+                <div className="p-3.5 bg-galla-paper/50 border border-galla-line/80 rounded-[8px] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[12.5px] font-bold text-galla-ink">
+                      Settlement Breakdown
+                    </label>
+                    {selectedPO ? (
+                      hasDue ? (
+                        <span className="font-sans text-[11px] text-amber-900 font-semibold px-2 py-0.5 rounded bg-amber-50 border border-amber-200">
+                          Pending Bill Due: {formatRupee(pendingDue)}
+                        </span>
+                      ) : (
+                        <span className="font-sans text-[11px] text-emerald-800 font-semibold px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                          Bill Fully Paid
+                        </span>
+                      )
+                    ) : null}
+                  </div>
 
-          {/* Mandatory PO Selection */}
-          <div className="p-4 bg-galla-surface border border-galla-line rounded-[8px] space-y-2.5 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <label className="text-[12.5px] font-bold text-galla-ink">
-                Link to Original Purchase Bill <span className="text-red-600">*</span>
-              </label>
-              <span className="font-sans text-[11px] text-galla-ink-soft font-medium">
-                {isLoadingPOs ? (
-                  <span className="inline-flex items-center gap-1 text-galla-teal">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Loading bills...
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded bg-galla-paper border border-galla-line text-galla-ink">
-                    {pos.length} bill{pos.length === 1 ? "" : "s"} found
-                  </span>
-                )}
-              </span>
-            </div>
+                  {/* Checkbox: ONLY shown if there is pending due */}
+                  {hasDue && (
+                    <label className="flex items-center gap-2.5 p-2.5 rounded-[6px] bg-white border border-galla-line/80 cursor-pointer hover:bg-galla-paper/40 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={deductFromDue}
+                        onChange={(e) => setDeductFromDue(e.target.checked)}
+                        className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500 border-galla-line cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                        <span className="text-[12.5px] font-semibold text-galla-ink">
+                          Deduct from supplier pending due
+                        </span>
+                        <span className="text-[11.5px] font-medium text-galla-ink-soft">
+                          Max: {formatRupee(Math.min(pendingDue, estimatedCost))}
+                        </span>
+                      </div>
+                    </label>
+                  )}
 
-            {isLoadingPOs ? (
-              <div className="p-3 border border-galla-line rounded-[6px] bg-galla-paper/30 flex items-center justify-center">
-                <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
+                  <div className="space-y-2 text-[12.5px] font-sans bg-white p-3 rounded-[6px] border border-galla-line/70 shadow-2xs">
+                    <div className="flex justify-between items-center text-galla-ink">
+                      <span className="text-galla-ink-soft">Total Return Value:</span>
+                      <span className="font-semibold tabular-nums">{formatRupee(estimatedCost)}</span>
+                    </div>
+
+                    {effectiveDeductFromDue && dueDeduction > 0 && (
+                      <div className="flex justify-between items-center text-emerald-800">
+                        <span>Deducted from Bill Due:</span>
+                        <span className="font-semibold tabular-nums">-{formatRupee(dueDeduction)}</span>
+                      </div>
+                    )}
+
+                    {hasDue && (
+                      <div className="flex justify-between items-center text-galla-ink-soft text-[11.5px]">
+                        <span>Remaining Bill Due (Retailer owes):</span>
+                        <span className="font-semibold tabular-nums text-galla-ink">
+                          {formatRupee(remainingDueAfterReturn)}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pt-2 border-t border-galla-line/60">
+                      <span className="font-bold text-galla-ink">Net Money to Receive from Supplier:</span>
+                      <span
+                        className={`font-bold tabular-nums text-[14px] ${
+                          cashRefund > 0 ? "text-emerald-700" : "text-galla-ink-soft"
+                        }`}
+                      >
+                        {formatRupee(cashRefund)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {cashRefund > 0 ? (
+                    <div className="pt-1">
+                      <PaymentModeSelect
+                        label={effectiveDeductFromDue ? "Receive Remaining Refund Via" : "Receive Refund Via"}
+                        badge={
+                          <span className="text-[11.5px] font-semibold tabular-nums text-emerald-700">
+                            To Receive: {formatRupee(cashRefund)}
+                          </span>
+                        }
+                        value={supplierPaymentMode}
+                        onChange={setSupplierPaymentMode}
+                        allowedModes={[
+                          "cash",
+                          "upi",
+                          "card",
+                          "bank_transfer",
+                          {
+                            value: "credit",
+                            label: "Supplier Credit",
+                            sublabel: "Credit balance with supplier for next purchase",
+                            icon: Receipt,
+                            tone: "rose",
+                          },
+                        ]}
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-[6px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[12px] font-sans flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span>
+                        {formatRupee(dueDeduction)} applied to reduce pending due. Remaining due: {formatRupee(remainingDueAfterReturn)}. No money to receive.
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            ) : pos.length === 0 ? (
-              <div className="p-3 border border-dashed border-rose-300 rounded-[6px] text-[12px] font-sans text-rose-700 bg-rose-50/50 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
-                <span>No purchase bills found for &ldquo;{product.name}&rdquo;. A linked supplier bill is required to adjust dues or track settlement history.</span>
-              </div>
-            ) : (
-              <select
-                value={selectedPOId}
-                onChange={(e) => {
-                  setSelectedPOId(e.target.value);
-                  setErrorMsg(null);
-                }}
-                required
-                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors cursor-pointer shadow-2xs"
-              >
-                <option value="">-- Select Original Supplier Bill * --</option>
-                {pos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {formatDisplayNumber(p.purchaseOrderNumber)} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })})
-                  </option>
-                ))}
-              </select>
             )}
           </div>
 
@@ -452,7 +540,11 @@ export function SettleReplacementModal({
                 </span>
               ) : (
                 <span className="text-rose-800 font-bold">
-                  {formatRupee(estimatedCost)} Credit Note / Refund
+                  {effectiveDeductFromDue && dueDeduction > 0
+                    ? cashRefund > 0
+                      ? `-${formatRupee(dueDeduction)} Due + ${formatRupee(cashRefund)} Refund`
+                      : `-${formatRupee(dueDeduction)} Due Deduction`
+                    : `${formatRupee(cashRefund)} ${supplierPaymentMode === "credit" ? "Credit" : supplierPaymentMode.toUpperCase()}`}
                 </span>
               )}
             </div>

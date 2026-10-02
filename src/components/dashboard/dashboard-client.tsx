@@ -738,7 +738,8 @@ export function DashboardClient({
   const handleTransferSuccess = (
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
-    updatedSupplier?: DashboardSupplier
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
   ) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
@@ -748,6 +749,9 @@ export function DashboardClient({
       setTotalExpensesCount((prev) => prev + 1);
       setExpensesTotalAmount((prev) => prev + (newExpense.amount || 0));
       setTodayExpense((prev) => prev + (newExpense.amount || 0));
+    }
+    if (refundAmount && refundAmount > 0) {
+      setTodayIncome((prev) => prev + refundAmount);
     }
     if (updatedSupplier) {
       setSuppliers((prev) =>

@@ -685,6 +685,10 @@ export function PurchaseOrdersView({
                     ? `⚠️ Payment Overdue (${dueDateStr})`
                     : `Due: ${dueDateStr}`;
 
+                  const showContactOptions = Boolean(
+                    isDeliveryToday || isDeliveryOverdue || isPaymentDueToday || isPaymentOverdue
+                  );
+
                   const itemsSummary =
                     po.items && po.items.length > 0
                       ? po.items
@@ -695,23 +699,25 @@ export function PurchaseOrdersView({
                           .join(", ")
                       : undefined;
 
-                  const waUrl = getSupplierWhatsAppReminderUrl({
-                    phone: po.supplierPhone,
-                    supplierName: po.supplierName,
-                    salonName: salonName,
-                    poNumber: po.purchaseOrderNumber,
-                    dealerInvoiceNumber: po.dealerInvoiceNumber,
-                    deliveryDate: targetDeliveryDate,
-                    deliveryTime: po.deliveryTime,
-                    dueDate: targetDueDate,
-                    totalAmount: po.totalAmount,
-                    amountPaid: po.amountPaid,
-                    amountPending: po.amountPending,
-                    itemsSummary,
-                    items: po.items,
-                    mode: isAdvancePurchase ? "advance" : isPendingPayment ? "payment_due" : "delivery",
-                    isAdvance: isAdvancePurchase,
-                  });
+                  const waUrl = showContactOptions
+                    ? getSupplierWhatsAppReminderUrl({
+                        phone: po.supplierPhone,
+                        supplierName: po.supplierName,
+                        salonName: salonName,
+                        poNumber: po.purchaseOrderNumber,
+                        dealerInvoiceNumber: po.dealerInvoiceNumber,
+                        deliveryDate: targetDeliveryDate,
+                        deliveryTime: po.deliveryTime,
+                        dueDate: targetDueDate,
+                        totalAmount: po.totalAmount,
+                        amountPaid: po.amountPaid,
+                        amountPending: po.amountPending,
+                        itemsSummary,
+                        items: po.items,
+                        mode: isAdvancePurchase ? "advance" : isPendingPayment ? "payment_due" : "delivery",
+                        isAdvance: isAdvancePurchase,
+                      })
+                    : null;
 
                   const lastUpdatedTime = getBillLastUpdatedTime(po);
 
@@ -881,33 +887,35 @@ export function PurchaseOrdersView({
                             </div>
 
                             {/* Call & WhatsApp & Reschedule Action Buttons */}
-                            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                              {po.supplierPhone ? (
-                                <a
-                                  href={`tel:${po.supplierPhone.replace(/\D/g, "")}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
-                                  title={`Call supplier: ${po.supplierPhone}`}
-                                >
-                                  <Phone className="h-3 w-3 text-amber-800 shrink-0" />
-                                  <span>Call</span>
-                                </a>
-                              ) : null}
+                            {showContactOptions && (
+                              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                {po.supplierPhone ? (
+                                  <a
+                                    href={`tel:${po.supplierPhone.replace(/\D/g, "")}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                    title={`Call supplier: ${po.supplierPhone}`}
+                                  >
+                                    <Phone className="h-3 w-3 text-amber-800 shrink-0" />
+                                    <span>Call</span>
+                                  </a>
+                                ) : null}
 
-                              {waUrl ? (
-                                <a
-                                  href={waUrl}
-                                  onClick={(e) => e.stopPropagation()}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
-                                  title="Send inquiry to supplier via WhatsApp"
-                                >
-                                  <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
-                                  <span>WhatsApp Msg</span>
-                                </a>
-                              ) : null}
-                            </div>
+                                {waUrl ? (
+                                  <a
+                                    href={waUrl}
+                                    onClick={(e) => e.stopPropagation()}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
+                                    title="Send inquiry to supplier via WhatsApp"
+                                  >
+                                    <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
+                                    <span>WhatsApp Msg</span>
+                                  </a>
+                                ) : null}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

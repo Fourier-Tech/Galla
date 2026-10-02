@@ -677,23 +677,29 @@ export function SupplierDetailsView({
                     ? `⚠️ Payment Overdue (${dueDateStr})`
                     : `Due: ${dueDateStr}`;
 
-                const billWaUrl = getSupplierWhatsAppReminderUrl({
-                  phone: supplier.phone,
-                  supplierName: supplier.name,
-                  salonName: salonName,
-                  poNumber: bill.purchaseOrderNumber,
-                  dealerInvoiceNumber: bill.dealerInvoiceNumber,
-                  deliveryDate: targetDelivery,
-                  deliveryTime: hasPendingDelivery ? bill.deliveryTime : undefined,
-                  dueDate: isPendingPayment ? bill.dueDate : undefined,
-                  totalAmount: bill.totalAmount,
-                  amountPaid: bill.amountPaid,
-                  amountPending: pendingBalance,
-                  itemsSummary,
-                  items: bill.items,
-                  mode: isAdvance ? "advance" : isPendingPayment ? "payment_due" : "delivery",
-                  isAdvance,
-                });
+                const showContactOptions = Boolean(
+                  isDelivToday || isDelivOverdue || isDueToday || isDueOverdue
+                );
+
+                const billWaUrl = showContactOptions
+                  ? getSupplierWhatsAppReminderUrl({
+                      phone: supplier.phone,
+                      supplierName: supplier.name,
+                      salonName: salonName,
+                      poNumber: bill.purchaseOrderNumber,
+                      dealerInvoiceNumber: bill.dealerInvoiceNumber,
+                      deliveryDate: targetDelivery,
+                      deliveryTime: hasPendingDelivery ? bill.deliveryTime : undefined,
+                      dueDate: isPendingPayment ? bill.dueDate : undefined,
+                      totalAmount: bill.totalAmount,
+                      amountPaid: bill.amountPaid,
+                      amountPending: pendingBalance,
+                      itemsSummary,
+                      items: bill.items,
+                      mode: isAdvance ? "advance" : isPendingPayment ? "payment_due" : "delivery",
+                      isAdvance,
+                    })
+                  : null;
 
                 return (
                   <div
@@ -811,7 +817,7 @@ export function SupplierDetailsView({
                                 </button>
                               ) : null
                             )}
-                            {billWaUrl && (
+                            {showContactOptions && billWaUrl && (
                               <a
                                 href={billWaUrl}
                                 onClick={(e) => e.stopPropagation()}

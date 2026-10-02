@@ -37,7 +37,8 @@ interface InventoryTabProps {
   onTransferSuccess?: (
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
-    updatedSupplier?: DashboardSupplier
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
   ) => void;
   onAddProduct?: (newProduct: DashboardProduct) => void;
   onUpdateProduct?: (
@@ -386,13 +387,14 @@ export function InventoryTab({
   const handleTransferComplete = (
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
-    updatedSupplier?: DashboardSupplier
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
   ) => {
     setDisplayedProducts((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
     );
     if (onTransferSuccess) {
-      onTransferSuccess(updatedProduct, newExpense, updatedSupplier);
+      onTransferSuccess(updatedProduct, newExpense, updatedSupplier, refundAmount);
     } else if (onMoveStock) {
       onMoveStock(updatedProduct.id);
     }

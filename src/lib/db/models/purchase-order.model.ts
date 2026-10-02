@@ -77,6 +77,7 @@ const PurchaseOrderPaymentSchema = new Schema<IPurchaseOrderPayment>(
         "replacement_pending",
         "cash_refund",
         "upi_refund",
+        "credit",
       ],
       required: true,
     },
@@ -162,7 +163,8 @@ export interface IPurchaseOrderReturn {
     | "cash"
     | "upi"
     | "card"
-    | "bank_transfer";
+    | "bank_transfer"
+    | "credit";
   amountDeductedFromDue: number;
   replacementStatus?: "pending" | "fulfilled";
   notes?: string;
@@ -192,6 +194,7 @@ const PurchaseOrderReturnSchema = new Schema<IPurchaseOrderReturn>(
         "upi",
         "card",
         "bank_transfer",
+        "credit",
       ],
       required: true,
     },
