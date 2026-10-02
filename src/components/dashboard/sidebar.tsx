@@ -2,6 +2,8 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   Home,
@@ -40,8 +42,8 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 interface SidebarProps {
-  activeTab: TabId;
-  onSelectTab: (tab: TabId) => void;
+  activeTab?: TabId;
+  onSelectTab?: (tab: TabId) => void;
   role: UserRole;
   onRoleChange?: (role: UserRole) => void;
   salonName?: string;
@@ -59,8 +61,25 @@ export function Sidebar({
   onLockCounter,
   onOpenChangePins,
 }: SidebarProps) {
-  // Gated navigation: Staff cannot see Analytics tab
+  const pathname = usePathname();
+
+  // Gated navigation: Staff cannot see Analytics tab or Profile tab
   const visibleNav = NAV_ITEMS.filter((item) => !item.ownerOnly || role === "owner");
+
+  const getHref = (id: TabId) => {
+    if (id === "overview") return "/dashboard";
+    return `/dashboard/${id}`;
+  };
+
+  const getIsActive = (id: TabId) => {
+    if (activeTab) {
+      return activeTab === id;
+    }
+    if (id === "overview") {
+      return pathname === "/dashboard" || pathname === "/dashboard/overview";
+    }
+    return pathname.startsWith(`/dashboard/${id}`);
+  };
 
   return (
     <aside className="w-[233px] shrink-0 h-screen sticky top-0 bg-galla-surface border-r border-galla-sidebar-border flex flex-col justify-between py-6">
@@ -111,11 +130,16 @@ export function Sidebar({
         <nav className="flex flex-col gap-1 px-3">
           {visibleNav.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = getIsActive(item.id);
+            const href = getHref(item.id);
+
             return (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => onSelectTab(item.id)}
+                href={href}
+                onClick={() => {
+                  if (onSelectTab) onSelectTab(item.id);
+                }}
                 className={`flex items-center gap-2.5 px-[13px] py-[8px] rounded-[5px] text-[14px] text-left transition-all cursor-pointer ${
                   isActive
                     ? "bg-galla-teal-soft text-galla-teal font-semibold border-l-[3px] border-galla-teal"
@@ -124,7 +148,7 @@ export function Sidebar({
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span>{item.label}</span>
-              </button>
+              </Link>
             );
           })}
         </nav>
