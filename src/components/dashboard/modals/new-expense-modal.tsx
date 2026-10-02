@@ -31,6 +31,7 @@ export function NewExpenseModal({
   const [paymentMode, setPaymentMode] = useState<ExpensePaymentMode>("cash");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -81,7 +82,7 @@ export function NewExpenseModal({
 
   const executeCreateExpense = async () => {
     setShowConfirm(false);
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     const computedDesc = getComputedDesc();
 
     try {
@@ -108,7 +109,7 @@ export function NewExpenseModal({
     } catch {
       setErrorMsg("Network error occurred while recording expense");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

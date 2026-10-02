@@ -54,6 +54,7 @@ function SettleOrderModalContent({
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -74,7 +75,7 @@ function SettleOrderModalContent({
 
   const executeSettleOrder = async () => {
     setShowConfirm(false);
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     try {
       const res = await completeOrderAction({
         orderId: order.id,
@@ -92,7 +93,7 @@ function SettleOrderModalContent({
     } catch {
       setErrorMsg("Network error occurred while settling order");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

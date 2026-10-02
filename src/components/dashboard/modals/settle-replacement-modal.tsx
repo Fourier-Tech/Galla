@@ -48,6 +48,7 @@ export function SettleReplacementModal({
   const [selectedPOId, setSelectedPOId] = useState<string>("");
   const [isLoadingPOs, setIsLoadingPOs] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export function SettleReplacementModal({
       return;
     }
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
@@ -132,7 +133,7 @@ export function SettleReplacementModal({
     } catch (err: any) {
       setErrorMsg(err.message || "An unexpected error occurred");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

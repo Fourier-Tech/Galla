@@ -560,6 +560,7 @@ export function NewOrderModal({
   const [allowUseStockUsage, setAllowUseStockUsage] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<DashboardOrder | null>(null);
@@ -1031,7 +1032,7 @@ export function NewOrderModal({
 
   const executeSubmitOrder = async () => {
     setShowConfirm(false);
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
@@ -1135,7 +1136,7 @@ export function NewOrderModal({
     } catch {
       setErrorMsg("Network error occurred while creating order");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

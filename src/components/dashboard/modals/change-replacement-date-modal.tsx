@@ -51,6 +51,7 @@ function ChangeReplacementDateModalContent({
   const [newDate, setNewDate] = useState(initialDateStr);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rescheduledSuccess, setRescheduledSuccess] = useState(false);
 
@@ -61,7 +62,7 @@ function ChangeReplacementDateModalContent({
       return;
     }
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
@@ -92,7 +93,7 @@ function ChangeReplacementDateModalContent({
     } catch (err: any) {
       setErrorMsg(err.message || "Network error occurred");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

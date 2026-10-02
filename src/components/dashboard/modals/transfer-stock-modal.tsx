@@ -90,6 +90,7 @@ function TransferStockModalContent({
   const [consumeReason, setConsumeReason] = useState<ConsumeReason>("service");
   const [consumeNotes, setConsumeNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -296,7 +297,7 @@ function TransferStockModalContent({
 
   const executeAction = async () => {
     setShowConfirm(false);
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
@@ -391,7 +392,7 @@ function TransferStockModalContent({
     } catch {
       setErrorMsg("Network error occurred during operation");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

@@ -80,6 +80,7 @@ export function ServiceModal({
   );
   const [productToAdd, setProductToAdd] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -153,7 +154,7 @@ export function ServiceModal({
     const finalCategory = isCustomCategory ? customCategory.trim() : category;
     const numPrice = Number(price);
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
 
     try {
       if (serviceToEdit) {
@@ -192,7 +193,7 @@ export function ServiceModal({
     } catch {
       setErrorMsg("Network error occurred. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

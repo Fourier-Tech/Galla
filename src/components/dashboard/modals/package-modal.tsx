@@ -57,6 +57,7 @@ export function PackageModal({
   const [productToAdd, setProductToAdd] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -193,7 +194,7 @@ export function PackageModal({
     const trimmedName = name.trim();
     const finalPrice = Number(packagePrice);
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
 
     try {
       if (packageToEdit) {
@@ -234,7 +235,7 @@ export function PackageModal({
     } catch {
       setErrorMsg("Network error occurred. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

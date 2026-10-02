@@ -82,6 +82,7 @@ function BaseRescheduleModalContent({
   const [newDate, setNewDate] = useState(resolvedInitialDate);
   const [newTime, setNewTime] = useState(initialTime || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rescheduledSuccess, setRescheduledSuccess] = useState(false);
@@ -120,7 +121,7 @@ function BaseRescheduleModalContent({
 
   const executeReschedule = async () => {
     setShowConfirm(false);
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setErrorMsg(null);
     try {
       const res = await onSave({
@@ -142,7 +143,7 @@ function BaseRescheduleModalContent({
     } catch {
       setErrorMsg("An unexpected error occurred while rescheduling");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

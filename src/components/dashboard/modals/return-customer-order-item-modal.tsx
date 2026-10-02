@@ -94,6 +94,7 @@ export function ReturnCustomerOrderItemModal({
   const [isLoadingStock, setIsLoadingStock] = useState<boolean>(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const isReplacementOrder =
@@ -413,7 +414,7 @@ export function ReturnCustomerOrderItemModal({
       }
     }
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setError(null);
 
     const effectiveRefundMode: "cash" | "upi" | "card" | "reduce_due" =
@@ -483,7 +484,7 @@ export function ReturnCustomerOrderItemModal({
     } catch (err: any) {
       setError(err.message || "Failed to process return");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

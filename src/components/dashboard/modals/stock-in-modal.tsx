@@ -394,6 +394,7 @@ export function StockInModal({
   ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -899,7 +900,7 @@ export function StockInModal({
 
   const executeStockIn = async () => {
     setShowConfirm(false);
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
@@ -965,7 +966,7 @@ export function StockInModal({
     } catch {
       setErrorMsg("Network error occurred during purchase entry");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

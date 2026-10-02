@@ -32,6 +32,7 @@ export function SupplierModal({
   const [notes, setNotes] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Check if an existing supplier with the exact same name and phone number already exists
@@ -129,7 +130,7 @@ export function SupplierModal({
       return;
     }
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     try {
       if (isEditMode && supplierToEdit) {
         const res = await updateSupplierAction({
@@ -170,7 +171,7 @@ export function SupplierModal({
     } catch {
       setErrorMsg("A network error occurred. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

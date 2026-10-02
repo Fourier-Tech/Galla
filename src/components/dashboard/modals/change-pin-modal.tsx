@@ -17,6 +17,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
   const [showOwnerPin, setShowOwnerPin] = useState(false);
   const [showStaffPin, setShowStaffPin] = useState(false);
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -54,7 +55,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
       return;
     }
 
-    setLoading(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setLoading(true);
 
     try {
       const res = await changeRolePinsAction({
@@ -65,7 +66,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
 
       if (!res.success) {
         setError(res.error || "Failed to update role PINs.");
-        setLoading(false);
+        isSubmittingRef.current = false; setLoading(false);
         return;
       }
 
@@ -80,7 +81,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
     } catch {
       setError("An unexpected error occurred while updating PINs.");
     } finally {
-      setLoading(false);
+      isSubmittingRef.current = false; setLoading(false);
     }
   };
 

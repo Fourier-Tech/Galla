@@ -89,6 +89,7 @@ function RefundOrderModalContent({
   );
   const [refundReason, setRefundReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -126,7 +127,7 @@ function RefundOrderModalContent({
 
   const executeRefund = async () => {
     setShowConfirm(false);
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     setErrorMsg(null);
     try {
       const res = await refundOrderAction({
@@ -145,7 +146,7 @@ function RefundOrderModalContent({
     } catch {
       setErrorMsg("Network error occurred while processing refund");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

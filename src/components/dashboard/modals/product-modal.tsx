@@ -44,6 +44,7 @@ export function ProductModal({
   const [description, setDescription] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -169,7 +170,7 @@ export function ProductModal({
     const parsedCost = purchaseCost === "" ? 0 : Number(purchaseCost);
     const parsedThreshold = lowStockThreshold === "" ? 0 : Number(lowStockThreshold);
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
 
     try {
       if (isEditMode && productToEdit) {
@@ -214,7 +215,7 @@ export function ProductModal({
     } catch {
       setErrorMsg("A network error occurred. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

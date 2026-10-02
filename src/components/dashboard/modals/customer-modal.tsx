@@ -26,6 +26,7 @@ export function CustomerModal({
   const [notes, setNotes] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Sync state when modal opens or customerToEdit changes
@@ -86,7 +87,7 @@ export function CustomerModal({
       return;
     }
 
-    setIsSubmitting(true);
+    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setIsSubmitting(true);
     try {
       const res = await updateCustomerAction({
         id: customerToEdit.id,
@@ -107,7 +108,7 @@ export function CustomerModal({
     } catch {
       setErrorMsg("A network error occurred. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      isSubmittingRef.current = false; setIsSubmitting(false);
     }
   };
 

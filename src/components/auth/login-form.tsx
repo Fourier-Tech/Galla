@@ -63,18 +63,25 @@ function LoginFormContent() {
 
   const activeError = getErrorMessage();
 
+  const isSubmittingRef = React.useRef(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    
+    isSubmittingRef.current = true;
     setError(null);
 
     const cleanEmail = email.trim();
     if (!cleanEmail || !cleanEmail.includes("@")) {
       setError("Please enter a valid shop email address.");
+      isSubmittingRef.current = false;
       return;
     }
 
     if (!password || password.length < 6) {
       setError("Password must be at least 6 characters.");
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -104,6 +111,7 @@ function LoginFormContent() {
           );
         }
         setLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
 
@@ -122,6 +130,7 @@ function LoginFormContent() {
       console.error("[Login] Sign in exception:", err);
       setError("An unexpected connection error occurred. Please try again.");
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

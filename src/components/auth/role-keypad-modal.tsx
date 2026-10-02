@@ -77,9 +77,13 @@ export function RoleKeypadModal({
     retryCooldownRef.current = retryCooldown;
   }, [retryCooldown]);
 
+  const isSubmittingRef = React.useRef(false);
+
   const handleSubmitPin = useCallback(async (pinToVerify?: string) => {
     const targetPin = pinToVerify || pinRef.current;
-    if (targetPin.length !== 6 || loadingRef.current || retryCooldownRef.current) return;
+    if (targetPin.length !== 6 || isSubmittingRef.current || retryCooldownRef.current) return;
+    
+    isSubmittingRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -91,6 +95,7 @@ export function RoleKeypadModal({
           setRetryCooldown(res.retryAfterSeconds);
         }
         setPin("");
+        isSubmittingRef.current = false;
         setLoading(false);
         return;
       }
@@ -100,16 +105,17 @@ export function RoleKeypadModal({
         onRoleVerified(res.role, res.activeSessionId);
       }
     } catch {
-      setError("An unexpected connection error occurred.");
+      setError("An unexpected error occurred. Please try again.");
       setPin("");
     } finally {
+      isSubmittingRef.current = false;
       setLoading(false);
     }
   }, [onRoleVerified]);
 
   const handleDigit = useCallback(
     (digit: string) => {
-      if (retryCooldownRef.current || loadingRef.current) return;
+      if (retryCooldownRef.current || isSubmittingRef.current) return;
       if (pinRef.current.length < 6) {
         const next = pinRef.current + digit;
         setPin(next);
@@ -123,13 +129,13 @@ export function RoleKeypadModal({
   );
 
   const handleBackspace = useCallback(() => {
-    if (retryCooldownRef.current || loadingRef.current) return;
+    if (retryCooldownRef.current || isSubmittingRef.current) return;
     setPin((prev) => prev.slice(0, -1));
     setError(null);
   }, []);
 
   const handleClear = useCallback(() => {
-    if (retryCooldownRef.current || loadingRef.current) return;
+    if (retryCooldownRef.current || isSubmittingRef.current) return;
     setPin("");
     setError(null);
   }, []);
@@ -160,7 +166,7 @@ export function RoleKeypadModal({
         handleBackspace();
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (pinRef.current.length === 6 && !loadingRef.current && !retryCooldownRef.current) {
+        if (pinRef.current.length === 6 && !isSubmittingRef.current && !retryCooldownRef.current) {
           handleSubmitPin(pinRef.current);
         }
       } else if (e.key === "Escape") {
@@ -174,6 +180,8 @@ export function RoleKeypadModal({
 
   // Forgot PIN: Step 1 - Request OTP
   const handleRequestOtp = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setForgotLoading(true);
     setForgotError(null);
 
@@ -190,6 +198,7 @@ export function RoleKeypadModal({
     } catch {
       setForgotError("Unable to connect to security service.");
     } finally {
+      isSubmittingRef.current = false;
       setForgotLoading(false);
     }
   };
@@ -197,6 +206,8 @@ export function RoleKeypadModal({
   // Forgot PIN: Step 2 - Verify OTP & Set New PINs
   const handleVerifyOtpAndReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setForgotLoading(true);
     setForgotError(null);
 
@@ -239,6 +250,7 @@ export function RoleKeypadModal({
 
       if (!res.success) {
         setForgotError(res.error || "Failed to reset PINs.");
+        isSubmittingRef.current = false;
         setForgotLoading(false);
         return;
       }
@@ -253,6 +265,7 @@ export function RoleKeypadModal({
     } catch {
       setForgotError("Connection failed while resetting PINs.");
     } finally {
+      isSubmittingRef.current = false;
       setForgotLoading(false);
     }
   };
