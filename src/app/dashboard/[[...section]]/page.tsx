@@ -3,18 +3,32 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getRoleSession } from "@/lib/auth/role-session";
 import { getDashboardInitialData } from "@/lib/dashboard/get-dashboard-data";
-import { DashboardShell } from "@/components/dashboard/dashboard-shell";
-import { UserRole } from "@/types/dashboard";
+import { DashboardClient } from "@/components/dashboard/dashboard-client";
+import { TabId, UserRole } from "@/types/dashboard";
 
 export const metadata: Metadata = {
   title: "Counter Dashboard — Galla",
   description: "Live parlour counter operations, orders, split inventory & owner analytics",
 };
 
-export default async function DashboardLayout({
-  children,
+const VALID_TABS: Record<string, TabId> = {
+  overview: "overview",
+  orders: "orders",
+  services: "services",
+  inventory: "inventory",
+  suppliers: "suppliers",
+  customers: "customers",
+  expenses: "expenses",
+  analytics: "analytics",
+  profile: "profile",
+};
+
+export default async function DashboardPage({
+  params,
+  searchParams,
 }: {
-  children: React.ReactNode;
+  params: Promise<{ section?: string[] }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await auth();
 
@@ -22,11 +36,23 @@ export default async function DashboardLayout({
     redirect("/login?error=session_expired");
   }
 
+  const { section } = await params;
+  const rawSection = section?.[0] || "overview";
+  const initialTab = VALID_TABS[rawSection] || "overview";
+
+  const { filter } = await searchParams;
+  const initialFilter = typeof filter === "string" ? filter : undefined;
+
   // Check ephemeral role session (window / tab state)
   const roleSessionResult = await getRoleSession();
   const isRoleLocked = !roleSessionResult || !roleSessionResult.role;
   const isEvicted = roleSessionResult?.evicted === true;
   const initialRole: UserRole = roleSessionResult?.role || "owner";
+
+  // Role gating: staff cannot view owner-only tabs
+  if (initialRole !== "owner" && (initialTab === "analytics" || initialTab === "profile")) {
+    redirect("/dashboard/orders");
+  }
 
   const data = await getDashboardInitialData(
     session.user.id || "",
@@ -40,13 +66,15 @@ export default async function DashboardLayout({
   }
 
   return (
-    <DashboardShell
+    <DashboardClient
       tenantId={data.resolvedTenantId}
       salonName={data.salonName}
       initialRole={initialRole}
       initialActiveSessionId={roleSessionResult?.activeSessionId}
       isRoleLocked={isRoleLocked}
       isEvicted={isEvicted}
+      initialTab={initialTab}
+      initialUrlFilter={initialFilter}
       initialOrders={data.initialOrders}
       initialTotalOrdersCount={data.initialTotalOrdersCount}
       initialProducts={data.initialProducts}
@@ -67,8 +95,6 @@ export default async function DashboardLayout({
       initialTodayAdvance={data.initialTodayAdvance}
       initialTodayNetProfit={data.initialTodayNetProfit}
       initialCustomerDues={data.initialCustomerDues}
-    >
-      {children}
-    </DashboardShell>
+    />
   );
 }
