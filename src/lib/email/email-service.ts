@@ -12,19 +12,22 @@ export interface SendForgotPinOtpOptions {
  * Returns null if SMTP is not configured.
  */
 function createTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
-  if (!host || !user || !pass) {
+  if (!user || !pass) {
     return null;
   }
+
+  const isGmail = user.includes("@gmail.com");
+  const host = process.env.SMTP_HOST || (isGmail ? "smtp.gmail.com" : "smtp.gmail.com");
+  const port = parseInt(process.env.SMTP_PORT || (host === "smtp.gmail.com" ? "465" : "587"), 10);
+  const secure = port === 465;
 
   return nodemailer.createTransport({
     host,
     port,
-    secure: port === 465,
+    secure,
     auth: { user, pass },
   });
 }
@@ -48,8 +51,8 @@ export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): P
 
   const transporter = createTransporter();
   if (!transporter) {
-    console.log("[Email] SMTP not configured. OTP printed to console for development.");
-    return true;
+    console.warn("[Email] SMTP credentials missing (SMTP_USER / SMTP_PASS).");
+    return false;
   }
 
   const htmlContent = `
@@ -97,7 +100,10 @@ export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): P
   `.trim();
 
   try {
-    const fromAddress = process.env.SMTP_FROM || `"Galla Security" <no-reply@galla.app>`;
+    const fromAddress =
+      process.env.EMAIL_FROM ||
+      process.env.SMTP_FROM ||
+      `"Galla Security" <${process.env.SMTP_USER || "no-reply@galla.app"}>`;
     await transporter.sendMail({
       from: fromAddress,
       to,

@@ -196,6 +196,12 @@ export function RoleKeypadModal({
       return;
     }
 
+    if (newOwnerPin === newStaffPin) {
+      setForgotError("Owner PIN and Staff PIN cannot be the same.");
+      setForgotLoading(false);
+      return;
+    }
+
     try {
       const res = await verifyOtpAndResetPinsAction({
         otp,
@@ -352,7 +358,6 @@ export function RoleKeypadModal({
               ) : (
                 <>
                   <span>Unlock Counter</span>
-                  <span className="text-[11px] opacity-75 font-normal ml-0.5">(Enter ↵)</span>
                   <ArrowRight className="h-4 w-4 ml-0.5" />
                 </>
               )}

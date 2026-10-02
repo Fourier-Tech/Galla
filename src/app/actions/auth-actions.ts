@@ -223,6 +223,34 @@ export async function changeRolePinsAction(rawInput: unknown): Promise<{
       };
     }
 
+    // Ensure Owner PIN and Staff PIN cannot be identical
+    if (newOwnerPin && newStaffPin && newOwnerPin === newStaffPin) {
+      return {
+        success: false,
+        error: "Owner PIN and Staff PIN cannot be the same.",
+      };
+    }
+
+    if (newOwnerPin && !newStaffPin && user.staffPinHash) {
+      const matchesStaff = await bcrypt.compare(newOwnerPin, user.staffPinHash);
+      if (matchesStaff) {
+        return {
+          success: false,
+          error: "New Owner PIN cannot be identical to the current Staff PIN.",
+        };
+      }
+    }
+
+    if (newStaffPin && !newOwnerPin && user.ownerPinHash) {
+      const matchesOwner = await bcrypt.compare(newStaffPin, user.ownerPinHash);
+      if (matchesOwner) {
+        return {
+          success: false,
+          error: "New Staff PIN cannot be identical to the current Owner PIN.",
+        };
+      }
+    }
+
     const updates: Record<string, unknown> = {};
     if (newOwnerPin) {
       updates.ownerPinHash = await bcrypt.hash(newOwnerPin, 10);
@@ -286,12 +314,19 @@ export async function requestForgotPinOtpAction(): Promise<{
     );
 
     // Send professional minimalist email
-    await sendForgotPinOtpEmail({
+    const sent = await sendForgotPinOtpEmail({
       to: user.ownerEmail,
       salonName: tenant.name || "Salon",
       otp,
       expiresInMinutes: 15,
     });
+
+    if (!sent) {
+      return {
+        success: false,
+        error: "Unable to dispatch verification code email. Please verify SMTP settings.",
+      };
+    }
 
     return {
       success: true,
@@ -323,6 +358,13 @@ export async function verifyOtpAndResetPinsAction(rawInput: unknown): Promise<{
     }
 
     const { otp, newOwnerPin, newStaffPin } = parsed.data;
+
+    if (newOwnerPin === newStaffPin) {
+      return {
+        success: false,
+        error: "Owner PIN and Staff PIN cannot be the same.",
+      };
+    }
 
     const session = await auth();
     if (!session?.user?.id) {

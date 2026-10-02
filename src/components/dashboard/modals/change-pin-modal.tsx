@@ -44,6 +44,11 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
       return;
     }
 
+    if (newOwnerPin && newStaffPin && newOwnerPin === newStaffPin) {
+      setError("Owner PIN and Staff PIN cannot be the same.");
+      return;
+    }
+
     setLoading(true);
 
     try {
