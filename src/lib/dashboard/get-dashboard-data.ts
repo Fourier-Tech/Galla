@@ -537,20 +537,6 @@ export async function getDashboardInitialData(
     updatedAt: new Date(cr.updatedAt).toISOString(),
   }));
 
-  // Background migration for any legacy unformatted customer phones in DB
-  const unformatted = rawCustomers.filter(
-    (c) => c.phone && (!c.phone.startsWith("+91 ") || c.phone.length !== 15)
-  );
-  if (unformatted.length > 0) {
-    Promise.all(
-      unformatted.map((c) =>
-        Customer.updateOne(
-          { _id: c._id },
-          { $set: { phone: formatPhoneNumber(c.phone) } }
-        )
-      )
-    ).catch(() => {});
-  }
 
   const initialExpenses: DashboardExpense[] = rawExpenses.map((e) => ({
     id: e._id.toString(),

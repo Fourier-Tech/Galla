@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   DashboardOrder,
   DashboardProduct,
   DashboardCustomer,
   DashboardExpense,
+  TabId,
   UserRole,
   DashboardSalonProfile,
   DashboardService,
@@ -14,9 +15,19 @@ import {
   DashboardSupplier,
   DashboardPurchaseOrder,
   DashboardCustomerReplacement,
+  OrderStatus,
 } from "@/types/dashboard";
 import { DashboardContext, DashboardContextType } from "@/context/dashboard-context";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { OverviewTab } from "@/components/dashboard/tabs/overview-tab";
+import { OrdersTab } from "@/components/dashboard/tabs/orders-tab";
+import { InventoryTab } from "@/components/dashboard/tabs/inventory-tab";
+import { SuppliersTab } from "@/components/dashboard/tabs/suppliers-tab";
+import { CustomersTab } from "@/components/dashboard/tabs/customers-tab";
+import { ExpensesTab } from "@/components/dashboard/tabs/expenses-tab";
+import { AnalyticsTab } from "@/components/dashboard/tabs/analytics-tab";
+import { ProfileTab } from "@/components/dashboard/tabs/profile-tab";
+import { ServicesTab } from "@/components/dashboard/tabs/services-tab";
 import { NewOrderModal } from "@/components/dashboard/modals/new-order-modal";
 import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal";
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
@@ -25,7 +36,7 @@ import { RoleKeypadModal } from "@/components/auth/role-keypad-modal";
 import { ChangePinModal } from "@/components/dashboard/modals/change-pin-modal";
 import { lockRoleSessionAction } from "@/app/actions/auth-actions";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, getPhoneDigits } from "@/lib/utils";
+import { formatPhoneNumber, getPhoneDigits, BillStatusKey } from "@/lib/utils";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
 
 interface DashboardShellProps {
@@ -55,7 +66,19 @@ interface DashboardShellProps {
   initialTodayAdvance?: number;
   initialTodayNetProfit?: number;
   initialCustomerDues?: number;
-  children: React.ReactNode;
+  children?: React.ReactNode;
+}
+
+function resolveTabFromPathname(pathname: string): TabId {
+  if (pathname.includes("/dashboard/orders")) return "orders";
+  if (pathname.includes("/dashboard/services")) return "services";
+  if (pathname.includes("/dashboard/inventory")) return "inventory";
+  if (pathname.includes("/dashboard/suppliers")) return "suppliers";
+  if (pathname.includes("/dashboard/customers")) return "customers";
+  if (pathname.includes("/dashboard/expenses")) return "expenses";
+  if (pathname.includes("/dashboard/analytics")) return "analytics";
+  if (pathname.includes("/dashboard/profile")) return "profile";
+  return "overview";
 }
 
 export function DashboardShell({
@@ -84,11 +107,8 @@ export function DashboardShell({
   initialTodayExpense = 0,
   initialTodayAdvance = 0,
   initialCustomerDues = 0,
-  children,
 }: DashboardShellProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const isOverview = pathname === "/dashboard" || pathname === "/dashboard/overview";
 
   const [role, setRole] = useState<UserRole>(initialRole);
   const [isRoleLocked, setIsRoleLocked] = useState<boolean>(initialIsRoleLocked);
@@ -199,11 +219,109 @@ export function DashboardShell({
     } catch {
       // Ignore broadcast errors
     }
-
-    if (newRole === "owner") {
-      router.refresh();
-    }
   };
+
+  // Instant in-memory tab state initialized directly from URL path
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    if (typeof window !== "undefined") {
+      return resolveTabFromPathname(window.location.pathname);
+    }
+    return "overview";
+  });
+
+  const [ordersFilter, setOrdersFilter] = useState<OrderStatus | "all" | "replacement">("all");
+  const [ordersNavKey, setOrdersNavKey] = useState(0);
+  const [billsFilter, setBillsFilter] = useState<BillStatusKey | "all" | "returns">("all");
+  const [billsNavKey, setBillsNavKey] = useState(0);
+
+  // Sync initial tab and filters from URL on client mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const initialPath = window.location.pathname;
+    const initialParams = new URLSearchParams(window.location.search);
+    const filterParam = initialParams.get("filter");
+
+    const matchedTab = resolveTabFromPathname(initialPath);
+    setActiveTab(matchedTab);
+
+    if (matchedTab === "orders" && filterParam) {
+      setOrdersFilter(filterParam as any);
+      setOrdersNavKey((k) => k + 1);
+    }
+    if (matchedTab === "suppliers" && filterParam) {
+      setBillsFilter(filterParam as any);
+      setBillsNavKey((k) => k + 1);
+    }
+  }, []);
+
+  // Handle browser Back / Forward buttons without server round trips
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      const matchedTab = resolveTabFromPathname(window.location.pathname);
+      const params = new URLSearchParams(window.location.search);
+      const filterParam = params.get("filter");
+
+      setActiveTab(matchedTab);
+      if (matchedTab === "orders") {
+        setOrdersFilter((filterParam as any) || "all");
+        setOrdersNavKey((k) => k + 1);
+      }
+      if (matchedTab === "suppliers") {
+        setBillsFilter((filterParam as any) || "all");
+        setBillsNavKey((k) => k + 1);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Instant 0ms tab navigation handler: updates state immediately and syncs URL with pushState
+  const handleSelectTab = useCallback((tab: TabId, targetFilter?: string) => {
+    if (tab === "analytics" && roleRef.current !== "owner") {
+      tab = "orders";
+    }
+    if (tab === "profile" && roleRef.current !== "owner") {
+      tab = "orders";
+    }
+
+    setActiveTab(tab);
+
+    if (tab === "orders") {
+      setOrdersFilter((targetFilter as any) || "all");
+      setOrdersNavKey((k) => k + 1);
+    }
+    if (tab === "suppliers") {
+      setBillsFilter((targetFilter as any) || "all");
+      setBillsNavKey((k) => k + 1);
+    }
+
+    const basePath = tab === "overview" ? "/dashboard" : `/dashboard/${tab}`;
+    const fullUrl = targetFilter ? `${basePath}?filter=${targetFilter}` : basePath;
+
+    if (typeof window !== "undefined") {
+      const currentFull = window.location.pathname + window.location.search;
+      if (currentFull !== fullUrl) {
+        window.history.pushState({ tab, filter: targetFilter }, "", fullUrl);
+      }
+    }
+  }, []);
+
+  const handleNavigateToAdvanceOrders = useCallback(() => {
+    handleSelectTab("orders", "advance_paid");
+  }, [handleSelectTab]);
+
+  const handleNavigateToReplacementOrders = useCallback(() => {
+    handleSelectTab("orders", "replacement");
+  }, [handleSelectTab]);
+
+  const handleNavigateToDueOrders = useCallback(() => {
+    handleSelectTab("orders", "created");
+  }, [handleSelectTab]);
+
+  const handleNavigateToStockDeliveries = useCallback((filter: "pending" | "advance" = "pending") => {
+    handleSelectTab("suppliers", filter);
+  }, [handleSelectTab]);
 
   const [orders, setOrders] = useState<DashboardOrder[]>(initialOrders);
   const [totalOrdersCount, setTotalOrdersCount] = useState<number>(initialTotalOrdersCount);
@@ -357,12 +475,16 @@ export function DashboardShell({
     setCustomerDues(initialCustomerDues || 0);
   }
 
-  // Real-time Pusher updates across open devices (Owner & Staff)
+  // Debounced real-time Pusher updates from remote devices
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useTenantSubscription({
     tenantId,
     event: "data_updated",
     onEvent: () => {
-      router.refresh();
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = setTimeout(() => {
+        router.refresh();
+      }, 2000);
     },
   });
 
@@ -372,7 +494,6 @@ export function DashboardShell({
     event: "role_session_displaced",
     onEvent: (data) => {
       if (!data || !data.role || !data.newSessionId) return;
-      // Only displace if this screen is currently UNLOCKED, has an active session, for the same role, and the incoming ID is different
       if (
         !isRoleLockedRef.current &&
         data.role === roleRef.current &&
@@ -533,7 +654,6 @@ export function DashboardShell({
         }
       });
     }
-    router.refresh();
   };
 
   const handleAddExpense = (expense: DashboardExpense) => {
@@ -548,7 +668,6 @@ export function DashboardShell({
       counts[cat] = (counts[cat] || 0) + 1;
       return counts;
     });
-    router.refresh();
   };
 
   const handleRefundSuccess = (
@@ -588,14 +707,12 @@ export function DashboardShell({
         return counts;
       });
     }
-    router.refresh();
   };
 
   const handleRescheduleOrder = (updatedOrder: DashboardOrder) => {
     setOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
     );
-    router.refresh();
   };
 
   const handleSettleSuccess = (updatedOrder: DashboardOrder) => {
@@ -610,7 +727,6 @@ export function DashboardShell({
         completed: (prev.completed || 0) + 1,
       };
     });
-    router.refresh();
   };
 
   const handleMoveStock = async (id: number | string) => {
@@ -645,7 +761,6 @@ export function DashboardShell({
         prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
       );
     }
-    router.refresh();
   };
 
   const handleStockInSuccess = (
@@ -696,7 +811,6 @@ export function DashboardShell({
         })
       );
     }
-    router.refresh();
   };
 
   const handlePurchaseOrderPaymentRecorded = (
@@ -735,7 +849,6 @@ export function DashboardShell({
         return counts;
       });
     }
-    router.refresh();
   };
 
   const handlePurchaseOrderDelivered = (
@@ -754,19 +867,16 @@ export function DashboardShell({
         return Array.from(prodMap.values());
       });
     }
-    router.refresh();
   };
 
   const handleReschedulePurchaseOrder = (updatedPO: DashboardPurchaseOrder) => {
     setPurchaseOrders((prev) =>
       prev.map((po) => (po.id === updatedPO.id ? updatedPO : po))
     );
-    router.refresh();
   };
 
   const handleAddProduct = (newProduct: DashboardProduct) => {
     setProducts((prev) => [newProduct, ...prev]);
-    router.refresh();
   };
 
   const handleUpdateProduct = (
@@ -785,12 +895,10 @@ export function DashboardShell({
     if (refundAmount && refundAmount > 0) {
       setTodayIncome((prev) => prev + refundAmount);
     }
-    router.refresh();
   };
 
   const handleDeleteProduct = (productId: string | number) => {
     setProducts((prev) => prev.filter((p) => String(p.id) !== String(productId)));
-    router.refresh();
   };
 
   const handleCompleteOrder = async (orderId: string) => {
@@ -808,7 +916,6 @@ export function DashboardShell({
             completed: (prev.completed || 0) + 1,
           };
         });
-        router.refresh();
       }
     } catch (err) {
       console.error("Failed to complete order:", err);
@@ -1006,6 +1113,8 @@ export function DashboardShell({
       <div className="flex w-full min-h-screen bg-galla-paper text-galla-ink">
         {/* Sidebar Navigation */}
         <Sidebar
+          activeTab={activeTab}
+          onSelectTab={handleSelectTab}
           role={role}
           salonName={salonProfile.name || salonName}
           profileImageUrl={salonProfile.profileImageUrl}
@@ -1013,18 +1122,153 @@ export function DashboardShell({
           onOpenChangePins={() => setIsChangePinOpen(true)}
         />
 
-        {/* Main Tab Canvas (Table scrollable on overview, full scroll on other sub-routes) */}
+        {/* Main Tab Canvas (Table scrollable on overview, full scroll on other tabs) */}
         <main
           className={`flex-1 min-w-0 h-screen px-8 lg:px-12 py-5 lg:py-6 ${
-            isOverview ? "overflow-hidden flex flex-col" : "overflow-y-auto"
+            activeTab === "overview"
+              ? "overflow-hidden flex flex-col"
+              : "overflow-y-auto"
           }`}
         >
           <div
             className={`w-full max-w-7xl mx-auto ${
-              isOverview ? "h-full flex flex-col min-h-0" : "space-y-6"
+              activeTab === "overview" ? "h-full flex flex-col min-h-0" : "space-y-6"
             }`}
           >
-            {children}
+            {activeTab === "overview" && (
+              <OverviewTab
+                orders={orders}
+                products={products}
+                suppliers={suppliers}
+                purchaseOrders={purchaseOrders}
+                expensesTotal={expensesTotal}
+                todayIncome={todayIncome}
+                advancePayment={todayAdvance}
+                pendingAmount={customerDues}
+                salonName={salonProfile.name || salonName}
+                customerReplacements={customerReplacements}
+                onOpenNewOrder={() => setIsNewOrderOpen(true)}
+                onOpenNewExpense={() => setIsNewExpenseOpen(true)}
+                onNavigateToAdvanceOrders={handleNavigateToAdvanceOrders}
+                onNavigateToDueOrders={handleNavigateToDueOrders}
+                onNavigateToStockDeliveries={handleNavigateToStockDeliveries}
+                onCompleteOrder={handleCompleteOrder}
+                onOpenRefund={(order) => setRefundOrder(order)}
+                onOpenSettle={(order) => setSettleOrder(order)}
+                onRescheduleOrder={handleRescheduleOrder}
+                onNavigateToInventory={() => handleSelectTab("inventory")}
+                onNavigateToReplacementOrders={handleNavigateToReplacementOrders}
+                onUpdateReplacement={(updated) => {
+                  setCustomerReplacements((prev) =>
+                    prev.map((c) => (c.id === updated.id ? updated : c))
+                  );
+                }}
+                onRemoveReplacement={(id) => {
+                  setCustomerReplacements((prev) => prev.filter((c) => c.id !== id));
+                }}
+              />
+            )}
+
+            {activeTab === "orders" && (
+              <OrdersTab
+                key={`orders-${ordersNavKey}`}
+                orders={orders}
+                initialTotalCount={totalOrdersCount}
+                initialStatusCounts={orderStatusCounts}
+                initialFilter={ordersFilter}
+                salonName={salonProfile.name}
+                onOpenNewOrder={() => setIsNewOrderOpen(true)}
+                onCompleteOrder={handleCompleteOrder}
+                onOpenRefund={(order) => setRefundOrder(order)}
+                onRescheduleOrder={handleRescheduleOrder}
+                onOpenSettle={(order) => setSettleOrder(order)}
+              />
+            )}
+
+            {activeTab === "services" && (
+              <ServicesTab
+                services={services}
+                packages={packages}
+                products={products}
+                isReadOnly={role !== "owner"}
+                onAddService={handleAddService}
+                onUpdateService={handleUpdateService}
+                onDeleteService={handleDeleteService}
+                onAddPackage={handleAddPackage}
+                onUpdatePackage={handleUpdatePackage}
+                onDeletePackage={handleDeletePackage}
+              />
+            )}
+
+            {activeTab === "inventory" && (
+              <InventoryTab
+                products={products}
+                suppliers={suppliers}
+                onMoveStock={handleMoveStock}
+                onTransferSuccess={handleTransferSuccess}
+                onStockInSuccess={handleStockInSuccess}
+                onAddProduct={handleAddProduct}
+                onUpdateProduct={handleUpdateProduct}
+                onDeleteProduct={handleDeleteProduct}
+              />
+            )}
+
+            {activeTab === "suppliers" && (
+              <SuppliersTab
+                key={`suppliers-${billsNavKey}`}
+                suppliers={suppliers}
+                products={products}
+                purchaseOrders={purchaseOrders}
+                salonName={salonProfile?.name || salonName}
+                initialFilter={billsFilter}
+                onAddSupplier={handleAddSupplier}
+                onUpdateSupplier={handleUpdateSupplier}
+                onStockInSuccess={handleStockInSuccess}
+                onPaymentRecorded={handlePurchaseOrderPaymentRecorded}
+                onStockDelivered={handlePurchaseOrderDelivered}
+                onReschedulePurchaseOrder={handleReschedulePurchaseOrder}
+              />
+            )}
+
+            {activeTab === "customers" && (
+              <CustomersTab
+                customers={customers}
+                orders={orders}
+                salonName={salonProfile?.name || salonName}
+                onOpenSettle={(order) => setSettleOrder(order)}
+                onOpenRefund={(order) => setRefundOrder(order)}
+                onOpenReschedule={handleRescheduleOrder}
+                onUpdateCustomer={handleUpdateCustomer}
+              />
+            )}
+
+            {activeTab === "expenses" && (
+              <ExpensesTab
+                expenses={expenses}
+                initialTotalCount={totalExpensesCount}
+                initialCategoryCounts={expenseCategoryCounts}
+                initialTotalAmount={expensesTotalAmount}
+                onOpenNewExpense={() => setIsNewExpenseOpen(true)}
+                orders={orders}
+                purchaseOrders={purchaseOrders}
+                salonName={salonName}
+              />
+            )}
+
+            {activeTab === "analytics" && role === "owner" && (
+              <AnalyticsTab
+                orders={orders}
+                expenses={expenses}
+                pendingAmount={pendingAmount}
+              />
+            )}
+
+            {activeTab === "profile" && role === "owner" && (
+              <ProfileTab
+                salonProfile={salonProfile}
+                onUpdateProfile={setSalonProfile}
+              />
+            )}
           </div>
         </main>
 

@@ -134,10 +134,11 @@ export function Sidebar({
             const href = getHref(item.id);
 
             return (
-              <Link
+              <a
                 key={item.id}
                 href={href}
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
                   if (onSelectTab) onSelectTab(item.id);
                 }}
                 className={`flex items-center gap-2.5 px-[13px] py-[8px] rounded-[5px] text-[14px] text-left transition-all cursor-pointer ${
@@ -148,7 +149,7 @@ export function Sidebar({
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span>{item.label}</span>
-              </Link>
+              </a>
             );
           })}
         </nav>
