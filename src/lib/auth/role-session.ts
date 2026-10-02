@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { User } from "@/lib/db/models/user.model";
+import { auth } from "@/lib/auth/auth";
 
 export const ROLE_SESSION_COOKIE = "galla_role_session";
 
@@ -24,7 +25,7 @@ function getJwtSecret(): Uint8Array {
 
 /**
  * Creates and sets an ephemeral, session-scoped cookie for the verified Role (Owner or Staff).
- * Omission of maxAge/expires ensures the browser clears it when the browser/window session ends.
+ * Omission of maxAge/expires ensures the browser clears it when the browser window closes.
  */
 export async function setRoleSessionCookie(payload: Omit<RoleSessionPayload, "issuedAt">): Promise<string> {
   const fullPayload: RoleSessionPayload = {
@@ -49,18 +50,22 @@ export async function setRoleSessionCookie(payload: Omit<RoleSessionPayload, "is
     secure: isSecure,
     sameSite: "lax",
     path: "/",
-    maxAge: 30 * 24 * 60 * 60, // 30 days, matches shop session duration so refresh in place never loses cookie
+    // Ephemeral session cookie: clears automatically when browser/session ends
   });
 
   return jwt;
 }
 
 /**
- * Clears the ephemeral role session cookie (used on manual lock or sign out).
+ * Clears the ephemeral role session cookie (used on manual lock, shop login, or sign out).
  */
 export async function clearRoleSessionCookie(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete(ROLE_SESSION_COOKIE);
+  try {
+    const cookieStore = await cookies();
+    cookieStore.delete(ROLE_SESSION_COOKIE);
+  } catch (err) {
+    // Ignore cookie deletion failure if headers were already sent
+  }
 }
 
 export interface GetRoleSessionResult {
@@ -72,7 +77,8 @@ export interface GetRoleSessionResult {
 }
 
 /**
- * Reads and verifies the role session cookie, checking single-device concurrency against MongoDB.
+ * Reads and verifies the role session cookie, checking single-device concurrency against MongoDB
+ * and guaranteeing that the role was authenticated AFTER the current shop account login.
  */
 export async function getRoleSession(): Promise<GetRoleSessionResult> {
   try {
@@ -87,6 +93,21 @@ export async function getRoleSession(): Promise<GetRoleSessionResult> {
     const rolePayload = payload as unknown as RoleSessionPayload;
 
     if (!rolePayload.userId || !rolePayload.role || !rolePayload.activeSessionId) {
+      return { role: null, evicted: false };
+    }
+
+    // Verify against current shop account session
+    const shopSession = await auth();
+    if (!shopSession?.user) {
+      return { role: null, evicted: false };
+    }
+
+    // If shop account logged in AFTER this role session was issued, the role session is stale and must be discarded
+    const shopLoginAt = shopSession.user.shopLoginAt;
+    if (shopLoginAt && rolePayload.issuedAt && rolePayload.issuedAt < shopLoginAt) {
+      try {
+        cookieStore.delete(ROLE_SESSION_COOKIE);
+      } catch {}
       return { role: null, evicted: false };
     }
 
@@ -128,3 +149,4 @@ export async function getRoleSession(): Promise<GetRoleSessionResult> {
     return { role: null, evicted: false };
   }
 }
+

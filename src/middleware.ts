@@ -30,7 +30,9 @@ export function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+    const response = NextResponse.redirect(loginUrl);
+    response.cookies.delete("galla_role_session");
+    return response;
   }
 
   if (isLoginPage && token) {
@@ -40,11 +42,18 @@ export function middleware(request: NextRequest) {
       response.cookies.delete("__Secure-authjs.session-token");
       response.cookies.delete("next-auth.session-token");
       response.cookies.delete("__Secure-next-auth.session-token");
+      response.cookies.delete("galla_role_session");
       return response;
     }
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashboardUrl);
+  }
+
+  if (isLoginPage && !token) {
+    const response = NextResponse.next();
+    response.cookies.delete("galla_role_session");
+    return response;
   }
 
   return NextResponse.next();

@@ -16,6 +16,7 @@ declare module "next-auth" {
       id?: string;
       tenantId?: string;
       role?: "owner" | "staff";
+      shopLoginAt?: number;
       activeSessionId?: string | null;
       codeType?: "current" | "grace";
       graceExpiresAt?: string | null;
@@ -28,6 +29,7 @@ declare module "next-auth/jwt" {
     id?: string;
     tenantId?: string;
     role?: "owner" | "staff";
+    shopLoginAt?: number;
     activeSessionId?: string | null;
     codeType?: "current" | "grace";
     graceExpiresAt?: string | null;

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { lockRoleSessionAction } from "@/app/actions/auth-actions";
 import {
   AlertTriangle,
   Mail,
@@ -21,6 +22,14 @@ function LoginFormContent() {
   const urlError = searchParams.get("error");
   const urlCode = searchParams.get("code");
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+
+  // Invalidate any leftover role session state from previous logins
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("galla_role_session");
+    }
+    lockRoleSessionAction().catch(() => {});
+  }, []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,6 +81,11 @@ function LoginFormContent() {
     setLoading(true);
 
     try {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("galla_role_session");
+      }
+      await lockRoleSessionAction();
+
       const res = await signIn("credentials", {
         email: cleanEmail,
         password,
@@ -91,6 +105,11 @@ function LoginFormContent() {
         }
         setLoading(false);
         return;
+      }
+
+      // Explicitly wipe client role session state so user must verify PIN on arrival
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("galla_role_session");
       }
 
       // Navigate to dashboard where Role Keypad will authenticate role

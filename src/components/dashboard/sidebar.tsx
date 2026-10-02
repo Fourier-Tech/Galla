@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { lockRoleSessionAction } from "@/app/actions/auth-actions";
 import {
   Home,
   Receipt,
@@ -79,6 +80,19 @@ export function Sidebar({
       return pathname === "/dashboard" || pathname === "/dashboard/overview";
     }
     return pathname.startsWith(`/dashboard/${id}`);
+  };
+
+  const handleSignOut = async () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("galla_role_session");
+      try {
+        const bc = new BroadcastChannel("galla_role_channel");
+        bc.postMessage({ type: "ROLE_LOGOUT" });
+        bc.close();
+      } catch {}
+    }
+    await lockRoleSessionAction();
+    await signOut({ callbackUrl: "/login" });
   };
 
   return (
@@ -198,7 +212,7 @@ export function Sidebar({
 
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={handleSignOut}
           className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-red-700 hover:bg-red-50/60 transition-colors cursor-pointer"
         >
           <LogOut className="h-3.5 w-3.5" />

@@ -19,6 +19,7 @@ import {
   verifyRolePinAction,
   requestForgotPinOtpAction,
   verifyOtpAndResetPinsAction,
+  lockRoleSessionAction,
 } from "@/app/actions/auth-actions";
 import { UserRole } from "@/types/dashboard";
 
@@ -110,11 +111,15 @@ export function RoleKeypadModal({
     (digit: string) => {
       if (retryCooldownRef.current || loadingRef.current) return;
       if (pinRef.current.length < 6) {
-        setPin((prev) => (prev.length < 6 ? prev + digit : prev));
+        const next = pinRef.current + digit;
+        setPin(next);
         setError(null);
+        if (next.length === 6) {
+          handleSubmitPin(next);
+        }
       }
     },
-    []
+    [handleSubmitPin]
   );
 
   const handleBackspace = useCallback(() => {
@@ -128,6 +133,19 @@ export function RoleKeypadModal({
     setPin("");
     setError(null);
   }, []);
+
+  const handleSignOut = async () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("galla_role_session");
+      try {
+        const bc = new BroadcastChannel("galla_role_channel");
+        bc.postMessage({ type: "ROLE_LOGOUT" });
+        bc.close();
+      } catch {}
+    }
+    await lockRoleSessionAction();
+    await signOut({ callbackUrl: "/login" });
+  };
 
   // Physical keyboard listener for digits, backspace, and Enter key
   useEffect(() => {
@@ -388,7 +406,7 @@ export function RoleKeypadModal({
 
               <button
                 type="button"
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={handleSignOut}
                 className="hover:text-red-700 hover:underline transition-colors cursor-pointer"
               >
                 Sign Out of Shop

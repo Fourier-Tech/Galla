@@ -147,6 +147,14 @@ export function DashboardClient({
         return;
       }
 
+      // If server determined role session is locked, any client-side sessionStorage is stale
+      if (initialIsRoleLocked) {
+        sessionStorage.removeItem("galla_role_session");
+        setIsRoleLocked(true);
+        isRoleLockedRef.current = true;
+        return;
+      }
+
       const rawStored = sessionStorage.getItem("galla_role_session");
       if (rawStored) {
         const parsed = JSON.parse(rawStored);
@@ -170,11 +178,16 @@ export function DashboardClient({
     } catch {
       // Fallback to server props
     }
-  }, [initialIsEvicted]);
+  }, [initialIsEvicted, initialIsRoleLocked]);
 
   const handleLockCounter = async () => {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("galla_role_session");
+      try {
+        const bc = new BroadcastChannel("galla_role_channel");
+        bc.postMessage({ type: "ROLE_LOCK" });
+        bc.close();
+      } catch {}
     }
     await lockRoleSessionAction();
     setIsRoleLocked(true);
@@ -191,6 +204,12 @@ export function DashboardClient({
     setIsRoleLocked(false);
     isRoleLockedRef.current = false;
     setIsEvicted(false);
+
+    // If staff role unlocks while on an owner-only tab, redirect to orders
+    if (newRole !== "owner" && (activeTab === "analytics" || activeTab === "profile")) {
+      setActiveTab("orders");
+      router.push("/dashboard/orders");
+    }
 
     // Save to window sessionStorage so in-place page refreshes never lock
     if (typeof window !== "undefined") {
@@ -513,6 +532,16 @@ export function DashboardClient({
     const bc = new BroadcastChannel("galla_role_channel");
     bc.onmessage = (event) => {
       const data = event.data;
+
+      if (data?.type === "ROLE_LOCK" || data?.type === "ROLE_LOGOUT") {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("galla_role_session");
+        }
+        setIsRoleLocked(true);
+        isRoleLockedRef.current = true;
+        return;
+      }
+
       if (
         !isRoleLockedRef.current &&
         data?.type === "ROLE_LOGIN" &&

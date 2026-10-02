@@ -130,11 +130,9 @@ export async function GET(request: Request) {
       );
     }
 
-    // Strict Owner Privacy Boundary: check counter role session cookie first, falling back to session user role
+    // Strict Owner Privacy Boundary verified via Role PIN session
     const roleSession = await getRoleSession();
-    const effectiveRole = roleSession?.role || session.user.role || "owner";
-
-    if (effectiveRole !== "owner") {
+    if (roleSession?.role !== "owner") {
       return NextResponse.json(
         {
           success: false,

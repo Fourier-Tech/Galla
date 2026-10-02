@@ -102,7 +102,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             id: rawUser._id.toString(),
             tenantId: rawUser.tenantId.toString(),
             email: rawUser.ownerEmail,
-            role: "owner",
           };
         } catch (error) {
           console.error("[Auth] Authorization error:", error);
@@ -120,14 +119,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id;
         token.tenantId = user.tenantId;
         token.email = user.email;
-        token.role = (user as any).role || "owner";
         token.sessionCreatedAt = Date.now();
+        token.shopLoginAt = Date.now();
         token.lastActive = Date.now();
         return token;
-      }
-
-      if (!token.role) {
-        token.role = "owner";
       }
 
       // Check 7-day inactivity rule directly in token (zero DB roundtrips)
@@ -148,7 +143,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         session.user.tenantId = token.tenantId as string;
         session.user.email = token.email as string;
-        session.user.role = (token.role as "owner" | "staff") || "owner";
+        session.user.shopLoginAt = token.shopLoginAt as number;
+        session.user.role = (token.role as "owner" | "staff") || undefined;
       }
       return session;
     },
