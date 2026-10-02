@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Calendar,
   ArrowUpDown,
+  Undo2,
 } from "lucide-react";
 import { DashboardPurchaseOrder, DashboardSupplier, DashboardExpense, DashboardProduct } from "@/types/dashboard";
 import {
@@ -45,11 +46,14 @@ import { StatusPill } from "@/components/dashboard/status-pill";
 
 
 
-const BILL_FILTER_OPTIONS: { id: "all" | BillStatusKey; label: string }[] = [
+export type PurchaseBillFilterKey = "all" | BillStatusKey | "returns";
+
+const BILL_FILTER_OPTIONS: { id: PurchaseBillFilterKey; label: string }[] = [
   { id: "all", label: "All Bills" },
   { id: "pending", label: "Pending" },
   { id: "advance", label: "Advance" },
   { id: "completed", label: "Completed" },
+  { id: "returns", label: "Returns" },
 ];
 
 interface PurchaseOrdersViewProps {
@@ -71,7 +75,7 @@ interface PurchaseOrdersViewProps {
   suppliers?: DashboardSupplier[];
   purchaseOrders?: DashboardPurchaseOrder[];
   salonName?: string;
-  initialFilter?: "all" | BillStatusKey;
+  initialFilter?: PurchaseBillFilterKey;
 }
 
 export function PurchaseOrdersView({
@@ -99,7 +103,7 @@ export function PurchaseOrdersView({
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
-  const [activeFilter, setActiveFilter] = useState<"all" | BillStatusKey>(initialFilter || "all");
+  const [activeFilter, setActiveFilter] = useState<PurchaseBillFilterKey>(initialFilter || "all");
   const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
 
   if (initialFilter !== undefined && initialFilter !== prevInitialFilter) {
@@ -189,12 +193,13 @@ export function PurchaseOrdersView({
   }, [purchaseOrders]);
 
   // Live status counts (matching Orders Tab)
-  const statusCounts = useMemo<Record<"all" | BillStatusKey, number>>(() => {
+  const statusCounts = useMemo<Record<PurchaseBillFilterKey, number>>(() => {
     return {
       all: orders.length,
       pending: orders.filter((o) => getBillStatus(o).statusKey === "pending").length,
       advance: orders.filter((o) => getBillStatus(o).statusKey === "advance").length,
       completed: orders.filter((o) => getBillStatus(o).statusKey === "completed").length,
+      returns: orders.filter((o) => Boolean(o.returns && o.returns.length > 0)).length,
     };
   }, [orders]);
 
@@ -218,7 +223,9 @@ export function PurchaseOrdersView({
   // Filtered and sorted orders (matching Orders Tab logic)
   const filteredOrders = useMemo(() => {
     const result = orders.filter((o) => {
-      if (activeFilter !== "all") {
+      if (activeFilter === "returns") {
+        if (!o.returns || o.returns.length === 0) return false;
+      } else if (activeFilter !== "all") {
         const { statusKey } = getBillStatus(o);
         if (statusKey !== activeFilter) return false;
       }
@@ -726,6 +733,17 @@ export function PurchaseOrdersView({
                               title={`Dealer Invoice Number: ${po.dealerInvoiceNumber}`}
                             >
                               Inv: #{po.dealerInvoiceNumber}
+                            </span>
+                          </div>
+                        )}
+                        {po.returns && po.returns.length > 0 && (
+                          <div className="mt-1">
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200"
+                              title={`${po.returns.length} return / refund event(s)`}
+                            >
+                              <Undo2 className="h-3 w-3 shrink-0" />
+                              <span>{po.returns.length} Return{po.returns.length > 1 ? "s" : ""}</span>
                             </span>
                           </div>
                         )}

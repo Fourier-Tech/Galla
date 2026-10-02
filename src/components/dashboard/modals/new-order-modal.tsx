@@ -294,12 +294,16 @@ function SettlementModeSelect({
   hasOutOfStockItems,
   needsSellStock,
   allowSellStockUsage,
+  needsUseStock,
+  allowUseStockUsage,
 }: {
   value: "completed" | "pay_later" | "advance" | "paid_full";
   onChange: (val: "completed" | "pay_later" | "advance" | "paid_full") => void;
   hasOutOfStockItems: boolean;
   needsSellStock: boolean;
   allowSellStockUsage: boolean;
+  needsUseStock?: boolean;
+  allowUseStockUsage?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -373,18 +377,22 @@ function SettlementModeSelect({
               const Icon = opt.icon;
               const isSelected = opt.value === value;
               const isDisabled = (() => {
-                if (hasOutOfStockItems) {
+                const hasUnconfirmedStock =
+                  (needsSellStock && !allowSellStockUsage) ||
+                  (needsUseStock && !allowUseStockUsage);
+
+                const hasConfirmedStock =
+                  (needsSellStock && allowSellStockUsage) ||
+                  (needsUseStock && allowUseStockUsage);
+
+                if (hasOutOfStockItems || hasUnconfirmedStock) {
                   return opt.value === "completed" || opt.value === "pay_later";
                 }
-                if (needsSellStock) {
-                  if (allowSellStockUsage) {
-                    // Checkbox selected -> only Complete or Pending (Pay Later)
-                    return opt.value === "advance" || opt.value === "paid_full";
-                  } else {
-                    // Checkbox not selected -> only Advance or Paid in Full
-                    return opt.value === "completed" || opt.value === "pay_later";
-                  }
+
+                if (hasConfirmedStock) {
+                  return opt.value === "advance" || opt.value === "paid_full";
                 }
+
                 return false;
               })();
 
@@ -393,12 +401,17 @@ function SettlementModeSelect({
                 if (hasOutOfStockItems) {
                   return "Disabled (some items out of stock)";
                 }
-                if (needsSellStock) {
-                  if (allowSellStockUsage) {
-                    return "Disabled (shelf transfer selected for immediate fulfillment)";
-                  } else {
-                    return "Disabled (in-use stock unavailable — confirm shelf transfer above to enable)";
-                  }
+                if (needsUseStock && !allowUseStockUsage) {
+                  return "Disabled (retail stock unavailable — check salon use-stock above to enable)";
+                }
+                if (needsSellStock && !allowSellStockUsage) {
+                  return "Disabled (in-use stock unavailable — confirm shelf transfer above to enable)";
+                }
+                if (needsUseStock && allowUseStockUsage) {
+                  return "Disabled (salon use-stock selected for immediate fulfillment)";
+                }
+                if (needsSellStock && allowSellStockUsage) {
+                  return "Disabled (shelf transfer selected for immediate fulfillment)";
                 }
                 return "Disabled";
               })();
@@ -543,6 +556,7 @@ export function NewOrderModal({
   const [bookingTime, setBookingTime] = useState("");
   const [notes, setNotes] = useState("");
   const [allowSellStockUsage, setAllowSellStockUsage] = useState(false);
+  const [allowUseStockUsage, setAllowUseStockUsage] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -666,7 +680,10 @@ export function NewOrderModal({
     for (const item of selectedItems) {
       if (item.type === "product") {
         const p = liveProducts.find((prod) => String(prod.id) === item.id);
-        if (!p || (p.sell || 0) < (item.quantity || 1)) return true;
+        const sellAvailable = p?.sell || 0;
+        const useAvailable = p?.use || 0;
+        const needed = item.quantity || 1;
+        if (!p || (sellAvailable + useAvailable) < needed) return true;
       } else if (item.type === "service") {
         const s = services.find((srv) => srv.id === item.id);
         if (s) {
@@ -712,26 +729,61 @@ export function NewOrderModal({
     return Array.from(map.entries()).map(([name, neededFromSell]) => ({ name, neededFromSell }));
   }, [selectedItems, services, packages, liveProducts]);
 
-  // Adjust settlement mode automatically based on stock availability and shelf-transfer opt-in
+  const orderUseStockItems = useMemo(() => {
+    const list: { id: string; name: string; neededFromUse: number; useAvailable: number; sellAvailable: number }[] = [];
+    for (const item of selectedItems) {
+      if (item.type === "product") {
+        const p = liveProducts.find((prod) => String(prod.id) === item.id);
+        const sellAvailable = p?.sell || 0;
+        const useAvailable = p?.use || 0;
+        const needed = item.quantity || 1;
+        if (p && sellAvailable < needed && (sellAvailable + useAvailable) >= needed) {
+          list.push({
+            id: item.id,
+            name: item.name,
+            neededFromUse: needed - sellAvailable,
+            useAvailable,
+            sellAvailable,
+          });
+        }
+      }
+    }
+    return list;
+  }, [selectedItems, liveProducts]);
+
+  // Adjust settlement mode automatically based on stock availability and shelf/salon use opt-in
   useEffect(() => {
     if (hasOutOfStockItems) {
       if (settlementMode === "completed" || settlementMode === "pay_later") {
         setSettlementMode("advance");
       }
-    } else if (orderSellStockItems.length > 0) {
-      if (!allowSellStockUsage) {
-        // Shelf transfer not confirmed -> only advance or paid_full allowed
+    } else {
+      const hasUnconfirmedStock =
+        (orderSellStockItems.length > 0 && !allowSellStockUsage) ||
+        (orderUseStockItems.length > 0 && !allowUseStockUsage);
+
+      const hasConfirmedStock =
+        (orderSellStockItems.length > 0 && allowSellStockUsage) ||
+        (orderUseStockItems.length > 0 && allowUseStockUsage);
+
+      if (hasUnconfirmedStock) {
         if (settlementMode === "completed" || settlementMode === "pay_later") {
           setSettlementMode("advance");
         }
-      } else {
-        // Shelf transfer confirmed -> only complete or pay_later (pending) allowed
+      } else if (hasConfirmedStock) {
         if (settlementMode === "advance" || settlementMode === "paid_full") {
           setSettlementMode("completed");
         }
       }
     }
-  }, [hasOutOfStockItems, orderSellStockItems.length, allowSellStockUsage, settlementMode]);
+  }, [
+    hasOutOfStockItems,
+    orderSellStockItems.length,
+    allowSellStockUsage,
+    orderUseStockItems.length,
+    allowUseStockUsage,
+    settlementMode,
+  ]);
 
   // Filter catalog items
   const filteredServices = useMemo(() => {
@@ -768,6 +820,7 @@ export function NewOrderModal({
     setBookingTime("");
     setNotes("");
     setAllowSellStockUsage(false);
+    setAllowUseStockUsage(false);
     setShowConfirm(false);
     setErrorMsg(null);
     setShowSuggestions(false);
@@ -883,6 +936,17 @@ export function NewOrderModal({
       }
     }
 
+    if (orderUseStockItems.length > 0) {
+      if (allowUseStockUsage && (settlementMode === "advance" || settlementMode === "paid_full")) {
+        setErrorMsg("Salon use-stock is confirmed for immediate fulfillment. Please choose Complete or Pay Later (Due).");
+        return;
+      }
+      if (!allowUseStockUsage && (settlementMode === "completed" || settlementMode === "pay_later")) {
+        setErrorMsg("Retail stock is insufficient. Confirm salon use-stock above to fulfill now, or choose Advance Booking / Paid in Full.");
+        return;
+      }
+    }
+
     if ((settlementMode === "advance" || settlementMode === "paid_full") && !bookingDate) {
       setErrorMsg("Please select the appointment / delivery date for this booking");
       return;
@@ -985,6 +1049,7 @@ export function NewOrderModal({
         clearedDueOrderIds,
         clearedDueAmount,
         allowSellStockUsage,
+        allowUseStockUsage,
       });
 
       if (res.success && res.order) {
@@ -1620,9 +1685,15 @@ export function NewOrderModal({
                                 {p.name}
                               </span>
                               {isOutOfStock ? (
-                                <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200">
-                                  Out of Stock &bull; Pre-order only
-                                </span>
+                                (p.use || 0) > 0 ? (
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-blue-50 text-blue-800 border border-blue-200">
+                                    0 shelf &bull; {p.use} in salon use
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-rose-50 text-rose-800 border border-rose-200">
+                                    Out of Stock &bull; Pre-order only
+                                  </span>
+                                )
                               ) : (
                                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 text-emerald-800 border border-emerald-200">
                                   {p.sell} in stock
@@ -1857,6 +1928,47 @@ export function NewOrderModal({
               </div>
             )}
 
+            {/* Salon Use-Stock Transfer Opt-in (if retail products need salon use stock backup) */}
+            {orderUseStockItems.length > 0 && (
+              <div className="p-3.5 bg-blue-50/80 border border-blue-300 rounded-[6px] text-[12px] space-y-2">
+                <div className="font-semibold text-blue-900 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 text-blue-700 shrink-0" />
+                  <span>Sell from Salon Use-Stock?</span>
+                </div>
+                <p className="text-blue-900 leading-snug">
+                  Some products are out of retail shelf stock, but available in salon operational use stock:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {orderUseStockItems.map((it) => (
+                    <span key={it.id} className="px-2 py-0.5 bg-blue-100/90 text-blue-950 font-medium rounded-[4px] border border-blue-300/80">
+                      {it.neededFromUse}x {it.name} (from salon use)
+                    </span>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 pt-1 font-semibold text-blue-950 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={allowUseStockUsage}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setAllowUseStockUsage(checked);
+                      if (checked) {
+                        if (settlementMode === "advance" || settlementMode === "paid_full") {
+                          setSettlementMode("completed");
+                        }
+                      } else {
+                        if (settlementMode === "completed" || settlementMode === "pay_later") {
+                          setSettlementMode("advance");
+                        }
+                      }
+                    }}
+                    className="h-4 w-4 rounded-[4px] border-blue-400 text-galla-teal focus:ring-galla-teal cursor-pointer"
+                  />
+                  <span>Fulfill this sale using salon operational use-stock</span>
+                </label>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Settlement Mode Dropdown */}
               <SettlementModeSelect
@@ -1865,6 +1977,8 @@ export function NewOrderModal({
                 hasOutOfStockItems={hasOutOfStockItems}
                 needsSellStock={orderSellStockItems.length > 0}
                 allowSellStockUsage={allowSellStockUsage}
+                needsUseStock={orderUseStockItems.length > 0}
+                allowUseStockUsage={allowUseStockUsage}
               />
 
               {/* Payment Mode Dropdown */}
@@ -1992,6 +2106,19 @@ export function NewOrderModal({
                   {orderSellStockItems.map((it) => (
                     <li key={it.name}>
                       {it.neededFromSell}x {it.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {allowUseStockUsage && orderUseStockItems.length > 0 && (
+              <div className="mt-2 p-2.5 bg-blue-50 border border-blue-300 rounded-[5px] text-[12px] text-blue-950">
+                <strong>Salon Use-Stock Fulfillment:</strong>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                  {orderUseStockItems.map((it) => (
+                    <li key={it.id}>
+                      {it.neededFromUse}x {it.name} (from salon use)
                     </li>
                   ))}
                 </ul>

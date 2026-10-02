@@ -37,6 +37,7 @@ export const createOrderSchema = z.object({
   clearedDueOrderIds: z.array(z.string()).optional(),
   clearedDueAmount: z.number().optional(),
   allowSellStockUsage: z.boolean().optional(),
+  allowUseStockUsage: z.boolean().optional(),
   notes: z.string().optional(),
 });
 
@@ -47,6 +48,7 @@ export const completeOrderSchema = z.object({
   remainingAmount: z.number().min(0, "Remaining amount cannot be negative").optional(),
   paymentMode: z.enum(["cash", "upi", "card"]).default("cash"),
   allowSellStockUsage: z.boolean().optional(),
+  allowUseStockUsage: z.boolean().optional(),
   notes: z.string().optional(),
 });
 

@@ -23,7 +23,11 @@ interface SettleReplacementModalProps {
   isOpen: boolean;
   onClose: () => void;
   product: DashboardProduct | null;
-  onSuccess: (updatedProduct: DashboardProduct, updatedSupplier?: DashboardSupplier) => void;
+  onSuccess: (
+    updatedProduct: DashboardProduct,
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
+  ) => void;
 }
 
 export function SettleReplacementModal({
@@ -33,7 +37,7 @@ export function SettleReplacementModal({
   onSuccess,
 }: SettleReplacementModalProps) {
   const [quantity, setQuantity] = useState<string>("1");
-  const [resolutionType, setResolutionType] = useState<"replace_stock" | "credit_refund">("replace_stock");
+  const [resolutionType, setResolutionType] = useState<"credit_refund" | "replace_stock">("credit_refund");
   const [targetStock, setTargetStock] = useState<"sellStock" | "useStock">("sellStock");
   const [refundMode, setRefundMode] = useState<"reduce_due" | "cash" | "upi" | "card">("reduce_due");
   const [notes, setNotes] = useState("");
@@ -47,7 +51,7 @@ export function SettleReplacementModal({
     if (isOpen && product) {
       const defQty = product.defectiveStock || 1;
       setQuantity(String(defQty));
-      setResolutionType("replace_stock");
+      setResolutionType("credit_refund");
       setTargetStock("sellStock");
       setRefundMode("reduce_due");
       setNotes("");
@@ -107,7 +111,7 @@ export function SettleReplacementModal({
       );
 
       if (res.success && res.updatedProduct) {
-        onSuccess(res.updatedProduct, res.updatedSupplier);
+        onSuccess(res.updatedProduct, res.updatedSupplier, res.refundAmount);
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to settle replacement");
@@ -243,6 +247,24 @@ export function SettleReplacementModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
+                onClick={() => setResolutionType("credit_refund")}
+                className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${
+                  resolutionType === "credit_refund"
+                    ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
+                    : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-[13.5px]">
+                  <RotateCcw className={`h-4.5 w-4.5 ${resolutionType === "credit_refund" ? "text-galla-teal" : "text-galla-ink-soft"}`} />
+                  <span>Return</span>
+                </div>
+                <p className="font-sans text-[11.5px] text-galla-ink-soft mt-1.5 leading-relaxed">
+                  Return defective units to dealer for refund or bill credit.
+                </p>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setResolutionType("replace_stock")}
                 className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${
                   resolutionType === "replace_stock"
@@ -250,44 +272,12 @@ export function SettleReplacementModal({
                     : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-bold text-[13.5px]">
-                    <CheckCircle2 className={`h-4.5 w-4.5 ${resolutionType === "replace_stock" ? "text-galla-teal" : "text-galla-ink-soft"}`} />
-                    <span>Fresh Stock Replaced</span>
-                  </div>
-                  {resolutionType === "replace_stock" && (
-                    <span className="text-[10.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-galla-teal-soft text-galla-teal">
-                      Selected
-                    </span>
-                  )}
+                <div className="flex items-center gap-2 font-bold text-[13.5px]">
+                  <CheckCircle2 className={`h-4.5 w-4.5 ${resolutionType === "replace_stock" ? "text-galla-teal" : "text-galla-ink-soft"}`} />
+                  <span>Replacement</span>
                 </div>
                 <p className="font-sans text-[11.5px] text-galla-ink-soft mt-1.5 leading-relaxed">
                   Dealer delivered brand-new replacement units into inventory.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setResolutionType("credit_refund")}
-                className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${
-                  resolutionType === "credit_refund"
-                    ? "bg-white border-rose-500 ring-2 ring-rose-500/20 text-galla-ink shadow-xs"
-                    : "bg-white border-galla-line text-galla-ink hover:border-rose-400/40 hover:bg-galla-paper/30"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-bold text-[13.5px]">
-                    <Banknote className={`h-4.5 w-4.5 ${resolutionType === "credit_refund" ? "text-rose-600" : "text-galla-ink-soft"}`} />
-                    <span>Dealer Credit / Refund</span>
-                  </div>
-                  {resolutionType === "credit_refund" && (
-                    <span className="text-[10.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-100 text-rose-800">
-                      Selected
-                    </span>
-                  )}
-                </div>
-                <p className="font-sans text-[11.5px] text-galla-ink-soft mt-1.5 leading-relaxed">
-                  Cannot replace units; issued a credit note or cash refund.
                 </p>
               </button>
             </div>

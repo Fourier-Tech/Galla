@@ -784,18 +784,30 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             // Snapshot current purchaseCost for profit calculation
             item.purchaseCost =
               typeof prod.purchaseCost === "number" ? prod.purchaseCost : 0;
-            const available = Math.max(0, prod.sellStock);
+            const availableSell = Math.max(0, prod.sellStock);
+            const availableUse = Math.max(0, prod.useStock);
             const requested = item.quantity || 1;
 
-            if (isAdvancePreOrder || available < requested) {
-              // Pre-order or out of stock: cannot fulfill now; delivery pending upon arrival
+            if (isAdvancePreOrder) {
+              // Pre-order: cannot fulfill now; delivery pending upon arrival
               item.fulfilled = false;
               hasUnfulfilledProduct = true;
-            } else {
+            } else if (availableSell >= requested) {
               prod.sellStock -= requested;
               item.fulfilled = true;
               await prod.save({ session: dbSession });
               affectedProductNames.add(prod.name);
+            } else if (input.allowUseStockUsage && (availableSell + availableUse) >= requested) {
+              const fromSell = availableSell;
+              const fromUse = requested - fromSell;
+              prod.sellStock -= fromSell;
+              prod.useStock -= fromUse;
+              item.fulfilled = true;
+              await prod.save({ session: dbSession });
+              affectedProductNames.add(prod.name);
+            } else {
+              item.fulfilled = false;
+              hasUnfulfilledProduct = true;
             }
           }
         } else if (
@@ -1288,7 +1300,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { orderId, remainingAmount, paymentMode, notes, allowSellStockUsage } = parseResult.data;
+    const { orderId, remainingAmount, paymentMode, notes, allowSellStockUsage, allowUseStockUsage } = parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -1313,8 +1325,11 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
           ) {
             const prod = await Product.findOne({ _id: item.itemId, tenantId });
             const qty = item.quantity || 1;
-            if (!prod || prod.sellStock < qty) {
-              const available = prod?.sellStock || 0;
+            const availableSell = prod?.sellStock || 0;
+            const availableUse = prod?.useStock || 0;
+            const totalAvailable = allowUseStockUsage ? (availableSell + availableUse) : availableSell;
+            if (!prod || totalAvailable < qty) {
+              const available = allowUseStockUsage ? totalAvailable : availableSell;
               return {
                 success: false,
                 error: `Cannot complete delivery: Product "${item.name}" is out of stock (${available} available, ${qty} needed). Please stock in first before completing delivery.`,
@@ -1465,7 +1480,14 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
             const prod = await Product.findOne({ _id: item.itemId, tenantId });
             if (prod) {
               const qty = item.quantity || 1;
-              prod.sellStock = Math.max(0, prod.sellStock - qty);
+              if (allowUseStockUsage && prod.sellStock < qty) {
+                const fromSell = Math.max(0, prod.sellStock);
+                const fromUse = qty - fromSell;
+                prod.sellStock -= fromSell;
+                prod.useStock = Math.max(0, prod.useStock - fromUse);
+              } else {
+                prod.sellStock = Math.max(0, prod.sellStock - qty);
+              }
               await prod.save();
               affectedProductNames.add(prod.name);
             }
@@ -1927,6 +1949,39 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     order.status = "cancelled_refunded";
 
     await order.save();
+
+    // Auto-cancel any linked pending customer replacements and replacement orders
+    try {
+      const orderNumDisplay = formatDisplayNumber(order.orderNumber);
+      const linkedCRs = await CustomerReplacement.find({
+        tenantId,
+        $or: [
+          { orderId: order._id },
+          { notes: new RegExp(orderNumDisplay, "i") },
+        ],
+        status: { $in: ["pending_dealer", "arrived_call_client"] },
+      });
+      for (const cr of linkedCRs) {
+        cr.status = "cancelled";
+        const cancelNote = `[Auto-Cancelled] Original Order #${orderNumDisplay} was refunded.`;
+        cr.notes = cr.notes ? `${cr.notes}\n${cancelNote}` : cancelNote;
+        await cr.save();
+      }
+
+      const linkedPendingOrders = await Order.find({
+        tenantId,
+        status: { $in: ["replacement_pending", "replacement"] },
+        notes: new RegExp(orderNumDisplay, "i"),
+      });
+      for (const repOrder of linkedPendingOrders) {
+        repOrder.status = "cancelled_refunded";
+        const cancelNote = `[Auto-Cancelled] Original Order #${orderNumDisplay} was refunded.`;
+        repOrder.notes = repOrder.notes ? `${repOrder.notes}\n${cancelNote}` : cancelNote;
+        await repOrder.save();
+      }
+    } catch (cancelErr) {
+      console.error("[AutoCancelReplacements Error]:", cancelErr);
+    }
 
     // Adjust customer lifetime stats
     if (order.customerSnapshot?.phone) {
@@ -6259,6 +6314,7 @@ export async function returnCustomerOrderItemAction(
   customerResolution: "refund" | "replacement" = "refund",
   options?: {
     restockLocation?: "sellStock" | "useStock";
+    replaceFromUseStock?: boolean;
     replacementOption?: "immediate_full" | "immediate_partial" | "wait_all";
     handedQuantity?: number;
     expectedPickupDate?: string;
@@ -6493,7 +6549,13 @@ export async function returnCustomerOrderItemAction(
         const availableShelf = targetReplacementProduct ? targetReplacementProduct.sellStock : 0;
         let handedQty = 0;
 
-        if (options?.replacementOption === "immediate_partial") {
+        if (options?.replaceFromUseStock) {
+          const availableUse = targetReplacementProduct ? targetReplacementProduct.useStock : 0;
+          if (availableUse < quantityToReturn) {
+            throw new Error(`Insufficient salon use-stock in ${targetReplacementProduct?.name || item.name} to hand over ${quantityToReturn} items (${availableUse} available).`);
+          }
+          handedQty = quantityToReturn;
+        } else if (options?.replacementOption === "immediate_partial") {
           handedQty = Math.min(availableShelf, options.handedQuantity ?? availableShelf);
         } else if (options?.replacementOption === "immediate_full") {
           handedQty = quantityToReturn;
@@ -6506,10 +6568,14 @@ export async function returnCustomerOrderItemAction(
         const pendingQty = Math.max(0, quantityToReturn - handedQty);
 
         if (handedQty > 0 && targetReplacementProduct) {
-          if (targetReplacementProduct.sellStock < handedQty) {
-            throw new Error(`Insufficient shelf stock in ${targetReplacementProduct.name} to hand over ${handedQty} items.`);
+          if (options?.replaceFromUseStock) {
+            targetReplacementProduct.useStock -= handedQty;
+          } else {
+            if (targetReplacementProduct.sellStock < handedQty) {
+              throw new Error(`Insufficient shelf stock in ${targetReplacementProduct.name} to hand over ${handedQty} items.`);
+            }
+            targetReplacementProduct.sellStock -= handedQty;
           }
-          targetReplacementProduct.sellStock -= handedQty;
         }
 
         // Handle price difference between old purchased price and replacement unit price
@@ -6679,7 +6745,7 @@ export async function returnCustomerOrderItemAction(
                 amountPending: 0,
                 paymentMode: order.paymentMode || "cash",
                 payments: [],
-                notes: `Immediate replacement for ${quantityToReturn}x ${replacementProductName} handed from shelf stock (Original Order #${formatDisplayNumber(order.orderNumber)}).${priceDiff !== 0 ? ` Price difference: ${priceDiff > 0 ? `+₹${priceDiff} paid` : `-₹${Math.abs(priceDiff)} refunded`}.` : ""}${notes ? ` ${notes}` : ""}`,
+                notes: `Immediate replacement for ${quantityToReturn}x ${replacementProductName} handed from ${options?.replaceFromUseStock ? "salon use-stock" : "shelf stock"} (Original Order #${formatDisplayNumber(order.orderNumber)}).${priceDiff !== 0 ? ` Price difference: ${priceDiff > 0 ? `+₹${priceDiff} paid` : `-₹${Math.abs(priceDiff)} refunded`}.` : ""}${notes ? ` ${notes}` : ""}`,
                 recordedBy: session.user.role === "staff" ? "staff" : "owner",
                 completedAt: new Date(),
               },
@@ -6893,7 +6959,14 @@ export async function settleSupplierReplacementAction(
     poId?: string;
     notes?: string;
   }
-): Promise<{ success: boolean; updatedProduct?: DashboardProduct; updatedSupplier?: DashboardSupplier; error?: string }> {
+): Promise<{
+  success: boolean;
+  updatedProduct?: DashboardProduct;
+  updatedSupplier?: DashboardSupplier;
+  refundAmount?: number;
+  refundMode?: string;
+  error?: string;
+}> {
   try {
     const session = await auth();
     if (!session?.user) return { success: false, error: "Unauthorized session" };
@@ -7129,9 +7202,19 @@ export async function settleSupplierReplacementAction(
           totalPending: updatedSupplierDoc.totalPending ?? 0,
           isActive: updatedSupplierDoc.isActive !== false,
         }
-        : undefined;
+      : undefined;
+      const refundAmount =
+        resolutionType === "credit_refund" && options?.refundMode !== "reduce_due"
+          ? totalCreditAmount
+          : 0;
 
-      return { success: true, updatedProduct, updatedSupplier };
+      return {
+        success: true,
+        updatedProduct,
+        updatedSupplier,
+        refundAmount,
+        refundMode: options?.refundMode,
+      };
     });
   } catch (error: any) {
     console.error("Failed to settle supplier replacement:", error);

@@ -52,7 +52,7 @@ interface SuppliersTabProps {
   ) => void;
   onReschedulePurchaseOrder?: (po: DashboardPurchaseOrder) => void;
   salonName?: string;
-  initialFilter?: "all" | BillStatusKey;
+  initialFilter?: "all" | BillStatusKey | "returns";
 }
 
 export function SuppliersTab({

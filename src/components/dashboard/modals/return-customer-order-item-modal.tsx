@@ -16,6 +16,7 @@ import {
   Check,
   RefreshCw,
   Receipt,
+  Clock,
 } from "lucide-react";
 import {
   DashboardOrder,
@@ -89,6 +90,7 @@ export function ReturnCustomerOrderItemModal({
   const [replacementResolutionType, setReplacementResolutionType] = useState<"upgrade_available" | "wait_original">("upgrade_available");
   const [priceDiffPaymentMode, setPriceDiffPaymentMode] = useState<"cash" | "upi" | "card">("cash");
   const [customNewPriceStr, setCustomNewPriceStr] = useState<string>("");
+  const [replaceFromUseStock, setReplaceFromUseStock] = useState<boolean>(false);
   const [isLoadingStock, setIsLoadingStock] = useState<boolean>(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,6 +146,7 @@ export function ReturnCustomerOrderItemModal({
       d.setDate(d.getDate() + 2);
       setExpectedPickupDate(getLocalDateString(d));
       setRefundMode("cash");
+      setReplaceFromUseStock(false);
       setError(null);
       setNotes("");
     }
@@ -392,7 +395,9 @@ export function ReturnCustomerOrderItemModal({
 
     let handedQty = 0;
     if (!isGoodCondition && customerResolution === "replacement") {
-      if (isUpgradingToNewMRP) {
+      if (replaceFromUseStock) {
+        handedQty = parsedQty;
+      } else if (isUpgradingToNewMRP) {
         const availableStock = targetReplacementProduct ? targetReplacementProduct.sell : 0;
         handedQty = Math.min(availableStock, parsedQty);
       } else if (samePriceStock >= parsedQty) {
@@ -426,9 +431,12 @@ export function ReturnCustomerOrderItemModal({
         customerResolution,
         {
           restockLocation: isGoodCondition ? restockLocation : undefined,
+          replaceFromUseStock: !isGoodCondition && customerResolution === "replacement" ? replaceFromUseStock : false,
           replacementOption:
             !isGoodCondition && customerResolution === "replacement"
-              ? isUpgradingToNewMRP
+              ? replaceFromUseStock
+                ? "immediate_full"
+                : isUpgradingToNewMRP
                 ? handedQty >= parsedQty
                   ? "immediate_full"
                   : handedQty > 0
@@ -443,7 +451,9 @@ export function ReturnCustomerOrderItemModal({
           handedQuantity: handedQty,
           expectedPickupDate:
             !isGoodCondition && customerResolution === "replacement"
-              ? isUpgradingToNewMRP
+              ? replaceFromUseStock
+                ? undefined
+                : isUpgradingToNewMRP
                 ? handedQty < parsedQty
                   ? expectedPickupDate
                   : undefined
@@ -1072,28 +1082,63 @@ export function ReturnCustomerOrderItemModal({
                           </div>
                         ) : samePriceStock === 0 ? (
                           /* Case 3: Out of Stock */
-                          <div className="p-4 rounded-[8px] bg-amber-50 border border-amber-200 text-amber-950 text-[12.5px] font-sans space-y-3 shadow-2xs">
+                          <div className="p-4 rounded-[8px] bg-amber-50 border border-amber-200 text-amber-950 text-[12.5px] font-sans space-y-3.5 shadow-2xs">
                             <div className="flex items-center gap-2 font-bold text-amber-900 text-[13.5px]">
                               <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
-                              <span>Out of Stock &mdash; Schedule Replacement</span>
+                              <span>Out of Retail Stock &mdash; Schedule Replacement</span>
                             </div>
                             <p className="text-[12px] text-amber-800 leading-relaxed">
                               No shelf inventory is currently available for immediate handover. Set an expected pickup date when restocked item will be ready.
                             </p>
 
-                            <div>
-                              <label className="block text-[12px] font-semibold text-galla-ink mb-1.5">
-                                Expected Client Pickup Date <span className="text-red-600">*</span>
-                              </label>
-                              <input
-                                type="date"
-                                min={getLocalDateString()}
-                                value={expectedPickupDate}
-                                onChange={(e) => setExpectedPickupDate(e.target.value)}
-                                required
-                                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
-                              />
-                            </div>
+                            {/* Use-Stock Checkbox: available in useStock */}
+                            {(matchedProduct?.use || 0) > 0 && (
+                              <div className="p-3 bg-white border border-amber-300 rounded-[6px] shadow-2xs">
+                                <label className="flex items-start gap-2.5 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={replaceFromUseStock}
+                                    onChange={(e) => setReplaceFromUseStock(e.target.checked)}
+                                    className="mt-0.5 h-4 w-4 rounded text-galla-teal focus:ring-galla-teal cursor-pointer"
+                                  />
+                                  <div className="text-[12px]">
+                                    <span className="font-semibold text-galla-ink block">
+                                      Replace from salon use-stock ({matchedProduct?.use} pcs available)
+                                    </span>
+                                    <span className="text-[11.5px] text-galla-ink-soft block mt-0.5 leading-snug">
+                                      Take replacement unit immediately from salon internal station stock. No pickup scheduling needed.
+                                    </span>
+                                  </div>
+                                </label>
+                              </div>
+                            )}
+
+                            {replaceFromUseStock ? (
+                              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-[6px] text-emerald-950 text-[12px] flex items-center gap-2 shadow-2xs">
+                                <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600 shrink-0" />
+                                <span>
+                                  Ready for immediate handover! {parsedQty} unit{parsedQty > 1 ? "s" : ""} will be deducted from salon station use-stock.
+                                </span>
+                              </div>
+                            ) : (
+                              <div>
+                                <label className="block text-[12px] font-semibold text-galla-ink mb-1.5">
+                                  Expected Client Pickup Date <span className="text-red-600">*</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  min={getLocalDateString()}
+                                  value={expectedPickupDate}
+                                  onChange={(e) => setExpectedPickupDate(e.target.value)}
+                                  required
+                                  className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
+                                />
+                                <p className="text-[11px] text-amber-800/90 mt-1 flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                                  <span>An urgency alert will appear on the Overview tab 2 days before this date.</span>
+                                </p>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           /* Case 4: Partial Stock */
@@ -1156,6 +1201,10 @@ export function ReturnCustomerOrderItemModal({
                                 required
                                 className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans tabular-nums text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-amber-700 focus:ring-1 focus:ring-amber-700 transition-colors shadow-2xs"
                               />
+                              <p className="text-[11px] text-amber-800/90 mt-1 flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                                <span>An urgency alert will appear on the Overview tab 2 days before this date.</span>
+                              </p>
                             </div>
                           </div>
                         )}

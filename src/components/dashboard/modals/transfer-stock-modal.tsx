@@ -1413,7 +1413,7 @@ function TransferStockModalContent({
                 disabled={isSubmitting}
                 className="w-full py-2.5 px-4 rounded-[5px] border border-galla-line font-sans text-xs font-semibold text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer disabled:opacity-50"
               >
-                Cancel &amp; Return
+                Cancel
               </button>
             </div>
           </div>

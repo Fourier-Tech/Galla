@@ -217,7 +217,7 @@ export function DashboardClient({
   const [activeTab, setActiveTab] = useState<TabId>(activeTabDefault);
   const [ordersFilter, setOrdersFilter] = useState<OrderStatus | "all" | "replacement">("all");
   const [ordersNavKey, setOrdersNavKey] = useState(0);
-  const [billsFilter, setBillsFilter] = useState<BillStatusKey | "all">("all");
+  const [billsFilter, setBillsFilter] = useState<BillStatusKey | "all" | "returns">("all");
   const [billsNavKey, setBillsNavKey] = useState(0);
 
   const handleNavigateToAdvanceOrders = () => {
@@ -821,7 +821,8 @@ export function DashboardClient({
 
   const handleUpdateProduct = (
     updatedProduct: DashboardProduct,
-    updatedSupplier?: DashboardSupplier
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
   ) => {
     setProducts((prev) =>
       prev.map((p) => (String(p.id) === String(updatedProduct.id) ? updatedProduct : p))
@@ -830,6 +831,9 @@ export function DashboardClient({
       setSuppliers((prev) =>
         prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
       );
+    }
+    if (refundAmount && refundAmount > 0) {
+      setTodayIncome((prev) => prev + refundAmount);
     }
     router.refresh();
   };

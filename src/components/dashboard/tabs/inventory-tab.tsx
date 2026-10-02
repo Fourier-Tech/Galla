@@ -42,7 +42,8 @@ interface InventoryTabProps {
   onAddProduct?: (newProduct: DashboardProduct) => void;
   onUpdateProduct?: (
     updatedProduct: DashboardProduct,
-    updatedSupplier?: DashboardSupplier
+    updatedSupplier?: DashboardSupplier,
+    refundAmount?: number
   ) => void;
   onDeleteProduct?: (productId: string | number) => void;
 }
@@ -807,8 +808,8 @@ export function InventoryTab({
         product={settleTargetProduct}
         isOpen={Boolean(settleTargetProduct)}
         onClose={() => setSettleTargetProduct(null)}
-        onSuccess={(updatedProduct, updatedSupplier) => {
-          onUpdateProduct?.(updatedProduct, updatedSupplier);
+        onSuccess={(updatedProduct, updatedSupplier, refundAmount) => {
+          onUpdateProduct?.(updatedProduct, updatedSupplier, refundAmount);
           setSettleTargetProduct(null);
         }}
       />
