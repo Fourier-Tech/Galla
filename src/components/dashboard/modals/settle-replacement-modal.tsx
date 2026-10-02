@@ -233,6 +233,7 @@ export function SettleReplacementModal({
             <div className="relative flex items-center">
               <input
                 type="number"
+                autoFocus
                 min="1"
                 max={maxDefective}
                 value={quantity}

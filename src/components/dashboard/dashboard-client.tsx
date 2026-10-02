@@ -35,7 +35,7 @@ import { RoleKeypadModal } from "@/components/auth/role-keypad-modal";
 import { ChangePinModal } from "@/components/dashboard/modals/change-pin-modal";
 import { lockRoleSessionAction } from "@/app/actions/auth-actions";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, getPhoneDigits, BillStatusKey } from "@/lib/utils";
+import { formatPhoneNumber, getPhoneDigits, BillStatusKey, formatDisplayNumber } from "@/lib/utils";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
 
 interface DashboardClientProps {
@@ -666,16 +666,39 @@ export function DashboardClient({
   const handleRefundSuccess = (
     updatedOrder: DashboardOrder,
     newExpense?: DashboardExpense,
-    updatedProducts?: DashboardProduct[]
+    updatedProducts?: DashboardProduct[],
+    linkedOrders?: DashboardOrder[]
   ) => {
+    const linkedIds = new Set(
+      (linkedOrders || []).flatMap((lo) => [lo.id, formatDisplayNumber(lo.id)].filter(Boolean))
+    );
+    const linkedMap = new Map<string, DashboardOrder>();
+    for (const lo of (linkedOrders || [])) {
+      if (lo.id) {
+        linkedMap.set(lo.id, lo);
+        const disp = formatDisplayNumber(lo.id);
+        if (disp) linkedMap.set(disp, lo);
+      }
+    }
+
     setOrders((prev) =>
-      prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
+      prev.map((o) => {
+        if (o.id === updatedOrder.id) {
+          return { ...o, ...updatedOrder };
+        }
+        if (linkedIds.has(o.id) || linkedIds.has(formatDisplayNumber(o.id))) {
+          const match = linkedMap.get(o.id) || linkedMap.get(formatDisplayNumber(o.id));
+          return match ? { ...o, ...match } : o;
+        }
+        return o;
+      })
     );
     setOrderStatusCounts((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        cancelled_refunded: (prev.cancelled_refunded || 0) + 1,
+        cancelled_refunded: (prev.cancelled_refunded || 0) + 1 + (linkedOrders?.length || 0),
+        replacement: Math.max(0, (prev.replacement || 0) - (linkedOrders?.length || 0)),
       };
     });
     if (updatedProducts && updatedProducts.length > 0) {

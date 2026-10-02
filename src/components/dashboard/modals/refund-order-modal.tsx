@@ -21,7 +21,8 @@ interface RefundOrderModalProps {
   onRefundSuccess: (
     updatedOrder: DashboardOrder,
     newExpense?: DashboardExpense,
-    updatedProducts?: DashboardProduct[]
+    updatedProducts?: DashboardProduct[],
+    linkedOrders?: DashboardOrder[]
   ) => void;
 }
 
@@ -52,7 +53,8 @@ function RefundOrderModalContent({
   onRefundSuccess: (
     updatedOrder: DashboardOrder,
     newExpense?: DashboardExpense,
-    updatedProducts?: DashboardProduct[]
+    updatedProducts?: DashboardProduct[],
+    linkedOrders?: DashboardOrder[]
   ) => void;
 }) {
   const isReplacementOrder =
@@ -135,7 +137,7 @@ function RefundOrderModalContent({
       });
 
       if (res.success && res.order) {
-        onRefundSuccess(res.order, res.newExpense, res.updatedProducts);
+        onRefundSuccess(res.order, res.newExpense, res.updatedProducts, res.linkedOrders);
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to process refund");
@@ -292,6 +294,7 @@ function RefundOrderModalContent({
               </div>
               <input
                 type="text"
+                autoFocus
                 value={refundAmount}
                 onChange={(e) => setRefundAmount(e.target.value.replace(/\D/g, ""))}
                 placeholder={String(remainingRefundable)}

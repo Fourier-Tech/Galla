@@ -16,6 +16,7 @@ import {
   Eye,
   Package,
   Plus,
+  TrendingUp,
 } from "lucide-react";
 import {
   DashboardCustomer,
@@ -579,6 +580,16 @@ export function NewOrderModal({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-focus customer name when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        nameInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
   // Close customer suggestions dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -800,6 +811,69 @@ export function NewOrderModal({
     const q = catalogSearch.toLowerCase().trim();
     return liveProducts.filter((p) => (p.name + " " + (p.category || "")).toLowerCase().includes(q));
   }, [liveProducts, catalogSearch]);
+
+  // Identify products with higher margin among old/new batches
+  const higherMarginProductsMap = useMemo(() => {
+    // ponytail: Regex grouping assumes standard salon batch naming conventions (Old/New/Batch #). Upgrade path: explicit parentProductId or productFamilyId field in schema for multi-batch tracking.
+    const groups: Record<string, DashboardProduct[]> = {};
+
+    for (const p of liveProducts) {
+      if (!p.name) continue;
+      const baseName = p.name
+        .replace(/\s*[\(\[](?:old|new)(?:\s+batch)?[\)\]]$/i, "")
+        .replace(/\s*[\(\[]batch[^\)\]]*[\)\]]$/i, "")
+        .replace(/\s*[-–—]\s*(?:old|new)(?:\s+batch)?$/i, "")
+        .trim()
+        .toLowerCase();
+
+      if (!groups[baseName]) {
+        groups[baseName] = [];
+      }
+      groups[baseName].push(p);
+    }
+
+    const resultMap = new Map<string, { isHigher: boolean; margin: number; diff: number }>();
+
+    for (const group of Object.values(groups)) {
+      if (group.length < 2) continue;
+      const hasBatchIndicator = group.some((p) =>
+        /(?:[\(\[]|\b)(?:old|new|batch)(?:[\)\]]|\b)/i.test(p.name)
+      );
+      if (!hasBatchIndicator) continue;
+
+      const variants = group
+        .filter((p) => typeof p.price === "number")
+        .map((p) => {
+          const margin =
+            typeof p.purchaseCost === "number"
+              ? p.price - p.purchaseCost
+              : p.price;
+          return {
+            id: String(p.id),
+            margin,
+          };
+        });
+
+      if (variants.length < 2) continue;
+
+      const margins = variants.map((v) => v.margin);
+      const maxMargin = Math.max(...margins);
+      const minMargin = Math.min(...margins);
+
+      if (maxMargin > minMargin) {
+        const diff = maxMargin - minMargin;
+        for (const v of variants) {
+          if (v.margin === maxMargin) {
+            resultMap.set(v.id, { isHigher: true, margin: v.margin, diff });
+          } else {
+            resultMap.set(v.id, { isHigher: false, margin: v.margin, diff: 0 });
+          }
+        }
+      }
+    }
+
+    return resultMap;
+  }, [liveProducts]);
 
   if (!isOpen) return null;
 
@@ -1236,6 +1310,15 @@ export function NewOrderModal({
                             Package
                           </span>
                         )}
+                        {item.type === "product" && higherMarginProductsMap.get(String(item.id))?.isHigher && (
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded-[4px] shrink-0 shadow-2xs"
+                            title={`Higher profit margin: ${formatRupee(higherMarginProductsMap.get(String(item.id))!.margin)} per unit (+${formatRupee(higherMarginProductsMap.get(String(item.id))!.diff)} vs other batch)`}
+                          >
+                            <TrendingUp className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                            <span>More Margin</span>
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-galla-ink-soft tabular-nums mt-0.5">
                         <span>{formatRupee(item.price)} each</span>
@@ -1473,6 +1556,7 @@ export function NewOrderModal({
                 </label>
                 <input
                   ref={nameInputRef}
+                  autoFocus
                   type="text"
                   value={customer}
                   onChange={(e) => {
@@ -1697,6 +1781,20 @@ export function NewOrderModal({
                               ) : (
                                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 text-emerald-800 border border-emerald-200">
                                   {p.sell} in stock
+                                </span>
+                              )}
+                              {higherMarginProductsMap.get(String(p.id))?.isHigher && (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-[4px] bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs"
+                                  title={`Higher profit margin: ${formatRupee(higherMarginProductsMap.get(String(p.id))!.margin)} per unit (+${formatRupee(higherMarginProductsMap.get(String(p.id))!.diff)} vs other batch)`}
+                                >
+                                  <TrendingUp className="h-3 w-3 text-emerald-600 shrink-0" />
+                                  <span>
+                                    More Margin
+                                    {higherMarginProductsMap.get(String(p.id))!.diff > 0
+                                      ? ` (+${formatRupee(higherMarginProductsMap.get(String(p.id))!.diff)})`
+                                      : ""}
+                                  </span>
                                 </span>
                               )}
                             </div>

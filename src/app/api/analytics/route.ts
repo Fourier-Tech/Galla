@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Types } from "mongoose";
 import { auth } from "@/auth";
+import { getRoleSession } from "@/lib/auth/role-session";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
@@ -129,8 +130,11 @@ export async function GET(request: Request) {
       );
     }
 
-    // Strict Owner Privacy Boundary
-    if (session.user.role !== "owner") {
+    // Strict Owner Privacy Boundary: check counter role session cookie first, falling back to session user role
+    const roleSession = await getRoleSession();
+    const effectiveRole = roleSession?.role || session.user.role || "owner";
+
+    if (effectiveRole !== "owner") {
       return NextResponse.json(
         {
           success: false,

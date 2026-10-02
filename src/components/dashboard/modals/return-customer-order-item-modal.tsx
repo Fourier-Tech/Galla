@@ -614,6 +614,7 @@ export function ReturnCustomerOrderItemModal({
                     <div className="relative flex items-center">
                       <input
                         type="number"
+                        autoFocus
                         min="1"
                         max={availableToReturn}
                         value={quantity}

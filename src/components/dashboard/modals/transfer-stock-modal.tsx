@@ -681,6 +681,7 @@ function TransferStockModalContent({
                 <div className="relative flex items-center">
                   <input
                     type="number"
+                    autoFocus
                     min="1"
                     max={Math.max(1, maxAvailable)}
                     step="1"

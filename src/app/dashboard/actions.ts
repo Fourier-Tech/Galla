@@ -1753,6 +1753,7 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
 export async function refundOrderAction(rawInput: unknown): Promise<{
   success: boolean;
   order?: DashboardOrder;
+  linkedOrders?: DashboardOrder[];
   newExpense?: DashboardExpense;
   updatedProducts?: DashboardProduct[];
   error?: string;
@@ -1950,7 +1951,9 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 
     await order.save();
 
-    // Auto-cancel any linked pending customer replacements and replacement orders
+    const updatedLinkedOrders: DashboardOrder[] = [];
+
+    // Auto-cancel and refund any linked customer replacements and replacement orders
     try {
       const orderNumDisplay = formatDisplayNumber(order.orderNumber);
       const linkedCRs = await CustomerReplacement.find({
@@ -1968,16 +1971,89 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         await cr.save();
       }
 
-      const linkedPendingOrders = await Order.find({
+      // Extract any replacement order numbers mentioned in original order notes (e.g. "[Replacement Order #P-2610-0013 Handed]")
+      const repOrderNumsFromNotes = (order.notes || "").match(/\[Replacement Order #(P-[\w-]+)/gi)
+        ?.map((m: string) => m.replace(/\[Replacement Order #/i, "").trim()) || [];
+      const crOrderIds = linkedCRs.map((cr) => cr.orderId).filter(Boolean);
+
+      const linkedReplacementOrders = await Order.find({
         tenantId,
-        status: { $in: ["replacement_pending", "replacement"] },
-        notes: new RegExp(orderNumDisplay, "i"),
+        _id: { $ne: order._id },
+        status: { $in: ["replacement_pending", "replacement", "replacement_completed"] },
+        $or: [
+          { notes: new RegExp(orderNumDisplay, "i") },
+          { notes: new RegExp(order.orderNumber, "i") },
+          ...(repOrderNumsFromNotes.length > 0 ? [
+            { orderNumber: { $in: repOrderNumsFromNotes.map((n: string) => new RegExp(n, "i")) } }
+          ] : []),
+          ...(crOrderIds.length > 0 ? [{ _id: { $in: crOrderIds } }] : []),
+        ],
       });
-      for (const repOrder of linkedPendingOrders) {
+
+      for (const repOrder of linkedReplacementOrders) {
         repOrder.status = "cancelled_refunded";
         const cancelNote = `[Auto-Cancelled] Original Order #${orderNumDisplay} was refunded.`;
         repOrder.notes = repOrder.notes ? `${repOrder.notes}\n${cancelNote}` : cancelNote;
+        repOrder.refundDetails = {
+          refundAmount: 0,
+          refundMode: refundMode,
+          refundReason: `Auto-refunded: Original Order #${orderNumDisplay} was refunded.`,
+          refundedAt: new Date(),
+          refundedBy: session.user.role === "staff" ? "staff" : "owner",
+        };
+        if (repOrder.lineItems) {
+          repOrder.lineItems.forEach((li: any) => {
+            li.returnedQuantity = li.quantity;
+            li.returnCondition = "restocked";
+          });
+          repOrder.markModified("lineItems");
+        }
+        repOrder.markModified("refundDetails");
+        repOrder.markModified("notes");
         await repOrder.save();
+
+        const mappedRepType = mapOrderType(repOrder.orderType);
+        updatedLinkedOrders.push({
+          id: repOrder.orderNumber,
+          customer: repOrder.customerSnapshot?.name || (repOrder as any).customer || "Walk-in Customer",
+          customerPhone: repOrder.customerSnapshot?.phone || (repOrder as any).customerPhone,
+          type: mappedRepType,
+          time: formatOrderTime(repOrder.createdAt),
+          lastUpdatedTime: "Today, Just now",
+          amount: repOrder.totalAmount,
+          paid: repOrder.amountPaid,
+          todayPaid: 0,
+          paymentMode: repOrder.paymentMode,
+          status: "cancelled_refunded",
+          lineItems: resolveOrderLineItems(repOrder.lineItems, repOrder.returns),
+          notes: repOrder.notes,
+          refundAmount: 0,
+          refundMode: refundMode,
+          refundReason: repOrder.refundDetails?.refundReason,
+          isToday: checkIsToday(repOrder.createdAt),
+          isLast24Hours: true,
+          createdAt: repOrder.createdAt ? new Date(repOrder.createdAt).toISOString() : new Date().toISOString(),
+          refundedAt: new Date().toISOString(),
+          latestActivityAt: new Date().toISOString(),
+        });
+      }
+
+      // If the refunded order was itself a replacement order, add a note to the original order
+      const origMatch = (order.notes || "").match(/\(Original Order #(P-[\w-]+)\)/i);
+      if (origMatch && origMatch[1]) {
+        const origDisplayNum = origMatch[1];
+        const origOrder = await Order.findOne({
+          tenantId,
+          orderNumber: new RegExp(origDisplayNum + "$", "i"),
+        });
+        if (origOrder) {
+          const noteText = `[Replacement Order #${orderNumDisplay} Refunded]`;
+          if (!origOrder.notes?.includes(noteText)) {
+            origOrder.notes = origOrder.notes ? `${origOrder.notes}\n${noteText}` : noteText;
+            origOrder.markModified("notes");
+            await origOrder.save();
+          }
+        }
       }
     } catch (cancelErr) {
       console.error("[AutoCancelReplacements Error]:", cancelErr);
@@ -2023,6 +2099,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     const result: {
       success: boolean;
       order: DashboardOrder;
+      linkedOrders?: DashboardOrder[];
       newExpense?: DashboardExpense;
       updatedProducts?: DashboardProduct[];
     } = {
@@ -2107,6 +2184,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
           returnedAt: ret.returnedAt ? new Date(ret.returnedAt).toISOString() : new Date().toISOString(),
         })),
       },
+      linkedOrders: updatedLinkedOrders.length > 0 ? updatedLinkedOrders : undefined,
     };
 
     if (newExpense) {

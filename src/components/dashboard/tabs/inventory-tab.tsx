@@ -609,10 +609,10 @@ export function InventoryTab({
                           {higherProfitProductIds.has(String(product.id)) && (
                             <span
                               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs"
-                              title="This product variant yields higher profit for the salon"
+                              title="This product variant yields higher margin for the salon"
                             >
                               <TrendingUp className="h-3 w-3 text-emerald-600 shrink-0" />
-                              <span>More Profit &bull; Best to Sell</span>
+                              <span>More Margin &bull; Best to Sell</span>
                             </span>
                           )}
                         </div>

@@ -214,6 +214,7 @@ function ChangeReplacementDateModalContent({
               </label>
               <input
                 type="date"
+                autoFocus
                 min={getLocalDateString()}
                 value={newDate}
                 onChange={(e) => setNewDate(e.target.value)}
