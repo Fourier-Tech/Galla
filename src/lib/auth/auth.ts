@@ -144,7 +144,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.tenantId = token.tenantId as string;
         session.user.email = token.email as string;
         session.user.shopLoginAt = token.shopLoginAt as number;
-        session.user.role = (token.role as "owner" | "staff") || undefined;
       }
       return session;
     },

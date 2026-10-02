@@ -5,7 +5,6 @@ declare module "next-auth" {
   interface User {
     id?: string;
     tenantId?: string;
-    role?: "owner" | "staff";
     activeSessionId?: string | null;
     codeType?: "current" | "grace";
     graceExpiresAt?: string | null;
@@ -15,7 +14,6 @@ declare module "next-auth" {
     user: {
       id?: string;
       tenantId?: string;
-      role?: "owner" | "staff";
       shopLoginAt?: number;
       activeSessionId?: string | null;
       codeType?: "current" | "grace";
@@ -28,7 +26,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     tenantId?: string;
-    role?: "owner" | "staff";
     shopLoginAt?: number;
     activeSessionId?: string | null;
     codeType?: "current" | "grace";

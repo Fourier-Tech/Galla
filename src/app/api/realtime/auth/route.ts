@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getPusherServer } from "@/lib/realtime/pusher-server";
+import { getRoleSession } from "@/lib/auth/role-session";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -33,10 +34,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const roleSession = await getRoleSession();
+
     const authResponse = pusher.authorizeChannel(socketId, channelName, {
       user_id: session.user.id || session.user.tenantId,
       user_info: {
-        role: session.user.role,
+        role: roleSession.role,
         tenantId: session.user.tenantId,
       },
     });

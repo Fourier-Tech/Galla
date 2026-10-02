@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ClientSession, Types } from "mongoose";
 import { auth } from "@/auth";
+import { getRoleSession } from "@/lib/auth/role-session";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
@@ -669,6 +670,8 @@ export async function createOrderAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -973,7 +976,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                     mode: input.paymentMode || "cash",
                     recordedAt: new Date(),
                     recordedBy:
-                      session.user.role === "staff" ? "staff" : "owner",
+                      userRole === "staff" ? "staff" : "owner",
                     type:
                       orderInitialStatus === "advance_paid" ||
                         isAdvancePreOrder
@@ -984,7 +987,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                   },
                 ]
                 : [],
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
           },
         ],
         { session: dbSession },
@@ -1041,7 +1044,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
               amount: remainingToSettle,
               mode: input.paymentMode || "cash",
               recordedAt: new Date(),
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              recordedBy: userRole === "staff" ? "staff" : "owner",
               type: "settlement",
             });
             prevOrder.notes = prevOrder.notes
@@ -1291,6 +1294,8 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -1410,7 +1415,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         amount: amountToCollect,
         mode: paymentMode,
         recordedAt: new Date(),
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        recordedBy: userRole === "staff" ? "staff" : "owner",
         type: "settlement",
       });
       order.paymentMode = paymentMode;
@@ -1659,6 +1664,8 @@ export async function rescheduleOrderAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -1760,6 +1767,8 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -1813,7 +1822,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       refundMode,
       refundReason: refundReason?.trim() || undefined,
       refundedAt: new Date(),
-      refundedBy: session.user.role === "staff" ? "staff" : "owner",
+      refundedBy: userRole === "staff" ? "staff" : "owner",
     };
 
     const totalPaid = (order.payments || [])
@@ -1851,7 +1860,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         notes:
           refundReason || `Refund processed for order ${formatDisplayNumber(order.orderNumber)}`,
         expenseDate: new Date(),
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        recordedBy: userRole === "staff" ? "staff" : "owner",
         isSameDay,
       });
 
@@ -1864,7 +1873,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
         time: "Today, Just now",
         isToday: true,
         paymentMode: refundMode,
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        recordedBy: userRole === "staff" ? "staff" : "owner",
         linkedOrderId: order._id.toString(),
         createdAt: expenseDoc.expenseDate
           ? new Date(expenseDoc.expenseDate).toISOString()
@@ -1924,7 +1933,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
               restockLocation: "sellStock",
               isSameDayReturn: isSameDay,
               notes: refundReason || "Full order refund restock",
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              recordedBy: userRole === "staff" ? "staff" : "owner",
               returnedAt: new Date(),
             });
           }
@@ -1937,7 +1946,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
       amount: -refundAmount,
       mode: refundMode as any,
       notes: `Order refund: ${refundReason || "Full refund & items restocked"}`,
-      recordedBy: session.user.role === "staff" ? "staff" : "owner",
+      recordedBy: userRole === "staff" ? "staff" : "owner",
       type: "refund",
       recordedAt: new Date(),
     });
@@ -1999,7 +2008,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
           refundMode: refundMode,
           refundReason: `Auto-refunded: Original Order #${orderNumDisplay} was refunded.`,
           refundedAt: new Date(),
-          refundedBy: session.user.role === "staff" ? "staff" : "owner",
+          refundedBy: userRole === "staff" ? "staff" : "owner",
         };
         if (repOrder.lineItems) {
           repOrder.lineItems.forEach((li: any) => {
@@ -2209,6 +2218,8 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -2251,7 +2262,7 @@ export async function createExpenseAction(rawInput: unknown): Promise<{
       paymentMode: input.paymentMode || "cash",
       notes: input.notes?.trim() || undefined,
       expenseDate,
-      recordedBy: session.user.role === "staff" ? "staff" : "owner",
+      recordedBy: userRole === "staff" ? "staff" : "owner",
     });
 
     revalidatePath("/dashboard");
@@ -2290,6 +2301,8 @@ export async function transferStockAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -2380,6 +2393,8 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -2446,7 +2461,7 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
                 ? `${notes.trim()} (Deducted ${quantity} pcs from salon use. Purchase price ₹${unitCost}/pc)`
                 : `Deducted ${quantity} pcs from salon internal use (${reasonLabel}). Expense calculated using purchase price (₹${unitCost}/pc).`,
               expenseDate: new Date(),
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              recordedBy: userRole === "staff" ? "staff" : "owner",
             },
           ],
           { session: dbSession },
@@ -2504,6 +2519,8 @@ export async function createProductAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -2613,6 +2630,8 @@ export async function updateProductAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -2733,6 +2752,8 @@ export async function returnInventoryToSupplierAction(
 ): Promise<{ success: boolean; error?: string; updatedSupplier?: DashboardSupplier; updatedPO?: DashboardPurchaseOrder; refundAmount?: number }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
@@ -2815,7 +2836,7 @@ export async function returnInventoryToSupplierAction(
         effectiveQty,
         isReplacement ? "replacement_pending" : "reduce_due",
         combinedNote || undefined,
-        session.user.role || "owner",
+        userRole || "owner",
         dbSession,
         product.name,
         effectiveStockType,
@@ -2879,6 +2900,8 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -2976,6 +2999,8 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -3500,7 +3525,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                         : effectivePaymentMode,
                     notes: input.notes || undefined,
                     recordedBy:
-                      session.user.role === "staff" ? "staff" : "owner",
+                      userRole === "staff" ? "staff" : "owner",
                     type:
                       finalAmountPaid >= totalAmount
                         ? "full_payment"
@@ -3526,7 +3551,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               : new Date(),
             dealerInvoiceNumber: input.dealerInvoiceNumber || undefined,
             notes: input.notes || undefined,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
           },
         ],
         { session: dbSession },
@@ -3559,7 +3584,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               expenseDate: input.invoiceDate
                 ? new Date(input.invoiceDate)
                 : new Date(),
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              recordedBy: userRole === "staff" ? "staff" : "owner",
             },
           ],
           { session: dbSession },
@@ -3757,6 +3782,8 @@ export async function recordPurchaseOrderPaymentAction(
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -3840,7 +3867,7 @@ export async function recordPurchaseOrderPaymentAction(
           amount: input.amount,
           paymentMode: input.paymentMode,
           notes: input.notes?.trim() || undefined,
-          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          recordedBy: userRole === "staff" ? "staff" : "owner",
           type: "settlement",
           recordedAt: new Date(),
         });
@@ -3850,7 +3877,7 @@ export async function recordPurchaseOrderPaymentAction(
           amount: 0,
           paymentMode: input.paymentMode,
           notes: `Settled: ${input.notes.trim()}`,
-          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          recordedBy: userRole === "staff" ? "staff" : "owner",
           type: "settlement",
           recordedAt: new Date(),
         });
@@ -3955,7 +3982,7 @@ export async function recordPurchaseOrderPaymentAction(
               linkedPurchaseOrderId: po._id,
               expenseDate: new Date(),
               notes: input.notes?.trim() || undefined,
-              recordedBy: session.user.role === "staff" ? "staff" : "owner",
+              recordedBy: userRole === "staff" ? "staff" : "owner",
             },
           ],
           { session: dbSession },
@@ -4083,6 +4110,8 @@ export async function reschedulePurchaseOrderAction(
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -4175,6 +4204,8 @@ export async function getPurchaseOrdersAction(options?: {
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return {
         success: false,
@@ -4460,6 +4491,8 @@ export async function getSuppliersAction(): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, suppliers: [], error: "Unauthorized session" };
     }
@@ -4510,11 +4543,13 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
 
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only the shop owner can edit the salon profile",
@@ -4593,6 +4628,8 @@ export async function uploadSalonProfileImageAction(
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -4665,10 +4702,12 @@ export async function createServiceAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -4738,10 +4777,12 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -4839,10 +4880,12 @@ export async function toggleServiceStatusAction(serviceId: string): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -4882,10 +4925,12 @@ export async function deleteServiceAction(serviceId: string): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -4926,10 +4971,12 @@ export async function createPackageAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -5002,10 +5049,12 @@ export async function updatePackageAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -5105,10 +5154,12 @@ export async function togglePackageStatusAction(packageId: string): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -5148,10 +5199,12 @@ export async function deletePackageAction(packageId: string): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (session.user.role !== "owner") {
+    if (userRole !== "owner") {
       return {
         success: false,
         error: "Only salon owners can manage services and packages",
@@ -5192,6 +5245,8 @@ export async function getLiveProductsAction(): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -5244,6 +5299,8 @@ export async function getCustomerOrdersAction(input: {
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -5445,6 +5502,8 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -5604,6 +5663,8 @@ export async function updateSupplierAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -5708,6 +5769,8 @@ export async function updateCustomerAction(rawInput: unknown): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
@@ -5851,6 +5914,8 @@ export async function getPurchaseOrderByIdAction(idOrNumber: string): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user)
       return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
@@ -5969,6 +6034,8 @@ export async function getOrderByIdAction(idOrNumber: string): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user)
       return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
@@ -6279,6 +6346,8 @@ export async function returnPurchaseOrderItemAction(
 ): Promise<{ success: boolean; error?: string; expenseId?: string }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user)
       return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
@@ -6382,7 +6451,7 @@ export async function returnPurchaseOrderItemAction(
             amount: -amountDeductedFromDue,
             paymentMode: "reduce_due",
             notes: notes || undefined,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "return_due_deduction",
             recordedAt: new Date(),
           });
@@ -6392,7 +6461,7 @@ export async function returnPurchaseOrderItemAction(
             amount: -creditAmount,
             paymentMode: "reduce_due",
             notes: `[Supplier Credit] ₹${creditAmount} credited to supplier balance (${quantityToReturn}x ${product.name}${notes ? ` - ${notes}` : ""})`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "supplier_credit",
             recordedAt: new Date(),
           });
@@ -6435,7 +6504,7 @@ export async function returnPurchaseOrderItemAction(
         notes: creditAmount > 0
           ? `[Supplier Credit ₹${creditAmount}] ${notes || ""}`.trim()
           : notes || undefined,
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        recordedBy: userRole === "staff" ? "staff" : "owner",
         returnedAt: new Date(),
       });
 
@@ -6494,6 +6563,8 @@ export async function returnCustomerOrderItemAction(
 ): Promise<{ success: boolean; customerReplacementId?: string; error?: string }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user)
       return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
@@ -6630,7 +6701,7 @@ export async function returnCustomerOrderItemAction(
                 linkedOrderId: order._id,
                 recipient: order.customerSnapshot?.name || undefined,
                 notes: `Refunded customer for returned product. ${restockNote} ${notes || ""}`.trim(),
-                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                recordedBy: userRole === "staff" ? "staff" : "owner",
                 expenseDate: new Date(),
                 isSameDay,
               },
@@ -6642,7 +6713,7 @@ export async function returnCustomerOrderItemAction(
             amount: -actualCashRefund,
             mode: actualMode as any,
             notes: `Return refund: ${quantityToReturn}x ${item.name}`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "refund",
             recordedAt: new Date(),
           });
@@ -6751,7 +6822,7 @@ export async function returnCustomerOrderItemAction(
             amount: priceDiff,
             mode: payMode,
             notes: `Replacement price difference (${targetReplacementProduct?.name || item.name} @ ₹${targetReplacementProduct?.expectedSellPrice || 0} vs ${item.name} @ ₹${unitFinalPrice})`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "settlement",
             recordedAt: new Date(),
           });
@@ -6765,7 +6836,7 @@ export async function returnCustomerOrderItemAction(
             amount: -refundDiff,
             mode: payMode,
             notes: `Replacement price difference refund (${targetReplacementProduct?.name || item.name} vs ${item.name})`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "refund",
             recordedAt: new Date(),
           });
@@ -6832,7 +6903,7 @@ export async function returnCustomerOrderItemAction(
                 payments: [],
                 scheduledFor: expectedDate,
                 notes: `Replacement order for ${pendingQty}x ${replacementProductName} (Original Order #${formatDisplayNumber(order.orderNumber)}).${notes ? ` ${notes}` : ""}`,
-                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                recordedBy: userRole === "staff" ? "staff" : "owner",
               },
             ],
             { session: dbSession }
@@ -6858,7 +6929,7 @@ export async function returnCustomerOrderItemAction(
                 expectedDate,
                 status: "pending_dealer",
                 notes: notes?.trim() || undefined,
-                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                recordedBy: userRole === "staff" ? "staff" : "owner",
               },
             ],
             { session: dbSession }
@@ -6910,7 +6981,7 @@ export async function returnCustomerOrderItemAction(
                 paymentMode: order.paymentMode || "cash",
                 payments: [],
                 notes: `Immediate replacement for ${quantityToReturn}x ${replacementProductName} handed from ${options?.replaceFromUseStock ? "salon use-stock" : "shelf stock"} (Original Order #${formatDisplayNumber(order.orderNumber)}).${priceDiff !== 0 ? ` Price difference: ${priceDiff > 0 ? `+₹${priceDiff} paid` : `-₹${Math.abs(priceDiff)} refunded`}.` : ""}${notes ? ` ${notes}` : ""}`,
-                recordedBy: session.user.role === "staff" ? "staff" : "owner",
+                recordedBy: userRole === "staff" ? "staff" : "owner",
                 completedAt: new Date(),
               },
             ],
@@ -6948,7 +7019,7 @@ export async function returnCustomerOrderItemAction(
           quantityToReturn,
           supplierReturnDetails.refundMode,
           notes,
-          session.user.role || "owner",
+          userRole || "owner",
           dbSession,
           product.name
         );
@@ -7016,7 +7087,7 @@ export async function returnCustomerOrderItemAction(
         restockLocation: returnCondition === "restocked" ? (options?.restockLocation || "sellStock") : undefined,
         isSameDayReturn: isSameDay,
         notes: notes?.trim() || undefined,
-        recordedBy: session.user.role === "staff" ? "staff" : "owner",
+        recordedBy: userRole === "staff" ? "staff" : "owner",
         returnedAt: new Date(),
       });
 
@@ -7051,6 +7122,8 @@ export async function getPurchaseOrdersForProductAction(
 ) {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "No tenant" };
@@ -7135,6 +7208,8 @@ export async function settleSupplierReplacementAction(
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
@@ -7205,7 +7280,7 @@ export async function settleSupplierReplacementAction(
           replacementStatus: "fulfilled",
           amountDeductedFromDue: 0,
           notes: options.notes || `[Stock Replaced] Received ${quantity}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock`,
-          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          recordedBy: userRole === "staff" ? "staff" : "owner",
           returnedAt: new Date(),
         });
 
@@ -7294,7 +7369,7 @@ export async function settleSupplierReplacementAction(
             amount: -amountDeductedFromDue,
             paymentMode: "reduce_due",
             notes: options?.notes || `[Defective Credit Settle] Deducted ₹${amountDeductedFromDue} from due for ${quantity}x ${product.name}`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "return_due_deduction",
             recordedAt: new Date(),
           });
@@ -7304,7 +7379,7 @@ export async function settleSupplierReplacementAction(
             amount: -creditAmount,
             paymentMode: "reduce_due",
             notes: `[Supplier Credit] ₹${creditAmount} credited to supplier balance (${quantity}x ${product.name}${options?.notes ? ` - ${options.notes}` : ""})`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "supplier_credit",
             recordedAt: new Date(),
           });
@@ -7314,7 +7389,7 @@ export async function settleSupplierReplacementAction(
             amount: -cashRefundReceived,
             paymentMode: chosenMode as any,
             notes: options?.notes || `[Supplier Refund Received] ₹${cashRefundReceived} received via ${chosenMode.toUpperCase()} (${quantity}x ${product.name})`,
-            recordedBy: session.user.role === "staff" ? "staff" : "owner",
+            recordedBy: userRole === "staff" ? "staff" : "owner",
             type: "refund",
             recordedAt: new Date(),
           });
@@ -7346,7 +7421,7 @@ export async function settleSupplierReplacementAction(
             .filter(Boolean)
             .join(". ")
             .trim() || undefined,
-          recordedBy: session.user.role === "staff" ? "staff" : "owner",
+          recordedBy: userRole === "staff" ? "staff" : "owner",
           returnedAt: new Date(),
         });
 
@@ -7443,6 +7518,8 @@ export async function updateCustomerReplacementDateAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
@@ -7473,6 +7550,8 @@ export async function markCustomerReplacementCollectedAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
@@ -7552,6 +7631,8 @@ export async function getPendingCustomerReplacementsAction(): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized session" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
@@ -7609,6 +7690,8 @@ export async function getSupplierPendingReplacementsAction(
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "No tenant" };
@@ -7669,6 +7752,8 @@ export async function getProductByIdAction(productId: string): Promise<{
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized" };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "No tenant" };
@@ -7709,6 +7794,8 @@ export async function getProductBatchesForReturnAction(
 }> {
   try {
     const session = await auth();
+    const roleSession = await getRoleSession();
+    const userRole = roleSession.role;
     if (!session?.user) return { success: false, error: "Unauthorized", batches: [] };
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "No tenant", batches: [] };
