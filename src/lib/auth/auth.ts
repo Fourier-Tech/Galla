@@ -68,9 +68,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           await connectToDatabase();
 
-          const rawUser = await User.collection.findOne({
-            ownerEmail: email.toLowerCase().trim(),
-          });
+          const rawUser = await User.collection.findOne(
+            { ownerEmail: email.toLowerCase().trim() },
+            { projection: { ownerEmail: 1, passwordHash: 1, tenantId: 1 } }
+          );
 
           if (!rawUser) {
             recordFailedEmailLogin(rawIp);
@@ -119,46 +120,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.tenantId = user.tenantId;
         token.email = user.email;
         token.sessionCreatedAt = Date.now();
+        token.lastActive = Date.now();
         return token;
       }
 
-      // Check 7-day inactivity rule
-      if (token.id) {
-        try {
-          await connectToDatabase();
-          const dbUser = await User.collection.findOne(
-            { _id: new Types.ObjectId(token.id as string) },
-            {
-              projection: {
-                lastRoleLoginAt: 1,
-                updatedAt: 1,
-                createdAt: 1,
-              },
-            }
-          );
+      // Check 7-day inactivity rule directly in token (zero DB roundtrips)
+      const now = Date.now();
+      const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+      const lastActive = (token.lastActive as number) || (token.sessionCreatedAt as number) || now;
 
-          if (!dbUser) {
-            return null;
-          }
-
-          const lastActivityDate = dbUser.lastRoleLoginAt
-            ? new Date(dbUser.lastRoleLoginAt).getTime()
-            : dbUser.updatedAt
-            ? new Date(dbUser.updatedAt).getTime()
-            : dbUser.createdAt
-            ? new Date(dbUser.createdAt).getTime()
-            : Date.now();
-
-          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-          if (Date.now() - lastActivityDate > SEVEN_DAYS_MS) {
-            console.warn("[Auth] Session invalidated: 7 days of inactivity exceeded");
-            return null;
-          }
-        } catch (e) {
-          console.error("[Auth] Inactivity check error:", e);
-        }
+      if (now - lastActive > SEVEN_DAYS_MS) {
+        console.warn("[Auth] Session invalidated: 7 days of inactivity exceeded");
+        return null;
       }
 
+      token.lastActive = now;
       return token;
     },
     async session({ session, token }) {

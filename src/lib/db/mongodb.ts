@@ -1,13 +1,5 @@
 import mongoose from "mongoose";
-import dns from "node:dns";
 
-// Fix for Node.js SRV lookup failures (querySrv ECONNREFUSED) on ISPs/networks (e.g. Jio/Reliance)
-// where local router DNS fails to resolve MongoDB Atlas SRV records.
-try {
-  dns.setServers(["8.8.8.8", "1.1.1.1"]);
-} catch {
-  // Ignore in environments where custom DNS servers are restricted
-}
 
 declare global {
   var mongooseCache: {
@@ -53,7 +45,22 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
 
   try {
     cached.conn = await cached.promise;
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.includes("querySrv") || error?.code === "ECONNREFUSED") {
+      try {
+        const dns = await import("node:dns");
+        dns.setServers(["8.8.8.8", "1.1.1.1"]);
+        const opts: mongoose.ConnectOptions = {
+          bufferCommands: false,
+          dbName: "galla",
+        };
+        cached.promise = mongoose.connect(uri, opts);
+        cached.conn = await cached.promise;
+        return cached.conn;
+      } catch {
+        // Fallback failed, continue to rethrow original error
+      }
+    }
     cached.promise = null;
     throw error;
   }

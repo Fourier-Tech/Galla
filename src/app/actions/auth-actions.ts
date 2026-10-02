@@ -80,22 +80,26 @@ export async function verifyRolePinAction(rawPin: unknown): Promise<{
     }
 
     await connectToDatabase();
-    const user = await User.findById(session.user.id);
+    const user = await User.findById(session.user.id)
+      .select("ownerPinHash staffPinHash tenantId")
+      .lean();
     if (!user) {
       return { success: false, error: "Salon account not found." };
     }
 
     const pin = parsed.data.pin;
-    let resolvedRole: "owner" | "staff" | null = null;
 
-    // Check Owner PIN (bcrypt from DB)
-    if (user.ownerPinHash && (await bcrypt.compare(pin, user.ownerPinHash))) {
-      resolvedRole = "owner";
-    }
-    // Check Staff PIN (bcrypt from DB)
-    else if (user.staffPinHash && (await bcrypt.compare(pin, user.staffPinHash))) {
-      resolvedRole = "staff";
-    }
+    // Check Owner PIN and Staff PIN concurrently
+    const [isOwner, isStaff] = await Promise.all([
+      user.ownerPinHash ? bcrypt.compare(pin, user.ownerPinHash) : false,
+      user.staffPinHash ? bcrypt.compare(pin, user.staffPinHash) : false,
+    ]);
+
+    const resolvedRole: "owner" | "staff" | null = isOwner
+      ? "owner"
+      : isStaff
+      ? "staff"
+      : null;
 
     if (!resolvedRole) {
       const fail = recordFailedRolePin(ip);
@@ -120,25 +124,28 @@ export async function verifyRolePinAction(rawPin: unknown): Promise<{
         ? { ownerActiveSessionId: activeSessionId, lastRoleLoginAt: new Date() }
         : { staffActiveSessionId: activeSessionId, lastRoleLoginAt: new Date() };
 
-    await User.updateOne({ _id: user._id }, { $set: updateField });
+    // Parallelize DB update and cookie setting
+    await Promise.all([
+      User.updateOne({ _id: user._id }, { $set: updateField }),
+      setRoleSessionCookie({
+        tenantId: user.tenantId.toString(),
+        userId: user._id.toString(),
+        role: resolvedRole,
+        activeSessionId,
+      }),
+    ]);
 
-    // Set ephemeral browser session cookie
-    await setRoleSessionCookie({
-      tenantId: user.tenantId.toString(),
-      userId: user._id.toString(),
-      role: resolvedRole,
-      activeSessionId,
-    });
-
-    // Broadcast instant displacement event to any other device currently open on this role
-    await triggerTenantEvent({
+    // Broadcast instant displacement event to other devices asynchronously without blocking response
+    triggerTenantEvent({
       tenantId: user.tenantId.toString(),
       event: "role_session_displaced",
       data: {
         role: resolvedRole,
         newSessionId: activeSessionId,
       },
-    });
+    }).catch((err) =>
+      console.error("[AuthAction] Pusher eviction broadcast error:", err)
+    );
 
     return { success: true, role: resolvedRole, activeSessionId };
   } catch (error) {

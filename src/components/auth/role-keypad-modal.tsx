@@ -57,9 +57,24 @@ export function RoleKeypadModal({
     return () => clearInterval(interval);
   }, [retryCooldown]);
 
+  const pinRef = React.useRef(pin);
+  useEffect(() => {
+    pinRef.current = pin;
+  }, [pin]);
+
+  const loadingRef = React.useRef(loading);
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  const retryCooldownRef = React.useRef(retryCooldown);
+  useEffect(() => {
+    retryCooldownRef.current = retryCooldown;
+  }, [retryCooldown]);
+
   const handleSubmitPin = useCallback(async (pinToVerify?: string) => {
-    const targetPin = pinToVerify || pin;
-    if (targetPin.length !== 6 || loading || retryCooldown) return;
+    const targetPin = pinToVerify || pinRef.current;
+    if (targetPin.length !== 6 || loadingRef.current || retryCooldownRef.current) return;
     setLoading(true);
     setError(null);
 
@@ -85,36 +100,32 @@ export function RoleKeypadModal({
     } finally {
       setLoading(false);
     }
-  }, [pin, loading, retryCooldown, onRoleVerified]);
+  }, [onRoleVerified]);
 
   const handleDigit = useCallback(
     (digit: string) => {
-      if (retryCooldown || loading) return;
-      if (pin.length < 6) {
-        const nextPin = pin + digit;
-        setPin(nextPin);
-        if (error) setError(null);
-        if (nextPin.length === 6) {
-          handleSubmitPin(nextPin);
-        }
+      if (retryCooldownRef.current || loadingRef.current) return;
+      if (pinRef.current.length < 6) {
+        setPin((prev) => (prev.length < 6 ? prev + digit : prev));
+        setError(null);
       }
     },
-    [pin, retryCooldown, loading, error, handleSubmitPin]
+    []
   );
 
   const handleBackspace = useCallback(() => {
-    if (retryCooldown || loading) return;
+    if (retryCooldownRef.current || loadingRef.current) return;
     setPin((prev) => prev.slice(0, -1));
-    if (error) setError(null);
-  }, [retryCooldown, loading, error]);
+    setError(null);
+  }, []);
 
   const handleClear = useCallback(() => {
-    if (retryCooldown || loading) return;
+    if (retryCooldownRef.current || loadingRef.current) return;
     setPin("");
-    if (error) setError(null);
-  }, [retryCooldown, loading, error]);
+    setError(null);
+  }, []);
 
-  // Physical keyboard listener for digits, backspace, and enter
+  // Physical keyboard listener for digits, backspace, and Enter key
   useEffect(() => {
     if (!isOpen || isForgotMode) return;
 
@@ -125,9 +136,11 @@ export function RoleKeypadModal({
       } else if (e.key === "Backspace") {
         e.preventDefault();
         handleBackspace();
-      } else if (e.key === "Enter" && pin.length === 6) {
+      } else if (e.key === "Enter") {
         e.preventDefault();
-        handleSubmitPin();
+        if (pinRef.current.length === 6 && !loadingRef.current && !retryCooldownRef.current) {
+          handleSubmitPin(pinRef.current);
+        }
       } else if (e.key === "Escape") {
         handleClear();
       }
@@ -135,7 +148,7 @@ export function RoleKeypadModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isForgotMode, handleDigit, handleBackspace, handleClear, handleSubmitPin, pin.length]);
+  }, [isOpen, isForgotMode, handleDigit, handleBackspace, handleClear, handleSubmitPin]);
 
   // Forgot PIN: Step 1 - Request OTP
   const handleRequestOtp = async () => {
@@ -339,7 +352,8 @@ export function RoleKeypadModal({
               ) : (
                 <>
                   <span>Unlock Counter</span>
-                  <ArrowRight className="h-4 w-4" />
+                  <span className="text-[11px] opacity-75 font-normal ml-0.5">(Enter ↵)</span>
+                  <ArrowRight className="h-4 w-4 ml-0.5" />
                 </>
               )}
             </button>
