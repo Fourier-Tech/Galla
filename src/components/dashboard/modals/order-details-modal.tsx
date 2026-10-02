@@ -819,7 +819,7 @@ export function OrderDetailsModal({
                     </div>
 
                     {ret.notes && (
-                      <div className="text-[11.5px] text-galla-ink-soft/80 italic pt-1 border-t border-rose-200/50">
+                      <div className="text-[11.5px] text-galla-ink-soft/80 italic pt-1 border-t border-rose-200/50 whitespace-pre-wrap break-words">
                         &ldquo;{formatNoteDisplay(ret.notes)}&rdquo;
                       </div>
                     )}
@@ -1111,7 +1111,7 @@ export function OrderDetailsModal({
                             </span>
                           </div>
                           {p.notes && (
-                            <div className="px-3 pb-2 pt-0.5 text-[11px] text-galla-ink-soft/80 bg-galla-paper/50">
+                            <div className="px-3 pb-2 pt-0.5 text-[11px] text-galla-ink-soft/80 bg-galla-paper/50 whitespace-pre-wrap break-words">
                               {formatNoteDisplay(p.notes)}
                             </div>
                           )}

@@ -451,7 +451,9 @@ export function formatDisplayNumber(num?: string | null): string {
  * (e.g. "Replacement order for 1x ... (Original Order #0001-P-2610-0006)." -> "... #P-2610-0006).")
  */
 export function formatNoteDisplay(text?: string | null): string {
-  return text ? text.replace(/\b\d{3,6}-([A-Za-z]+-\d{4}-\d{4}(?:-\d+)?)\b/g, "$1") : "";
+  if (!text) return "";
+  const cleaned = text.replace(/\b\d{3,6}-([A-Za-z]+-\d{4}-\d{4}(?:-\d+)?)\b/g, "$1");
+  return cleaned.replace(/([^\n])\s*(\[[A-Z][^\]]+\])/g, "$1\n$2");
 }
 
 

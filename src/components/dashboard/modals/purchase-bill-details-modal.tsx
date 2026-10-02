@@ -954,7 +954,7 @@ export function PurchaseBillDetailsModal({
                       </div>
 
                       {ret.notes && (
-                        <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/60">
+                        <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/60 whitespace-pre-wrap break-words">
                           {formatNoteDisplay(ret.notes)}
                         </div>
                       )}
@@ -974,7 +974,7 @@ export function PurchaseBillDetailsModal({
                   Notes &amp; Terms
                 </h2>
               </div>
-              <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-[6px] text-[12.5px] text-amber-950 leading-relaxed">
+              <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-[6px] text-[12.5px] text-amber-950 leading-relaxed whitespace-pre-wrap break-words">
                 {formatNoteDisplay(bill.notes)}
               </div>
             </section>
@@ -1158,7 +1158,7 @@ export function PurchaseBillDetailsModal({
                       </div>
 
                       {p.notes && (
-                        <div className="text-[11.5px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/50 mt-1">
+                        <div className="text-[11.5px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/50 mt-1 whitespace-pre-wrap break-words">
                           {formatNoteDisplay(p.notes)}
                         </div>
                       )}
