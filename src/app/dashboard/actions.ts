@@ -2761,7 +2761,7 @@ export async function returnInventoryToSupplierAction(
       refundMode === "replacement" ||
       options?.resolution === "replacement";
 
-    return await withTransaction(async (dbSession) => {
+    const result = await withTransaction(async (dbSession) => {
       const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
       if (!product) throw new Error("Product not found in inventory");
 
@@ -2844,15 +2844,6 @@ export async function returnInventoryToSupplierAction(
       await product.save({ session: dbSession });
       await cleanupProductBatchNames(tenantId, product.name, dbSession);
 
-      if (returnResult?.cashRefundReceived && returnResult.cashRefundReceived > 0) {
-        await triggerLiveRollupSync(new Types.ObjectId(tenantId));
-      }
-
-      revalidatePath("/dashboard");
-      broadcastUpdate(tenantId, "inventory_returned_to_supplier");
-      broadcastUpdate(tenantId, "supplier_updated");
-      broadcastUpdate(tenantId, "purchase_order_updated");
-
       const poDoc = await PurchaseOrder.findOne({
         tenantId,
         $or: [
@@ -2882,8 +2873,81 @@ export async function returnInventoryToSupplierAction(
         }
       }
 
-      return { success: true, updatedSupplier, refundAmount: returnResult?.cashRefundReceived || 0 };
+      let updatedPO: DashboardPurchaseOrder | undefined = undefined;
+      if (poDoc) {
+        updatedPO = {
+          id: poDoc._id.toString(),
+          purchaseOrderNumber: poDoc.purchaseOrderNumber,
+          supplierId: poDoc.supplierId?.toString() || "",
+          supplierName: updatedSupplier?.name || poDoc.supplierSnapshot?.name || "Unknown Supplier",
+          supplierPhone: updatedSupplier?.phone || poDoc.supplierSnapshot?.phone,
+          supplierCompany: updatedSupplier?.companyName || poDoc.supplierSnapshot?.companyName,
+          itemsCount: poDoc.items?.length || 0,
+          items: (poDoc.items || []).map((it: any) => ({
+            productId: it.productId?.toString() || "",
+            productName: it.productName || "Product",
+            quantityForSell: it.quantityForSell || 0,
+            quantityForUse: it.quantityForUse || 0,
+            purchaseCost: it.purchaseCost || 0,
+            expectedSellPrice: it.expectedSellPrice || 0,
+            itemTotalCost: it.itemTotalCost || 0,
+            returnedQuantity: it.returnedQuantity || 0,
+            replacedQuantity: it.replacedQuantity || 0,
+          })),
+          payments: (poDoc.payments || []).map((p: any) => ({
+            amount: p.amount,
+            paymentMode: p.paymentMode,
+            notes: p.notes,
+            recordedBy: p.recordedBy,
+            type: p.type || "settlement",
+            recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : undefined,
+          })),
+          returns: (poDoc.returns || []).map((r: any) => ({
+            returnNumber: r.returnNumber || `RET-${poDoc.purchaseOrderNumber}`,
+            productId: r.productId?.toString() || "",
+            productName: r.productName || "Product",
+            quantity: r.quantity || 0,
+            stockType: r.stockType || "sell",
+            unitCost: r.unitCost || 0,
+            totalRefundAmount: r.totalRefundAmount || 0,
+            refundMode: r.refundMode || "reduce_due",
+            amountDeductedFromDue: r.amountDeductedFromDue || 0,
+            replacementStatus: r.replacementStatus,
+            notes: r.notes,
+            recordedBy: r.recordedBy,
+            returnedAt: r.returnedAt ? new Date(r.returnedAt).toISOString() : undefined,
+          })),
+          totalAmount: poDoc.totalAmount,
+          amountPaid: poDoc.amountPaid,
+          amountPending: poDoc.amountPending,
+          paymentMode: poDoc.paymentMode,
+          paymentStatus: poDoc.paymentStatus,
+          settlementMode: poDoc.settlementMode,
+          invoiceDate: poDoc.invoiceDate ? new Date(poDoc.invoiceDate).toISOString() : new Date().toISOString(),
+          createdAt: (poDoc as any).createdAt ? new Date((poDoc as any).createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: (poDoc as any).updatedAt ? new Date((poDoc as any).updatedAt).toISOString() : new Date().toISOString(),
+        };
+      }
+
+      return {
+        success: true,
+        updatedSupplier,
+        updatedPO,
+        refundAmount: returnResult?.cashRefundReceived || 0,
+      };
     });
+
+    if (result.success) {
+      if (result.refundAmount && result.refundAmount > 0) {
+        await triggerLiveRollupSync(tenantId);
+      }
+      revalidatePath("/dashboard");
+      broadcastUpdate(tenantId, "inventory_returned_to_supplier");
+      broadcastUpdate(tenantId, "supplier_updated");
+      broadcastUpdate(tenantId, "purchase_order_updated");
+    }
+
+    return result;
   } catch (error: any) {
     console.error("Failed to return inventory to supplier:", error);
     return { success: false, error: "An unexpected error occurred. Please try again." };
@@ -6562,7 +6626,7 @@ export async function returnCustomerOrderItemAction(
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
 
-    return await withTransaction(async (dbSession) => {
+    const result = await withTransaction(async (dbSession) => {
       const query = buildOrderLookupQuery(tenantId, orderId);
       const order = await Order.findOne(query).session(dbSession);
       if (!order) throw new Error("Order not found");
@@ -7088,19 +7152,23 @@ export async function returnCustomerOrderItemAction(
       if (order.payments) order.markModified("payments");
       await order.save({ session: dbSession });
 
-      revalidatePath("/dashboard");
-      broadcastUpdate(tenantId, "order_returned");
-      broadcastUpdate(tenantId, "inventory_updated");
-      if (customerReplacementId) {
-        broadcastUpdate(tenantId, "customer_replacement_updated");
-      }
-      triggerLiveRollupSync(tenantId);
-
       return {
         success: true,
         customerReplacementId: customerReplacementId?.toString(),
       };
     });
+
+    if (result.success) {
+      await triggerLiveRollupSync(tenantId);
+      revalidatePath("/dashboard");
+      broadcastUpdate(tenantId, "order_returned");
+      broadcastUpdate(tenantId, "inventory_updated");
+      if (result.customerReplacementId) {
+        broadcastUpdate(tenantId, "customer_replacement_updated");
+      }
+    }
+
+    return result;
   } catch (error: any) {
     console.error("Failed to return order item:", error);
     return { success: false, error: "An unexpected error occurred. Please try again." };
@@ -7194,6 +7262,7 @@ export async function settleSupplierReplacementAction(
   success: boolean;
   updatedProduct?: DashboardProduct;
   updatedSupplier?: DashboardSupplier;
+  updatedPO?: DashboardPurchaseOrder;
   refundAmount?: number;
   refundMode?: string;
   error?: string;
@@ -7217,7 +7286,7 @@ export async function settleSupplierReplacementAction(
       };
     }
 
-    return await withTransaction(async (dbSession) => {
+    const result = await withTransaction(async (dbSession) => {
       const product = await Product.findOne({ _id: productId, tenantId }).session(dbSession);
       if (!product) throw new Error("Product not found");
 
@@ -7443,14 +7512,6 @@ export async function settleSupplierReplacementAction(
       await product.save({ session: dbSession });
       await cleanupProductBatchNames(tenantId, product.name, dbSession);
 
-      revalidatePath("/dashboard");
-      broadcastUpdate(tenantId, "inventory_updated");
-      broadcastUpdate(tenantId, "supplier_updated");
-      broadcastUpdate(tenantId, "purchase_order_updated");
-      if (resolutionType === "replace_stock") {
-        broadcastUpdate(tenantId, "customer_replacement_updated");
-      }
-
       const updatedProduct: DashboardProduct = {
         id: product._id.toString(),
         name: product.name,
@@ -7482,21 +7543,91 @@ export async function settleSupplierReplacementAction(
           isActive: updatedSupplierDoc.isActive !== false,
         }
       : undefined;
+
+      let updatedPO: DashboardPurchaseOrder | undefined = undefined;
+      if (po) {
+        updatedPO = {
+          id: po._id.toString(),
+          purchaseOrderNumber: po.purchaseOrderNumber,
+          supplierId: po.supplierId?.toString() || "",
+          supplierName: updatedSupplier?.name || po.supplierSnapshot?.name || "Unknown Supplier",
+          supplierPhone: updatedSupplier?.phone || po.supplierSnapshot?.phone,
+          supplierCompany: updatedSupplier?.companyName || po.supplierSnapshot?.companyName,
+          itemsCount: po.items?.length || 0,
+          items: (po.items || []).map((it: any) => ({
+            productId: it.productId?.toString() || "",
+            productName: it.productName || "Product",
+            quantityForSell: it.quantityForSell || 0,
+            quantityForUse: it.quantityForUse || 0,
+            purchaseCost: it.purchaseCost || 0,
+            expectedSellPrice: it.expectedSellPrice || 0,
+            itemTotalCost: it.itemTotalCost || 0,
+            returnedQuantity: it.returnedQuantity || 0,
+            replacedQuantity: it.replacedQuantity || 0,
+          })),
+          payments: (po.payments || []).map((p: any) => ({
+            amount: p.amount,
+            paymentMode: p.paymentMode,
+            notes: p.notes,
+            recordedBy: p.recordedBy,
+            type: p.type || "settlement",
+            recordedAt: p.recordedAt ? new Date(p.recordedAt).toISOString() : undefined,
+          })),
+          returns: (po.returns || []).map((r: any) => ({
+            returnNumber: r.returnNumber || `RET-${po.purchaseOrderNumber}`,
+            productId: r.productId?.toString() || "",
+            productName: r.productName || "Product",
+            quantity: r.quantity || 0,
+            stockType: r.stockType || "sell",
+            unitCost: r.unitCost || 0,
+            totalRefundAmount: r.totalRefundAmount || 0,
+            refundMode: r.refundMode || "reduce_due",
+            amountDeductedFromDue: r.amountDeductedFromDue || 0,
+            replacementStatus: r.replacementStatus,
+            notes: r.notes,
+            recordedBy: r.recordedBy,
+            returnedAt: r.returnedAt ? new Date(r.returnedAt).toISOString() : undefined,
+          })),
+          totalAmount: po.totalAmount,
+          amountPaid: po.amountPaid,
+          amountPending: po.amountPending,
+          paymentMode: po.paymentMode,
+          paymentStatus: po.paymentStatus,
+          settlementMode: po.settlementMode,
+          invoiceDate: po.invoiceDate ? new Date(po.invoiceDate).toISOString() : new Date().toISOString(),
+          createdAt: (po as any).createdAt ? new Date((po as any).createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: (po as any).updatedAt ? new Date((po as any).updatedAt).toISOString() : new Date().toISOString(),
+        };
+      }
+
       const refundAmount =
         resolutionType === "credit_refund" ? cashRefundReceived : 0;
-
-      if (refundAmount > 0) {
-        await triggerLiveRollupSync(new Types.ObjectId(tenantId));
-      }
 
       return {
         success: true,
         updatedProduct,
         updatedSupplier,
+        updatedPO,
         refundAmount,
         refundMode: options?.refundMode,
       };
     });
+
+    if (result.success) {
+      if (result.refundAmount && result.refundAmount > 0) {
+        await triggerLiveRollupSync(tenantId);
+      }
+      revalidatePath("/dashboard");
+      broadcastUpdate(tenantId, "inventory_updated");
+      broadcastUpdate(tenantId, "supplier_updated");
+      broadcastUpdate(tenantId, "purchase_order_updated");
+      broadcastUpdate(tenantId, "supplier_replacement_settled");
+      if (resolutionType === "replace_stock") {
+        broadcastUpdate(tenantId, "customer_replacement_updated");
+      }
+    }
+
+    return result;
   } catch (error: any) {
     console.error("Failed to settle supplier replacement:", error);
     return { success: false, error: "An unexpected error occurred. Please try again." };
@@ -7548,7 +7679,7 @@ export async function markCustomerReplacementCollectedAction(
     const tenantId = await resolveTenantId(session);
     if (!tenantId) return { success: false, error: "Tenant not found" };
 
-    return await withTransaction(async (dbSession) => {
+    const result = await withTransaction(async (dbSession) => {
       const cr = await CustomerReplacement.findOne({
         _id: replacementId,
         tenantId,
@@ -7603,13 +7734,17 @@ export async function markCustomerReplacementCollectedAction(
         await order.save({ session: dbSession });
       }
 
+      return { success: true };
+    });
+
+    if (result.success) {
       revalidatePath("/dashboard");
       broadcastUpdate(tenantId, "customer_replacement_updated");
       broadcastUpdate(tenantId, "inventory_updated");
       broadcastUpdate(tenantId, "order_returned");
+    }
 
-      return { success: true };
-    });
+    return result;
   } catch (error: any) {
     console.error("Failed to mark replacement collected:", error);
     return { success: false, error: "An unexpected error occurred. Please try again." };

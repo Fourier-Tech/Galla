@@ -38,13 +38,15 @@ interface InventoryTabProps {
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => void;
   onAddProduct?: (newProduct: DashboardProduct) => void;
   onUpdateProduct?: (
     updatedProduct: DashboardProduct,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => void;
   onDeleteProduct?: (productId: string | number) => void;
 }
@@ -388,13 +390,14 @@ export function InventoryTab({
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => {
     setDisplayedProducts((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
     );
     if (onTransferSuccess) {
-      onTransferSuccess(updatedProduct, newExpense, updatedSupplier, refundAmount);
+      onTransferSuccess(updatedProduct, newExpense, updatedSupplier, refundAmount, updatedPO);
     } else if (onMoveStock) {
       onMoveStock(updatedProduct.id);
     }
@@ -810,8 +813,8 @@ export function InventoryTab({
         product={settleTargetProduct}
         isOpen={Boolean(settleTargetProduct)}
         onClose={() => setSettleTargetProduct(null)}
-        onSuccess={(updatedProduct, updatedSupplier, refundAmount) => {
-          onUpdateProduct?.(updatedProduct, updatedSupplier, refundAmount);
+        onSuccess={(updatedProduct, updatedSupplier, refundAmount, updatedPO) => {
+          onUpdateProduct?.(updatedProduct, updatedSupplier, refundAmount, updatedPO);
           setSettleTargetProduct(null);
         }}
       />

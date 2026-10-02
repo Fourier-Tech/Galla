@@ -14,7 +14,7 @@ import {
   Receipt,
   Check,
 } from "lucide-react";
-import { DashboardProduct, DashboardSupplier } from "@/types/dashboard";
+import { DashboardProduct, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import { formatRupee, formatDisplayNumber } from "@/lib/utils";
 import { settleSupplierReplacementAction, getPurchaseOrdersForProductAction } from "@/app/dashboard/actions";
 import { PaymentModeSelect } from "../payment-mode-select";
@@ -26,7 +26,8 @@ interface SettleReplacementModalProps {
   onSuccess: (
     updatedProduct: DashboardProduct,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => void;
 }
 
@@ -125,7 +126,7 @@ export function SettleReplacementModal({
       );
 
       if (res.success && res.updatedProduct) {
-        onSuccess(res.updatedProduct, res.updatedSupplier, res.refundAmount);
+        onSuccess(res.updatedProduct, res.updatedSupplier, res.refundAmount, res.updatedPO);
         onClose();
       } else {
         setErrorMsg(res.error || "Failed to settle replacement");

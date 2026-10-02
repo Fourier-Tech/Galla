@@ -18,7 +18,7 @@ import {
   Receipt,
   ArrowLeft,
 } from "lucide-react";
-import { DashboardProduct, DashboardExpense, DashboardSupplier } from "@/types/dashboard";
+import { DashboardProduct, DashboardExpense, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import {
   transferStockAction,
   consumeUseStockAction,
@@ -38,7 +38,8 @@ interface TransferStockModalProps {
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => void;
 }
 
@@ -79,7 +80,8 @@ function TransferStockModalContent({
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => void;
 }) {
   const [mode, setMode] = useState<ModalMode>("transfer");
@@ -355,7 +357,8 @@ function TransferStockModalContent({
             updated,
             undefined,
             res.updatedSupplier,
-            res.refundAmount ?? (cashRefund > 0 ? cashRefund : undefined)
+            res.refundAmount ?? (cashRefund > 0 ? cashRefund : undefined),
+            res.updatedPO
           );
           onClose();
         } else {

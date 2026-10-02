@@ -791,7 +791,8 @@ export function DashboardClient({
     updatedProduct: DashboardProduct,
     newExpense?: DashboardExpense,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
@@ -808,6 +809,11 @@ export function DashboardClient({
     if (updatedSupplier) {
       setSuppliers((prev) =>
         prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+      );
+    }
+    if (updatedPO) {
+      setPurchaseOrders((prev) =>
+        prev.map((po) => (po.id === updatedPO.id ? updatedPO : po))
       );
     }
   };
@@ -931,7 +937,8 @@ export function DashboardClient({
   const handleUpdateProduct = (
     updatedProduct: DashboardProduct,
     updatedSupplier?: DashboardSupplier,
-    refundAmount?: number
+    refundAmount?: number,
+    updatedPO?: DashboardPurchaseOrder
   ) => {
     setProducts((prev) =>
       prev.map((p) => (String(p.id) === String(updatedProduct.id) ? updatedProduct : p))
@@ -939,6 +946,11 @@ export function DashboardClient({
     if (updatedSupplier) {
       setSuppliers((prev) =>
         prev.map((s) => (s.id === updatedSupplier.id ? updatedSupplier : s))
+      );
+    }
+    if (updatedPO) {
+      setPurchaseOrders((prev) =>
+        prev.map((po) => (po.id === updatedPO.id ? updatedPO : po))
       );
     }
     if (refundAmount && refundAmount > 0) {

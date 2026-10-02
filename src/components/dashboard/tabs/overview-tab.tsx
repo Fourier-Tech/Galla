@@ -5,7 +5,7 @@ import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, Ar
 import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement, OrderStatus } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
-import { formatRupee, calculatePendingAmount, getOrderPendingDue, getOrderEffectiveStatus, getOrderEffectiveBilling, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, formatNoteDisplay, getBillStatus, canOrderBeRefunded, getOrderRefundBreakdown } from "@/lib/utils";
+import { formatRupee, calculatePendingAmount, getOrderPendingDue, getOrderEffectiveStatus, getOrderEffectiveBilling, formatBookingDate, formatAppointmentTime, getBookingUrgency, getWhatsAppReminderUrl, formatPhoneNumber, formatDisplayNumber, formatNoteDisplay, getBillStatus, canOrderBeRefunded, getOrderRefundBreakdown, checkIsToday } from "@/lib/utils";
 import { RescheduleOrderModal } from "@/components/dashboard/modals/reschedule-order-modal";
 import { OrderDetailsModal } from "@/components/dashboard/modals/order-details-modal";
 import { ChangeReplacementDateModal } from "@/components/dashboard/modals/change-replacement-date-modal";
@@ -138,6 +138,22 @@ export function OverviewTab({
             return sum + (o.isToday ? breakdown.retainedAmount : 0);
           }
           return sum + (o.todayPaid ?? (o.isToday ? o.paid : 0));
+        }, 0) +
+        (purchaseOrders || []).reduce((sum, po) => {
+          if (!po.payments || !Array.isArray(po.payments)) return sum;
+          const poRefunds = po.payments.reduce((pSum: number, p: any) => {
+            if (
+              p.type === "refund" &&
+              p.amount < 0 &&
+              p.paymentMode !== "reduce_due" &&
+              p.recordedAt &&
+              checkIsToday(p.recordedAt)
+            ) {
+              return pSum + Math.abs(p.amount);
+            }
+            return pSum;
+          }, 0);
+          return sum + poRefunds;
         }, 0);
 
   // Overall Customer Outstanding Dues: uses pre-saved customer dues aggregate directly
