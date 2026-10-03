@@ -41,38 +41,38 @@ export function RescheduleOrderModal({
       ? "Reschedule Replacement Delivery Date"
       : "Set Replacement Delivery Date"
     : isDueOrder
-    ? order.scheduledFor
-      ? "Reschedule Due Date"
-      : "Set Payment Due Date"
-    : isProductSale
-    ? order.scheduledFor
-      ? "Reschedule Scheduled Pickup Date"
-      : "Set Scheduled Pickup Date"
-    : "Reschedule & Set Time";
+      ? order.scheduledFor
+        ? "Reschedule Due Date"
+        : "Set Payment Due Date"
+      : isProductSale
+        ? order.scheduledFor
+          ? "Reschedule Scheduled Pickup Date"
+          : "Set Scheduled Pickup Date"
+        : "Reschedule & Set Time";
 
   const currentSlotLabel = isReplacementOrder
     ? "Current Expected Delivery:"
     : isDueOrder
-    ? "Current Due Date:"
-    : isProductSale
-    ? "Current Scheduled Pickup:"
-    : "Current Booking:";
+      ? "Current Due Date:"
+      : isProductSale
+        ? "Current Scheduled Pickup:"
+        : "Current Booking:";
 
   const dateLabel = isReplacementOrder
     ? "Expected Delivery Date"
     : isDueOrder
-    ? "Payment Due Date"
-    : isProductSale
-    ? "Scheduled Pickup Date"
-    : "Booking Date";
+      ? "Payment Due Date"
+      : isProductSale
+        ? "Scheduled Pickup Date"
+        : "Booking Date";
 
   const submitButtonLabel = isReplacementOrder
     ? "Confirm Delivery Date"
     : isDueOrder
-    ? "Confirm Due Date"
-    : isProductSale
-    ? "Confirm Pickup Date"
-    : "Confirm Booking Slot";
+      ? "Confirm Due Date"
+      : isProductSale
+        ? "Confirm Pickup Date"
+        : "Confirm Booking Slot";
 
   return (
     <BaseRescheduleModal

@@ -223,8 +223,8 @@ export function ReturnCustomerOrderItemModal({
     customNewPriceStr.trim() !== "" && !isNaN(parsedCustomNewPrice) && parsedCustomNewPrice >= 0
       ? parsedCustomNewPrice
       : selectedNewMRPProduct
-      ? selectedNewMRPProduct.price
-      : unitPrice;
+        ? selectedNewMRPProduct.price
+        : unitPrice;
 
   const targetReplacementProduct = useMemo(() => {
     if (hasNewMRPAvailable && replacementResolutionType === "upgrade_available") {
@@ -237,10 +237,10 @@ export function ReturnCustomerOrderItemModal({
     hasNewMRPAvailable && replacementResolutionType === "upgrade_available"
       ? effectiveNewPrice
       : samePriceBatch
-      ? samePriceBatch.price
-      : matchedProduct
-      ? matchedProduct.price
-      : unitPrice;
+        ? samePriceBatch.price
+        : matchedProduct
+          ? matchedProduct.price
+          : unitPrice;
 
   const unitPriceDiff = Math.round(targetPrice - unitPrice);
   const totalPriceDiff = unitPriceDiff * parsedQty;
@@ -321,9 +321,8 @@ export function ReturnCustomerOrderItemModal({
             <div className="flex justify-between items-center pt-2 border-t border-galla-line/60">
               <span className="font-bold text-galla-ink">Net Cash Payout to Client:</span>
               <span
-                className={`font-bold tabular-nums text-[14px] ${
-                  cashRefund > 0 ? "text-rose-700" : "text-emerald-700"
-                }`}
+                className={`font-bold tabular-nums text-[14px] ${cashRefund > 0 ? "text-rose-700" : "text-emerald-700"
+                  }`}
               >
                 {formatRupee(cashRefund)}
               </span>
@@ -421,8 +420,8 @@ export function ReturnCustomerOrderItemModal({
       pendingAmount > 0 && cashRefund === 0
         ? "reduce_due"
         : refundMode === "reduce_due"
-        ? "cash"
-        : refundMode;
+          ? "cash"
+          : refundMode;
 
     try {
       const res = await returnCustomerOrderItemAction(
@@ -442,16 +441,16 @@ export function ReturnCustomerOrderItemModal({
               ? replaceFromUseStock
                 ? "immediate_full"
                 : isUpgradingToNewMRP
-                ? handedQty >= parsedQty
-                  ? "immediate_full"
-                  : handedQty > 0
-                  ? "immediate_partial"
-                  : "wait_all"
-                : samePriceStock >= parsedQty
-                ? "immediate_full"
-                : samePriceStock > 0
-                ? "immediate_partial"
-                : "wait_all"
+                  ? handedQty >= parsedQty
+                    ? "immediate_full"
+                    : handedQty > 0
+                      ? "immediate_partial"
+                      : "wait_all"
+                  : samePriceStock >= parsedQty
+                    ? "immediate_full"
+                    : samePriceStock > 0
+                      ? "immediate_partial"
+                      : "wait_all"
               : undefined,
           handedQuantity: handedQty,
           expectedPickupDate:
@@ -459,12 +458,12 @@ export function ReturnCustomerOrderItemModal({
               ? replaceFromUseStock
                 ? undefined
                 : isUpgradingToNewMRP
-                ? handedQty < parsedQty
-                  ? expectedPickupDate
-                  : undefined
-                : samePriceStock < parsedQty
-                ? expectedPickupDate
-                : undefined
+                  ? handedQty < parsedQty
+                    ? expectedPickupDate
+                    : undefined
+                  : samePriceStock < parsedQty
+                    ? expectedPickupDate
+                    : undefined
               : undefined,
           replacementProductId:
             targetReplacementProduct ? String(targetReplacementProduct.id) : undefined,
@@ -701,11 +700,10 @@ export function ReturnCustomerOrderItemModal({
                       setIsGoodCondition(true);
                       setError(null);
                     }}
-                    className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${
-                      isGoodCondition
+                    className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${isGoodCondition
                         ? "bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 shadow-xs"
                         : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2 font-bold text-[13.5px]">
                       <CheckCircle2 className={`h-4.5 w-4.5 ${isGoodCondition ? "text-emerald-600" : "text-galla-ink-soft"}`} />
@@ -722,11 +720,10 @@ export function ReturnCustomerOrderItemModal({
                       setIsGoodCondition(false);
                       setError(null);
                     }}
-                    className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${
-                      !isGoodCondition
+                    className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${!isGoodCondition
                         ? "bg-rose-50/80 border-rose-500 ring-2 ring-rose-500/20 text-rose-950 shadow-xs"
                         : "bg-white border-galla-line text-galla-ink hover:border-rose-400/40 hover:bg-galla-paper/30"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2 font-bold text-[13.5px]">
                       <AlertTriangle className={`h-4.5 w-4.5 ${!isGoodCondition ? "text-rose-600" : "text-galla-ink-soft"}`} />
@@ -764,11 +761,10 @@ export function ReturnCustomerOrderItemModal({
                         <button
                           type="button"
                           onClick={() => setRestockLocation("sellStock")}
-                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                            restockLocation === "sellStock"
+                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${restockLocation === "sellStock"
                               ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                               : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-[13px] text-galla-ink">
@@ -785,11 +781,10 @@ export function ReturnCustomerOrderItemModal({
                         <button
                           type="button"
                           onClick={() => setRestockLocation("useStock")}
-                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                            restockLocation === "useStock"
+                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${restockLocation === "useStock"
                               ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                               : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-[13px] text-galla-ink">
@@ -822,11 +817,10 @@ export function ReturnCustomerOrderItemModal({
                             setDefectiveResolution("replacement");
                             setError(null);
                           }}
-                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                            defectiveResolution === "replacement"
+                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${defectiveResolution === "replacement"
                               ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                               : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-[13px] text-galla-ink">
@@ -846,11 +840,10 @@ export function ReturnCustomerOrderItemModal({
                             setDefectiveResolution("refund");
                             setError(null);
                           }}
-                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                            defectiveResolution === "refund"
+                          className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${defectiveResolution === "refund"
                               ? "bg-white border-rose-500 ring-2 ring-rose-500/20 text-galla-ink shadow-xs"
                               : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-[13px] text-galla-ink">
@@ -998,11 +991,10 @@ export function ReturnCustomerOrderItemModal({
                               <button
                                 type="button"
                                 onClick={() => setReplacementResolutionType("upgrade_available")}
-                                className={`p-3 rounded-[6px] border text-left cursor-pointer transition-all ${
-                                  replacementResolutionType === "upgrade_available"
+                                className={`p-3 rounded-[6px] border text-left cursor-pointer transition-all ${replacementResolutionType === "upgrade_available"
                                     ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                                     : "bg-white/80 border-galla-line text-galla-ink-soft hover:bg-white"
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center justify-between text-[12.5px] font-bold">
                                   <span>Get New MRP Product</span>
@@ -1012,19 +1004,18 @@ export function ReturnCustomerOrderItemModal({
                                   {totalPriceDiff > 0
                                     ? `Hand over now & pay ${formatRupee(totalPriceDiff)} difference.`
                                     : totalPriceDiff < 0
-                                    ? `Hand over now & refund ${formatRupee(Math.abs(totalPriceDiff))} excess.`
-                                    : "Hand over replacement unit now (₹0 difference)."}
+                                      ? `Hand over now & refund ${formatRupee(Math.abs(totalPriceDiff))} excess.`
+                                      : "Hand over replacement unit now (₹0 difference)."}
                                 </p>
                               </button>
 
                               <button
                                 type="button"
                                 onClick={() => setReplacementResolutionType("wait_original")}
-                                className={`p-3 rounded-[6px] border text-left cursor-pointer transition-all ${
-                                  replacementResolutionType === "wait_original"
+                                className={`p-3 rounded-[6px] border text-left cursor-pointer transition-all ${replacementResolutionType === "wait_original"
                                     ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                                     : "bg-white/80 border-galla-line text-galla-ink-soft hover:bg-white"
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center justify-between text-[12.5px] font-bold">
                                   <span>Wait for Old Price Stock</span>
@@ -1161,11 +1152,10 @@ export function ReturnCustomerOrderItemModal({
                               <button
                                 type="button"
                                 onClick={() => setReplacementOption("immediate_partial")}
-                                className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                                  replacementOption === "immediate_partial"
+                                className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${replacementOption === "immediate_partial"
                                     ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                                     : "bg-white border-galla-line text-galla-ink-soft hover:bg-white/80"
-                                }`}
+                                  }`}
                               >
                                 <div className="text-[12.5px] font-bold flex items-center justify-between">
                                   <span>Hand {samePriceStock} Now, Rest Later</span>
@@ -1179,11 +1169,10 @@ export function ReturnCustomerOrderItemModal({
                               <button
                                 type="button"
                                 onClick={() => setReplacementOption("wait_all")}
-                                className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                                  replacementOption === "wait_all"
+                                className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${replacementOption === "wait_all"
                                     ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                                     : "bg-white border-galla-line text-galla-ink-soft hover:bg-white/80"
-                                }`}
+                                  }`}
                               >
                                 <div className="text-[12.5px] font-bold flex items-center justify-between">
                                   <span>Wait for All ({parsedQty})</span>
@@ -1257,11 +1246,10 @@ export function ReturnCustomerOrderItemModal({
 
                   <div className="flex justify-between items-center py-1 border-b border-galla-line/40">
                     <span className="text-galla-ink-soft">Condition:</span>
-                    <span className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
-                      isGoodCondition
+                    <span className={`font-semibold px-2 py-0.5 rounded text-[11px] ${isGoodCondition
                         ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                         : "bg-rose-50 text-rose-800 border border-rose-200"
-                    }`}>
+                      }`}>
                       {isGoodCondition ? "Good Condition" : "Defective / Damaged"}
                     </span>
                   </div>
@@ -1283,10 +1271,10 @@ export function ReturnCustomerOrderItemModal({
                       {isGoodCondition
                         ? "Money Refund"
                         : defectiveResolution === "replacement"
-                        ? isUpgradingToNewMRP
-                          ? "New MRP Replacement"
-                          : "Stock Replacement"
-                        : "Money Refund"}
+                          ? isUpgradingToNewMRP
+                            ? "New MRP Replacement"
+                            : "Stock Replacement"
+                          : "Money Refund"}
                     </span>
                   </div>
                 </div>
@@ -1309,9 +1297,8 @@ export function ReturnCustomerOrderItemModal({
                       )}
                       <div className="flex justify-between items-center pt-2 border-t border-galla-line/60">
                         <span className="font-bold text-galla-ink">Net Payout to Client:</span>
-                        <span className={`font-bold tabular-nums text-[16px] ${
-                          cashRefund > 0 ? "text-rose-700" : "text-emerald-700"
-                        }`}>
+                        <span className={`font-bold tabular-nums text-[16px] ${cashRefund > 0 ? "text-rose-700" : "text-emerald-700"
+                          }`}>
                           {formatRupee(cashRefund)}
                         </span>
                       </div>
@@ -1331,9 +1318,8 @@ export function ReturnCustomerOrderItemModal({
                             <span className="font-bold text-galla-ink">
                               {totalPriceDiff > 0 ? "Net Amount to Collect:" : totalPriceDiff < 0 ? "Net Refund to Client:" : "Net Difference:"}
                             </span>
-                            <span className={`font-bold tabular-nums text-[16px] ${
-                              totalPriceDiff > 0 ? "text-amber-800" : totalPriceDiff < 0 ? "text-rose-700" : "text-emerald-700"
-                            }`}>
+                            <span className={`font-bold tabular-nums text-[16px] ${totalPriceDiff > 0 ? "text-amber-800" : totalPriceDiff < 0 ? "text-rose-700" : "text-emerald-700"
+                              }`}>
                               {totalPriceDiff > 0 ? `+${formatRupee(totalPriceDiff)}` : totalPriceDiff < 0 ? `-${formatRupee(Math.abs(totalPriceDiff))}` : "₹0"}
                             </span>
                           </div>
@@ -1392,22 +1378,22 @@ export function ReturnCustomerOrderItemModal({
                             : `Confirm Return & Clear ${formatRupee(dueDeduction)} Due`
                           : `Confirm Return & Refund (${formatRupee(finalReturnAmount)})`
                         : defectiveResolution === "replacement"
-                        ? isUpgradingToNewMRP
-                          ? totalPriceDiff > 0
-                            ? `Confirm Replacement (Collect ${formatRupee(totalPriceDiff)})`
-                            : totalPriceDiff < 0
-                            ? `Confirm Replacement (Refund ${formatRupee(Math.abs(totalPriceDiff))})`
-                            : "Confirm Replacement (₹0 Diff)"
-                          : replaceFromUseStock
-                          ? "Confirm Immediate Replacement"
-                          : replacementResolutionType === "wait_original" || samePriceStock === 0
-                          ? "Schedule Replacement"
-                          : "Confirm Immediate Replacement"
-                        : pendingAmount > 0
-                        ? cashRefund > 0
-                          ? `Confirm Return (${formatRupee(dueDeduction)} Due + ${formatRupee(cashRefund)} Refund)`
-                          : `Confirm Return & Clear ${formatRupee(dueDeduction)} Due`
-                        : `Confirm Refund (${formatRupee(finalReturnAmount)})`}
+                          ? isUpgradingToNewMRP
+                            ? totalPriceDiff > 0
+                              ? `Confirm Replacement (Collect ${formatRupee(totalPriceDiff)})`
+                              : totalPriceDiff < 0
+                                ? `Confirm Replacement (Refund ${formatRupee(Math.abs(totalPriceDiff))})`
+                                : "Confirm Replacement (₹0 Diff)"
+                            : replaceFromUseStock
+                              ? "Confirm Immediate Replacement"
+                              : replacementResolutionType === "wait_original" || samePriceStock === 0
+                                ? "Schedule Replacement"
+                                : "Confirm Immediate Replacement"
+                          : pendingAmount > 0
+                            ? cashRefund > 0
+                              ? `Confirm Return (${formatRupee(dueDeduction)} Due + ${formatRupee(cashRefund)} Refund)`
+                              : `Confirm Return & Clear ${formatRupee(dueDeduction)} Due`
+                            : `Confirm Refund (${formatRupee(finalReturnAmount)})`}
                     </span>
                   </button>
 

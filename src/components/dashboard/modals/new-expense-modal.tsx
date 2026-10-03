@@ -55,8 +55,8 @@ export function NewExpenseModal({
     (category === "Day-to-day"
       ? Boolean(desc.trim())
       : category === "Salary"
-      ? Boolean(staffName.trim())
-      : true);
+        ? Boolean(staffName.trim())
+        : true);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,11 +155,10 @@ export function NewExpenseModal({
                     setCategory(cat);
                     setErrorMsg(null);
                   }}
-                  className={`py-1.5 text-[12.5px] font-sans font-medium rounded-[4px] border transition-all cursor-pointer ${
-                    category === cat
+                  className={`py-1.5 text-[12.5px] font-sans font-medium rounded-[4px] border transition-all cursor-pointer ${category === cat
                       ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold shadow-2xs"
                       : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink"
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>
@@ -238,8 +237,8 @@ export function NewExpenseModal({
                 category === "Rent"
                   ? "e.g. October rent, maintenance"
                   : category === "Salary"
-                  ? "e.g. Advance, overtime, bonus"
-                  : "e.g. Bill #, paid to Rahul"
+                    ? "e.g. Advance, overtime, bonus"
+                    : "e.g. Bill #, paid to Rahul"
               }
               className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
             />

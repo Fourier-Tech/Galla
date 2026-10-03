@@ -111,8 +111,8 @@ function SettleOrderModalContent({
               {isReplacement
                 ? "Deliver Replacement Product"
                 : defaultDue === 0
-                ? "Deliver & Fulfill Order"
-                : "Settle Due & Complete Order"}
+                  ? "Deliver & Fulfill Order"
+                  : "Settle Due & Complete Order"}
             </h3>
             <p className="font-sans text-[12px] text-galla-ink-soft">
               {formatDisplayNumber(order.id)} &bull; <strong className="text-galla-ink font-medium">{order.customer}</strong>
@@ -176,8 +176,8 @@ function SettleOrderModalContent({
                 {isReplacement
                   ? "Balance to Collect (₹0 - Free Warranty Swap)"
                   : defaultDue === 0
-                  ? "Payment to Collect (₹0 - Paid in full)"
-                  : "Remaining Payment to Collect (₹)"}
+                    ? "Payment to Collect (₹0 - Paid in full)"
+                    : "Remaining Payment to Collect (₹)"}
               </label>
               <div className="flex items-center gap-2">
                 <button
@@ -289,8 +289,8 @@ function SettleOrderModalContent({
             isReplacement
               ? "Confirm Replacement Delivery"
               : defaultDue === 0 && enteredNum === 0
-              ? "Confirm Product Delivery & Handover"
-              : "Confirm Order Settlement"
+                ? "Confirm Product Delivery & Handover"
+                : "Confirm Order Settlement"
           }
           description={
             isReplacement || (defaultDue === 0 && enteredNum === 0) ? (
@@ -313,8 +313,8 @@ function SettleOrderModalContent({
             isReplacement
               ? "Yes, Confirm Handover"
               : defaultDue === 0 && enteredNum === 0
-              ? "Yes, Confirm Delivery"
-              : "Yes, Settle Order"
+                ? "Yes, Confirm Delivery"
+                : "Yes, Settle Order"
           }
           cancelLabel="Cancel"
           isLoading={isSubmitting}

@@ -69,8 +69,8 @@ function ReschedulePurchaseOrderModalContent({
       ? "Reschedule Due Date"
       : "Set Payment Due Date"
     : currentScheduledDate
-    ? "Reschedule & Set Time"
-    : "Set Delivery Date & Time";
+      ? "Reschedule & Set Time"
+      : "Set Delivery Date & Time";
 
   const currentSlotLabel = isDueMode ? "Current Due Date:" : "Current Booking:";
   const dateLabel = isDueMode ? "Payment Due Date" : "Expected Delivery Date";
@@ -82,22 +82,20 @@ function ReschedulePurchaseOrderModalContent({
         <button
           type="button"
           onClick={() => setActiveMode("delivery")}
-          className={`flex-1 py-1 rounded-[4px] font-medium transition-all cursor-pointer ${
-            activeMode === "delivery"
+          className={`flex-1 py-1 rounded-[4px] font-medium transition-all cursor-pointer ${activeMode === "delivery"
               ? "bg-galla-surface text-galla-ink font-semibold shadow-2xs border border-galla-line"
               : "text-galla-ink-soft hover:text-galla-ink"
-          }`}
+            }`}
         >
           Delivery Date
         </button>
         <button
           type="button"
           onClick={() => setActiveMode("due_date")}
-          className={`flex-1 py-1 rounded-[4px] font-medium transition-all cursor-pointer ${
-            activeMode === "due_date"
+          className={`flex-1 py-1 rounded-[4px] font-medium transition-all cursor-pointer ${activeMode === "due_date"
               ? "bg-galla-surface text-galla-ink font-semibold shadow-2xs border border-galla-line"
               : "text-galla-ink-soft hover:text-galla-ink"
-          }`}
+            }`}
         >
           Payment Due Date
         </button>

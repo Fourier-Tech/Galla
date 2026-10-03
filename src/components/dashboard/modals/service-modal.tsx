@@ -61,8 +61,8 @@ export function ServiceModal({
     initialCategoryIsCustom
       ? serviceToEdit?.category || ""
       : allCategories.length === 0
-      ? serviceToEdit?.category || ""
-      : ""
+        ? serviceToEdit?.category || ""
+        : ""
   );
   const isCustomCategory = category === "custom" || allCategories.length === 0;
   const [price, setPrice] = useState(serviceToEdit ? String(serviceToEdit.price) : "");
@@ -442,11 +442,10 @@ export function ServiceModal({
               <button
                 type="button"
                 onClick={() => setIsActive(!isActive)}
-                className={`px-3 py-1 rounded-[4px] text-[12px] font-medium transition-colors cursor-pointer ${
-                  isActive
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    : "bg-gray-100 text-gray-600 border border-gray-300"
-                }`}
+                className={`px-3 py-1 rounded-[4px] text-[12px] font-medium transition-colors cursor-pointer ${isActive
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : "bg-gray-100 text-gray-600 border border-gray-300"
+                  }`}
               >
                 {isActive ? "Active" : "Inactive"}
               </button>
@@ -471,8 +470,8 @@ export function ServiceModal({
               {isSubmitting
                 ? "Saving..."
                 : serviceToEdit
-                ? "Save Changes"
-                : "Create Service"}
+                  ? "Save Changes"
+                  : "Create Service"}
             </button>
           </div>
         </form>

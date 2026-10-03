@@ -100,12 +100,12 @@ export function OrderDetailsModal({
   const originalSubtotal =
     order.lineItems && order.lineItems.length > 0
       ? order.lineItems.reduce(
-          (sum, item) => sum + item.unitPrice * (item.quantity || 1),
-          0
-        )
+        (sum, item) => sum + item.unitPrice * (item.quantity || 1),
+        0
+      )
       : typeof order.subtotal === "number"
-      ? order.subtotal
-      : order.amount;
+        ? order.subtotal
+        : order.amount;
 
   const totalUnits = (order.lineItems || []).reduce(
     (sum, item) => sum + (item.quantity || 1),
@@ -117,16 +117,16 @@ export function OrderDetailsModal({
   const originalBillAmount =
     order.lineItems && order.lineItems.length > 0
       ? Math.max(
-          order.lineItems.reduce(
-            (sum, item) =>
-              sum +
-              (typeof item.finalPrice === "number"
-                ? item.finalPrice
-                : item.unitPrice * (item.quantity || 1)),
-            0
-          ),
-          order.amount
-        )
+        order.lineItems.reduce(
+          (sum, item) =>
+            sum +
+            (typeof item.finalPrice === "number"
+              ? item.finalPrice
+              : item.unitPrice * (item.quantity || 1)),
+          0
+        ),
+        order.amount
+      )
       : order.amount;
 
   const positivePayments = (order.payments || [])
@@ -165,31 +165,31 @@ export function OrderDetailsModal({
   const waUrl = order.customerPhone
     ? shouldPrefillMsg
       ? getWhatsAppReminderUrl({
-          phone: order.customerPhone,
-          customerName: order.customer,
-          salonName: salonName || "our salon",
-          bookingDate: order.scheduledFor,
-          bookingTime: order.scheduledTime,
-          orderType: order.type,
-          productName: order.itemsSummary,
-          orderId: order.id,
-          pendingAmount: dueAmount,
-          isPaymentDue: isDue,
-          isReplacement: isReplacement,
-          isTomorrow: isTomorrow,
-          isToday: isToday,
-        })
+        phone: order.customerPhone,
+        customerName: order.customer,
+        salonName: salonName || "our salon",
+        bookingDate: order.scheduledFor,
+        bookingTime: order.scheduledTime,
+        orderType: order.type,
+        productName: order.itemsSummary,
+        orderId: order.id,
+        pendingAmount: dueAmount,
+        isPaymentDue: isDue,
+        isReplacement: isReplacement,
+        isTomorrow: isTomorrow,
+        isToday: isToday,
+      })
       : (() => {
-          // ponytail: Assumes Indian 10-digit mobile numbers (+91). Upgrade path: Add country code support to tenant profile if expanding internationally.
-          const cleaned = order.customerPhone.replace(/\D/g, "");
-          const standardNumber =
-            cleaned.length === 10
-              ? `91${cleaned}`
-              : cleaned.startsWith("0") && cleaned.length === 11
+        // ponytail: Assumes Indian 10-digit mobile numbers (+91). Upgrade path: Add country code support to tenant profile if expanding internationally.
+        const cleaned = order.customerPhone.replace(/\D/g, "");
+        const standardNumber =
+          cleaned.length === 10
+            ? `91${cleaned}`
+            : cleaned.startsWith("0") && cleaned.length === 11
               ? `91${cleaned.slice(1)}`
               : cleaned;
-          return `https://api.whatsapp.com/send/?phone=${standardNumber}`;
-        })()
+        return `https://api.whatsapp.com/send/?phone=${standardNumber}`;
+      })()
     : null;
 
   const formatDateTime = (dateStr?: string) => {
@@ -439,66 +439,62 @@ export function OrderDetailsModal({
                 </div>
               ) : order.scheduledFor ? (
                 <div
-                  className={`p-3.5 rounded-[5px] flex items-start gap-3 ${
-                    isReplacement && isTomorrow
-                      ? "bg-rose-50 border border-rose-300 text-rose-950 ring-1 ring-rose-300/40"
-                      : isReplacement && isToday
+                  className={`p-3.5 rounded-[5px] flex items-start gap-3 ${isReplacement && isTomorrow
+                    ? "bg-rose-50 border border-rose-300 text-rose-950 ring-1 ring-rose-300/40"
+                    : isReplacement && isToday
                       ? "bg-rose-50 border border-rose-200 text-rose-950"
                       : isReplacement && isOverdue
-                      ? "bg-red-50 border border-red-300 text-red-950"
-                      : isToday
-                      ? "bg-rose-50 border border-rose-200 text-rose-950"
-                      : isOverdue
-                      ? "bg-red-50 border border-red-300 text-red-950"
-                      : "bg-galla-paper border border-galla-line text-galla-ink"
-                  }`}
+                        ? "bg-red-50 border border-red-300 text-red-950"
+                        : isToday
+                          ? "bg-rose-50 border border-rose-200 text-rose-950"
+                          : isOverdue
+                            ? "bg-red-50 border border-red-300 text-red-950"
+                            : "bg-galla-paper border border-galla-line text-galla-ink"
+                    }`}
                 >
                   <Clock
-                    className={`h-4 w-4 shrink-0 mt-0.5 ${
-                      (isReplacement && isTomorrow) || isToday
-                        ? "text-rose-700"
-                        : isOverdue
+                    className={`h-4 w-4 shrink-0 mt-0.5 ${(isReplacement && isTomorrow) || isToday
+                      ? "text-rose-700"
+                      : isOverdue
                         ? "text-red-700"
                         : "text-galla-ink-soft"
-                    }`}
+                      }`}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span
-                        className={`block text-[12px] font-semibold ${
-                          (isReplacement && isTomorrow) || isToday
-                            ? "text-rose-900"
-                            : isOverdue
+                        className={`block text-[12px] font-semibold ${(isReplacement && isTomorrow) || isToday
+                          ? "text-rose-900"
+                          : isOverdue
                             ? "text-red-900"
                             : "text-galla-ink"
-                        }`}
+                          }`}
                       >
                         {isReplacement
                           ? "Expected Replacement Delivery"
                           : isDue && !hasPendingDelivery
-                          ? "Payment Due Date"
-                          : order.type === "Product sale"
-                          ? "Expected Pickup"
-                          : "Appointment Slot"}
+                            ? "Payment Due Date"
+                            : order.type === "Product sale"
+                              ? "Expected Pickup"
+                              : "Appointment Slot"}
                       </span>
                       <span
-                        className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${
-                          isReplacement && isTomorrow
-                            ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
-                            : isToday
+                        className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${isReplacement && isTomorrow
+                          ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
+                          : isToday
                             ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
                             : isOverdue
-                            ? "bg-red-100 text-red-800 border-red-300 font-semibold"
-                            : "bg-galla-surface text-galla-ink-soft border-galla-line font-medium"
-                        }`}
+                              ? "bg-red-100 text-red-800 border-red-300 font-semibold"
+                              : "bg-galla-surface text-galla-ink-soft border-galla-line font-medium"
+                          }`}
                       >
                         {isReplacement && isTomorrow
                           ? "Urgent: Tomorrow"
                           : isToday
-                          ? "Today"
-                          : isOverdue
-                          ? "Overdue"
-                          : "Upcoming"}
+                            ? "Today"
+                            : isOverdue
+                              ? "Overdue"
+                              : "Upcoming"}
                       </span>
                     </div>
                     <span className="text-[13px] font-semibold mt-0.5 block">
@@ -568,14 +564,14 @@ export function OrderDetailsModal({
 
                     const returnedQty = itemReturns.length > 0
                       ? itemReturns
-                          .filter((r) => r.customerResolution === "refund" || !r.customerResolution)
-                          .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                        .filter((r) => r.customerResolution === "refund" || !r.customerResolution)
+                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
                       : (item.returnedQuantity || 0);
 
                     const replacedQty = itemReturns.length > 0
                       ? itemReturns
-                          .filter((r) => r.customerResolution === "replacement")
-                          .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                        .filter((r) => r.customerResolution === "replacement")
+                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
                       : (item.replacedQuantity || 0);
 
                     const isFullyReturned = returnedQty >= item.quantity;
@@ -597,13 +593,12 @@ export function OrderDetailsModal({
                                 {item.name}
                               </span>
                               <span
-                                className={`text-[10.5px] font-semibold uppercase px-1.5 py-0.5 rounded-[4px] border ${
-                                  item.itemType === "product"
-                                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                                    : item.itemType === "package"
+                                className={`text-[10.5px] font-semibold uppercase px-1.5 py-0.5 rounded-[4px] border ${item.itemType === "product"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : item.itemType === "package"
                                     ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                                     : "bg-purple-50 text-purple-700 border-purple-200"
-                                }`}
+                                  }`}
                               >
                                 {item.itemType}
                               </span>
@@ -624,15 +619,15 @@ export function OrderDetailsModal({
                                 order.status !== "cancelled_refunded" &&
                                 order.status !== "cancelled_converted" &&
                                 totalHandled < item.quantity && (
-                                <button
-                                  type="button"
-                                  onClick={() => setReturningItemIndex(idx)}
-                                  className="text-[11.5px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-[4px] border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Undo2 className="h-3 w-3" />
-                                  <span>Return Item</span>
-                                </button>
-                              )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setReturningItemIndex(idx)}
+                                    className="text-[11.5px] font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-[4px] border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Undo2 className="h-3 w-3" />
+                                    <span>Return Item</span>
+                                  </button>
+                                )}
                             </div>
 
                             {/* Package Components Breakdown */}
@@ -767,11 +762,10 @@ export function OrderDetailsModal({
                           {ret.quantity}x {ret.productName}
                         </span>
                         <span
-                          className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${
-                            ret.returnCondition === "defective_dealer_claim"
-                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          }`}
+                          className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${ret.returnCondition === "defective_dealer_claim"
+                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            }`}
                         >
                           {ret.returnCondition === "defective_dealer_claim" ? "Defective" : "Good (Restocked)"}
                         </span>
@@ -789,23 +783,22 @@ export function OrderDetailsModal({
                             ? ret.expectedPickupDate
                               ? `Replacement Scheduled (Expected: ${formatBookingDate(ret.expectedPickupDate)})`
                               : ret.replacementProductName && ret.replacementProductName !== ret.productName
-                              ? `Replacement Handed Over (Upgraded to ${ret.replacementProductName}${
-                                  typeof ret.priceDifference === "number" && ret.priceDifference !== 0
-                                    ? ` • ${ret.priceDifference > 0 ? `Price Diff: +${formatRupee(ret.priceDifference)} via ${(ret.priceDifferencePaymentMode || "cash").toUpperCase()}` : `Excess Refund: -${formatRupee(Math.abs(ret.priceDifference))}`}`
-                                    : ""
+                                ? `Replacement Handed Over (Upgraded to ${ret.replacementProductName}${typeof ret.priceDifference === "number" && ret.priceDifference !== 0
+                                  ? ` • ${ret.priceDifference > 0 ? `Price Diff: +${formatRupee(ret.priceDifference)} via ${(ret.priceDifferencePaymentMode || "cash").toUpperCase()}` : `Excess Refund: -${formatRupee(Math.abs(ret.priceDifference))}`}`
+                                  : ""
                                 })`
-                              : "Replacement Handed Over"
+                                : "Replacement Handed Over"
                             : (() => {
-                                const hasDueDed = (ret.dueDeduction || 0) > 0;
-                                const hasCash = (ret.cashRefund || 0) > 0;
-                                if (hasDueDed && hasCash) {
-                                  return `Deducted ${formatRupee(ret.dueDeduction || 0)} due & Refunded ${formatRupee(ret.cashRefund || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
-                                }
-                                if (hasDueDed) {
-                                  return `Deducted ${formatRupee(ret.dueDeduction || ret.refundAmount || 0)} from pending due`;
-                                }
-                                return `Refunded ${formatRupee(ret.cashRefund || ret.refundAmount || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
-                              })()}
+                              const hasDueDed = (ret.dueDeduction || 0) > 0;
+                              const hasCash = (ret.cashRefund || 0) > 0;
+                              if (hasDueDed && hasCash) {
+                                return `Deducted ${formatRupee(ret.dueDeduction || 0)} due & Refunded ${formatRupee(ret.cashRefund || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
+                              }
+                              if (hasDueDed) {
+                                return `Deducted ${formatRupee(ret.dueDeduction || ret.refundAmount || 0)} from pending due`;
+                              }
+                              return `Refunded ${formatRupee(ret.cashRefund || ret.refundAmount || 0)} via ${(ret.refundMode || "cash").toUpperCase()}`;
+                            })()}
                         </strong>
                       </span>
                       {ret.restockLocation && (
@@ -1188,10 +1181,10 @@ export function OrderDetailsModal({
                       ? "Change Due Date"
                       : "Reschedule"
                     : isDue && !hasPendingDelivery
-                    ? "Set Due Date"
-                    : isReplacement
-                    ? "Set Delivery Date"
-                    : "Set Date"}
+                      ? "Set Due Date"
+                      : isReplacement
+                        ? "Set Delivery Date"
+                        : "Set Date"}
                 </button>
               )}
 
@@ -1210,12 +1203,11 @@ export function OrderDetailsModal({
               <button
                 type="button"
                 onClick={onClose}
-                className={`${
-                  ((isAdvance || isPaidFull || isDue || isReplacement) && onOpenReschedule) ||
+                className={`${((isAdvance || isPaidFull || isDue || isReplacement) && onOpenReschedule) ||
                   (canOrderBeRefunded(order) && onOpenRefund)
-                    ? "flex-1"
-                    : "w-full"
-                } py-2.5 rounded-[5px] bg-galla-teal hover:bg-galla-teal/90 text-white font-sans font-medium text-[13px] transition-colors cursor-pointer text-center shadow-xs`}
+                  ? "flex-1"
+                  : "w-full"
+                  } py-2.5 rounded-[5px] bg-galla-teal hover:bg-galla-teal/90 text-white font-sans font-medium text-[13px] transition-colors cursor-pointer text-center shadow-xs`}
               >
                 Close
               </button>

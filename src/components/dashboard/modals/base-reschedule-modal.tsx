@@ -97,17 +97,17 @@ function BaseRescheduleModalContent({
   const todayWaUrl =
     customerPhone && isCurrentDeliveryDay
       ? getWhatsAppReminderUrl({
-          phone: customerPhone,
-          customerName: entityName,
-          salonName: salonName || "our salon",
-          bookingDate: currentDate || undefined,
-          bookingTime: currentTime || undefined,
-          orderType: orderType as any,
-          productName: productName,
-          orderId: orderNumber,
-          isReplacement: isReplacement,
-          isToday: true,
-        })
+        phone: customerPhone,
+        customerName: entityName,
+        salonName: salonName || "our salon",
+        bookingDate: currentDate || undefined,
+        bookingTime: currentTime || undefined,
+        orderType: orderType as any,
+        productName: productName,
+        orderId: orderNumber,
+        isReplacement: isReplacement,
+        isToday: true,
+      })
       : null;
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -158,16 +158,16 @@ function BaseRescheduleModalContent({
   const whatsappUrl =
     customerPhone && savedDate
       ? getWhatsAppRescheduleUrl({
-          phone: customerPhone,
-          customerName: entityName,
-          salonName: salonName || "our salon",
-          orderNumber: orderNumber || referenceText,
-          newDate: savedDate,
-          newTime: savedTime,
-          orderType: orderType,
-          isReplacement: isReplacement,
-          productName: productName,
-        })
+        phone: customerPhone,
+        customerName: entityName,
+        salonName: salonName || "our salon",
+        orderNumber: orderNumber || referenceText,
+        newDate: savedDate,
+        newTime: savedTime,
+        orderType: orderType,
+        isReplacement: isReplacement,
+        productName: productName,
+      })
       : null;
 
   return (

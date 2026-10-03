@@ -283,33 +283,33 @@ export function PurchaseBillDetailsModal({
   const originalAmountPaid =
     resolvedPayments && resolvedPayments.length > 0
       ? resolvedPayments
-          .filter(
-            (p) =>
-              p.type !== "refund" &&
-              p.type !== "return_due_deduction" &&
-              p.paymentMode !== "reduce_due" &&
-              p.amount > 0,
-          )
-          .reduce((sum, p) => sum + p.amount, 0)
+        .filter(
+          (p) =>
+            p.type !== "refund" &&
+            p.type !== "return_due_deduction" &&
+            p.paymentMode !== "reduce_due" &&
+            p.amount > 0,
+        )
+        .reduce((sum, p) => sum + p.amount, 0)
       : bill.amountPaid;
 
   const itemsTotalCost =
     bill.items && bill.items.length > 0
       ? bill.items.reduce((sum, item) => {
-          const qty = (item.quantityForSell || 0) + (item.quantityForUse || 0);
-          return sum + item.purchaseCost * (qty > 0 ? qty : 1);
-        }, 0)
+        const qty = (item.quantityForSell || 0) + (item.quantityForUse || 0);
+        return sum + item.purchaseCost * (qty > 0 ? qty : 1);
+      }, 0)
       : bill.totalAmount;
 
   const originalBillAmount = Math.max(bill.totalAmount, itemsTotalCost);
 
   const initials = bill.supplierName
     ? bill.supplierName
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
+      .split(" ")
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase()
     : "S";
 
   const billStatus = getBillStatus(bill);
@@ -620,13 +620,12 @@ export function PurchaseBillDetailsModal({
               </div>
 
               {/* Block 3: Payment Status */}
-              <div className={`p-3.5 rounded-[6px] border space-y-1 ${
-                isPaid
+              <div className={`p-3.5 rounded-[6px] border space-y-1 ${isPaid
                   ? "bg-emerald-50/50 border-emerald-200/80"
                   : isPartial
                     ? "bg-amber-50/50 border-amber-200/80"
                     : "bg-rose-50/50 border-rose-200/80"
-              }`}>
+                }`}>
                 <span className="text-[11.5px] font-medium text-galla-ink-soft flex items-center gap-1">
                   <Wallet className="h-3.5 w-3.5 text-galla-teal" />
                   <span>Payment Status</span>
@@ -750,14 +749,14 @@ export function PurchaseBillDetailsModal({
 
                   const replacedQty = itemReturnRecords.length > 0
                     ? itemReturnRecords
-                        .filter((ret) => isReplacementReturn(ret))
-                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                      .filter((ret) => isReplacementReturn(ret))
+                      .reduce((sum, r) => sum + (r.quantity || 0), 0)
                     : (item.replacedQuantity || 0);
 
                   const returnedQty = itemReturnRecords.length > 0
                     ? itemReturnRecords
-                        .filter((ret) => !isReplacementReturn(ret))
-                        .reduce((sum, r) => sum + (r.quantity || 0), 0)
+                      .filter((ret) => !isReplacementReturn(ret))
+                      .reduce((sum, r) => sum + (r.quantity || 0), 0)
                     : (item.returnedQuantity || 0);
 
                   const isFullyReturned = returnedQty >= purchasedQty;
@@ -899,11 +898,10 @@ export function PurchaseBillDetailsModal({
                   return (
                     <div
                       key={rIdx}
-                      className={`p-3.5 rounded-[6px] border text-[12.5px] space-y-2 ${
-                        isReplacement
+                      className={`p-3.5 rounded-[6px] border text-[12.5px] space-y-2 ${isReplacement
                           ? "bg-blue-50/20 border-blue-200/80"
                           : "bg-rose-50/30 border-rose-200/80"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -911,11 +909,10 @@ export function PurchaseBillDetailsModal({
                             {ret.quantity}x {ret.productName}
                           </span>
                           <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border ${
-                              isReplacement
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border ${isReplacement
                                 ? "bg-blue-50 text-blue-700 border-blue-200"
                                 : "bg-rose-50 text-rose-700 border-rose-200"
-                            }`}
+                              }`}
                           >
                             {isReplacement ? "Replacement" : "Return"}
                           </span>
@@ -934,25 +931,25 @@ export function PurchaseBillDetailsModal({
                           <strong className="text-galla-ink font-medium">
                             {isReplacement
                               ? (() => {
-                                  const isSalon = ret.notes?.toLowerCase().includes("salon use");
-                                  const isRetail = ret.notes?.toLowerCase().includes("retail");
-                                  if (isSalon) return "Replaced with New Stock (Salon Use)";
-                                  if (isRetail) return "Replaced with New Stock (Retail Shelf)";
-                                  return "Replaced with New Stock";
-                                })()
+                                const isSalon = ret.notes?.toLowerCase().includes("salon use");
+                                const isRetail = ret.notes?.toLowerCase().includes("retail");
+                                if (isSalon) return "Replaced with New Stock (Salon Use)";
+                                if (isRetail) return "Replaced with New Stock (Retail Shelf)";
+                                return "Replaced with New Stock";
+                              })()
                               : ret.refundMode === "reduce_due"
                                 ? (() => {
-                                    const due = ret.amountDeductedFromDue || 0;
-                                    const total = ret.totalRefundAmount || (ret.quantity * (ret.unitCost || 0));
-                                    const credit = Math.max(0, total - due);
-                                    if (due > 0 && credit > 0) {
-                                      return `Deducted ${formatRupee(due)} from due + ${formatRupee(credit)} credited to supplier balance`;
-                                    }
-                                    if (due > 0) {
-                                      return `Deducted ${formatRupee(due)} from pending due`;
-                                    }
-                                    return `Credited ${formatRupee(total)} to supplier balance (Bill was fully paid)`;
-                                  })()
+                                  const due = ret.amountDeductedFromDue || 0;
+                                  const total = ret.totalRefundAmount || (ret.quantity * (ret.unitCost || 0));
+                                  const credit = Math.max(0, total - due);
+                                  if (due > 0 && credit > 0) {
+                                    return `Deducted ${formatRupee(due)} from due + ${formatRupee(credit)} credited to supplier balance`;
+                                  }
+                                  if (due > 0) {
+                                    return `Deducted ${formatRupee(due)} from pending due`;
+                                  }
+                                  return `Credited ${formatRupee(total)} to supplier balance (Bill was fully paid)`;
+                                })()
                                 : `Refunded ${formatRupee(ret.totalRefundAmount)} via ${(ret.refundMode || "cash").toUpperCase()}`}
                           </strong>
                         </span>
@@ -977,12 +974,12 @@ export function PurchaseBillDetailsModal({
                       {(() => {
                         const displayNote = ret.notes
                           ? ret.notes
-                              .replace(/₹\d+(?:\.\d+)?\s+received\s+via\s+[A-Za-z_-]+(?:\.|\s|$)/gi, "")
-                              .replace(/₹\d+(?:\.\d+)?\s+deducted\s+from\s+bill\s+due(?:\.|\s|$)/gi, "")
-                              .replace(/₹\d+(?:\.\d+)?\s+added\s+as\s+supplier\s+credit(?:\.|\s|$)/gi, "")
-                              .replace(/\[Stock\s+Replaced\]\s*Received[^\n\r.]*(?:\.|$)/gi, "")
-                              .replace(/^[\s.,-]+|[\s.,-]+$/g, "")
-                              .trim()
+                            .replace(/₹\d+(?:\.\d+)?\s+received\s+via\s+[A-Za-z_-]+(?:\.|\s|$)/gi, "")
+                            .replace(/₹\d+(?:\.\d+)?\s+deducted\s+from\s+bill\s+due(?:\.|\s|$)/gi, "")
+                            .replace(/₹\d+(?:\.\d+)?\s+added\s+as\s+supplier\s+credit(?:\.|\s|$)/gi, "")
+                            .replace(/\[Stock\s+Replaced\]\s*Received[^\n\r.]*(?:\.|$)/gi, "")
+                            .replace(/^[\s.,-]+|[\s.,-]+$/g, "")
+                            .trim()
                           : "";
                         if (!displayNote) return null;
                         return (
@@ -1155,21 +1152,20 @@ export function PurchaseBillDetailsModal({
                             {badge.label}
                           </span>
                           <span
-                            className={`font-bold tabular-nums ${
-                              isSupplierCredit
+                            className={`font-bold tabular-nums ${isSupplierCredit
                                 ? "text-emerald-700"
                                 : isDueDeduction
-                                ? "text-purple-700"
-                                : isNegative
-                                ? "text-rose-700"
-                                : "text-galla-ink"
-                            }`}
+                                  ? "text-purple-700"
+                                  : isNegative
+                                    ? "text-rose-700"
+                                    : "text-galla-ink"
+                              }`}
                           >
                             {isSupplierCredit
                               ? `+${formatRupee(Math.abs(p.amount))}`
                               : isDueDeduction
-                              ? `-${formatRupee(Math.abs(p.amount))}`
-                              : formatRupee(p.amount)}
+                                ? `-${formatRupee(Math.abs(p.amount))}`
+                                : formatRupee(p.amount)}
                           </span>
                         </div>
                         <span className="text-[11px] text-galla-ink-soft tabular-nums">

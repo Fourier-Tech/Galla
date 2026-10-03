@@ -321,11 +321,10 @@ export function SettleReplacementModal({
               <button
                 type="button"
                 onClick={() => setResolutionType("credit_refund")}
-                className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${
-                  resolutionType === "credit_refund"
+                className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${resolutionType === "credit_refund"
                     ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                     : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2 font-bold text-[13.5px]">
                   <RotateCcw className={`h-4.5 w-4.5 ${resolutionType === "credit_refund" ? "text-galla-teal" : "text-galla-ink-soft"}`} />
@@ -339,11 +338,10 @@ export function SettleReplacementModal({
               <button
                 type="button"
                 onClick={() => setResolutionType("replace_stock")}
-                className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${
-                  resolutionType === "replace_stock"
+                className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${resolutionType === "replace_stock"
                     ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                     : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2 font-bold text-[13.5px]">
                   <CheckCircle2 className={`h-4.5 w-4.5 ${resolutionType === "replace_stock" ? "text-galla-teal" : "text-galla-ink-soft"}`} />
@@ -365,11 +363,10 @@ export function SettleReplacementModal({
                   <button
                     type="button"
                     onClick={() => setTargetStock("sellStock")}
-                    className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                      targetStock === "sellStock"
+                    className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${targetStock === "sellStock"
                         ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                         : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 font-bold text-[13px] text-galla-ink">
@@ -386,11 +383,10 @@ export function SettleReplacementModal({
                   <button
                     type="button"
                     onClick={() => setTargetStock("useStock")}
-                    className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${
-                      targetStock === "useStock"
+                    className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${targetStock === "useStock"
                         ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
                         : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 font-bold text-[13px] text-galla-ink">
@@ -510,9 +506,8 @@ export function SettleReplacementModal({
                     <div className="flex justify-between items-center pt-2 border-t border-galla-line/60">
                       <span className="font-bold text-galla-ink">Net Money to Receive from Supplier:</span>
                       <span
-                        className={`font-bold tabular-nums text-[14px] ${
-                          cashRefund > 0 ? "text-emerald-700" : "text-galla-ink-soft"
-                        }`}
+                        className={`font-bold tabular-nums text-[14px] ${cashRefund > 0 ? "text-emerald-700" : "text-galla-ink-soft"
+                          }`}
                       >
                         {formatRupee(cashRefund)}
                       </span>

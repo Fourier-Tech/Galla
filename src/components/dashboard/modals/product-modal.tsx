@@ -275,11 +275,10 @@ export function ProductModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Daily Shampoo 250ml, Hair Serum"
-                className={`w-full bg-galla-paper/50 border rounded-[5px] px-[13px] py-[8px] text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none transition-all ${
-                  duplicateWarning
+                className={`w-full bg-galla-paper/50 border rounded-[5px] px-[13px] py-[8px] text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none transition-all ${duplicateWarning
                     ? "border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                     : "border-galla-line focus:border-galla-teal focus:ring-1 focus:ring-galla-teal"
-                }`}
+                  }`}
               />
 
               {/* Real-time Inline Duplicate Warning */}
@@ -328,9 +327,8 @@ export function ProductModal({
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
                   placeholder="Type category (e.g. Skin Care, Hair Care)..."
-                  className={`w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all ${
-                    dbCategories.length > 0 ? "mt-2" : ""
-                  }`}
+                  className={`w-full bg-galla-paper/50 border border-galla-line rounded-[5px] px-[13px] py-[8px] text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all ${dbCategories.length > 0 ? "mt-2" : ""
+                    }`}
                 />
               )}
             </div>
@@ -536,8 +534,8 @@ export function ProductModal({
                     ? "Updating..."
                     : "Adding..."
                   : isEditMode
-                  ? "Save Changes"
-                  : "Add Product"}
+                    ? "Save Changes"
+                    : "Add Product"}
               </span>
             </button>
           </div>

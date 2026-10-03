@@ -39,11 +39,10 @@ export function ConfirmModal({
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5">
             <div
-              className={`p-2 rounded-full shrink-0 ${
-                isDestructive
+              className={`p-2 rounded-full shrink-0 ${isDestructive
                   ? "bg-red-50 text-red-600 border border-red-200"
                   : "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
-              }`}
+                }`}
             >
               {isDestructive ? (
                 <AlertTriangle className="h-4 w-4" />
@@ -87,11 +86,10 @@ export function ConfirmModal({
             autoFocus
             onClick={onConfirm}
             disabled={isLoading}
-            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-[5px] font-sans text-[13px] font-medium text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 ${
-              isDestructive
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-[5px] font-sans text-[13px] font-medium text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 ${isDestructive
                 ? "bg-red-600 hover:bg-red-700"
                 : "bg-galla-teal hover:opacity-95"
-            }`}
+              }`}
           >
             {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             <span>{confirmLabel}</span>

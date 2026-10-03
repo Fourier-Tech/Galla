@@ -230,11 +230,10 @@ export function SupplierModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Ramesh Patel"
-              className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans text-galla-ink focus:ring-1 outline-none ${
-                existingExactSupplier && !isEditMode
-                  ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400"
-                  : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
-              }`}
+              className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans text-galla-ink focus:ring-1 outline-none ${existingExactSupplier && !isEditMode
+                ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400"
+                : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
+                }`}
             />
           </div>
 
@@ -264,11 +263,10 @@ export function SupplierModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="98250 12345"
-                className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans tabular-nums text-galla-ink focus:ring-1 outline-none ${
-                  (existingExactSupplier && !isEditMode) || phoneConflictSupplier
-                    ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400"
-                    : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
-                }`}
+                className={`w-full px-3 py-2 rounded-[5px] bg-galla-surface border text-[13.5px] font-sans tabular-nums text-galla-ink focus:ring-1 outline-none ${(existingExactSupplier && !isEditMode) || phoneConflictSupplier
+                  ? "border-amber-400 focus:border-amber-500 focus:ring-amber-400"
+                  : "border-galla-line focus:border-galla-teal focus:ring-galla-teal"
+                  }`}
               />
               {existingExactSupplier && !isEditMode && (
                 <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-900 text-[12px] rounded-[4px] font-sans">

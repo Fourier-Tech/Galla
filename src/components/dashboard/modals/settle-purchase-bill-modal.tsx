@@ -254,13 +254,13 @@ function SettlePurchaseBillModalContent({
             </div>
           )}
 
-              {/* Payment Mode Selection */}
-              <PaymentModeSelect
-                label="Payment Mode for Settlement"
-                value={paymentMode}
-                onChange={setPaymentMode}
-                allowedModes={["cash", "upi", "card", "bank_transfer"]}
-              />
+          {/* Payment Mode Selection */}
+          <PaymentModeSelect
+            label="Payment Mode for Settlement"
+            value={paymentMode}
+            onChange={setPaymentMode}
+            allowedModes={["cash", "upi", "card", "bank_transfer"]}
+          />
 
           {/* Notes / Reference */}
           <div>

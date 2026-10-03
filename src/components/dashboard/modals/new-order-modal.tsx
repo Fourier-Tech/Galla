@@ -347,8 +347,8 @@ function SettlementModeSelect({
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
           className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-sans flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs select-none ${isOpen
-              ? "border-galla-teal ring-1 ring-galla-teal"
-              : "border-galla-line hover:border-galla-ink-soft/40"
+            ? "border-galla-teal ring-1 ring-galla-teal"
+            : "border-galla-line hover:border-galla-ink-soft/40"
             }`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
@@ -427,17 +427,17 @@ function SettlementModeSelect({
                     }
                   }}
                   className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 text-[12.5px] transition-colors ${isDisabled
-                      ? "opacity-50 cursor-not-allowed bg-galla-paper/40"
-                      : isSelected
-                        ? "bg-galla-teal/10 cursor-pointer"
-                        : "hover:bg-galla-paper/70 cursor-pointer"
+                    ? "opacity-50 cursor-not-allowed bg-galla-paper/40"
+                    : isSelected
+                      ? "bg-galla-teal/10 cursor-pointer"
+                      : "hover:bg-galla-paper/70 cursor-pointer"
                     }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
                       className={`h-6 w-6 rounded-[4px] flex items-center justify-center shrink-0 ${isSelected
-                          ? "bg-galla-teal text-white"
-                          : "bg-galla-paper text-galla-ink-soft border border-galla-line"
+                        ? "bg-galla-teal text-white"
+                        : "bg-galla-paper text-galla-ink-soft border border-galla-line"
                         }`}
                     >
                       <Icon className="h-3.5 w-3.5" />
@@ -1560,13 +1560,12 @@ export function NewOrderModal({
                       }}
                       placeholder={String(baseOrderTotal)}
                       disabled={selectedItems.length === 0}
-                      className={`w-full pl-6 pr-2.5 py-1.5 text-right text-[17px] font-bold tabular-nums rounded-[5px] border transition-all focus:outline-none shadow-2xs ${
-                        isTotalBelowBase
+                      className={`w-full pl-6 pr-2.5 py-1.5 text-right text-[17px] font-bold tabular-nums rounded-[5px] border transition-all focus:outline-none shadow-2xs ${isTotalBelowBase
                           ? "border-rose-400 bg-rose-50/50 text-rose-700 focus:border-rose-500 ring-1 ring-rose-300"
                           : extraCharge > 0
-                          ? "border-amber-300 bg-amber-50/40 text-galla-teal focus:border-amber-400 ring-1 ring-amber-200"
-                          : "border-galla-line bg-galla-surface text-galla-teal focus:border-galla-teal focus:ring-1 focus:ring-galla-teal"
-                      } disabled:opacity-50 disabled:bg-galla-paper/50 cursor-text`}
+                            ? "border-amber-300 bg-amber-50/40 text-galla-teal focus:border-amber-400 ring-1 ring-amber-200"
+                            : "border-galla-line bg-galla-surface text-galla-teal focus:border-galla-teal focus:ring-1 focus:ring-galla-teal"
+                        } disabled:opacity-50 disabled:bg-galla-paper/50 cursor-text`}
                     />
                   </div>
                 </div>

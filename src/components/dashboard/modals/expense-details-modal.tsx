@@ -62,12 +62,12 @@ export function ExpenseDetailsModal({
 
   const formattedDate = expense.createdAt
     ? new Date(expense.createdAt).toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     : expense.time;
 
 

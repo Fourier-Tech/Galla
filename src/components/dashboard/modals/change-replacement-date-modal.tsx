@@ -100,14 +100,14 @@ function ChangeReplacementDateModalContent({
   const whatsappUrl =
     replacement.customerPhone && newDate
       ? getWhatsAppRescheduleUrl({
-          phone: replacement.customerPhone,
-          customerName: replacement.customerName,
-          salonName: salonName || "our salon",
-          orderNumber: formatDisplayNumber(replacement.orderNumber),
-          newDate: newDate,
-          isReplacement: true,
-          productName: replacement.productName,
-        })
+        phone: replacement.customerPhone,
+        customerName: replacement.customerName,
+        salonName: salonName || "our salon",
+        orderNumber: formatDisplayNumber(replacement.orderNumber),
+        newDate: newDate,
+        isReplacement: true,
+        productName: replacement.productName,
+      })
       : null;
 
   return (

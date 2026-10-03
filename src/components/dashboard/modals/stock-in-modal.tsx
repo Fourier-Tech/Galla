@@ -125,11 +125,10 @@ function SettlementModeSelect({
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-sans flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs select-none ${
-            isOpen
+          className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-sans flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs select-none ${isOpen
               ? "border-galla-teal ring-1 ring-galla-teal"
               : "border-galla-line hover:border-galla-ink-soft/40"
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="h-6 w-6 rounded-[4px] bg-galla-teal-soft/80 border border-galla-teal/20 text-galla-teal flex items-center justify-center shrink-0">
@@ -145,9 +144,8 @@ function SettlementModeSelect({
             </div>
           </div>
           <ChevronDown
-            className={`h-4 w-4 text-galla-ink-soft shrink-0 transition-transform duration-200 ${
-              isOpen ? "rotate-180 text-galla-teal" : ""
-            }`}
+            className={`h-4 w-4 text-galla-ink-soft shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180 text-galla-teal" : ""
+              }`}
           />
         </button>
 
@@ -165,28 +163,25 @@ function SettlementModeSelect({
                     onChange(opt.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 text-[12.5px] transition-colors cursor-pointer ${
-                    isSelected
+                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 text-[12.5px] transition-colors cursor-pointer ${isSelected
                       ? "bg-galla-teal/10"
                       : "hover:bg-galla-paper/70"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`h-6 w-6 rounded-[4px] flex items-center justify-center shrink-0 ${
-                        isSelected
+                      className={`h-6 w-6 rounded-[4px] flex items-center justify-center shrink-0 ${isSelected
                           ? "bg-galla-teal text-white"
                           : "bg-galla-paper text-galla-ink-soft border border-galla-line"
-                      }`}
+                        }`}
                     >
                       <Icon className="h-3.5 w-3.5" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`font-semibold text-[13px] ${
-                            isSelected ? "text-galla-teal" : "text-galla-ink"
-                          }`}
+                          className={`font-semibold text-[13px] ${isSelected ? "text-galla-teal" : "text-galla-ink"
+                            }`}
                         >
                           {opt.label}
                         </span>
@@ -284,7 +279,7 @@ export function StockInModal({
           setInternalSuppliers(res.suppliers);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       ignore = true;
     };
@@ -470,13 +465,13 @@ export function StockInModal({
         prev.map((it, i) =>
           i === existingIndex
             ? {
-                ...it,
-                quantityForSell: String(rep.quantity),
-                quantityForUse: "0",
-                purchaseCost: "0",
-                isReplacement: true,
-                originalPoId: rep.poId,
-              }
+              ...it,
+              quantityForSell: String(rep.quantity),
+              quantityForUse: "0",
+              purchaseCost: "0",
+              isReplacement: true,
+              originalPoId: rep.poId,
+            }
             : it,
         ),
       );
@@ -547,15 +542,15 @@ export function StockInModal({
         prev.map((it, i) =>
           i === index
             ? {
-                ...it,
-                productId: "__new__",
-                productName: "",
-                isNewProduct: true,
-                category: availableCategories[0] ?? "General",
-                customCategory: "",
-                expectedSellPrice: "0",
-                purchaseCost: "0",
-              }
+              ...it,
+              productId: "__new__",
+              productName: "",
+              isNewProduct: true,
+              category: availableCategories[0] ?? "General",
+              customCategory: "",
+              expectedSellPrice: "0",
+              purchaseCost: "0",
+            }
             : it,
         ),
       );
@@ -582,20 +577,20 @@ export function StockInModal({
       prev.map((it, i) =>
         i === index
           ? {
-              ...it,
-              productId: String(matched.id),
-              productName: matched.name,
-              isNewProduct: false,
-              category:
-                matched.category || (availableCategories[0] ?? "General"),
-              customCategory: "",
-              expectedSellPrice: matched.price ? String(matched.price) : "0",
-              purchaseCost:
-                matched.purchaseCost !== undefined &&
+            ...it,
+            productId: String(matched.id),
+            productName: matched.name,
+            isNewProduct: false,
+            category:
+              matched.category || (availableCategories[0] ?? "General"),
+            customCategory: "",
+            expectedSellPrice: matched.price ? String(matched.price) : "0",
+            purchaseCost:
+              matched.purchaseCost !== undefined &&
                 matched.purchaseCost !== null
-                  ? String(matched.purchaseCost)
-                  : "0",
-            }
+                ? String(matched.purchaseCost)
+                : "0",
+          }
           : it,
       ),
     );
@@ -632,7 +627,7 @@ export function StockInModal({
           quantityForUse: "0",
           purchaseCost:
             unselectedProd.purchaseCost !== undefined &&
-            unselectedProd.purchaseCost !== null
+              unselectedProd.purchaseCost !== null
               ? String(unselectedProd.purchaseCost)
               : "0",
           expectedSellPrice: unselectedProd.price
@@ -913,8 +908,8 @@ export function StockInModal({
         productName: it.productName.trim(),
         category: it.isNewProduct
           ? (it.category === "custom"
-              ? it.customCategory.trim()
-              : it.category.trim()) || "General"
+            ? it.customCategory.trim()
+            : it.category.trim()) || "General"
           : it.category,
         quantityForSell: Number(it.quantityForSell),
         quantityForUse: Number(it.quantityForUse),
@@ -938,12 +933,12 @@ export function StockInModal({
         dueDate: settlementMode === "pending" && dueDate ? dueDate : undefined,
         expectedDeliveryDate:
           (settlementMode === "advance" || settlementMode === "paid_full") &&
-          expectedDeliveryDate
+            expectedDeliveryDate
             ? expectedDeliveryDate
             : undefined,
         deliveryTime:
           (settlementMode === "advance" || settlementMode === "paid_full") &&
-          deliveryTime
+            deliveryTime
             ? deliveryTime
             : undefined,
         paymentMode: currentAmountPaid > 0 ? paymentMode : "credit",
@@ -1112,13 +1107,6 @@ export function StockInModal({
                     ))}
                   </div>
                 )}
-
-                {selectedSupplierId && (
-                  <div className="flex items-center gap-1 mt-1.5 text-[11.5px] font-sans text-emerald-700">
-                    <Check className="h-3.5 w-3.5" />
-                    <span>Linked to existing supplier profile</span>
-                  </div>
-                )}
               </div>
 
               {/* Dealer Phone */}
@@ -1135,11 +1123,10 @@ export function StockInModal({
                       setSupplierPhone(formatPhoneNumber(supplierPhone));
                   }}
                   placeholder="+91 98250 00000"
-                  className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none transition-all shadow-2xs ${
-                    phoneConflictSupplier
+                  className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink placeholder:text-galla-ink-soft/60 focus:outline-none transition-all shadow-2xs ${phoneConflictSupplier
                       ? "border-amber-400 focus:border-amber-500"
                       : "border-galla-line focus:border-galla-teal"
-                  }`}
+                    }`}
                 />
                 {phoneConflictSupplier && (
                   <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-900 text-[11.5px] rounded-[6px] font-sans">
@@ -1228,11 +1215,10 @@ export function StockInModal({
                           type="button"
                           onClick={() => handleFillReplacement(rep)}
                           disabled={isAlreadyAdded}
-                          className={`shrink-0 px-3 py-1.5 rounded-[5px] font-sans text-[12px] font-semibold transition-all cursor-pointer ${
-                            isAlreadyAdded
+                          className={`shrink-0 px-3 py-1.5 rounded-[5px] font-sans text-[12px] font-semibold transition-all cursor-pointer ${isAlreadyAdded
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
                               : "bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
-                          }`}
+                            }`}
                         >
                           {isAlreadyAdded ? (
                             <span className="inline-flex items-center gap-1">
@@ -1275,17 +1261,17 @@ export function StockInModal({
                       (Boolean(item.productName.trim()) &&
                         Boolean(other.productName.trim()) &&
                         item.productName.trim().toLowerCase() ===
-                          other.productName.trim().toLowerCase())),
+                        other.productName.trim().toLowerCase())),
                 );
 
                 const trimmedNewName = item.productName.trim().toLowerCase();
                 const existingInventoryProduct =
                   item.isNewProduct && trimmedNewName && products.length > 0
                     ? products.find(
-                        (p) =>
-                          p.isActive !== false &&
-                          p.name.trim().toLowerCase() === trimmedNewName,
-                      )
+                      (p) =>
+                        p.isActive !== false &&
+                        p.name.trim().toLowerCase() === trimmedNewName,
+                    )
                     : null;
                 const duplicateWarning = existingInventoryProduct
                   ? "A product with this name already exists."
@@ -1294,11 +1280,10 @@ export function StockInModal({
                 return (
                   <div
                     key={idx}
-                    className={`p-4 bg-galla-paper/30 border rounded-[6px] space-y-3.5 transition-colors ${
-                      isDuplicate
+                    className={`p-4 bg-galla-paper/30 border rounded-[6px] space-y-3.5 transition-colors ${isDuplicate
                         ? "border-red-300 bg-red-50/20"
                         : "border-galla-line"
-                    }`}
+                      }`}
                   >
                     {/* Item Card Header */}
                     <div className="flex items-center justify-between gap-3">
@@ -1329,9 +1314,8 @@ export function StockInModal({
                       <select
                         value={item.isNewProduct ? "__new__" : item.productId}
                         onChange={(e) => handleProductSelect(idx, e.target.value)}
-                        className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs ${
-                          isDuplicate ? "border-red-400" : "border-galla-line"
-                        }`}
+                        className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal transition-all cursor-pointer shadow-2xs ${isDuplicate ? "border-red-400" : "border-galla-line"
+                          }`}
                       >
                         {sortedProducts.length > 0 && (
                           <optgroup label="Catalog Products">
@@ -1414,11 +1398,10 @@ export function StockInModal({
                                 handleItemFieldChange(idx, "productName", e.target.value)
                               }
                               placeholder="e.g. L'Oreal Serum 100ml"
-                              className={`w-full bg-galla-surface border rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none transition-all ${
-                                duplicateWarning
+                              className={`w-full bg-galla-surface border rounded-[5px] px-3 py-1.5 text-[13px] text-galla-ink focus:outline-none transition-all ${duplicateWarning
                                   ? "border-amber-400 focus:border-amber-500"
                                   : "border-galla-line focus:border-galla-teal"
-                              }`}
+                                }`}
                             />
 
                             {duplicateWarning && (
@@ -1713,11 +1696,10 @@ export function StockInModal({
             {/* Advance / Paid in Full Details Card */}
             {(settlementMode === "advance" || settlementMode === "paid_full") && (
               <div
-                className={`p-4 rounded-[6px] space-y-3 border ${
-                  settlementMode === "advance"
+                className={`p-4 rounded-[6px] space-y-3 border ${settlementMode === "advance"
                     ? "bg-galla-brass-soft/40 border-galla-brass/30"
                     : "bg-galla-teal-soft/40 border-galla-teal/30"
-                }`}
+                  }`}
               >
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {settlementMode === "advance" && (
@@ -1754,11 +1736,10 @@ export function StockInModal({
                       value={expectedDeliveryDate}
                       min={getLocalDateString()}
                       onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                      className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
-                        settlementMode === "advance"
+                      className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${settlementMode === "advance"
                           ? "focus:border-galla-brass"
                           : "focus:border-galla-teal"
-                      }`}
+                        }`}
                     />
                   </div>
 
@@ -1782,11 +1763,10 @@ export function StockInModal({
                       type="time"
                       value={deliveryTime}
                       onChange={(e) => setDeliveryTime(e.target.value)}
-                      className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${
-                        settlementMode === "advance"
+                      className={`w-full bg-galla-surface border border-galla-line rounded-[5px] px-3 py-2 text-[12.5px] font-sans text-galla-ink focus:outline-none transition-all cursor-pointer shadow-2xs ${settlementMode === "advance"
                           ? "focus:border-galla-brass"
                           : "focus:border-galla-teal"
-                      }`}
+                        }`}
                     />
                   </div>
                 </div>

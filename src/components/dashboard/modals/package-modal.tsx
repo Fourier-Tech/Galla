@@ -521,11 +521,10 @@ export function PackageModal({
                 <div className="flex items-center justify-between text-[12px] text-galla-ink-soft">
                   <span>Total Price:</span>
                   <span
-                    className={`font-semibold tabular-nums ${
-                      enteredPrice > 0 && savingsAmount > 0
+                    className={`font-semibold tabular-nums ${enteredPrice > 0 && savingsAmount > 0
                         ? "line-through text-galla-ink-soft"
                         : "text-galla-ink"
-                    }`}
+                      }`}
                   >
                     {formatRupee(standaloneTotal)}
                   </span>
@@ -562,11 +561,10 @@ export function PackageModal({
               <button
                 type="button"
                 onClick={() => setIsActive(!isActive)}
-                className={`px-3 py-1 rounded-[4px] text-[12px] font-medium transition-colors cursor-pointer ${
-                  isActive
+                className={`px-3 py-1 rounded-[4px] text-[12px] font-medium transition-colors cursor-pointer ${isActive
                     ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                     : "bg-gray-100 text-gray-600 border border-gray-300"
-                }`}
+                  }`}
               >
                 {isActive ? "Active" : "Inactive"}
               </button>
@@ -591,8 +589,8 @@ export function PackageModal({
               {isSubmitting
                 ? "Saving..."
                 : packageToEdit
-                ? "Save Changes"
-                : "Create Package"}
+                  ? "Save Changes"
+                  : "Create Package"}
             </button>
           </div>
         </form>

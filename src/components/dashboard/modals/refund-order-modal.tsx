@@ -238,11 +238,10 @@ function RefundOrderModalContent({
                   return (
                     <div
                       key={idx}
-                      className={`p-2 rounded-[4px] border flex items-center justify-between gap-2 text-[12px] ${
-                        isFullyReturned
+                      className={`p-2 rounded-[4px] border flex items-center justify-between gap-2 text-[12px] ${isFullyReturned
                           ? "bg-galla-paper/30 border-galla-line/40 opacity-60"
                           : "bg-galla-surface border-galla-line"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <Package className={`h-3.5 w-3.5 shrink-0 ${isFullyReturned ? "text-galla-ink-soft" : "text-galla-teal"}`} />
