@@ -301,7 +301,15 @@ export function PurchaseBillDetailsModal({
       }, 0)
       : bill.totalAmount;
 
-  const originalBillAmount = Math.max(bill.totalAmount, itemsTotalCost);
+  const priceDiff = bill.totalAmount - itemsTotalCost;
+  const hasDiscount = priceDiff < 0;
+  const hasExtraCharge = priceDiff > 0;
+  const discountAmount = Math.abs(priceDiff);
+  const extraChargeAmount = priceDiff;
+
+  const effectivePaid = originalAmountPaid || bill.amountPaid;
+  const initialPendingDue = Math.max(0, bill.totalAmount - effectivePaid);
+  const payableAmount = Math.max(0, initialPendingDue - totalDueDeductions);
 
   const initials = bill.supplierName
     ? bill.supplierName
@@ -1031,6 +1039,7 @@ export function PurchaseBillDetailsModal({
             </div>
 
             <div className="space-y-2.5 text-[13px] pt-1">
+              {/* 1. Products Subtotal */}
               <div className="flex justify-between text-galla-ink-soft">
                 <span>Products Subtotal:</span>
                 <span className="tabular-nums font-semibold text-galla-ink">
@@ -1038,43 +1047,45 @@ export function PurchaseBillDetailsModal({
                 </span>
               </div>
 
+              {/* 2. Extra Charge or Discount */}
+              {hasDiscount && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Discount:</span>
+                  <span className="tabular-nums font-semibold">
+                    -{formatRupee(discountAmount)}
+                  </span>
+                </div>
+              )}
+              {hasExtraCharge && (
+                <div className="flex justify-between text-amber-700 font-medium">
+                  <span>Extra Charge:</span>
+                  <span className="tabular-nums font-semibold">
+                    +{formatRupee(extraChargeAmount)}
+                  </span>
+                </div>
+              )}
+
               {Boolean(bill.ledgerAdjustment) && bill.ledgerAdjustment !== 0 && (
                 <div className="flex justify-between text-blue-700 font-medium">
                   <span>
                     {bill.ledgerAdjustment! > 0 ? "Credit Applied:" : "Old Dues Paid:"}
                   </span>
                   <span className="tabular-nums font-semibold">
-                    {formatRupee(Math.abs(bill.ledgerAdjustment!))}
+                    {bill.ledgerAdjustment! > 0 ? "-" : "+"}{formatRupee(Math.abs(bill.ledgerAdjustment!))}
                   </span>
                 </div>
               )}
 
-              {totalDueDeductions > 0 && (
-                <div className="flex justify-between text-purple-700 font-medium">
-                  <span>Returns (Due Deductions):</span>
-                  <span className="tabular-nums font-semibold">
-                    -{formatRupee(totalDueDeductions)}
-                  </span>
-                </div>
-              )}
-
-              {totalSupplierCredits > 0 && (
-                <div className="flex justify-between text-emerald-700 font-medium">
-                  <span>Returns (Supplier Credit):</span>
-                  <span className="tabular-nums font-semibold">
-                    +{formatRupee(totalSupplierCredits)}
-                  </span>
-                </div>
-              )}
-
+              {/* 3. Total Bill */}
               <div className="pt-2 border-t border-galla-line flex justify-between items-baseline">
                 <span className="font-bold text-[14px] text-galla-ink">Total Bill:</span>
                 <span className="tabular-nums font-bold text-[18px] text-galla-ink">
-                  {formatRupee(originalBillAmount)}
+                  {formatRupee(bill.totalAmount)}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center text-emerald-700 font-medium pt-1">
+              {/* 4. Amount Paid */}
+              <div className="flex justify-between items-center text-emerald-700 font-medium pt-0.5">
                 <span className="inline-flex items-center gap-1.5">
                   <Wallet className="h-3.5 w-3.5" />
                   <span>Amount Paid:</span>
@@ -1085,37 +1096,46 @@ export function PurchaseBillDetailsModal({
                   )}
                 </span>
                 <span className="tabular-nums font-bold text-[15px]">
-                  {formatRupee(originalAmountPaid || bill.amountPaid)}
+                  {formatRupee(effectivePaid)}
                 </span>
               </div>
 
-              {/* Balance Due / Fully Settled Box */}
-              {isDue ? (
-                <div className="p-3.5 rounded-[6px] bg-rose-50 border border-rose-200 space-y-1">
-                  <div className="flex justify-between items-center text-rose-800">
-                    <span className="font-bold text-[13px] flex items-center gap-1.5">
-                      <AlertCircle className="h-4 w-4 text-rose-600" />
-                      <span>Balance Due:</span>
-                    </span>
-                    <span className="tabular-nums font-bold text-[18px] text-rose-700">
-                      {formatRupee(dueAmount)}
-                    </span>
-                  </div>
-                  <p className="text-[11.5px] text-rose-800/80">
-                    Supplier payment pending
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3.5 rounded-[6px] bg-emerald-50 border border-emerald-200 flex items-center justify-between text-emerald-800">
-                  <span className="font-bold text-[13px] flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <span>Payment Status:</span>
-                  </span>
-                  <span className="font-bold text-[13.5px]">
-                    Fully Cleared (₹0 Due)
+              {/* 5. Pending Due */}
+              <div className="flex justify-between items-center text-galla-ink-soft">
+                <span>Pending Due:</span>
+                <span className={`tabular-nums font-semibold ${initialPendingDue > 0 ? "text-galla-ink" : "text-emerald-700"}`}>
+                  {formatRupee(initialPendingDue)}
+                </span>
+              </div>
+
+              {/* 6. Returns (Due Deductions) */}
+              {totalDueDeductions > 0 && (
+                <div className="flex justify-between items-center text-purple-700 font-medium">
+                  <span>Returns (Due Deductions):</span>
+                  <span className="tabular-nums font-semibold">
+                    -{formatRupee(totalDueDeductions)}
                   </span>
                 </div>
               )}
+
+              {totalSupplierCredits > 0 && (
+                <div className="flex justify-between items-center text-emerald-700 font-medium">
+                  <span>Returns (Supplier Credit):</span>
+                  <span className="tabular-nums font-semibold">
+                    +{formatRupee(totalSupplierCredits)}
+                  </span>
+                </div>
+              )}
+
+              {/* 7. Payable */}
+              <div className="pt-2 border-t border-galla-line flex justify-between items-baseline">
+                <span className={`font-bold text-[14px] ${payableAmount > 0 ? "text-rose-700" : "text-emerald-800"}`}>
+                  Payable:
+                </span>
+                <span className={`tabular-nums font-bold text-[18px] ${payableAmount > 0 ? "text-rose-700" : "text-emerald-800"}`}>
+                  {payableAmount > 0 ? formatRupee(payableAmount) : "₹0 (Fully Cleared)"}
+                </span>
+              </div>
             </div>
           </section>
 

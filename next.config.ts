@@ -4,6 +4,11 @@ import type { NextConfig } from "next";
 process.env.TZ = "Asia/Kolkata";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
+  },
   images: {
     remotePatterns: [
       {

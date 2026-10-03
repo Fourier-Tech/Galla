@@ -119,6 +119,7 @@ export const createPurchaseOrderSchema = z.object({
   items: z.array(purchaseOrderItemInputSchema).min(1, "At least one item is required in a purchase order"),
   paymentMode: z.enum(["cash", "upi", "card", "bank_transfer", "credit"]).default("cash"),
   amountPaid: z.number().min(0, "Paid amount cannot be negative").optional(),
+  customTotalAmount: z.number().min(0, "Total amount cannot be negative").optional(),
   ledgerAdjustment: z.number().optional(),
   settlementMode: z.enum(["completed", "pending", "advance", "paid_full"]).optional().default("completed"),
   dueDate: z.string().optional(),
