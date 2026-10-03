@@ -65,7 +65,9 @@ export function Sidebar({
   const pathname = usePathname();
 
   // Gated navigation: Staff cannot see Analytics tab or Profile tab
-  const visibleNav = NAV_ITEMS.filter((item) => !item.ownerOnly || role === "owner");
+  const visibleNav = NAV_ITEMS.filter(
+    (item) => !item.ownerOnly || role === "owner" || role === "admin"
+  );
 
   const getHref = (id: TabId) => {
     if (id === "overview") return "/dashboard";
@@ -177,12 +179,14 @@ export function Sidebar({
           </span>
           <span
             className={`text-[11.5px] font-semibold px-2 py-0.5 rounded-[3px] ${
-              role === "owner"
+              role === "admin"
+                ? "bg-purple-100 text-purple-800 border border-purple-300 font-bold"
+                : role === "owner"
                 ? "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
                 : "bg-galla-brass-soft text-galla-brass border border-galla-brass/20"
             }`}
           >
-            {role === "owner" ? "Owner" : "Staff"}
+            {role === "admin" ? "Admin (HQ)" : role === "owner" ? "Owner" : "Staff"}
           </span>
         </div>
 
@@ -198,8 +202,8 @@ export function Sidebar({
           </button>
         )}
 
-        {/* Manage PINs (Owner Only) */}
-        {role === "owner" && onOpenChangePins && (
+        {/* Manage PINs (Owner & Admin) */}
+        {(role === "owner" || role === "admin") && onOpenChangePins && (
           <button
             type="button"
             onClick={onOpenChangePins}

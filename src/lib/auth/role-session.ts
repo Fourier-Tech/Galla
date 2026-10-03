@@ -10,12 +10,12 @@ export const ROLE_SESSION_COOKIE = "galla_role_session";
 export interface RoleSessionPayload {
   tenantId: string;
   userId: string;
-  role: "owner" | "staff";
+  role: "owner" | "staff" | "admin";
   activeSessionId: string;
   issuedAt: number;
 }
 
-function getJwtSecret(): Uint8Array {
+export function getJwtSecret(): Uint8Array {
   const secret =
     process.env.AUTH_SECRET ||
     process.env.NEXTAUTH_SECRET ||
@@ -69,7 +69,7 @@ export async function clearRoleSessionCookie(): Promise<void> {
 }
 
 export interface GetRoleSessionResult {
-  role: "owner" | "staff" | null;
+  role: "owner" | "staff" | "admin" | null;
   tenantId?: string;
   userId?: string;
   activeSessionId?: string;
@@ -94,6 +94,17 @@ export async function getRoleSession(): Promise<GetRoleSessionResult> {
 
     if (!rolePayload.userId || !rolePayload.role || !rolePayload.activeSessionId) {
       return { role: null, evicted: false };
+    }
+
+    // HQ Admin impersonation sessions have full access without concurrency displacement
+    if (rolePayload.role === "admin") {
+      return {
+        role: "admin",
+        tenantId: rolePayload.tenantId,
+        userId: rolePayload.userId,
+        activeSessionId: rolePayload.activeSessionId,
+        evicted: false,
+      };
     }
 
     // Verify against current shop account session
@@ -145,7 +156,7 @@ export async function getRoleSession(): Promise<GetRoleSessionResult> {
       evicted: false,
     };
   } catch (err) {
-    // Malformed token, signature mismatch, or connection error
+    console.error("[getRoleSession Verification Error]:", err);
     return { role: null, evicted: false };
   }
 }

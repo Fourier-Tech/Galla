@@ -12,12 +12,14 @@ export interface ITenant extends Document {
   name: string;
   slug: string;
   status: "active" | "suspended" | "trial";
-  ownerPinHash?: string;
-  staffPinHash?: string;
-  phone?: string;
-  address?: string;
-  profileImageUrl?: string;
-  profileImagePublicId?: string;
+  planType: "trial" | "active" | "lifetime";
+  planExpiresAt?: Date | null;
+  ownerPinHash?: string | null;
+  staffPinHash?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  profileImageUrl?: string | null;
+  profileImagePublicId?: string | null;
   settings: ITenantSettings;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +52,16 @@ const TenantSchema = new Schema<ITenant>(
       enum: ["active", "suspended", "trial"],
       default: "active",
       index: true,
+    },
+    planType: {
+      type: String,
+      enum: ["trial", "active", "lifetime"],
+      default: "trial",
+      index: true,
+    },
+    planExpiresAt: {
+      type: Date,
+      default: null,
     },
     ownerPinHash: {
       type: String,
@@ -107,6 +119,10 @@ TenantSchema.pre("save", async function () {
     this.staffPinHash = await bcrypt.hash("567890", 10);
   }
 });
+
+if (mongoose.models.Tenant) {
+  delete (mongoose.models as Record<string, unknown>).Tenant;
+}
 
 export const Tenant: Model<ITenant> =
   mongoose.models.Tenant || mongoose.model<ITenant>("Tenant", TenantSchema);

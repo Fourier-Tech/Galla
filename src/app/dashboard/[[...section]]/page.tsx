@@ -45,12 +45,13 @@ export default async function DashboardPage({
 
   // Check ephemeral role session (window / tab state)
   const roleSessionResult = await getRoleSession();
-  const isRoleLocked = !roleSessionResult || !roleSessionResult.role;
-  const isEvicted = roleSessionResult?.evicted === true;
-  const initialRole: UserRole = roleSessionResult?.role || "staff";
+  const isAdmin = roleSessionResult?.role === "admin";
+  const isRoleLocked = !isAdmin && (!roleSessionResult || !roleSessionResult.role);
+  const isEvicted = !isAdmin && roleSessionResult?.evicted === true;
+  const initialRole: UserRole = isAdmin ? "admin" : (roleSessionResult?.role || "staff");
 
   // Role gating: staff and locked sessions cannot view owner-only tabs
-  if (initialRole !== "owner" && (initialTab === "analytics" || initialTab === "profile")) {
+  if (initialRole !== "owner" && initialRole !== "admin" && (initialTab === "analytics" || initialTab === "profile")) {
     redirect("/dashboard/orders");
   }
 

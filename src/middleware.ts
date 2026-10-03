@@ -2,13 +2,39 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // ==========================================
+  // SUPER ADMIN (HQ) ROUTING
+  // ==========================================
+  if (pathname.startsWith("/hq")) {
+    const hqToken = request.cookies.get("galla_hq_session")?.value;
+    const isHqLogin = pathname === "/hq/login";
+
+    if (!hqToken && !isHqLogin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/hq/login";
+      return NextResponse.redirect(url);
+    }
+
+    if (hqToken && isHqLogin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/hq";
+      return NextResponse.redirect(url);
+    }
+    
+    return NextResponse.next();
+  }
+
+  // ==========================================
+  // TENANT (SALON) ROUTING
+  // ==========================================
   const token =
     request.cookies.get("authjs.session-token")?.value ||
     request.cookies.get("__Secure-authjs.session-token")?.value ||
     request.cookies.get("next-auth.session-token")?.value ||
     request.cookies.get("__Secure-next-auth.session-token")?.value;
 
-  const { pathname } = request.nextUrl;
   const isLoginPage = pathname.startsWith("/login");
   const isDashboardPage = pathname.startsWith("/dashboard");
 
@@ -60,5 +86,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/login", "/register"],
+  matcher: ["/", "/dashboard/:path*", "/login", "/register", "/hq/:path*"],
 };

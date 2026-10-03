@@ -4705,10 +4705,10 @@ export async function updateSalonProfileAction(rawInput: unknown): Promise<{
       return { success: false, error: "Unauthorized session" };
     }
 
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only the shop owner can edit the salon profile",
+        error: "Only the shop owner or admin can edit the salon profile",
       };
     }
 
@@ -4863,10 +4863,10 @@ export async function createServiceAction(rawInput: unknown): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 
@@ -4938,10 +4938,10 @@ export async function updateServiceAction(rawInput: unknown): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 
@@ -5041,10 +5041,10 @@ export async function toggleServiceStatusAction(serviceId: string): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 
@@ -5086,10 +5086,10 @@ export async function deleteServiceAction(serviceId: string): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 
@@ -5144,10 +5144,10 @@ export async function createPackageAction(rawInput: unknown): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 
@@ -5222,10 +5222,10 @@ export async function updatePackageAction(rawInput: unknown): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 
@@ -5327,10 +5327,10 @@ export async function togglePackageStatusAction(packageId: string): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 
@@ -5372,10 +5372,10 @@ export async function deletePackageAction(packageId: string): Promise<{
     if (!session?.user) {
       return { success: false, error: "Unauthorized session" };
     }
-    if (userRole !== "owner") {
+    if (userRole !== "owner" && userRole !== "admin") {
       return {
         success: false,
-        error: "Only salon owners can manage services and packages",
+        error: "Only salon owners and platform administrators can manage services and packages",
       };
     }
 

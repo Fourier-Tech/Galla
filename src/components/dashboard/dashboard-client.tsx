@@ -113,8 +113,8 @@ export function DashboardClient({
   const router = useRouter();
 
   const [role, setRole] = useState<UserRole>(initialRole);
-  const [isRoleLocked, setIsRoleLocked] = useState<boolean>(initialIsRoleLocked);
-  const [isEvicted, setIsEvicted] = useState<boolean>(initialIsEvicted);
+  const [isRoleLocked, setIsRoleLocked] = useState<boolean>(initialRole === "admin" ? false : initialIsRoleLocked);
+  const [isEvicted, setIsEvicted] = useState<boolean>(initialRole === "admin" ? false : initialIsEvicted);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(initialActiveSessionId);
   const [isChangePinOpen, setIsChangePinOpen] = useState(false);
 
@@ -139,6 +139,23 @@ export function DashboardClient({
     if (typeof window === "undefined") return;
 
     try {
+      // HQ Admin impersonation: ALWAYS enforce admin role, never lock counter, and sync sessionStorage
+      if (initialRole === "admin") {
+        setRole("admin");
+        roleRef.current = "admin";
+        setIsRoleLocked(false);
+        isRoleLockedRef.current = false;
+        setIsEvicted(false);
+        sessionStorage.setItem(
+          "galla_role_session",
+          JSON.stringify({
+            role: "admin",
+            activeSessionId: initialActiveSessionId || "admin_session",
+          })
+        );
+        return;
+      }
+
       if (initialIsEvicted) {
         sessionStorage.removeItem("galla_role_session");
         setIsRoleLocked(true);
@@ -158,6 +175,13 @@ export function DashboardClient({
       const rawStored = sessionStorage.getItem("galla_role_session");
       if (rawStored) {
         const parsed = JSON.parse(rawStored);
+        if (parsed?.role === "admin") {
+          setRole("admin");
+          roleRef.current = "admin";
+          setIsRoleLocked(false);
+          isRoleLockedRef.current = false;
+          return;
+        }
         if (parsed?.role && parsed?.activeSessionId) {
           // Keep window unlocked across in-place page refreshes
           setRole(parsed.role);
@@ -178,9 +202,13 @@ export function DashboardClient({
     } catch {
       // Fallback to server props
     }
-  }, [initialIsEvicted, initialIsRoleLocked]);
+  }, [initialIsEvicted, initialIsRoleLocked, initialRole, initialActiveSessionId]);
 
   const handleLockCounter = async () => {
+    if (roleRef.current === "admin") {
+      router.push("/hq/salons");
+      return;
+    }
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("galla_role_session");
       try {
@@ -290,10 +318,10 @@ export function DashboardClient({
 
   // Instant 0ms tab navigation handler: updates state immediately and syncs URL with pushState
   const handleSelectTab = useCallback((tab: TabId, targetFilter?: string) => {
-    if (tab === "analytics" && roleRef.current !== "owner") {
+    if (tab === "analytics" && roleRef.current !== "owner" && roleRef.current !== "admin") {
       tab = "orders";
     }
-    if (tab === "profile" && roleRef.current !== "owner") {
+    if (tab === "profile" && roleRef.current !== "owner" && roleRef.current !== "admin") {
       tab = "orders";
     }
 
@@ -505,6 +533,8 @@ export function DashboardClient({
     tenantId,
     event: "role_session_displaced",
     onEvent: (data) => {
+      // HQ Admin impersonation sessions have full access without concurrency displacement
+      if (roleRef.current === "admin") return;
       if (!data || !data.role || !data.newSessionId) return;
       if (
         !isRoleLockedRef.current &&
@@ -531,6 +561,8 @@ export function DashboardClient({
     if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
     const bc = new BroadcastChannel("galla_role_channel");
     bc.onmessage = (event) => {
+      // HQ Admin impersonation sessions are immune to counter cross-tab locks
+      if (roleRef.current === "admin") return;
       const data = event.data;
 
       if (data?.type === "ROLE_LOCK" || data?.type === "ROLE_LOGOUT") {
@@ -1100,6 +1132,26 @@ export function DashboardClient({
             : "overflow-y-auto"
         }`}
       >
+        {/* HQ Admin Impersonation Top Banner */}
+        {role === "admin" && (
+          <div className="mb-4 bg-gradient-to-r from-purple-950 via-indigo-950 to-purple-950 text-white px-4 py-2.5 rounded-[8px] text-[13px] flex items-center justify-between shadow-sm border border-purple-800/80 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span className="bg-purple-500/30 text-purple-200 border border-purple-400/40 px-2 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase">
+                HQ Admin Mode
+              </span>
+              <span className="text-purple-100">
+                Viewing <strong>{salonProfile.name || salonName}</strong> with full Platform Administrator privileges.
+              </span>
+            </div>
+            <a
+              href="/hq/salons"
+              className="text-[12px] bg-white/10 hover:bg-white/20 text-white font-medium px-3 py-1 rounded-[5px] transition-colors border border-white/20 shrink-0"
+            >
+              Return to HQ
+            </a>
+          </div>
+        )}
+
         <div
           className={`w-full max-w-7xl mx-auto ${
             activeTab === "overview" ? "h-full flex flex-col min-h-0" : "space-y-6"
@@ -1160,7 +1212,7 @@ export function DashboardClient({
               services={services}
               packages={packages}
               products={products}
-              isReadOnly={role !== "owner"}
+              isReadOnly={role !== "owner" && role !== "admin"}
               onAddService={handleAddService}
               onUpdateService={handleUpdateService}
               onDeleteService={handleDeleteService}
@@ -1225,7 +1277,7 @@ export function DashboardClient({
             />
           )}
 
-          {activeTab === "analytics" && role === "owner" && (
+          {activeTab === "analytics" && (role === "owner" || role === "admin") && (
             <AnalyticsTab
               orders={orders}
               expenses={expenses}
@@ -1233,7 +1285,7 @@ export function DashboardClient({
             />
           )}
 
-          {activeTab === "profile" && role === "owner" && (
+          {activeTab === "profile" && (role === "owner" || role === "admin") && (
             <ProfileTab
               salonProfile={salonProfile}
               onUpdateProfile={setSalonProfile}

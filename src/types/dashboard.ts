@@ -227,7 +227,7 @@ export type TabId =
   | "analytics"
   | "profile";
 
-export type UserRole = "owner" | "staff";
+export type UserRole = "owner" | "staff" | "admin";
 
 export interface DashboardPurchaseOrderItem {
   productId: string;
