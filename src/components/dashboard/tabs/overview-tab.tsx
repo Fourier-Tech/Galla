@@ -163,15 +163,20 @@ export function OverviewTab({
       : calculatePendingAmount(orders);
 
   // Overall Dealer / Supplier Dues and Credits
-  const { totalDealerDues, totalDealerCredit } = useMemo(() => {
+  const { totalDealerDues, totalDealerCredit, netDealerBalance } = useMemo(() => {
     let dues = 0;
     let credit = 0;
     for (const s of suppliers) {
       const p = s.totalPending || 0;
       if (p > 0) dues += p;
-      else if (p < 0) credit += Math.abs(p);
+      const c = Math.max(0, s.totalCredit ?? (p < 0 ? Math.abs(p) : 0));
+      credit += c;
     }
-    return { totalDealerDues: dues, totalDealerCredit: credit };
+    return {
+      totalDealerDues: dues,
+      totalDealerCredit: credit,
+      netDealerBalance: dues - credit,
+    };
   }, [suppliers]);
 
   // Low stock products
@@ -500,19 +505,19 @@ export function OverviewTab({
         </div>
         <div className="bg-galla-surface col-span-2 lg:col-span-1">
           <StatBlock
-            label={totalDealerDues > 0 ? "Dealer Dues" : totalDealerCredit > 0 ? "Dealer Credit" : "Dealer Dues"}
+            label={netDealerBalance < 0 ? "Dealer Credit" : "Dealer Dues"}
             badge="Overall"
-            value={formatRupee(totalDealerDues > 0 ? totalDealerDues : totalDealerCredit)}
+            value={formatRupee(Math.abs(netDealerBalance))}
             subtext={
-              totalDealerDues > 0
-                ? totalDealerCredit > 0
-                  ? `Dues: ${formatRupee(totalDealerDues)} • Credit: ${formatRupee(totalDealerCredit)}`
-                  : "Owed to suppliers"
+              totalDealerDues > 0 && totalDealerCredit > 0
+                ? `Dues: ${formatRupee(totalDealerDues)} • Credit: ${formatRupee(totalDealerCredit)}`
+                : totalDealerDues > 0
+                ? `Dues: ${formatRupee(totalDealerDues)} • Owed to suppliers`
                 : totalDealerCredit > 0
-                ? "Credit from returns (Owed to you)"
+                ? `Credit: ${formatRupee(totalDealerCredit)} • Owed to you`
                 : "No outstanding dues"
             }
-            tone={totalDealerDues > 0 ? "brick" : totalDealerCredit > 0 ? "sage" : "ink"}
+            tone={netDealerBalance > 0 ? "brick" : netDealerBalance < 0 ? "sage" : "ink"}
           />
         </div>
       </div>

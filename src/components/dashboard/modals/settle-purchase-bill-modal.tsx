@@ -8,6 +8,8 @@ import { PaymentModeSelect } from "../payment-mode-select";
 
 interface SettlePurchaseBillModalProps {
   bill: DashboardPurchaseOrder | null;
+  supplier?: DashboardSupplier | null;
+  suppliers?: DashboardSupplier[];
   isOpen: boolean;
   onClose: () => void;
   onPaymentSuccess: (
@@ -20,16 +22,27 @@ interface SettlePurchaseBillModalProps {
 
 export function SettlePurchaseBillModal({
   bill,
+  supplier,
+  suppliers,
   isOpen,
   onClose,
   onPaymentSuccess,
 }: SettlePurchaseBillModalProps) {
   if (!isOpen || !bill) return null;
 
+  const matchedSupplier =
+    supplier ||
+    suppliers?.find(
+      (s) =>
+        (bill.supplierId && s.id === bill.supplierId) ||
+        s.name.toLowerCase() === bill.supplierName.toLowerCase()
+    );
+
   return (
     <SettlePurchaseBillModalContent
       key={bill.id}
       bill={bill}
+      supplier={matchedSupplier}
       onClose={onClose}
       onPaymentSuccess={onPaymentSuccess}
     />
@@ -38,10 +51,12 @@ export function SettlePurchaseBillModal({
 
 function SettlePurchaseBillModalContent({
   bill,
+  supplier,
   onClose,
   onPaymentSuccess,
 }: {
   bill: DashboardPurchaseOrder;
+  supplier?: DashboardSupplier | null;
   onClose: () => void;
   onPaymentSuccess: (
     updatedPO: DashboardPurchaseOrder,
@@ -52,7 +67,10 @@ function SettlePurchaseBillModalContent({
 }) {
   const defaultDue = Math.max(0, bill.amountPending);
   const isZeroDue = defaultDue === 0;
+  const availableCredit = Math.max(0, supplier?.totalCredit || 0);
+  const canUseCredit = availableCredit > 0 && !isZeroDue;
 
+  const [useCredit, setUseCredit] = useState(false);
   const [payAmount, setPayAmount] = useState(String(defaultDue));
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card" | "bank_transfer">(
     bill.paymentMode && ["cash", "upi", "card", "bank_transfer"].includes(bill.paymentMode)
@@ -85,9 +103,10 @@ function SettlePurchaseBillModalContent({
     };
   }, []);
 
+  const creditToUse = useCredit ? Math.min(availableCredit, defaultDue) : 0;
   const enteredNum = isZeroDue ? 0 : payAmount === "" ? 0 : Number(payAmount);
-  const remainingAfterPayment = Math.max(0, defaultDue - enteredNum);
-  const totalPaidAfterThis = bill.amountPaid + enteredNum;
+  const totalSettling = enteredNum + creditToUse;
+  const remainingAfterPayment = Math.max(0, defaultDue - totalSettling);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,13 +117,18 @@ function SettlePurchaseBillModalContent({
       return;
     }
 
-    if (payAmount === "" || isNaN(enteredNum) || enteredNum <= 0) {
-      setErrorMsg("Please enter a valid payment amount greater than ₹0");
+    if (totalSettling <= 0) {
+      setErrorMsg("Please enter a payment amount or apply available credit");
       return;
     }
 
-    if (enteredNum > defaultDue) {
-      setErrorMsg(`Payment amount (${formatRupee(enteredNum)}) cannot exceed current pending balance (${formatRupee(defaultDue)})`);
+    if (enteredNum < 0 || isNaN(enteredNum)) {
+      setErrorMsg("Payment amount cannot be negative");
+      return;
+    }
+
+    if (totalSettling > defaultDue) {
+      setErrorMsg(`Total settlement (${formatRupee(totalSettling)}) cannot exceed current pending balance (${formatRupee(defaultDue)})`);
       return;
     }
 
@@ -120,6 +144,7 @@ function SettlePurchaseBillModalContent({
       const res = await recordPurchaseOrderPaymentAction({
         purchaseOrderId: bill.id,
         amount: isZeroDue ? 0 : enteredNum,
+        creditUsed: creditToUse > 0 ? creditToUse : undefined,
         paymentMode,
         notes: notes.trim() || undefined,
       });
@@ -210,25 +235,62 @@ function SettlePurchaseBillModalContent({
         )}
 
         <form onSubmit={handleFormSubmit} className="space-y-4">
+          {/* Supplier Credit Option */}
+          {canUseCredit && (
+            <div className="p-3 rounded-[6px] bg-emerald-500/5 border border-emerald-500/20 flex items-start gap-2.5">
+              <input
+                id="use-supplier-credit-settle"
+                type="checkbox"
+                checked={useCredit}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setUseCredit(checked);
+                  if (checked) {
+                    const creditAmt = Math.min(availableCredit, defaultDue);
+                    setPayAmount(String(Math.max(0, defaultDue - creditAmt)));
+                  } else {
+                    setPayAmount(String(defaultDue));
+                  }
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-galla-line text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              />
+              <label htmlFor="use-supplier-credit-settle" className="text-[12px] font-sans text-galla-ink cursor-pointer select-none">
+                <span className="font-semibold text-emerald-800">
+                  Use Supplier Credit ({formatRupee(availableCredit)} available)
+                </span>
+                <p className="text-[11px] text-galla-ink-soft mt-0.5">
+                  Applies {formatRupee(Math.min(availableCredit, defaultDue))} from supplier credit towards this bill.
+                </p>
+              </label>
+            </div>
+          )}
+
           {/* Payment Amount Input */}
           {!isZeroDue && (
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-                  Payment to Record Now (₹)
+                  {useCredit ? "Out-of-Pocket Payment (₹)" : "Payment to Record Now (₹)"}
                 </label>
                 <button
                   type="button"
-                  onClick={() => setPayAmount(String(defaultDue))}
+                  onClick={() => {
+                    if (useCredit) {
+                      const creditAmt = Math.min(availableCredit, defaultDue);
+                      setPayAmount(String(Math.max(0, defaultDue - creditAmt)));
+                    } else {
+                      setPayAmount(String(defaultDue));
+                    }
+                  }}
                   className="text-[11px] font-sans text-galla-teal hover:underline cursor-pointer font-medium"
                 >
-                  Reset ({formatRupee(defaultDue)})
+                  Reset ({formatRupee(useCredit ? Math.max(0, defaultDue - Math.min(availableCredit, defaultDue)) : defaultDue)})
                 </button>
               </div>
               <input
                 type="text"
                 autoFocus
-                required
+                required={!useCredit || creditToUse < defaultDue}
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value.replace(/\D/g, ""))}
                 placeholder="Enter amount to pay"
@@ -239,6 +301,11 @@ function SettlePurchaseBillModalContent({
               <div className="mt-1.5 text-[11px] font-sans flex items-center justify-between text-galla-ink-soft">
                 <span>
                   Paying <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(enteredNum)}</strong>
+                  {creditToUse > 0 && (
+                    <span className="text-emerald-700 ml-1">
+                      + {formatRupee(creditToUse)} credit
+                    </span>
+                  )}
                   {remainingAfterPayment > 0 ? (
                     <span className="text-amber-800 ml-1">
                       ({formatRupee(remainingAfterPayment)} will remain)
@@ -248,19 +315,21 @@ function SettlePurchaseBillModalContent({
                   )}
                 </span>
                 <span>
-                  Total Paid: <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(totalPaidAfterThis)}</strong>
+                  Total Settled: <strong className="font-semibold text-galla-ink tabular-nums">{formatRupee(totalSettling)}</strong>
                 </span>
               </div>
             </div>
           )}
 
           {/* Payment Mode Selection */}
-          <PaymentModeSelect
-            label="Payment Mode for Settlement"
-            value={paymentMode}
-            onChange={setPaymentMode}
-            allowedModes={["cash", "upi", "card", "bank_transfer"]}
-          />
+          {(!useCredit || enteredNum > 0) && (
+            <PaymentModeSelect
+              label="Payment Mode for Settlement"
+              value={paymentMode}
+              onChange={setPaymentMode}
+              allowedModes={["cash", "upi", "card", "bank_transfer"]}
+            />
+          )}
 
           {/* Notes / Reference */}
           <div>
@@ -288,7 +357,7 @@ function SettlePurchaseBillModalContent({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || (!isZeroDue && (payAmount === "" || enteredNum <= 0))}
+              disabled={isSubmitting || (!isZeroDue && totalSettling <= 0)}
               className="w-2/3 bg-emerald-700 hover:bg-emerald-800 text-white font-sans text-[13px] font-medium py-[9px] rounded-[5px] shadow-sm transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {isSubmitting ? (
@@ -299,7 +368,9 @@ function SettlePurchaseBillModalContent({
               ) : (
                 <>
                   <span>
-                    {remainingAfterPayment === 0 && !bill.stockAllocated
+                    {creditToUse > 0 && enteredNum === 0
+                      ? `Settle with Credit (${formatRupee(creditToUse)})`
+                      : remainingAfterPayment === 0 && !bill.stockAllocated
                       ? `Settle & Add Stock (${formatRupee(enteredNum)})`
                       : `Pay (${formatRupee(enteredNum)}) & Settle`}
                   </span>
@@ -315,11 +386,25 @@ function SettlePurchaseBillModalContent({
           title="Confirm Bill Settlement Payment"
           description={
             <span>
-              Record settlement payment of <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
-              <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong> for PO{" "}
-              <strong className="font-semibold text-galla-ink">{formatDisplayNumber(bill.purchaseOrderNumber)}</strong> to{" "}
+              {creditToUse > 0 && enteredNum > 0 ? (
+                <>
+                  Record settlement using <strong className="font-semibold text-emerald-700">{formatRupee(creditToUse)}</strong> supplier credit and{" "}
+                  <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
+                  <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>
+                </>
+              ) : creditToUse > 0 ? (
+                <>
+                  Record settlement using <strong className="font-semibold text-emerald-700">{formatRupee(creditToUse)}</strong> from supplier credit balance
+                </>
+              ) : (
+                <>
+                  Record settlement payment of <strong className="font-semibold text-galla-ink">{formatRupee(enteredNum)}</strong> via{" "}
+                  <strong className="font-semibold text-galla-ink">{paymentMode.toUpperCase()}</strong>
+                </>
+              )}{" "}
+              for PO <strong className="font-semibold text-galla-ink">{formatDisplayNumber(bill.purchaseOrderNumber)}</strong> to{" "}
               <strong className="font-semibold text-galla-ink">&ldquo;{bill.supplierName}&rdquo;</strong>?
-              This will update the supplier pending balance and log a corresponding business expense.
+              This will update the supplier pending &amp; credit balance{enteredNum > 0 ? " and log a corresponding business expense" : ""}.
             </span>
           }
           confirmLabel="Yes, Record Payment"

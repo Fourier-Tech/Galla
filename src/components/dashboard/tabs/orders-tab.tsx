@@ -1007,16 +1007,16 @@ export function OrdersTab({
                           </div>
                         );
                       })()}
-                      {order.status === "cancelled_refunded" &&
-                        order.refundReason &&
+                      {(effectiveStatus === "cancelled_refunded" || order.status === "cancelled_refunded") &&
+                        (order.refundReason || (order.returns || []).find((r) => r.notes)?.notes) &&
                         order.refundReason !== "Customer requested refund" &&
                         order.refundReason !== "Customer refund at counter" && (
                           <div
                             className="inline-flex items-center gap-1 font-sans text-[11.5px] text-red-700/90 mt-1 bg-red-50/80 border border-red-200/80 px-1.5 py-0.5 rounded-[4px] max-w-full truncate"
-                            title={`Refund Reason: ${order.refundReason}`}
+                            title={`Refund Reason: ${order.refundReason || (order.returns || []).find((r) => r.notes)?.notes}`}
                           >
                             <span className="font-semibold text-red-800 shrink-0">Reason:</span>
-                            <span className="truncate">{order.refundReason}</span>
+                            <span className="truncate">{order.refundReason || (order.returns || []).find((r) => r.notes)?.notes}</span>
                           </div>
                         )}
                     </div>
@@ -1025,7 +1025,7 @@ export function OrdersTab({
                           <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                             {formatRupee(effectiveOrderAmount)}
                           </div>
-                          {order.status === "cancelled_refunded" ? (
+                          {effectiveStatus === "cancelled_refunded" || order.status === "cancelled_refunded" ? (
                             <div className="space-y-0.5 mt-0.5">
                               {order.advanceAmount && order.advanceAmount > 0 && (
                                 <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
@@ -1039,13 +1039,15 @@ export function OrdersTab({
                               )}
                               <div className="font-sans text-[12px] text-red-700 font-medium flex items-center justify-end gap-1 tabular-nums">
                                 <span>
-                                  {order.refundAmount
-                                    ? `${formatRupee(order.refundAmount)} refunded`
-                                    : "Refunded"}
+                                  {refundBreakdown.totalRefunded > 0
+                                    ? `${formatRupee(refundBreakdown.totalRefunded)} refunded`
+                                    : order.refundAmount
+                                      ? `${formatRupee(order.refundAmount)} refunded`
+                                      : "Refunded"}
                                 </span>
-                                {order.refundMode && (
+                                {(order.refundMode || (order.returns || []).find((r) => r.refundMode)?.refundMode || order.paymentMode) && (
                                   <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                    {order.refundMode}
+                                    {order.refundMode || (order.returns || []).find((r) => r.refundMode)?.refundMode || order.paymentMode}
                                   </span>
                                 )}
                               </div>

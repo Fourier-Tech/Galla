@@ -152,6 +152,12 @@ export function SuppliersTab({
       <>
         <SupplierDetailsView
           supplier={activeSelectedSupplier}
+          initialBills={purchaseOrders?.filter(
+            (po) =>
+              po.supplierId === activeSelectedSupplier.id ||
+              (Boolean(po.supplierPhone && activeSelectedSupplier.phone) &&
+                po.supplierPhone!.replace(/\D/g, "") === activeSelectedSupplier.phone.replace(/\D/g, ""))
+          )}
           onBack={() => setSelectedSupplier(null)}
           salonName={salonName}
           onOpenEditSupplier={handleOpenEditSupplier}
@@ -326,7 +332,8 @@ export function SuppliersTab({
                 : "S";
 
               const hasPending = Boolean(supplier.totalPending && supplier.totalPending > 0);
-              const hasCreditBalance = Boolean(supplier.totalPending && supplier.totalPending < 0);
+              const creditAmt = Math.max(0, supplier.totalCredit ?? (supplier.totalPending && supplier.totalPending < 0 ? Math.abs(supplier.totalPending) : 0));
+              const hasCreditBalance = creditAmt > 0;
 
               return (
                 <div
@@ -359,7 +366,7 @@ export function SuppliersTab({
                         {hasCreditBalance && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
                             <AlertCircle className="h-3 w-3" />
-                            <span>Credit Balance: {formatRupee(Math.abs(supplier.totalPending))}</span>
+                            <span>Credit: {formatRupee(creditAmt)}</span>
                           </span>
                         )}
                       </div>

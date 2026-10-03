@@ -58,6 +58,21 @@ export function calculatePendingAmount(
 }
 
 export function getOrderEffectiveStatus(order: Parameters<typeof getOrderPendingDue>[0]): string {
+  const returnEvents = Array.isArray(order.returns) ? order.returns : [];
+  const returnRefundTotal = returnEvents
+    .filter((r) => r.customerResolution === "refund")
+    .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+  const orderAmount = typeof order.amount === "number" ? order.amount : ((order as any).totalAmount ?? 0);
+
+  // If order amount is 0 or all items returned as refund, mark as refunded
+  if (
+    returnRefundTotal > 0 &&
+    orderAmount > 0 &&
+    orderAmount - returnRefundTotal <= 0
+  ) {
+    return "cancelled_refunded";
+  }
+
   if (order.status === "created" && getOrderPendingDue(order) <= 0) {
     return "completed";
   }
@@ -649,7 +664,8 @@ export function getOrderRefundBreakdown(order: {
   totalRefunded: number;
   retainedAmount: number;
 } {
-  const isRefunded = order.status === "cancelled_refunded";
+  const effectiveStatus = getOrderEffectiveStatus(order);
+  const isRefunded = order.status === "cancelled_refunded" || effectiveStatus === "cancelled_refunded";
   if (!isRefunded) {
     return {
       isRefunded: false,
@@ -671,7 +687,12 @@ export function getOrderRefundBreakdown(order: {
     .reduce((sum, p) => sum + p.amount, 0);
 
   const totalCollected = positivePayments > 0 ? positivePayments : (order.paid || 0) + cashRefundTotal;
-  const totalRefunded = (order.refundAmount ?? (order.paid || 0)) + cashRefundTotal;
+  const totalRefunded =
+    typeof order.refundAmount === "number" && order.refundAmount > 0
+      ? order.refundAmount
+      : cashRefundTotal > 0
+      ? cashRefundTotal
+      : (order.paid || 0);
   const retainedAmount = Math.max(0, totalCollected - totalRefunded);
   const isPartialRefund = retainedAmount > 0;
 

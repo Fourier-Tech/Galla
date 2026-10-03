@@ -267,7 +267,8 @@ export function StockInModal({
     "cash" | "upi" | "card" | "bank_transfer"
   >("cash");
   const [notes, setNotes] = useState("");
-  const [applyLedgerBalance, setApplyLedgerBalance] = useState(false);
+  const [useSupplierCredit, setUseSupplierCredit] = useState(false);
+  const [applyOldDues, setApplyOldDues] = useState(false);
   const [customPayable, setCustomPayable] = useState("");
   const [isEditingPayable, setIsEditingPayable] = useState(false);
 
@@ -695,41 +696,55 @@ export function StockInModal({
     );
   }, [supplierName, supplierPhone, allSuppliers]);
 
-  const supplierPending = matchedSupplier?.totalPending || 0;
-  const isLedgerBalanceApplicable = settlementMode !== "pending";
-  const effectiveApplyLedgerBalance =
-    applyLedgerBalance && isLedgerBalanceApplicable;
+  const supplierDues = Math.max(0, matchedSupplier?.totalPending || 0);
+  const supplierCredit = Math.max(0, (matchedSupplier as any)?.totalCredit || 0);
 
-  // If effectiveApplyLedgerBalance is checked, we adjust the target payable amount
-  const netPayable = effectiveApplyLedgerBalance
-    ? totalCalculatedCost + supplierPending
-    : totalCalculatedCost;
-  const minPayable = Math.max(0, netPayable);
+  // Past dues can only be paid when completing or paying in full
+  const isOldDuesApplicable =
+    (settlementMode === "completed" || settlementMode === "paid_full") &&
+    supplierDues > 0;
+  const effectiveApplyOldDues = applyOldDues && isOldDuesApplicable;
 
-  const defaultPayable = effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost;
+  // Supplier credit can be used across ALL settlement modes
+  const isSupplierCreditApplicable = supplierCredit > 0;
+  const effectiveUseCredit = useSupplierCredit && isSupplierCreditApplicable;
+
+  // Base order total (price of order stays the same)
+  const defaultPayable = totalCalculatedCost;
   const effectivePayable =
     customPayable.trim() !== "" && !isNaN(Number(customPayable))
       ? Math.max(0, Number(customPayable))
       : defaultPayable;
 
+  // Credit applies to this order, reducing out-of-pocket payment
+  const creditUsed = effectiveUseCredit
+    ? Math.min(supplierCredit, effectivePayable)
+    : 0;
+
+  // Balance left to pay for this specific order after credit
+  const orderRemainingAfterCredit = Math.max(0, effectivePayable - creditUsed);
+
+  // Out-of-pocket cash paid for this order
   const currentAmountPaid =
     settlementMode === "completed" || settlementMode === "paid_full"
-      ? effectivePayable
+      ? orderRemainingAfterCredit
       : settlementMode === "pending"
-        ? Math.min(effectivePayable, enteredPayLaterPaid)
+        ? Math.min(orderRemainingAfterCredit, enteredPayLaterPaid)
         : settlementMode === "advance"
-          ? Math.min(effectivePayable, enteredAdvance)
+          ? Math.min(orderRemainingAfterCredit, enteredAdvance)
           : 0;
 
-  const ledgerAdj =
-    effectiveApplyLedgerBalance && supplierPending !== 0
-      ? supplierPending < 0
-        ? Math.min(Math.abs(supplierPending), effectivePayable)
-        : -supplierPending
-      : 0;
+  // Past dues to pay alongside this bill
+  const oldDuesToPay = effectiveApplyOldDues ? supplierDues : 0;
 
-  // The true pending amount on THIS bill matches backend logic: effectivePayable - currentAmountPaid - ledgerAdj
-  const amountPending = Math.max(0, effectivePayable - currentAmountPaid - ledgerAdj);
+  // Total cash/UPI to pay right now (this order cash + old dues cash)
+  const totalCashToPayNow = currentAmountPaid + oldDuesToPay;
+
+  // The true pending amount on THIS bill: effectivePayable - currentAmountPaid - creditUsed
+  const amountPending = Math.max(
+    0,
+    effectivePayable - currentAmountPaid - creditUsed,
+  );
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -951,10 +966,12 @@ export function StockInModal({
             deliveryTime
             ? deliveryTime
             : undefined,
-        paymentMode: currentAmountPaid > 0 ? paymentMode : "credit",
+        paymentMode: totalCashToPayNow > 0 ? paymentMode : (creditUsed > 0 ? "cash" : "credit"),
         amountPaid: currentAmountPaid,
+        creditUsed: creditUsed > 0 ? creditUsed : undefined,
+        oldDuesPaid: oldDuesToPay > 0 ? oldDuesToPay : undefined,
         customTotalAmount: customPayable.trim() !== "" ? effectivePayable : undefined,
-        ledgerAdjustment: ledgerAdj !== 0 ? ledgerAdj : undefined,
+        ledgerAdjustment: creditUsed > 0 ? creditUsed : undefined,
         notes: notes.trim() || undefined,
       });
 
@@ -1891,30 +1908,53 @@ export function StockInModal({
 
           {/* Financial Breakdown & Actions */}
           <div className="p-4 border-t border-galla-line/60 bg-galla-surface space-y-3.5 shrink-0">
-            {/* Supplier Ledger Balance checkbox if applicable */}
-            {matchedSupplier && supplierPending !== 0 && isLedgerBalanceApplicable && (
+            {/* Supplier Credit Option (Available across all settlement modes) */}
+            {matchedSupplier && isSupplierCreditApplicable && (
+              <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-[6px] text-[12px]">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useSupplierCredit}
+                    onChange={(e) => setUseSupplierCredit(e.target.checked)}
+                    className="h-4 w-4 mt-0.5 rounded-[4px] border-emerald-400 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-galla-ink flex items-center justify-between">
+                      <span>Use Supplier Credit</span>
+                      <span className="text-emerald-700 font-bold tabular-nums">
+                        -{formatRupee(effectivePayable > 0 ? Math.min(supplierCredit, effectivePayable) : supplierCredit)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-galla-ink-soft mt-0.5 leading-snug">
+                      {formatRupee(supplierCredit)} available from past returns.
+                      {effectivePayable > 0 && effectivePayable < supplierCredit
+                        ? ` Applies ${formatRupee(effectivePayable)} to this bill (${formatRupee(supplierCredit - effectivePayable)} remains).`
+                        : " Deducts from order payment without changing bill price."}
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Settle Past Dues Checkbox (Only for Completed and Paid in Full) */}
+            {matchedSupplier && isOldDuesApplicable && (
               <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-[6px] text-[12px]">
                 <label className="flex items-start gap-2.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    checked={applyLedgerBalance}
-                    onChange={(e) => setApplyLedgerBalance(e.target.checked)}
+                    checked={applyOldDues}
+                    onChange={(e) => setApplyOldDues(e.target.checked)}
                     className="h-4 w-4 mt-0.5 rounded-[4px] border-amber-400 text-galla-teal focus:ring-galla-teal cursor-pointer shrink-0"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-galla-ink flex items-center justify-between">
-                      <span>
-                        {supplierPending < 0 ? "Apply Supplier Credit" : "Settle Past Dues"}
-                      </span>
-                      <span className={supplierPending < 0 ? "text-emerald-700" : "text-rose-700"}>
-                        {supplierPending < 0 ? "-" : "+"}
-                        {formatRupee(Math.abs(supplierPending))}
+                      <span>Pay Past Dues With Bill</span>
+                      <span className="text-rose-700 font-bold tabular-nums">
+                        +{formatRupee(supplierDues)}
                       </span>
                     </div>
                     <p className="text-[11px] text-galla-ink-soft mt-0.5 leading-snug">
-                      {supplierPending < 0
-                        ? "Credit balance from previous returns applied to this bill."
-                        : "Outstanding supplier dues added to this payment."}
+                      Clear outstanding supplier dues ({formatRupee(supplierDues)}) alongside this bill payment.
                     </p>
                   </div>
                 </label>
@@ -1948,12 +1988,20 @@ export function StockInModal({
                 )
               )}
 
-              {effectiveApplyLedgerBalance && supplierPending !== 0 && (
-                <div className="flex justify-between text-emerald-700">
-                  <span>Ledger Adjustment</span>
-                  <span className="tabular-nums font-medium">
-                    {supplierPending < 0 ? "- " : "+ "}
-                    {formatRupee(Math.abs(supplierPending))}
+              {effectiveUseCredit && creditUsed > 0 && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Supplier Credit Applied</span>
+                  <span className="tabular-nums font-semibold">
+                    -{formatRupee(creditUsed)}
+                  </span>
+                </div>
+              )}
+
+              {effectiveApplyOldDues && oldDuesToPay > 0 && (
+                <div className="flex justify-between text-rose-700 font-medium">
+                  <span>Past Dues Added</span>
+                  <span className="tabular-nums font-semibold">
+                    +{formatRupee(oldDuesToPay)}
                   </span>
                 </div>
               )}
@@ -1961,7 +2009,7 @@ export function StockInModal({
               <div className="flex justify-between items-center pt-2 border-t border-galla-line">
                 <div className="flex flex-col">
                   <span className="text-[16px] font-bold text-galla-ink">
-                    {effectiveApplyLedgerBalance ? "Net Payable" : "Total Payable"}
+                    Total Bill
                   </span>
                   {customPayable.trim() !== "" && Number(customPayable) !== defaultPayable && (
                     <button
@@ -2007,6 +2055,15 @@ export function StockInModal({
                   />
                 </div>
               </div>
+
+              {(effectiveUseCredit || effectiveApplyOldDues) && (
+                <div className="flex justify-between items-center text-[12px] font-semibold text-galla-ink pt-1 border-t border-galla-line/60">
+                  <span>Out-of-Pocket Payment:</span>
+                  <span className="tabular-nums font-bold text-galla-teal text-[15px]">
+                    {formatRupee(totalCashToPayNow)}
+                  </span>
+                </div>
+              )}
 
               {/* Settlement specifics */}
               {settlementMode === "pending" && (
@@ -2061,12 +2118,12 @@ export function StockInModal({
                     {settlementMode === "pending"
                       ? enteredPayLaterPaid > 0
                         ? `Confirm Stock In (Paid: ${formatRupee(enteredPayLaterPaid)}, Due: ${formatRupee(amountPending)})`
-                        : `Confirm Stock In (Due: ${formatRupee(effectivePayable)})`
+                        : `Confirm Stock In (Due: ${formatRupee(amountPending)})`
                       : settlementMode === "advance"
                         ? `Confirm Stock In (Advance: ${formatRupee(enteredAdvance)}, Due: ${formatRupee(amountPending)})`
                         : settlementMode === "paid_full"
-                          ? `Confirm Stock In (Paid in Full: ${formatRupee(effectivePayable)})`
-                          : `Confirm Stock In (${formatRupee(effectivePayable)})`}
+                          ? `Confirm Stock In (Paid in Full: ${formatRupee(totalCashToPayNow)})`
+                          : `Confirm Stock In (${formatRupee(totalCashToPayNow)})`}
                   </span>
                 )}
               </button>
@@ -2184,10 +2241,35 @@ export function StockInModal({
               <strong className="font-semibold text-galla-ink">
                 {formatRupee(effectivePayable)}
               </strong>{" "}
-              via{" "}
-              <strong className="font-semibold text-galla-ink">
-                {paymentMode.toUpperCase().replace("_", " ")}
-              </strong>
+              {creditUsed > 0 && (
+                <>
+                  using{" "}
+                  <strong className="font-semibold text-emerald-700">
+                    {formatRupee(creditUsed)}
+                  </strong>{" "}
+                  supplier credit,{" "}
+                </>
+              )}
+              {totalCashToPayNow > 0 ? (
+                <>
+                  paying{" "}
+                  <strong className="font-semibold text-galla-ink">
+                    {formatRupee(totalCashToPayNow)}
+                  </strong>{" "}
+                  via{" "}
+                  <strong className="font-semibold text-galla-ink">
+                    {paymentMode.toUpperCase().replace("_", " ")}
+                  </strong>
+                  {oldDuesToPay > 0 && (
+                    <span className="text-amber-800">
+                      {" "}
+                      (including {formatRupee(oldDuesToPay)} past dues settled)
+                    </span>
+                  )}
+                </>
+              ) : (
+                <strong className="text-emerald-700">fully covered by supplier credit</strong>
+              )}
               ? Inventory stock levels will be updated atomically.
             </span>
           )

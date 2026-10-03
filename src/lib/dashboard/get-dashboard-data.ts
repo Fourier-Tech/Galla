@@ -461,7 +461,8 @@ export async function getDashboardInitialData(
     notes: s.notes,
     totalPurchases: s.totalPurchases ?? 0,
     totalPaid: s.totalPaid ?? 0,
-    totalPending: s.totalPending ?? 0,
+    totalPending: Math.max(0, s.totalPending ?? 0),
+    totalCredit: Math.max(0, s.totalCredit ?? (s.totalPending < 0 ? Math.abs(s.totalPending) : 0)),
     isActive: s.isActive !== false,
   }));
 
@@ -499,6 +500,7 @@ export async function getDashboardInitialData(
     })),
     totalAmount: po.totalAmount,
     amountPaid: po.amountPaid,
+    ledgerAdjustment: po.ledgerAdjustment,
     amountPending: po.amountPending,
     paymentMode: po.paymentMode,
     paymentStatus: po.paymentStatus,

@@ -346,5 +346,6 @@ export interface DashboardSupplier {
   totalPurchases: number;
   totalPaid: number;
   totalPending: number;
+  totalCredit?: number;
   isActive: boolean;
 }

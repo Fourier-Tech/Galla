@@ -45,6 +45,7 @@ import { StatusPill } from "@/components/dashboard/status-pill";
 
 interface SupplierDetailsViewProps {
   supplier: DashboardSupplier;
+  initialBills?: DashboardPurchaseOrder[];
   onBack: () => void;
   onOpenEditSupplier?: (supplier: DashboardSupplier) => void;
   onSupplierUpdated?: (updatedSupplier: DashboardSupplier) => void;
@@ -53,13 +54,14 @@ interface SupplierDetailsViewProps {
 
 export function SupplierDetailsView({
   supplier,
+  initialBills,
   onBack,
   onOpenEditSupplier,
   onSupplierUpdated,
   salonName,
 }: SupplierDetailsViewProps) {
-  const [bills, setBills] = useState<DashboardPurchaseOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [bills, setBills] = useState<DashboardPurchaseOrder[]>(initialBills || []);
+  const [isLoading, setIsLoading] = useState(!initialBills || initialBills.length === 0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "settled" | "pending">("all");
 
@@ -150,7 +152,9 @@ export function SupplierDetailsView({
 
     const totalPurchases = supplier.totalPurchases || 0;
     const totalPaid = supplier.totalPaid || 0;
-    const totalPending = supplier.totalPending || 0;
+    const totalPending = Math.max(0, supplier.totalPending || 0);
+    const totalCredit = Math.max(0, supplier.totalCredit ?? (supplier.totalPending < 0 ? Math.abs(supplier.totalPending) : 0));
+    const netBalance = totalPending - totalCredit;
 
     const avgTicket = totalBills > 0 ? Math.round(totalPurchases / totalBills) : totalPurchases;
 
@@ -159,6 +163,8 @@ export function SupplierDetailsView({
       totalPurchases,
       totalPaid,
       totalPending,
+      totalCredit,
+      netBalance,
       avgTicket,
       pendingCount,
     };
@@ -270,7 +276,10 @@ export function SupplierDetailsView({
     setSelectedPOForPayment(bill);
   };
 
-  const handlePaymentSuccess = (updatedPO: DashboardPurchaseOrder) => {
+  const handlePaymentSuccess = (
+    updatedPO: DashboardPurchaseOrder,
+    updatedSupplier?: DashboardSupplier
+  ) => {
     setBills((prev) =>
       prev.map((po) => (po.id === updatedPO.id ? updatedPO : po))
     );
@@ -278,14 +287,18 @@ export function SupplierDetailsView({
       setSelectedBill(updatedPO);
     }
     if (onSupplierUpdated) {
-      const prevBillPending = selectedPOForPayment?.amountPending || 0;
-      const newBillPending = updatedPO.amountPending || 0;
-      const paidDiff = Math.max(0, prevBillPending - newBillPending);
-      const newTotalPending = (supplier.totalPending || 0) - paidDiff;
-      onSupplierUpdated({
-        ...supplier,
-        totalPending: newTotalPending,
-      });
+      if (updatedSupplier) {
+        onSupplierUpdated(updatedSupplier);
+      } else {
+        const prevBillPending = selectedPOForPayment?.amountPending || 0;
+        const newBillPending = updatedPO.amountPending || 0;
+        const paidDiff = Math.max(0, prevBillPending - newBillPending);
+        const newTotalPending = Math.max(0, (supplier.totalPending || 0) - paidDiff);
+        onSupplierUpdated({
+          ...supplier,
+          totalPending: newTotalPending,
+        });
+      }
     }
     setSelectedPOForPayment(null);
   };
@@ -325,10 +338,10 @@ export function SupplierDetailsView({
                   <span>Due: {formatRupee(metrics.totalPending)}</span>
                 </span>
               )}
-              {metrics.totalPending < 0 && (
+              {metrics.totalCredit > 0 && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
                   <CheckCircle2 className="h-3 w-3" />
-                  <span>Credit: {formatRupee(Math.abs(metrics.totalPending))}</span>
+                  <span>Credit: {formatRupee(metrics.totalCredit)}</span>
                 </span>
               )}
             </div>
@@ -448,15 +461,21 @@ export function SupplierDetailsView({
         <div className="p-4 rounded-[8px] bg-galla-surface border border-galla-line shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-[12px] font-normal text-galla-ink-soft">
-              {metrics.totalPending < 0 ? "Credit Balance" : "Outstanding Dues"}
+              {metrics.netBalance < 0
+                ? "Net Dealer Credit"
+                : metrics.netBalance > 0
+                ? "Net Dealer Dues"
+                : "Dealer Balance"}
             </span>
             <div
-              className={`h-7 w-7 rounded-[5px] flex items-center justify-center border ${metrics.totalPending > 0
+              className={`h-7 w-7 rounded-[5px] flex items-center justify-center border ${metrics.netBalance > 0
                   ? "bg-rose-50 border-rose-200 text-rose-700"
-                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : metrics.netBalance < 0
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : "bg-galla-paper border-galla-line text-galla-ink-soft"
                 }`}
             >
-              {metrics.totalPending > 0 ? (
+              {metrics.netBalance > 0 ? (
                 <AlertCircle className="h-3.5 w-3.5" />
               ) : (
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -464,17 +483,23 @@ export function SupplierDetailsView({
             </div>
           </div>
           <div
-            className={`text-[22px] font-bold tabular-nums mt-2 ${metrics.totalPending > 0 ? "text-rose-700" : "text-emerald-700"
+            className={`text-[22px] font-bold tabular-nums mt-2 ${metrics.netBalance > 0
+                ? "text-rose-700"
+                : metrics.netBalance < 0
+                ? "text-emerald-700"
+                : "text-galla-ink"
               }`}
           >
-            {formatRupee(Math.abs(metrics.totalPending))}
+            {formatRupee(Math.abs(metrics.netBalance))}
           </div>
           <span className="text-[11.5px] text-galla-ink-soft mt-1 block">
-            {metrics.totalPending > 0
+            {metrics.totalPending > 0 && metrics.totalCredit > 0
+              ? `Dues: ${formatRupee(metrics.totalPending)} • Credit: ${formatRupee(metrics.totalCredit)}`
+              : metrics.totalPending > 0
               ? `${metrics.pendingCount} unpaid / partial bill(s)`
-              : metrics.totalPending < 0 
-                ? "Dealer owes you this amount" 
-                : "Fully settled (₹0 balance)"}
+              : metrics.totalCredit > 0
+              ? "Credit balance (Owed to you)"
+              : "Fully settled (₹0 balance)"}
           </span>
         </div>
       </div>
@@ -934,6 +959,7 @@ export function SupplierDetailsView({
             }
             : null
         }
+        supplier={supplier}
         isOpen={Boolean(selectedPOForPayment)}
         onClose={() => setSelectedPOForPayment(null)}
         onPaymentSuccess={handlePaymentSuccess}

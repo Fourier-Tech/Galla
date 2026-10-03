@@ -2956,6 +2956,7 @@ export async function returnInventoryToSupplierAction(
             totalPurchases: supplierDocForSnapshot.totalPurchases ?? 0,
             totalPaid: supplierDocForSnapshot.totalPaid ?? 0,
             totalPending: supplierDocForSnapshot.totalPending ?? 0,
+            totalCredit: supplierDocForSnapshot.totalCredit ?? 0,
             isActive: supplierDocForSnapshot.isActive !== false,
           };
         }
@@ -3528,7 +3529,12 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             : totalAmount;
       }
 
-      const ledgerAdj = input.ledgerAdjustment || 0;
+      const creditUsed = Math.max(
+        0,
+        input.creditUsed ?? (input.ledgerAdjustment && input.ledgerAdjustment > 0 ? input.ledgerAdjustment : 0),
+      );
+      const oldDuesPaid = Math.max(0, input.oldDuesPaid ?? 0);
+      const ledgerAdj = creditUsed;
       const totalEffectivePayment = finalAmountPaid + ledgerAdj;
 
       // Auto-calculate paymentStatus — do NOT let it be set manually:
@@ -3542,7 +3548,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
       }
 
       // Auto-calculate amountPending = totalAmount - amountPaid - ledgerAdj
-      const amountPending = totalAmount - totalEffectivePayment;
+      const amountPending = Math.max(0, totalAmount - totalEffectivePayment);
       const effectivePaymentMode =
         finalAmountPaid <= 0
           ? "credit"
@@ -3604,8 +3610,9 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               phone: normalizedSupplierPhone,
               companyName: input.supplierCompany?.trim() || undefined,
               totalPurchases: totalAmount,
-              totalPaid: finalAmountPaid,
-              totalPending: amountPending + ledgerAdj,
+              totalPaid: finalAmountPaid + oldDuesPaid,
+              totalPending: amountPending,
+              totalCredit: 0,
               isActive: true,
             },
           ],
@@ -3629,9 +3636,14 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
           supplier.companyName = input.supplierCompany.trim();
         }
         supplier.totalPurchases = (supplier.totalPurchases || 0) + totalAmount;
-        supplier.totalPaid = (supplier.totalPaid || 0) + finalAmountPaid;
-        supplier.totalPending =
-          (supplier.totalPending || 0) + amountPending + ledgerAdj;
+        supplier.totalPaid = (supplier.totalPaid || 0) + finalAmountPaid + oldDuesPaid;
+        if (creditUsed > 0) {
+          supplier.totalCredit = Math.max(0, (supplier.totalCredit || 0) - creditUsed);
+        }
+        supplier.totalPending = Math.max(
+          0,
+          (supplier.totalPending || 0) - oldDuesPaid + amountPending,
+        );
         await supplier.save({ session: dbSession });
 
         // If supplier name was changed permanently, sync all previous purchase orders for this supplier!
@@ -3682,25 +3694,37 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
                 supplier.companyName || input.supplierCompany || undefined,
             },
             items: poItems,
-            payments:
-              finalAmountPaid > 0
+            payments: [
+              ...(creditUsed > 0
                 ? [
-                  {
-                    amount: finalAmountPaid,
-                    paymentMode:
-                      effectivePaymentMode === "credit"
-                        ? "cash"
-                        : effectivePaymentMode,
-                    notes: input.notes || undefined,
-                    recordedBy:
-                      userRole === "staff" ? "staff" : "owner",
-                    type:
-                      finalAmountPaid >= totalAmount
-                        ? "full_payment"
-                        : "initial",
-                  },
-                ]
-                : [],
+                    {
+                      amount: creditUsed,
+                      paymentMode: "credit" as any,
+                      notes: `[Supplier Credit Applied] ₹${creditUsed} used from supplier credit balance`,
+                      recordedBy: (userRole === "staff" ? "staff" : "owner") as "owner" | "staff",
+                      type: "supplier_credit_applied",
+                    },
+                  ]
+                : []),
+              ...(finalAmountPaid > 0
+                ? [
+                    {
+                      amount: finalAmountPaid,
+                      paymentMode:
+                        effectivePaymentMode === "credit"
+                          ? "cash"
+                          : effectivePaymentMode,
+                      notes: input.notes || undefined,
+                      recordedBy:
+                        (userRole === "staff" ? "staff" : "owner") as "owner" | "staff",
+                      type:
+                        finalAmountPaid + creditUsed >= totalAmount
+                          ? "full_payment"
+                          : "initial",
+                    },
+                  ]
+                : []),
+            ],
             totalAmount,
             amountPaid: finalAmountPaid,
             ledgerAdjustment: ledgerAdj !== 0 ? ledgerAdj : undefined,
@@ -3719,15 +3743,16 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
               : new Date(),
             dealerInvoiceNumber: input.dealerInvoiceNumber || undefined,
             notes: input.notes || undefined,
-            recordedBy: userRole === "staff" ? "staff" : "owner",
+            recordedBy: (userRole === "staff" ? "staff" : "owner") as "owner" | "staff",
           },
         ],
         { session: dbSession },
       );
 
-      // Record corresponding Expense if amount paid > 0
+      // Record corresponding Expense if amount paid > 0 (including any past dues paid)
+      const totalCashPaid = finalAmountPaid + oldDuesPaid;
       let createdExpenseDoc: any = null;
-      if (finalAmountPaid > 0) {
+      if (totalCashPaid > 0) {
         const { fullNumber: expenseNumber } = await Counter.getNextSequence({
           tenantId: tenantObjectId,
           type: "expense",
@@ -3738,9 +3763,12 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             {
               tenantId: tenantObjectId,
               expenseNumber,
-              title: `Stock In (${formatDisplayNumber(poNumber)}) — ${input.supplierName}`,
+              title:
+                oldDuesPaid > 0
+                  ? `Stock In (${formatDisplayNumber(poNumber)}) & Past Dues (₹${oldDuesPaid.toLocaleString("en-IN")}) — ${input.supplierName}`
+                  : `Stock In (${formatDisplayNumber(poNumber)}) — ${input.supplierName}`,
               category: "inventory_purchase",
-              amount: finalAmountPaid,
+              amount: totalCashPaid,
               paymentMode:
                 effectivePaymentMode === "cash" ||
                   effectivePaymentMode === "upi" ||
@@ -3902,6 +3930,7 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
       totalPurchases: supp.totalPurchases ?? 0,
       totalPaid: supp.totalPaid ?? 0,
       totalPending: supp.totalPending ?? 0,
+      totalCredit: supp.totalCredit ?? 0,
       isActive: supp.isActive !== false,
     };
 
@@ -4001,21 +4030,44 @@ export async function recordPurchaseOrderPaymentAction(
         throw new Error("Payment amount cannot be negative");
       }
 
-      if (input.amount === 0 && (po.amountPending > 0 || po.stockAllocated)) {
+      let supplierDoc: any = null;
+      if (po.supplierId) {
+        supplierDoc = await Supplier.findOne({
+          _id: po.supplierId,
+          tenantId: tenantObjectId,
+        }).session(dbSession);
+      }
+
+      const requestedCredit = input.creditUsed || 0;
+      if (requestedCredit > 0) {
+        const availableCredit = supplierDoc?.totalCredit || 0;
+        if (requestedCredit > availableCredit) {
+          throw new Error(
+            `Requested credit (₹${requestedCredit}) exceeds available supplier credit (₹${availableCredit})`,
+          );
+        }
+      }
+
+      const totalPayment = input.amount + requestedCredit;
+
+      if (totalPayment === 0 && (po.amountPending > 0 || po.stockAllocated)) {
         throw new Error("Payment amount must be greater than 0");
       }
 
-      if (input.amount > po.amountPending) {
+      if (totalPayment > po.amountPending) {
         throw new Error(
-          `Payment amount (₹${input.amount}) exceeds current pending balance (₹${po.amountPending})`,
+          `Total settlement payment (₹${totalPayment}) exceeds current pending balance (₹${po.amountPending})`,
         );
       }
 
       // Update PurchaseOrder
       const priorPaid = po.amountPaid;
-      if (input.amount > 0) {
+      if (totalPayment > 0) {
         po.amountPaid += input.amount;
-        po.amountPending = Math.max(0, po.amountPending - input.amount);
+        if (requestedCredit > 0) {
+          po.ledgerAdjustment = (po.ledgerAdjustment || 0) + requestedCredit;
+        }
+        po.amountPending = Math.max(0, po.amountPending - totalPayment);
 
         if (!po.payments) po.payments = [];
         if (po.payments.length === 0 && priorPaid > 0) {
@@ -4029,14 +4081,27 @@ export async function recordPurchaseOrderPaymentAction(
           });
         }
 
-        po.payments.push({
-          amount: input.amount,
-          paymentMode: input.paymentMode,
-          notes: input.notes?.trim() || undefined,
-          recordedBy: userRole === "staff" ? "staff" : "owner",
-          type: "settlement",
-          recordedAt: new Date(),
-        });
+        if (requestedCredit > 0) {
+          po.payments.push({
+            amount: requestedCredit,
+            paymentMode: "credit" as any,
+            notes: `[Supplier Credit Applied] ₹${requestedCredit} used from supplier credit balance`,
+            recordedBy: userRole === "staff" ? "staff" : "owner",
+            type: "supplier_credit_applied",
+            recordedAt: new Date(),
+          });
+        }
+
+        if (input.amount > 0) {
+          po.payments.push({
+            amount: input.amount,
+            paymentMode: input.paymentMode,
+            notes: input.notes?.trim() || undefined,
+            recordedBy: userRole === "staff" ? "staff" : "owner",
+            type: "settlement",
+            recordedAt: new Date(),
+          });
+        }
       } else if (input.notes?.trim()) {
         if (!po.payments) po.payments = [];
         po.payments.push({
@@ -4053,9 +4118,10 @@ export async function recordPurchaseOrderPaymentAction(
       // if (amountPaid >= totalAmount) → "paid"
       // else if (amountPaid <= 0) → "unpaid"
       // else → "partial"
-      if (po.amountPaid >= po.totalAmount) {
+      const effectiveTotalCovered = po.amountPaid + (po.ledgerAdjustment || 0);
+      if (effectiveTotalCovered >= po.totalAmount || po.amountPending <= 0) {
         po.paymentStatus = "paid";
-      } else if (po.amountPaid <= 0) {
+      } else if (effectiveTotalCovered <= 0) {
         po.paymentStatus = "unpaid";
       } else {
         po.paymentStatus = "partial";
@@ -4109,16 +4175,21 @@ export async function recordPurchaseOrderPaymentAction(
 
       await po.save({ session: dbSession });
 
-      // Update linked Supplier in the same transaction (only if payment > 0)
+      // Update linked Supplier in the same transaction (if cash payment or credit used)
       let updatedSupplierDoc = null;
-      if (po.supplierId && input.amount > 0) {
-        const supplier = await Supplier.findOne({
+      if (po.supplierId && totalPayment > 0) {
+        const supplier = supplierDoc || await Supplier.findOne({
           _id: po.supplierId,
           tenantId: tenantObjectId,
         }).session(dbSession);
         if (supplier) {
-          supplier.totalPaid = (supplier.totalPaid || 0) + input.amount;
-          supplier.totalPending = (supplier.totalPending || 0) - input.amount;
+          if (input.amount > 0) {
+            supplier.totalPaid = (supplier.totalPaid || 0) + input.amount;
+          }
+          if (requestedCredit > 0) {
+            supplier.totalCredit = Math.max(0, (supplier.totalCredit || 0) - requestedCredit);
+          }
+          supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - totalPayment);
           await supplier.save({ session: dbSession });
           updatedSupplierDoc = supplier;
         }
@@ -4195,6 +4266,7 @@ export async function recordPurchaseOrderPaymentAction(
         })),
         totalAmount: result.po.totalAmount,
         amountPaid: result.po.amountPaid,
+        ledgerAdjustment: result.po.ledgerAdjustment,
         amountPending: result.po.amountPending,
         paymentMode: result.po.paymentMode,
         paymentStatus: result.po.paymentStatus,
@@ -4233,6 +4305,7 @@ export async function recordPurchaseOrderPaymentAction(
           totalPurchases: result.supplier.totalPurchases ?? 0,
           totalPaid: result.supplier.totalPaid ?? 0,
           totalPending: result.supplier.totalPending ?? 0,
+          totalCredit: result.supplier.totalCredit ?? 0,
           isActive: result.supplier.isActive !== false,
         }
         : undefined,
@@ -4681,7 +4754,8 @@ export async function getSuppliersAction(): Promise<{
       notes: doc.notes,
       totalPurchases: doc.totalPurchases ?? 0,
       totalPaid: doc.totalPaid ?? 0,
-      totalPending: doc.totalPending ?? 0,
+      totalPending: Math.max(0, doc.totalPending ?? 0),
+      totalCredit: Math.max(0, doc.totalCredit ?? (doc.totalPending < 0 ? Math.abs(doc.totalPending) : 0)),
       isActive: doc.isActive,
     }));
 
@@ -5797,6 +5871,7 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
           totalPurchases: existingSupplier.totalPurchases || 0,
           totalPaid: existingSupplier.totalPaid || 0,
           totalPending: existingSupplier.totalPending || 0,
+          totalCredit: (existingSupplier as any).totalCredit || 0,
           isActive: existingSupplier.isActive !== false,
         },
       };
@@ -5814,6 +5889,7 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
       totalPurchases: 0,
       totalPaid: 0,
       totalPending: 0,
+      totalCredit: 0,
       isActive: true,
     });
 
@@ -5834,6 +5910,7 @@ export async function createSupplierAction(rawInput: unknown): Promise<{
         totalPurchases: newDoc.totalPurchases || 0,
         totalPaid: newDoc.totalPaid || 0,
         totalPending: newDoc.totalPending || 0,
+        totalCredit: (newDoc as any).totalCredit || 0,
         isActive: newDoc.isActive !== false,
       },
     };
@@ -5940,6 +6017,7 @@ export async function updateSupplierAction(rawInput: unknown): Promise<{
         totalPurchases: supplier.totalPurchases || 0,
         totalPaid: supplier.totalPaid || 0,
         totalPending: supplier.totalPending || 0,
+        totalCredit: (supplier as any).totalCredit || 0,
         isActive: supplier.isActive !== false,
       },
     };
@@ -6408,19 +6486,22 @@ async function processSupplierReturn(
       if (chosenMode === "credit") {
         creditAmount = excessOrDirectRefund;
         if (supplier) {
-          supplier.totalPending = (supplier.totalPending || 0) - (amountDeductedFromDue + creditAmount);
+          if (amountDeductedFromDue > 0) {
+            supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - amountDeductedFromDue);
+          }
+          supplier.totalCredit = (supplier.totalCredit || 0) + creditAmount;
           await supplier.save({ session: dbSession });
         }
       } else {
         cashRefundReceived = excessOrDirectRefund;
         if (supplier && amountDeductedFromDue > 0) {
-          supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
+          supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - amountDeductedFromDue);
           await supplier.save({ session: dbSession });
         }
       }
     } else {
       if (supplier && amountDeductedFromDue > 0) {
-        supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
+        supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - amountDeductedFromDue);
         await supplier.save({ session: dbSession });
       }
     }
@@ -7270,6 +7351,27 @@ export async function returnCustomerOrderItemAction(
         returnedAt: new Date(),
       });
 
+      // If all items in the order have been refunded or remaining amount is 0, mark order as cancelled_refunded
+      const totalRefundedSum = (order.returns || [])
+        .filter((r: any) => r.customerResolution === "refund")
+        .reduce((sum: number, r: any) => sum + (r.refundAmount || 0), 0);
+      const allItemsReturned = (order.lineItems || []).length > 0 && (order.lineItems || []).every(
+        (li: any) => (li.returnedQuantity || 0) >= (li.quantity || 1)
+      );
+
+      if ((allItemsReturned || (order.totalAmount - totalRefundedSum <= 0)) && totalRefundedSum > 0) {
+        order.status = "cancelled_refunded";
+        order.refundDetails = {
+          refundAmount: totalRefundedSum,
+          refundMode: (refundMode === "reduce_due" ? "cash" : refundMode) as any,
+          refundReason: notes?.trim() || "All items returned",
+          refundedAt: new Date(),
+          refundedBy: userRole === "staff" ? "staff" : "owner",
+        };
+        order.markModified("status");
+        order.markModified("refundDetails");
+      }
+
       order.markModified("lineItems");
       order.markModified("returns");
       if (order.payments) order.markModified("payments");
@@ -7562,21 +7664,24 @@ export async function settleSupplierReplacementAction(
           if (chosenMode === "credit") {
             creditAmount = excessOrDirectRefund;
             if (supplier) {
-              supplier.totalPending = (supplier.totalPending || 0) - (amountDeductedFromDue + creditAmount);
+              if (amountDeductedFromDue > 0) {
+                supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - amountDeductedFromDue);
+              }
+              supplier.totalCredit = (supplier.totalCredit || 0) + creditAmount;
               await supplier.save({ session: dbSession });
               updatedSupplierDoc = supplier;
             }
           } else {
             cashRefundReceived = excessOrDirectRefund;
             if (supplier && amountDeductedFromDue > 0) {
-              supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
+              supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - amountDeductedFromDue);
               await supplier.save({ session: dbSession });
               updatedSupplierDoc = supplier;
             }
           }
         } else {
           if (supplier && amountDeductedFromDue > 0) {
-            supplier.totalPending = (supplier.totalPending || 0) - amountDeductedFromDue;
+            supplier.totalPending = Math.max(0, (supplier.totalPending || 0) - amountDeductedFromDue);
             await supplier.save({ session: dbSession });
             updatedSupplierDoc = supplier;
           }
@@ -7713,6 +7818,7 @@ export async function settleSupplierReplacementAction(
           totalPurchases: updatedSupplierDoc.totalPurchases ?? 0,
           totalPaid: updatedSupplierDoc.totalPaid ?? 0,
           totalPending: updatedSupplierDoc.totalPending ?? 0,
+          totalCredit: updatedSupplierDoc.totalCredit ?? 0,
           isActive: updatedSupplierDoc.isActive !== false,
         }
       : undefined;

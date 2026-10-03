@@ -1123,32 +1123,57 @@ export function PurchaseOrdersView({
 
                       {/* Column 3: Settlement (Matching Orders Tab Pixel-for-Pixel) */}
                       {(() => {
-                        const returnEvents = Array.isArray(po.returns) ? po.returns : [];
-                        const totalReturns = returnEvents.reduce(
-                          (sum, r) => sum + (r.amountDeductedFromDue || 0),
-                          0
+                        const initialPayment = (po.payments || []).find((p) => p.type === "initial");
+                        const settlementPayment = (po.payments || []).find((p) => p.type === "settlement");
+                        const hasInitialAdvance = Boolean(
+                          initialPayment &&
+                          initialPayment.amount > 0 &&
+                          initialPayment.amount < po.totalAmount &&
+                          (settlementPayment || po.amountPending > 0)
                         );
-                        const effectivePOAmount = Math.max(0, po.totalAmount - totalReturns);
+                        const initialAdvanceAmount = initialPayment?.amount ?? 0;
+                        const initialAdvanceMode = initialPayment?.paymentMode || po.paymentMode;
+                        const settledMode = settlementPayment?.paymentMode || po.paymentMode;
 
                         return (
                           <div className="text-right">
+                            {/* Final Order Total - NEVER changes */}
                             <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
-                              {formatRupee(effectivePOAmount)}
+                              {formatRupee(po.totalAmount)}
                             </div>
                             {po.amountPending > 0 ? (
                               <div className="space-y-0.5 mt-0.5">
                                 {po.amountPaid > 0 && (
                                   <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
                                     <span>{formatRupee(po.amountPaid)} adv.</span>
-                                    {po.paymentMode && (
+                                    {initialAdvanceMode && (
                                       <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
-                                        {po.paymentMode}
+                                        {initialAdvanceMode}
                                       </span>
                                     )}
                                   </div>
                                 )}
                                 <div className="font-sans text-[12px] text-galla-brass font-medium tabular-nums">
                                   {formatRupee(po.amountPending)} due
+                                </div>
+                              </div>
+                            ) : hasInitialAdvance ? (
+                              <div className="space-y-0.5 mt-0.5">
+                                <div className="font-sans text-[12px] text-galla-ink-soft font-medium flex items-center justify-end gap-1 tabular-nums">
+                                  <span>{formatRupee(initialAdvanceAmount)} adv.</span>
+                                  {initialAdvanceMode && (
+                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      {initialAdvanceMode}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="font-sans text-[12px] text-galla-teal font-medium flex items-center justify-end gap-1 tabular-nums">
+                                  <span>{formatRupee(po.totalAmount - initialAdvanceAmount)} settled</span>
+                                  {settledMode && (
+                                    <span className="capitalize text-[11px] font-normal px-1.5 py-0.5 rounded bg-galla-paper text-galla-ink-soft border border-galla-line/60">
+                                      {settledMode}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             ) : (
@@ -1266,6 +1291,7 @@ export function PurchaseOrdersView({
               })()
             : null
         }
+        suppliers={suppliers}
         isOpen={Boolean(selectedPOForPayment)}
         onClose={() => setSelectedPOForPayment(null)}
         onPaymentSuccess={handlePaymentSuccess}

@@ -12,6 +12,7 @@ export interface ISupplier extends Document {
   totalPurchases: number;
   totalPaid: number;
   totalPending: number;
+  totalCredit: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -70,6 +71,12 @@ const SupplierSchema = new Schema<ISupplier>(
     totalPending: {
       type: Number,
       default: 0,
+      min: 0,
+    },
+    totalCredit: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     isActive: {
       type: Boolean,

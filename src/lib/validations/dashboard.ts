@@ -121,6 +121,8 @@ export const createPurchaseOrderSchema = z.object({
   amountPaid: z.number().min(0, "Paid amount cannot be negative").optional(),
   customTotalAmount: z.number().min(0, "Total amount cannot be negative").optional(),
   ledgerAdjustment: z.number().optional(),
+  creditUsed: z.number().min(0).optional(),
+  oldDuesPaid: z.number().min(0).optional(),
   settlementMode: z.enum(["completed", "pending", "advance", "paid_full"]).optional().default("completed"),
   dueDate: z.string().optional(),
   expectedDeliveryDate: z.string().optional(),
@@ -135,6 +137,7 @@ export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>
 export const recordPurchaseOrderPaymentSchema = z.object({
   purchaseOrderId: z.string().min(1, "Purchase order ID is required"),
   amount: z.number().min(0, "Payment amount cannot be negative"),
+  creditUsed: z.number().min(0).optional(),
   paymentMode: z.enum(["cash", "upi", "card", "bank_transfer"]).default("cash"),
   notes: z.string().optional(),
 });

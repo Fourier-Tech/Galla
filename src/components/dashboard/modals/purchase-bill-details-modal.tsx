@@ -280,18 +280,43 @@ export function PurchaseBillDetailsModal({
     return sum + Math.max(0, total - due);
   }, 0);
 
-  const originalAmountPaid =
-    resolvedPayments && resolvedPayments.length > 0
-      ? resolvedPayments
-        .filter(
-          (p) =>
-            p.type !== "refund" &&
-            p.type !== "return_due_deduction" &&
-            p.paymentMode !== "reduce_due" &&
-            p.amount > 0,
-        )
-        .reduce((sum, p) => sum + p.amount, 0)
-      : bill.amountPaid;
+  // Settlement payments (cash / upi / card / bank_transfer payments made after order creation)
+  const settlementPayments = (resolvedPayments || []).filter(
+    (p) =>
+      p.type === "settlement" &&
+      p.amount > 0 &&
+      p.paymentMode !== "credit" &&
+      p.paymentMode !== "reduce_due",
+  );
+
+  const totalSettlementPaid = settlementPayments.reduce(
+    (sum, p) => sum + p.amount,
+    0,
+  );
+
+  // Initial payment made at order creation (FIXED to order placement)
+  const initialPayment =
+    (resolvedPayments || []).find(
+      (p) => p.type === "initial" || p.type === "full_payment",
+    ) ||
+    (resolvedPayments || []).find(
+      (p) =>
+        p.type !== "settlement" &&
+        p.type !== "supplier_credit_applied" &&
+        p.type !== "return_due_deduction" &&
+        p.type !== "supplier_credit" &&
+        p.type !== "refund" &&
+        p.paymentMode !== "reduce_due" &&
+        p.paymentMode !== "credit" &&
+        p.amount > 0,
+    );
+
+  const initialAmountPaid =
+    initialPayment && typeof initialPayment.amount === "number"
+      ? initialPayment.amount
+      : Math.max(0, (bill.amountPaid || 0) - totalSettlementPaid);
+
+  const initialPaymentMode = initialPayment?.paymentMode || bill.paymentMode;
 
   const itemsTotalCost =
     bill.items && bill.items.length > 0
@@ -307,9 +332,34 @@ export function PurchaseBillDetailsModal({
   const discountAmount = Math.abs(priceDiff);
   const extraChargeAmount = priceDiff;
 
-  const effectivePaid = originalAmountPaid || bill.amountPaid;
-  const initialPendingDue = Math.max(0, bill.totalAmount - effectivePaid);
-  const payableAmount = Math.max(0, initialPendingDue - totalDueDeductions);
+  // Initial Pending Due when order was placed (FIXED to order placement)
+  const initialPendingDue = Math.max(0, bill.totalAmount - initialAmountPaid);
+
+  // Total Credit Applied (from supplier credit)
+  const paymentsCreditApplied = (resolvedPayments || [])
+    .filter(
+      (p) =>
+        (p.type === "supplier_credit_applied" ||
+          (p.type === "supplier_credit" &&
+            p.amount > 0 &&
+            (p.notes?.includes("Credit Applied") ||
+              p.notes?.includes("used from supplier credit")))) &&
+        p.amount > 0,
+    )
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const ledgerCreditApplied =
+    bill.ledgerAdjustment && Number(bill.ledgerAdjustment) > 0
+      ? Number(bill.ledgerAdjustment)
+      : 0;
+
+  const totalCreditApplied = Math.max(paymentsCreditApplied, ledgerCreditApplied);
+
+  // Current Payable Amount
+  const payableAmount = Math.max(
+    0,
+    initialPendingDue - totalDueDeductions - totalCreditApplied - totalSettlementPaid,
+  );
 
   const initials = bill.supplierName
     ? bill.supplierName
@@ -358,6 +408,22 @@ export function PurchaseBillDetailsModal({
     idx: number,
     total: number,
   ) => {
+    const isCreditApplied = Boolean(
+      p.type === "supplier_credit_applied" ||
+      (p.type === "supplier_credit" && p.amount != null && p.amount > 0 && (
+        p.notes?.includes("Credit Applied") ||
+        p.notes?.includes("used from supplier credit")
+      )) ||
+      (p.paymentMode === "credit" && (p.notes?.includes("Credit Applied") || p.notes?.includes("used from supplier credit")))
+    );
+
+    if (isCreditApplied) {
+      return {
+        label: "Supplier Credit Applied",
+        style: "bg-teal-50 text-teal-800 border-teal-200/90",
+      };
+    }
+
     if (p.type === "supplier_credit") {
       return {
         label: "Return (Supplier Credit)",
@@ -861,11 +927,6 @@ export function PurchaseBillDetailsModal({
                   </h2>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {totalDueDeductions > 0 && (
-                    <span className="text-[11.5px] font-semibold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-[4px]">
-                      Due Adjusted: -{formatRupee(totalDueDeductions)}
-                    </span>
-                  )}
                   {totalSupplierCredits > 0 && (
                     <span className="text-[11.5px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-[4px]">
                       Supplier Credit: +{formatRupee(totalSupplierCredits)}
@@ -1065,48 +1126,56 @@ export function PurchaseBillDetailsModal({
                 </div>
               )}
 
-              {Boolean(bill.ledgerAdjustment) && bill.ledgerAdjustment !== 0 && (
+              {Boolean(bill.ledgerAdjustment) && bill.ledgerAdjustment! < 0 && (
                 <div className="flex justify-between text-blue-700 font-medium">
-                  <span>
-                    {bill.ledgerAdjustment! > 0 ? "Credit Applied:" : "Old Dues Paid:"}
-                  </span>
+                  <span>Old Dues Paid:</span>
                   <span className="tabular-nums font-semibold">
-                    {bill.ledgerAdjustment! > 0 ? "-" : "+"}{formatRupee(Math.abs(bill.ledgerAdjustment!))}
+                    +{formatRupee(Math.abs(bill.ledgerAdjustment!))}
                   </span>
                 </div>
               )}
 
               {/* 3. Total Bill */}
-              <div className="pt-2 border-t border-galla-line flex justify-between items-baseline">
-                <span className="font-bold text-[14px] text-galla-ink">Total Bill:</span>
-                <span className="tabular-nums font-bold text-[18px] text-galla-ink">
+              <div className="pt-2 border-t border-galla-line flex justify-between items-center text-[15px] font-bold text-galla-ink">
+                <span>Total Bill:</span>
+                <span className="tabular-nums">
                   {formatRupee(bill.totalAmount)}
                 </span>
               </div>
 
-              {/* 4. Amount Paid */}
+              {/* 4. Amount Paid (at Order Creation) */}
               <div className="flex justify-between items-center text-emerald-700 font-medium pt-0.5">
                 <span className="inline-flex items-center gap-1.5">
                   <Wallet className="h-3.5 w-3.5" />
                   <span>Amount Paid:</span>
-                  {bill.paymentMode && (
+                  {initialPaymentMode && (
                     <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-[4px] bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
-                      {bill.paymentMode}
+                      {initialPaymentMode}
                     </span>
                   )}
                 </span>
-                <span className="tabular-nums font-bold text-[15px]">
-                  {formatRupee(effectivePaid)}
+                <span className="tabular-nums font-semibold">
+                  {formatRupee(initialAmountPaid)}
                 </span>
               </div>
 
-              {/* 5. Pending Due */}
+              {/* 5. Pending Due (at Order Creation) */}
               <div className="flex justify-between items-center text-galla-ink-soft">
                 <span>Pending Due:</span>
                 <span className={`tabular-nums font-semibold ${initialPendingDue > 0 ? "text-galla-ink" : "text-emerald-700"}`}>
                   {formatRupee(initialPendingDue)}
                 </span>
               </div>
+
+              {/* Credit Applied (from Supplier Credit Balance) */}
+              {totalCreditApplied > 0 && (
+                <div className="flex justify-between items-center text-blue-700 font-medium">
+                  <span>Credit Applied:</span>
+                  <span className="tabular-nums font-semibold">
+                    -{formatRupee(totalCreditApplied)}
+                  </span>
+                </div>
+              )}
 
               {/* 6. Returns (Due Deductions) */}
               {totalDueDeductions > 0 && (
@@ -1118,21 +1187,43 @@ export function PurchaseBillDetailsModal({
                 </div>
               )}
 
-              {totalSupplierCredits > 0 && (
+              {/* Settlement Paid */}
+              {settlementPayments.length > 0 ? (
+                settlementPayments.map((sp, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-emerald-700 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span>Settlement Paid:</span>
+                      {sp.paymentMode && (
+                        <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-[4px] bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
+                          {sp.paymentMode}
+                        </span>
+                      )}
+                    </span>
+                    <span className="tabular-nums font-semibold">
+                      -{formatRupee(sp.amount)}
+                    </span>
+                  </div>
+                ))
+              ) : totalSettlementPaid > 0 ? (
                 <div className="flex justify-between items-center text-emerald-700 font-medium">
-                  <span>Returns (Supplier Credit):</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Settlement Paid:</span>
+                    {bill.paymentMode && (
+                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-[4px] bg-galla-paper text-galla-ink-soft border border-galla-line/60 uppercase">
+                        {bill.paymentMode}
+                      </span>
+                    )}
+                  </span>
                   <span className="tabular-nums font-semibold">
-                    +{formatRupee(totalSupplierCredits)}
+                    -{formatRupee(totalSettlementPaid)}
                   </span>
                 </div>
-              )}
+              ) : null}
 
               {/* 7. Payable */}
-              <div className="pt-2 border-t border-galla-line flex justify-between items-baseline">
-                <span className={`font-bold text-[14px] ${payableAmount > 0 ? "text-rose-700" : "text-emerald-800"}`}>
-                  Payable:
-                </span>
-                <span className={`tabular-nums font-bold text-[18px] ${payableAmount > 0 ? "text-rose-700" : "text-emerald-800"}`}>
+              <div className={`pt-2 border-t border-galla-line flex justify-between items-center text-[15px] font-bold ${payableAmount > 0 ? "text-rose-700" : "text-emerald-800"}`}>
+                <span>Payable:</span>
+                <span className="tabular-nums">
                   {payableAmount > 0 ? formatRupee(payableAmount) : "₹0 (Fully Cleared)"}
                 </span>
               </div>
@@ -1157,8 +1248,16 @@ export function PurchaseBillDetailsModal({
               <div className="space-y-2">
                 {resolvedPayments.map((p, pIdx) => {
                   const badge = getPaymentBadge(p, pIdx, resolvedPayments.length);
-                  const isSupplierCredit = p.type === "supplier_credit";
-                  const isDueDeduction = p.type === "return_due_deduction" || (!isSupplierCredit && p.paymentMode === "reduce_due");
+                  const isCreditApplied = Boolean(
+                    p.type === "supplier_credit_applied" ||
+                    (p.type === "supplier_credit" && p.amount != null && p.amount > 0 && (
+                      p.notes?.includes("Credit Applied") ||
+                      p.notes?.includes("used from supplier credit")
+                    )) ||
+                    (p.paymentMode === "credit" && (p.notes?.includes("Credit Applied") || p.notes?.includes("used from supplier credit")))
+                  );
+                  const isReturnCredit = p.type === "supplier_credit" && !isCreditApplied;
+                  const isDueDeduction = p.type === "return_due_deduction" || (!isReturnCredit && !isCreditApplied && p.paymentMode === "reduce_due");
                   const isNegative = (p.amount != null && p.amount < 0) || p.type === "refund";
 
                   return (
@@ -1172,20 +1271,25 @@ export function PurchaseBillDetailsModal({
                             {badge.label}
                           </span>
                           <span
-                            className={`font-bold tabular-nums ${isSupplierCredit
+                            className={`font-bold tabular-nums ${
+                              isCreditApplied
+                                ? "text-teal-700"
+                                : isReturnCredit
                                 ? "text-emerald-700"
                                 : isDueDeduction
-                                  ? "text-purple-700"
-                                  : isNegative
-                                    ? "text-rose-700"
-                                    : "text-galla-ink"
-                              }`}
+                                ? "text-purple-700"
+                                : isNegative
+                                ? "text-rose-700"
+                                : "text-galla-ink"
+                            }`}
                           >
-                            {isSupplierCredit
+                            {isCreditApplied
+                              ? formatRupee(Math.abs(p.amount))
+                              : isReturnCredit
                               ? `+${formatRupee(Math.abs(p.amount))}`
                               : isDueDeduction
-                                ? `-${formatRupee(Math.abs(p.amount))}`
-                                : formatRupee(p.amount)}
+                              ? `-${formatRupee(Math.abs(p.amount))}`
+                              : formatRupee(p.amount)}
                           </span>
                         </div>
                         <span className="text-[11px] text-galla-ink-soft tabular-nums">
@@ -1194,7 +1298,9 @@ export function PurchaseBillDetailsModal({
                       </div>
 
                       <div className="text-[11.5px] text-galla-ink-soft flex items-center gap-2 flex-wrap">
-                        {isSupplierCredit ? (
+                        {isCreditApplied ? (
+                          <span className="text-teal-700 font-medium">applied from supplier credit</span>
+                        ) : isReturnCredit ? (
                           <span className="text-emerald-700 font-medium">credited to supplier balance</span>
                         ) : isDueDeduction ? (
                           <span className="text-purple-700 font-medium">adjusted in bill due</span>
