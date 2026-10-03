@@ -109,12 +109,62 @@ export async function syncRollupForPeriod(
         {
           $match: {
             tenantId,
-            createdAt: { $gte: startDate, $lte: endDate },
+            $or: [
+              { createdAt: { $gte: startDate, $lte: endDate } },
+              { "payments.recordedAt": { $gte: startDate, $lte: endDate } },
+            ],
             status: { $nin: ["cancelled_refunded", "cancelled_converted"] },
           },
         },
         {
           $addFields: {
+            periodPaid: {
+              $cond: [
+                {
+                  $and: [
+                    { $isArray: "$payments" },
+                    { $gt: [{ $size: "$payments" }, 0] },
+                  ],
+                },
+                {
+                  $reduce: {
+                    input: "$payments",
+                    initialValue: 0,
+                    in: {
+                      $add: [
+                        "$$value",
+                        {
+                          $cond: [
+                            {
+                              $and: [
+                                { $gte: ["$$this.recordedAt", startDate] },
+                                { $lte: ["$$this.recordedAt", endDate] },
+                                { $gt: ["$$this.amount", 0] },
+                                { $ne: ["$$this.type", "refund"] },
+                              ],
+                            },
+                            "$$this.amount",
+                            0,
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+                {
+                  $cond: [
+                    {
+                      $and: [
+                        { $gte: ["$createdAt", startDate] },
+                        { $lte: ["$createdAt", endDate] },
+                      ],
+                    },
+                    { $ifNull: ["$amountPaid", 0] },
+                    0,
+                  ],
+                },
+              ],
+            },
             orderCashRefunds: {
               $reduce: {
                 input: { $ifNull: ["$returns", []] },
@@ -124,20 +174,31 @@ export async function syncRollupForPeriod(
                     "$$value",
                     {
                       $cond: [
-                        { $gt: ["$$this.cashRefund", 0] },
-                        "$$this.cashRefund",
                         {
-                          $cond: [
-                            {
-                              $and: [
-                                { $eq: ["$$this.customerResolution", "refund"] },
-                                { $ne: ["$$this.refundMode", "reduce_due"] },
-                              ],
-                            },
-                            { $ifNull: ["$$this.refundAmount", 0] },
-                            0,
+                          $and: [
+                            { $gte: ["$$this.returnedAt", startDate] },
+                            { $lte: ["$$this.returnedAt", endDate] },
                           ],
                         },
+                        {
+                          $cond: [
+                            { $gt: ["$$this.cashRefund", 0] },
+                            "$$this.cashRefund",
+                            {
+                              $cond: [
+                                {
+                                  $and: [
+                                    { $eq: ["$$this.customerResolution", "refund"] },
+                                    { $ne: ["$$this.refundMode", "reduce_due"] },
+                                  ],
+                                },
+                                { $ifNull: ["$$this.refundAmount", 0] },
+                                0,
+                              ],
+                            },
+                          ],
+                        },
+                        0,
                       ],
                     },
                   ],
@@ -149,7 +210,7 @@ export async function syncRollupForPeriod(
         {
           $addFields: {
             netPaid: {
-              $max: [0, { $subtract: ["$amountPaid", "$orderCashRefunds"] }],
+              $max: [0, { $subtract: ["$periodPaid", "$orderCashRefunds"] }],
             },
           },
         },
@@ -160,7 +221,20 @@ export async function syncRollupForPeriod(
                 $group: {
                   _id: null,
                   totalRevenue: { $sum: "$netPaid" },
-                  totalOrders: { $sum: 1 },
+                  totalOrders: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gte: ["$createdAt", startDate] },
+                            { $lte: ["$createdAt", endDate] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
                   completedOrders: {
                     $sum: {
                       $cond: [{ $in: ["$status", ["completed", "paid_full"]] }, 1, 0],
@@ -467,7 +541,32 @@ export async function ensureDailyRollupsForRange(
         {
           $match: {
             tenantId,
-            createdAt: { $gte: startDate, $lte: endDate },
+            $or: [
+              { createdAt: { $gte: startDate, $lte: endDate } },
+              { "payments.recordedAt": { $gte: startDate, $lte: endDate } },
+            ],
+          },
+        },
+        {
+          $project: {
+            dates: {
+              $concatArrays: [
+                ["$createdAt"],
+                {
+                  $map: {
+                    input: { $ifNull: ["$payments", []] },
+                    as: "p",
+                    in: "$$p.recordedAt",
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $unwind: "$dates" },
+        {
+          $match: {
+            dates: { $gte: startDate, $lte: endDate },
           },
         },
         {
@@ -475,7 +574,7 @@ export async function ensureDailyRollupsForRange(
             _id: {
               $dateToString: {
                 format: "%Y-%m-%d",
-                date: "$createdAt",
+                date: "$dates",
                 timezone: "+05:30",
               },
             },

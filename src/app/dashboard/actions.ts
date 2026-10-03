@@ -1099,11 +1099,9 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             (existingCustomer.stats.totalSpend || 0) + input.paidAmount;
           const netBalanceAdjustment =
             amountPending - (input.clearedDueAmount || 0);
-          existingCustomer.stats.outstandingBalance = Math.max(
-            0,
+          existingCustomer.stats.outstandingBalance =
             (existingCustomer.stats.outstandingBalance || 0) +
-            netBalanceAdjustment,
-          );
+            netBalanceAdjustment;
           existingCustomer.stats.lastVisitAt = new Date();
           await existingCustomer.save({ session: dbSession });
 
@@ -1140,25 +1138,45 @@ export async function createOrderAction(rawInput: unknown): Promise<{
             );
           }
         } else {
-          const [newCust] = await Customer.create(
-            [
-              {
-                tenantId,
-                name: input.customerName,
-                phone: formattedPhone,
-                isActive: true,
-                stats: {
-                  totalVisits: 1,
-                  totalSpend: input.paidAmount,
-                  outstandingBalance: amountPending,
-                  lastVisitAt: new Date(),
+          try {
+            const [newCust] = await Customer.create(
+              [
+                {
+                  tenantId,
+                  name: input.customerName,
+                  phone: formattedPhone,
+                  isActive: true,
+                  stats: {
+                    totalVisits: 1,
+                    totalSpend: input.paidAmount,
+                    outstandingBalance: amountPending,
+                    lastVisitAt: new Date(),
+                  },
                 },
-              },
-            ],
-            { session: dbSession },
-          );
-          createdOrder.customerId = newCust._id;
-          await createdOrder.save({ session: dbSession });
+              ],
+              { session: dbSession },
+            );
+            createdOrder.customerId = newCust._id;
+            await createdOrder.save({ session: dbSession });
+          } catch (createErr: any) {
+            if (createErr?.code === 11000 || createErr?.message?.includes("E11000")) {
+              const concurrentCust = await Customer.findOne({ tenantId, phone: formattedPhone }).session(dbSession);
+              if (concurrentCust) {
+                concurrentCust.stats.totalVisits = (concurrentCust.stats.totalVisits || 0) + 1;
+                concurrentCust.stats.totalSpend = (concurrentCust.stats.totalSpend || 0) + input.paidAmount;
+                const netBalanceAdjustment = amountPending - (input.clearedDueAmount || 0);
+                concurrentCust.stats.outstandingBalance = (concurrentCust.stats.outstandingBalance || 0) + netBalanceAdjustment;
+                concurrentCust.stats.lastVisitAt = new Date();
+                await concurrentCust.save({ session: dbSession });
+                createdOrder.customerId = concurrentCust._id;
+                await createdOrder.save({ session: dbSession });
+              } else {
+                throw createErr;
+              }
+            } else {
+              throw createErr;
+            }
+          }
         }
       } else {
         const netBalanceAdjustment =
@@ -1315,244 +1333,263 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
 
     const query = buildOrderLookupQuery(tenantId, orderId);
 
-    const order = await Order.findOne(query);
-    if (!order) {
+    const initialCheck = await Order.findOne(query);
+    if (!initialCheck) {
       return { success: false, error: "Order not found" };
     }
+    if (initialCheck.status === "completed" || initialCheck.status === "replacement_completed") {
+      return { success: false, error: "This order is already marked as completed." };
+    }
+    if (initialCheck.status === "cancelled_refunded" || initialCheck.status === "cancelled_converted") {
+      return { success: false, error: "Cannot complete an order that has been cancelled or refunded." };
+    }
 
-    // Validate stock for all unfulfilled products and package products before allowing completion!
-    if (order.lineItems && order.lineItems.length > 0) {
-      for (const item of order.lineItems) {
-        if (!item.fulfilled) {
-          if (
-            item.itemType === "product" &&
-            Types.ObjectId.isValid(item.itemId)
-          ) {
-            const prod = await Product.findOne({ _id: item.itemId, tenantId });
-            const qty = item.quantity || 1;
-            const availableSell = prod?.sellStock || 0;
-            const availableUse = prod?.useStock || 0;
-            const totalAvailable = allowUseStockUsage ? (availableSell + availableUse) : availableSell;
-            if (!prod || totalAvailable < qty) {
-              const available = allowUseStockUsage ? totalAvailable : availableSell;
-              return {
-                success: false,
-                error: `Cannot complete delivery: Product "${item.name}" is out of stock (${available} available, ${qty} needed). Please stock in first before completing delivery.`,
-              };
-            }
-          } else if (
-            item.itemType === "package" &&
-            Types.ObjectId.isValid(item.itemId)
-          ) {
-            const stockCheck = await checkPackageProductsAvailability(
-              tenantId,
-              item.itemId,
-              item.quantity || 1,
-              undefined,
-              allowSellStockUsage === true,
-            );
-            if (!stockCheck.available) {
-              const missingDesc = stockCheck.missing
-                .map(
-                  (m) =>
-                    `"${m.name}" (${m.available} available in ${allowSellStockUsage ? "in-use & retail" : "in-use"}, ${m.needed} needed)`,
-                )
-                .join(", ");
-              return {
-                success: false,
-                error: `Cannot complete delivery: Package "${item.name}" requires products: ${missingDesc}. Please stock in first${stockCheck.needsSellStock ? " or confirm using retail shelf stock" : ""}.`,
-              };
-            }
-          } else if (
-            item.itemType === "service" &&
-            Types.ObjectId.isValid(item.itemId)
-          ) {
-            const stockCheck = await checkServiceProductsAvailability(
-              tenantId,
-              item.itemId,
-              item.quantity || 1,
-              undefined,
-              allowSellStockUsage === true,
-            );
-            if (!stockCheck.available) {
-              const missingDesc = stockCheck.missing
-                .map(
-                  (m) =>
-                    `"${m.name}" (${m.available} available in ${allowSellStockUsage ? "in-use & retail" : "in-use"}, ${m.needed} needed)`,
-                )
-                .join(", ");
-              return {
-                success: false,
-                error: `Cannot complete service: Service "${item.name}" requires products: ${missingDesc}. Please stock in first${stockCheck.needsSellStock ? " or confirm using retail shelf stock" : ""}.`,
-              };
+    const { order, isReplacementOrder, amountToCollect } = await withTransaction(async (dbSession) => {
+      const order = await Order.findOne(query).session(dbSession);
+      if (!order) {
+        throw new Error("Order not found");
+      }
+      if (order.status === "completed" || order.status === "replacement_completed") {
+        throw new Error("This order is already marked as completed.");
+      }
+      if (order.status === "cancelled_refunded" || order.status === "cancelled_converted") {
+        throw new Error("Cannot complete an order that has been cancelled or refunded.");
+      }
+
+      // Validate stock for all unfulfilled products and package products before allowing completion!
+      if (order.lineItems && order.lineItems.length > 0) {
+        for (const item of order.lineItems) {
+          if (!item.fulfilled) {
+            if (
+              item.itemType === "product" &&
+              Types.ObjectId.isValid(item.itemId)
+            ) {
+              const prod = await Product.findOne({ _id: item.itemId, tenantId }).session(dbSession);
+              const qty = item.quantity || 1;
+              const availableSell = prod?.sellStock || 0;
+              const availableUse = prod?.useStock || 0;
+              const totalAvailable = allowUseStockUsage ? (availableSell + availableUse) : availableSell;
+              if (!prod || totalAvailable < qty) {
+                const available = allowUseStockUsage ? totalAvailable : availableSell;
+                throw new Error(`Cannot complete delivery: Product "${item.name}" is out of stock (${available} available, ${qty} needed). Please stock in first before completing delivery.`);
+              }
+            } else if (
+              item.itemType === "package" &&
+              Types.ObjectId.isValid(item.itemId)
+            ) {
+              const stockCheck = await checkPackageProductsAvailability(
+                tenantId,
+                item.itemId,
+                item.quantity || 1,
+                dbSession,
+                allowSellStockUsage === true,
+              );
+              if (!stockCheck.available) {
+                const missingDesc = stockCheck.missing
+                  .map(
+                    (m) =>
+                      `"${m.name}" (${m.available} available in ${allowSellStockUsage ? "in-use & retail" : "in-use"}, ${m.needed} needed)`,
+                  )
+                  .join(", ");
+                throw new Error(`Cannot complete delivery: Package "${item.name}" requires products: ${missingDesc}. Please stock in first${stockCheck.needsSellStock ? " or confirm using retail shelf stock" : ""}.`);
+              }
+            } else if (
+              item.itemType === "service" &&
+              Types.ObjectId.isValid(item.itemId)
+            ) {
+              const stockCheck = await checkServiceProductsAvailability(
+                tenantId,
+                item.itemId,
+                item.quantity || 1,
+                dbSession,
+                allowSellStockUsage === true,
+              );
+              if (!stockCheck.available) {
+                const missingDesc = stockCheck.missing
+                  .map(
+                    (m) =>
+                      `"${m.name}" (${m.available} available in ${allowSellStockUsage ? "in-use & retail" : "in-use"}, ${m.needed} needed)`,
+                  )
+                  .join(", ");
+                throw new Error(`Cannot complete service: Service "${item.name}" requires products: ${missingDesc}. Please stock in first${stockCheck.needsSellStock ? " or confirm using retail shelf stock" : ""}.`);
+              }
             }
           }
         }
       }
-    }
 
-    // Default remaining balance from current total, paid, and return due deductions
-    const totalDueDeduction = (order.returns || []).reduce((sum: number, r: any) => {
-      if (typeof r.dueDeduction === "number") return sum + r.dueDeduction;
-      return sum + (r.refundMode === "reduce_due" ? (r.refundAmount || 0) : 0);
-    }, 0);
-    const defaultRemaining = Math.max(0, order.totalAmount - order.amountPaid - totalDueDeduction);
-    const amountToCollect =
-      remainingAmount !== undefined ? remainingAmount : defaultRemaining;
+      // Default remaining balance from current total, paid, and return due deductions
+      const totalDueDeduction = (order.returns || []).reduce((sum: number, r: any) => {
+        if (typeof r.dueDeduction === "number") return sum + r.dueDeduction;
+        return sum + (r.refundMode === "reduce_due" ? (r.refundAmount || 0) : 0);
+      }, 0);
+      const defaultRemaining = Math.max(0, order.totalAmount - order.amountPaid - totalDueDeduction);
+      const amountToCollect =
+        remainingAmount !== undefined ? remainingAmount : defaultRemaining;
 
-    // If counter adjusted the remaining price (e.g. concession discount or add-on)
-    if (remainingAmount !== undefined && remainingAmount !== defaultRemaining) {
-      if (amountToCollect < defaultRemaining) {
-        const concession = defaultRemaining - amountToCollect;
-        order.discountAmount = (order.discountAmount || 0) + concession;
+      // If counter adjusted the remaining price (e.g. concession discount or add-on)
+      if (remainingAmount !== undefined && remainingAmount !== defaultRemaining) {
+        if (amountToCollect < defaultRemaining) {
+          const concession = defaultRemaining - amountToCollect;
+          order.discountAmount = (order.discountAmount || 0) + concession;
+        }
+        order.totalAmount = order.amountPaid + amountToCollect;
       }
-      order.totalAmount = order.amountPaid + amountToCollect;
-    }
 
-    if (amountToCollect > 0) {
-      order.amountPaid += amountToCollect;
-      order.payments.push({
-        amount: amountToCollect,
-        mode: paymentMode,
-        recordedAt: new Date(),
-        recordedBy: userRole === "staff" ? "staff" : "owner",
-        type: "settlement",
-      });
-      order.paymentMode = paymentMode;
-    }
+      if (amountToCollect > 0) {
+        order.amountPaid += amountToCollect;
+        order.payments.push({
+          amount: amountToCollect,
+          mode: paymentMode,
+          recordedAt: new Date(),
+          recordedBy: userRole === "staff" ? "staff" : "owner",
+          type: "settlement",
+        });
+        order.paymentMode = paymentMode;
+      }
 
-    const isReplacementOrder =
-      order.status === "replacement_pending" || order.status === "replacement";
+      const isReplacementOrder =
+        order.status === "replacement_pending" || order.status === "replacement";
 
-    order.amountPending = 0;
-    order.status = isReplacementOrder ? "replacement_completed" : "completed";
-    order.completedAt = new Date();
+      order.amountPending = 0;
+      order.status = isReplacementOrder ? "replacement_completed" : "completed";
+      order.completedAt = new Date();
 
-    if (notes?.trim()) {
-      order.notes = order.notes
-        ? `${order.notes} | ${notes.trim()}`
-        : notes.trim();
-    }
+      if (notes?.trim()) {
+        order.notes = order.notes
+          ? `${order.notes} | ${notes.trim()}`
+          : notes.trim();
+      }
 
-
-    // Update customer stats
-    if (order.customerSnapshot?.phone) {
-      const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
-      const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
-      await Customer.findOneAndUpdate(
-        {
-          tenantId,
-          $or: [
-            { phone: cleanPhone },
-            ...(rawDigits.length === 10
-              ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
-              : [{ phone: order.customerSnapshot.phone }]),
-          ],
-        },
-        {
-          $inc: {
-            "stats.totalSpend": amountToCollect,
-            "stats.outstandingBalance": -defaultRemaining,
+      // Update customer stats
+      if (order.customerSnapshot?.phone) {
+        const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
+        const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
+        await Customer.findOneAndUpdate(
+          {
+            tenantId,
+            $or: [
+              { phone: cleanPhone },
+              ...(rawDigits.length === 10
+                ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
+                : [{ phone: order.customerSnapshot.phone }]),
+            ],
           },
-        },
-      );
-    }
+          {
+            $inc: {
+              "stats.totalSpend": amountToCollect,
+              "stats.outstandingBalance": -defaultRemaining,
+            },
+          },
+          { session: dbSession },
+        );
+      }
 
-    // Mark line items fulfilled & deduct stock upon customer pickup for backordered / pre-ordered / replacement products & packages
-    const affectedProductNames = new Set<string>();
-    if (order.lineItems && order.lineItems.length > 0) {
-      for (const item of order.lineItems) {
-        if (!item.fulfilled) {
-          if (
-            item.itemType === "product" &&
-            Types.ObjectId.isValid(item.itemId)
-          ) {
-            const prod = await Product.findOne({ _id: item.itemId, tenantId });
-            if (prod) {
-              const qty = item.quantity || 1;
-              if (allowUseStockUsage && prod.sellStock < qty) {
-                const fromSell = Math.max(0, prod.sellStock);
-                const fromUse = qty - fromSell;
-                prod.sellStock -= fromSell;
-                prod.useStock = Math.max(0, prod.useStock - fromUse);
-              } else {
-                prod.sellStock = Math.max(0, prod.sellStock - qty);
+      // Mark line items fulfilled & deduct stock upon customer pickup for backordered / pre-ordered / replacement products & packages
+      const affectedProductNames = new Set<string>();
+      if (order.lineItems && order.lineItems.length > 0) {
+        for (const item of order.lineItems) {
+          if (!item.fulfilled) {
+            if (
+              item.itemType === "product" &&
+              Types.ObjectId.isValid(item.itemId)
+            ) {
+              const prod = await Product.findOne({ _id: item.itemId, tenantId }).session(dbSession);
+              if (prod) {
+                const qty = item.quantity || 1;
+                if (allowUseStockUsage && prod.sellStock < qty) {
+                  const fromSell = Math.max(0, prod.sellStock);
+                  const fromUse = qty - fromSell;
+                  if (prod.useStock < fromUse) {
+                    throw new Error(`Insufficient salon use stock for "${prod.name}".`);
+                  }
+                  prod.sellStock -= fromSell;
+                  prod.useStock -= fromUse;
+                } else {
+                  if (prod.sellStock < qty) {
+                    throw new Error(`Insufficient shelf stock for "${prod.name}".`);
+                  }
+                  prod.sellStock -= qty;
+                }
+                await prod.save({ session: dbSession });
+                affectedProductNames.add(prod.name);
               }
-              await prod.save();
-              affectedProductNames.add(prod.name);
-            }
-          } else if (
-            item.itemType === "package" &&
-            Types.ObjectId.isValid(item.itemId)
-          ) {
-            await deductPackageProductsFromStock(
-              tenantId,
-              item.itemId,
-              item.quantity || 1,
-              undefined,
-              order._id,
-              order.orderNumber,
-              allowSellStockUsage === true,
-            );
-            const consolidated = await getPackageConsolidatedProducts(
-              tenantId,
-              item.itemId,
-              item.quantity || 1,
-            );
-            for (const pr of consolidated) {
-              affectedProductNames.add(pr.name);
-            }
-          } else if (
-            item.itemType === "service" &&
-            Types.ObjectId.isValid(item.itemId)
-          ) {
-            await deductServiceProductsFromStock(
-              tenantId,
-              item.itemId,
-              item.quantity || 1,
-              undefined,
-              order._id,
-              order.orderNumber,
-              allowSellStockUsage === true,
-            );
-            const srv = await Service.findOne({
-              _id: item.itemId,
-              tenantId,
-            });
-            if (srv && srv.products) {
-              for (const pr of srv.products) {
+            } else if (
+              item.itemType === "package" &&
+              Types.ObjectId.isValid(item.itemId)
+            ) {
+              await deductPackageProductsFromStock(
+                tenantId,
+                item.itemId,
+                item.quantity || 1,
+                dbSession,
+                order._id,
+                order.orderNumber,
+                allowSellStockUsage === true,
+              );
+              const consolidated = await getPackageConsolidatedProducts(
+                tenantId,
+                item.itemId,
+                item.quantity || 1,
+              );
+              for (const pr of consolidated) {
                 affectedProductNames.add(pr.name);
               }
+            } else if (
+              item.itemType === "service" &&
+              Types.ObjectId.isValid(item.itemId)
+            ) {
+              await deductServiceProductsFromStock(
+                tenantId,
+                item.itemId,
+                item.quantity || 1,
+                dbSession,
+                order._id,
+                order.orderNumber,
+                allowSellStockUsage === true,
+              );
+              const srv = await Service.findOne({
+                _id: item.itemId,
+                tenantId,
+              }).session(dbSession);
+              if (srv && srv.products) {
+                for (const pr of srv.products) {
+                  affectedProductNames.add(pr.name);
+                }
+              }
             }
           }
+          item.fulfilled = true;
         }
-        item.fulfilled = true;
       }
-    }
 
-    for (const pName of affectedProductNames) {
-      await cleanupProductBatchNames(tenantId, pName);
-    }
+      for (const pName of affectedProductNames) {
+        await cleanupProductBatchNames(tenantId, pName, dbSession);
+      }
 
-    // For replacement orders only: mark linked CustomerReplacement records completed after stock validation
-    if (isReplacementOrder) {
-      await CustomerReplacement.updateMany(
-        {
-          tenantId,
-          $or: [{ orderId: order._id }, { orderNumber: order.orderNumber }],
-          status: { $in: ["pending_dealer", "arrived_call_client"] },
-        },
-        {
-          $set: {
-            status: "completed",
-            pendingQuantity: 0,
-            completedAt: new Date(),
+      // For replacement orders only: mark linked CustomerReplacement records completed after stock validation
+      if (isReplacementOrder) {
+        await CustomerReplacement.updateMany(
+          {
+            tenantId,
+            $or: [{ orderId: order._id }, { orderNumber: order.orderNumber }],
+            status: { $in: ["pending_dealer", "arrived_call_client"] },
           },
-        }
-      );
-    }
+          {
+            $set: {
+              status: "completed",
+              pendingQuantity: 0,
+              completedAt: new Date(),
+            },
+          },
+          { session: dbSession }
+        );
+      }
 
-    await order.save();
+      await order.save({ session: dbSession });
+      return { order, isReplacementOrder, amountToCollect };
+    });
+
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_completed");
     if (isReplacementOrder) {
@@ -1658,7 +1695,10 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     };
   } catch (error) {
     console.error("Failed to complete order:", error);
-    return { success: false, error: "Failed to mark order as completed" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to mark order as completed",
+    };
   }
 }
 
@@ -1794,307 +1834,343 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
 
     const query = buildOrderLookupQuery(tenantId, orderId);
 
-    const order = await Order.findOne(query);
-    if (!order) {
+    const initialOrder = await Order.findOne(query);
+    if (!initialOrder) {
       return { success: false, error: "Order not found" };
     }
 
-    if (order.status === "cancelled_refunded") {
+    if (initialOrder.status === "cancelled_refunded") {
       return {
         success: false,
         error: "This order is already marked as refunded",
       };
     }
 
-    const prevPending = order.amountPending || 0;
+    const {
+      order,
+      newExpense,
+      updatedProductsList,
+      updatedLinkedOrders,
+      isSameDay,
+      remainingPaid,
+      advancePaidAmount,
+    } = await withTransaction(async (dbSession) => {
+      const order = await Order.findOne(query).session(dbSession);
+      if (!order) {
+        throw new Error("Order not found");
+      }
 
-    // Determine if refund happened on the same calendar day the order was created
-    const isSameDay = order.createdAt
-      ? (() => {
-        const d = new Date(order.createdAt);
-        const now = new Date();
-        return (
-          d.getDate() === now.getDate() &&
-          d.getMonth() === now.getMonth() &&
-          d.getFullYear() === now.getFullYear()
-        );
-      })()
-      : true;
+      if (order.status === "cancelled_refunded") {
+        throw new Error("This order is already marked as refunded");
+      }
 
-    // Record formal refund details in order
-    order.refundDetails = {
-      refundAmount,
-      refundMode,
-      refundReason: refundReason?.trim() || undefined,
-      refundedAt: new Date(),
-      refundedBy: userRole === "staff" ? "staff" : "owner",
-    };
+      const prevPending = order.amountPending || 0;
 
-    const totalPaid = (order.payments || [])
-      .filter((p: any) => p.amount > 0 && p.type !== "refund")
-      .reduce((sum: number, p: any) => sum + p.amount, 0) || order.amountPaid;
+      // Determine if refund happened on the same calendar day the order was created
+      const isSameDay = order.createdAt
+        ? (() => {
+          const d = new Date(order.createdAt);
+          const now = new Date();
+          return (
+            d.getDate() === now.getDate() &&
+            d.getMonth() === now.getMonth() &&
+            d.getFullYear() === now.getFullYear()
+          );
+        })()
+        : true;
 
-    const priorCashRefunds = (order.returns || []).reduce((sum: number, r: any) => {
-      if (typeof r.cashRefund === "number") return sum + r.cashRefund;
-      return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? (r.refundAmount || 0) : 0);
-    }, 0);
-
-    const remainingPaid = Math.max(0, totalPaid - priorCashRefunds);
-    const wasAdvance = totalPaid < order.totalAmount;
-    const advancePaidAmount = wasAdvance ? totalPaid : undefined;
-
-    // ponytail: order.amountPaid is kept untouched as permanent record of original checkout.
-    // Refund amounts are recorded in order.refundDetails and order.payments.
-
-    let newExpense: DashboardExpense | undefined = undefined;
-
-    if (refundAmount > 0) {
-      const { fullNumber: expenseNumber } = await Counter.getNextSequence({
-        tenantId,
-        type: "expense",
-      });
-      const expenseDoc = await Expense.create({
-        tenantId,
-        expenseNumber,
-        title: `Customer Refund — Order ${formatDisplayNumber(order.orderNumber)} (${order.customerSnapshot?.name || "Customer"})`,
-        category: "refund",
-        amount: refundAmount,
-        paymentMode: refundMode,
-        linkedOrderId: order._id,
-        recipient: order.customerSnapshot?.name || undefined,
-        notes:
-          refundReason || `Refund processed for order ${formatDisplayNumber(order.orderNumber)}`,
-        expenseDate: new Date(),
-        recordedBy: userRole === "staff" ? "staff" : "owner",
-        isSameDay,
-      });
-
-      newExpense = {
-        id: expenseDoc._id.toString(),
-        expenseNumber: expenseDoc.expenseNumber,
-        desc: expenseDoc.title,
-        amount: expenseDoc.amount,
-        category: "Refund",
-        time: "Today, Just now",
-        isToday: true,
-        paymentMode: refundMode,
-        recordedBy: userRole === "staff" ? "staff" : "owner",
-        linkedOrderId: order._id.toString(),
-        createdAt: expenseDoc.expenseDate
-          ? new Date(expenseDoc.expenseDate).toISOString()
-          : new Date().toISOString(),
+      // Record formal refund details in order
+      order.refundDetails = {
+        refundAmount,
+        refundMode,
+        refundReason: refundReason?.trim() || undefined,
+        refundedAt: new Date(),
+        refundedBy: userRole === "staff" ? "staff" : "owner",
       };
-    }
 
-    // Restock any physical products in the order
-    const updatedProductsList: DashboardProduct[] = [];
-    if (order.lineItems && order.lineItems.length > 0) {
-      for (let idx = 0; idx < order.lineItems.length; idx++) {
-        const item = order.lineItems[idx];
-        if (item.itemType === "product") {
-          const unreturnedQty = (item.quantity || 1) - (item.returnedQuantity || 0);
-          if (unreturnedQty > 0) {
-            const product = await Product.findOne({
-              _id: item.itemId,
+      const totalPaid = (order.payments || [])
+        .filter((p: any) => p.amount > 0 && p.type !== "refund")
+        .reduce((sum: number, p: any) => sum + p.amount, 0) || order.amountPaid;
+
+      const priorCashRefunds = (order.returns || []).reduce((sum: number, r: any) => {
+        if (typeof r.cashRefund === "number") return sum + r.cashRefund;
+        return sum + (r.refundMode !== "reduce_due" && r.customerResolution === "refund" ? (r.refundAmount || 0) : 0);
+      }, 0);
+
+      const remainingPaid = Math.max(0, totalPaid - priorCashRefunds);
+      const wasAdvance = totalPaid < order.totalAmount;
+      const advancePaidAmount = wasAdvance ? totalPaid : undefined;
+
+      // ponytail: order.amountPaid is kept untouched as permanent record of original checkout.
+      // Refund amounts are recorded in order.refundDetails and order.payments.
+
+      let newExpense: DashboardExpense | undefined = undefined;
+
+      if (refundAmount > 0) {
+        const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+          tenantId,
+          type: "expense",
+          session: dbSession,
+        });
+        const [expenseDoc] = await Expense.create(
+          [
+            {
               tenantId,
-            });
-            if (product) {
-              product.sellStock = (product.sellStock || 0) + unreturnedQty;
-              await product.save();
-              await cleanupProductBatchNames(tenantId, product.name);
-              updatedProductsList.push({
-                id: product._id.toString(),
-                name: product.name,
-                category: product.category,
-                sell: product.sellStock,
-                use: product.useStock,
-                defectiveStock: product.defectiveStock || 0,
-                price: product.expectedSellPrice,
-                purchaseCost: product.purchaseCost,
-                lowStockThreshold: product.lowStockThreshold,
-                description: product.description,
-                barcode: product.barcode,
-                isActive: product.isActive,
+              expenseNumber,
+              title: `Customer Refund — Order ${formatDisplayNumber(order.orderNumber)} (${order.customerSnapshot?.name || "Customer"})`,
+              category: "refund",
+              amount: refundAmount,
+              paymentMode: refundMode,
+              linkedOrderId: order._id,
+              recipient: order.customerSnapshot?.name || undefined,
+              notes:
+                refundReason || `Refund processed for order ${formatDisplayNumber(order.orderNumber)}`,
+              expenseDate: new Date(),
+              recordedBy: userRole === "staff" ? "staff" : "owner",
+              isSameDay,
+            },
+          ],
+          { session: dbSession },
+        );
+
+        newExpense = {
+          id: expenseDoc._id.toString(),
+          expenseNumber: expenseDoc.expenseNumber,
+          desc: expenseDoc.title,
+          amount: expenseDoc.amount,
+          category: "Refund",
+          time: "Today, Just now",
+          isToday: true,
+          paymentMode: refundMode,
+          recordedBy: userRole === "staff" ? "staff" : "owner",
+          linkedOrderId: order._id.toString(),
+          createdAt: expenseDoc.expenseDate
+            ? new Date(expenseDoc.expenseDate).toISOString()
+            : new Date().toISOString(),
+        };
+      }
+
+      // Restock any physical products in the order
+      const updatedProductsList: DashboardProduct[] = [];
+      if (order.lineItems && order.lineItems.length > 0) {
+        for (let idx = 0; idx < order.lineItems.length; idx++) {
+          const item = order.lineItems[idx];
+          if (item.itemType === "product") {
+            const unreturnedQty = (item.quantity || 1) - (item.returnedQuantity || 0);
+            if (unreturnedQty > 0) {
+              const product = await Product.findOne({
+                _id: item.itemId,
+                tenantId,
+              }).session(dbSession);
+              if (product) {
+                product.sellStock = (product.sellStock || 0) + unreturnedQty;
+                await product.save({ session: dbSession });
+                await cleanupProductBatchNames(tenantId, product.name, dbSession);
+                updatedProductsList.push({
+                  id: product._id.toString(),
+                  name: product.name,
+                  category: product.category,
+                  sell: product.sellStock,
+                  use: product.useStock,
+                  defectiveStock: product.defectiveStock || 0,
+                  price: product.expectedSellPrice,
+                  purchaseCost: product.purchaseCost,
+                  lowStockThreshold: product.lowStockThreshold,
+                  description: product.description,
+                  barcode: product.barcode,
+                  isActive: product.isActive,
+                });
+              }
+              item.returnedQuantity = item.quantity;
+              item.returnCondition = "restocked";
+
+              order.returns = order.returns || [];
+              order.returns.push({
+                returnNumber: `CRET-${Date.now()}-${idx}`,
+                lineItemId: item._id,
+                lineItemIndex: idx,
+                productId: product?._id,
+                productName: item.name,
+                quantity: unreturnedQty,
+                unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : 0,
+                refundAmount: Math.floor((item.unitPrice || 0) * unreturnedQty),
+                dueDeduction: 0,
+                cashRefund: Math.floor((item.unitPrice || 0) * unreturnedQty),
+                returnCondition: "restocked",
+                customerResolution: "refund",
+                refundMode: refundMode,
+                restockLocation: "sellStock",
+                isSameDayReturn: isSameDay,
+                notes: refundReason || "Full order refund restock",
+                recordedBy: userRole === "staff" ? "staff" : "owner",
+                returnedAt: new Date(),
               });
             }
-            item.returnedQuantity = item.quantity;
-            item.returnCondition = "restocked";
-
-            order.returns = order.returns || [];
-            order.returns.push({
-              returnNumber: `CRET-${Date.now()}-${idx}`,
-              lineItemId: item._id,
-              lineItemIndex: idx,
-              productId: product?._id,
-              productName: item.name,
-              quantity: unreturnedQty,
-              unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : 0,
-              refundAmount: Math.floor((item.unitPrice || 0) * unreturnedQty),
-              dueDeduction: 0,
-              cashRefund: Math.floor((item.unitPrice || 0) * unreturnedQty),
-              returnCondition: "restocked",
-              customerResolution: "refund",
-              refundMode: refundMode,
-              restockLocation: "sellStock",
-              isSameDayReturn: isSameDay,
-              notes: refundReason || "Full order refund restock",
-              recordedBy: userRole === "staff" ? "staff" : "owner",
-              returnedAt: new Date(),
-            });
           }
         }
       }
-    }
 
-    if (!order.payments) order.payments = [];
-    order.payments.push({
-      amount: -refundAmount,
-      mode: refundMode as any,
-      notes: `Order refund: ${refundReason || "Full refund & items restocked"}`,
-      recordedBy: userRole === "staff" ? "staff" : "owner",
-      type: "refund",
-      recordedAt: new Date(),
-    });
-
-    order.markModified("lineItems");
-    order.markModified("returns");
-    order.markModified("payments");
-
-    order.amountPending = 0;
-    order.status = "cancelled_refunded";
-
-    await order.save();
-
-    const updatedLinkedOrders: DashboardOrder[] = [];
-
-    // Auto-cancel and refund any linked customer replacements and replacement orders
-    try {
-      const orderNumDisplay = formatDisplayNumber(order.orderNumber);
-      const linkedCRs = await CustomerReplacement.find({
-        tenantId,
-        $or: [
-          { orderId: order._id },
-          { notes: new RegExp(orderNumDisplay, "i") },
-        ],
-        status: { $in: ["pending_dealer", "arrived_call_client"] },
-      });
-      for (const cr of linkedCRs) {
-        cr.status = "cancelled";
-        const cancelNote = `[Auto-Cancelled] Original Order #${orderNumDisplay} was refunded.`;
-        cr.notes = cr.notes ? `${cr.notes}\n${cancelNote}` : cancelNote;
-        await cr.save();
-      }
-
-      // Extract any replacement order numbers mentioned in original order notes (e.g. "[Replacement Order #P-2610-0013 Handed]")
-      const repOrderNumsFromNotes = (order.notes || "").match(/\[Replacement Order #(P-[\w-]+)/gi)
-        ?.map((m: string) => m.replace(/\[Replacement Order #/i, "").trim()) || [];
-      const crOrderIds = linkedCRs.map((cr) => cr.orderId).filter(Boolean);
-
-      const linkedReplacementOrders = await Order.find({
-        tenantId,
-        _id: { $ne: order._id },
-        status: { $in: ["replacement_pending", "replacement", "replacement_completed"] },
-        $or: [
-          { notes: new RegExp(orderNumDisplay, "i") },
-          { notes: new RegExp(order.orderNumber, "i") },
-          ...(repOrderNumsFromNotes.length > 0 ? [
-            { orderNumber: { $in: repOrderNumsFromNotes.map((n: string) => new RegExp(n, "i")) } }
-          ] : []),
-          ...(crOrderIds.length > 0 ? [{ _id: { $in: crOrderIds } }] : []),
-        ],
+      if (!order.payments) order.payments = [];
+      order.payments.push({
+        amount: -refundAmount,
+        mode: refundMode as any,
+        notes: `Order refund: ${refundReason || "Full refund & items restocked"}`,
+        recordedBy: userRole === "staff" ? "staff" : "owner",
+        type: "refund",
+        recordedAt: new Date(),
       });
 
-      for (const repOrder of linkedReplacementOrders) {
-        repOrder.status = "cancelled_refunded";
-        const cancelNote = `[Auto-Cancelled] Original Order #${orderNumDisplay} was refunded.`;
-        repOrder.notes = repOrder.notes ? `${repOrder.notes}\n${cancelNote}` : cancelNote;
-        repOrder.refundDetails = {
-          refundAmount: 0,
-          refundMode: refundMode,
-          refundReason: `Auto-refunded: Original Order #${orderNumDisplay} was refunded.`,
-          refundedAt: new Date(),
-          refundedBy: userRole === "staff" ? "staff" : "owner",
-        };
-        if (repOrder.lineItems) {
-          repOrder.lineItems.forEach((li: any) => {
-            li.returnedQuantity = li.quantity;
-            li.returnCondition = "restocked";
-          });
-          repOrder.markModified("lineItems");
-        }
-        repOrder.markModified("refundDetails");
-        repOrder.markModified("notes");
-        await repOrder.save();
+      order.markModified("lineItems");
+      order.markModified("returns");
+      order.markModified("payments");
 
-        const mappedRepType = mapOrderType(repOrder.orderType);
-        updatedLinkedOrders.push({
-          id: repOrder.orderNumber,
-          customer: repOrder.customerSnapshot?.name || (repOrder as any).customer || "Walk-in Customer",
-          customerPhone: repOrder.customerSnapshot?.phone || (repOrder as any).customerPhone,
-          type: mappedRepType,
-          time: formatOrderTime(repOrder.createdAt),
-          lastUpdatedTime: "Today, Just now",
-          amount: repOrder.totalAmount,
-          paid: repOrder.amountPaid,
-          todayPaid: 0,
-          paymentMode: repOrder.paymentMode,
-          status: "cancelled_refunded",
-          lineItems: resolveOrderLineItems(repOrder.lineItems, repOrder.returns),
-          notes: repOrder.notes,
-          refundAmount: 0,
-          refundMode: refundMode,
-          refundReason: repOrder.refundDetails?.refundReason,
-          isToday: checkIsToday(repOrder.createdAt),
-          isLast24Hours: true,
-          createdAt: repOrder.createdAt ? new Date(repOrder.createdAt).toISOString() : new Date().toISOString(),
-          refundedAt: new Date().toISOString(),
-          latestActivityAt: new Date().toISOString(),
-        });
-      }
+      order.amountPending = 0;
+      order.status = "cancelled_refunded";
 
-      // If the refunded order was itself a replacement order, add a note to the original order
-      const origMatch = (order.notes || "").match(/\(Original Order #(P-[\w-]+)\)/i);
-      if (origMatch && origMatch[1]) {
-        const origDisplayNum = origMatch[1];
-        const origOrder = await Order.findOne({
-          tenantId,
-          orderNumber: new RegExp(origDisplayNum + "$", "i"),
-        });
-        if (origOrder) {
-          const noteText = `[Replacement Order #${orderNumDisplay} Refunded]`;
-          if (!origOrder.notes?.includes(noteText)) {
-            origOrder.notes = origOrder.notes ? `${origOrder.notes}\n${noteText}` : noteText;
-            origOrder.markModified("notes");
-            await origOrder.save();
-          }
-        }
-      }
-    } catch (cancelErr) {
-      console.error("[AutoCancelReplacements Error]:", cancelErr);
-    }
+      await order.save({ session: dbSession });
 
-    // Adjust customer lifetime stats
-    if (order.customerSnapshot?.phone) {
-      const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
-      const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
-      await Customer.findOneAndUpdate(
-        {
+      const updatedLinkedOrders: DashboardOrder[] = [];
+
+      // Auto-cancel and refund any linked customer replacements and replacement orders
+      try {
+        const orderNumDisplay = formatDisplayNumber(order.orderNumber);
+        const linkedCRs = await CustomerReplacement.find({
           tenantId,
           $or: [
-            { phone: cleanPhone },
-            ...(rawDigits.length === 10
-              ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
-              : [{ phone: order.customerSnapshot.phone }]),
+            { orderId: order._id },
+            { notes: new RegExp(orderNumDisplay, "i") },
           ],
-        },
-        {
-          $inc: {
-            "stats.totalSpend": -Math.min(remainingPaid, refundAmount),
-            "stats.outstandingBalance": -prevPending,
+          status: { $in: ["pending_dealer", "arrived_call_client"] },
+        }).session(dbSession);
+        for (const cr of linkedCRs) {
+          cr.status = "cancelled";
+          const cancelNote = `[Auto-Cancelled] Original Order #${orderNumDisplay} was refunded.`;
+          cr.notes = cr.notes ? `${cr.notes}\n${cancelNote}` : cancelNote;
+          await cr.save({ session: dbSession });
+        }
+
+        // Extract any replacement order numbers mentioned in original order notes (e.g. "[Replacement Order #P-2610-0013 Handed]")
+        const repOrderNumsFromNotes = (order.notes || "").match(/\[Replacement Order #(P-[\w-]+)/gi)
+          ?.map((m: string) => m.replace(/\[Replacement Order #/i, "").trim()) || [];
+        const crOrderIds = linkedCRs.map((cr) => cr.orderId).filter(Boolean);
+
+        const linkedReplacementOrders = await Order.find({
+          tenantId,
+          _id: { $ne: order._id },
+          status: { $in: ["replacement_pending", "replacement", "replacement_completed"] },
+          $or: [
+            { notes: new RegExp(orderNumDisplay, "i") },
+            { notes: new RegExp(order.orderNumber, "i") },
+            ...(repOrderNumsFromNotes.length > 0 ? [
+              { orderNumber: { $in: repOrderNumsFromNotes.map((n: string) => new RegExp(n, "i")) } }
+            ] : []),
+            ...(crOrderIds.length > 0 ? [{ _id: { $in: crOrderIds } }] : []),
+          ],
+        }).session(dbSession);
+
+        for (const repOrder of linkedReplacementOrders) {
+          repOrder.status = "cancelled_refunded";
+          const cancelNote = `[Auto-Cancelled] Original Order #${orderNumDisplay} was refunded.`;
+          repOrder.notes = repOrder.notes ? `${repOrder.notes}\n${cancelNote}` : cancelNote;
+          repOrder.refundDetails = {
+            refundAmount: 0,
+            refundMode: refundMode,
+            refundReason: `Auto-refunded: Original Order #${orderNumDisplay} was refunded.`,
+            refundedAt: new Date(),
+            refundedBy: userRole === "staff" ? "staff" : "owner",
+          };
+          if (repOrder.lineItems) {
+            repOrder.lineItems.forEach((li: any) => {
+              li.returnedQuantity = li.quantity;
+              li.returnCondition = "restocked";
+            });
+            repOrder.markModified("lineItems");
+          }
+          repOrder.markModified("refundDetails");
+          repOrder.markModified("notes");
+          await repOrder.save({ session: dbSession });
+
+          const mappedRepType = mapOrderType(repOrder.orderType);
+          updatedLinkedOrders.push({
+            id: repOrder.orderNumber,
+            customer: repOrder.customerSnapshot?.name || (repOrder as any).customer || "Walk-in Customer",
+            customerPhone: repOrder.customerSnapshot?.phone || (repOrder as any).customerPhone,
+            type: mappedRepType,
+            time: formatOrderTime(repOrder.createdAt),
+            lastUpdatedTime: "Today, Just now",
+            amount: repOrder.totalAmount,
+            paid: repOrder.amountPaid,
+            todayPaid: 0,
+            paymentMode: repOrder.paymentMode,
+            status: "cancelled_refunded",
+            lineItems: resolveOrderLineItems(repOrder.lineItems, repOrder.returns),
+            notes: repOrder.notes,
+            refundAmount: 0,
+            refundMode: refundMode,
+            refundReason: repOrder.refundDetails?.refundReason,
+            isToday: checkIsToday(repOrder.createdAt),
+            isLast24Hours: true,
+            createdAt: repOrder.createdAt ? new Date(repOrder.createdAt).toISOString() : new Date().toISOString(),
+            refundedAt: new Date().toISOString(),
+            latestActivityAt: new Date().toISOString(),
+          });
+        }
+
+        // If the refunded order was itself a replacement order, add a note to the original order
+        const origMatch = (order.notes || "").match(/\(Original Order #(P-[\w-]+)\)/i);
+        if (origMatch && origMatch[1]) {
+          const origDisplayNum = origMatch[1];
+          const origOrder = await Order.findOne({
+            tenantId,
+            orderNumber: new RegExp(origDisplayNum + "$", "i"),
+          }).session(dbSession);
+          if (origOrder) {
+            const noteText = `[Replacement Order #${orderNumDisplay} Refunded]`;
+            if (!origOrder.notes?.includes(noteText)) {
+              origOrder.notes = origOrder.notes ? `${origOrder.notes}\n${noteText}` : noteText;
+              origOrder.markModified("notes");
+              await origOrder.save({ session: dbSession });
+            }
+          }
+        }
+      } catch (cancelErr) {
+        console.error("[AutoCancelReplacements Error]:", cancelErr);
+      }
+
+      // Adjust customer lifetime stats
+      if (order.customerSnapshot?.phone) {
+        const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
+        const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
+        await Customer.findOneAndUpdate(
+          {
+            tenantId,
+            $or: [
+              { phone: cleanPhone },
+              ...(rawDigits.length === 10
+                ? [{ phone: rawDigits }, { phone: order.customerSnapshot.phone }]
+                : [{ phone: order.customerSnapshot.phone }]),
+            ],
           },
-        },
-      );
-    }
+          {
+            $inc: {
+              "stats.totalSpend": -Math.min(remainingPaid, refundAmount),
+              "stats.outstandingBalance": -prevPending,
+            },
+          },
+          { session: dbSession },
+        );
+      }
+
+      return {
+        order,
+        newExpense,
+        updatedProductsList,
+        updatedLinkedOrders,
+        isSameDay,
+        remainingPaid,
+        advancePaidAmount,
+      };
+    });
 
     try {
       revalidatePath("/dashboard");
@@ -2212,7 +2288,10 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
     return result;
   } catch (error) {
     console.error("Failed to refund order:", error);
-    return { success: false, error: "Failed to process refund in database" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to process refund in database",
+    };
   }
 }
 
@@ -3025,6 +3104,18 @@ export async function deleteProductAction(rawInput: unknown): Promise<{
       product.isActive = true;
       await product.save();
     } else {
+      const hasActiveOrders = await Order.exists({
+        tenantId: new Types.ObjectId(tenantId),
+        "lineItems.itemId": product._id,
+        status: { $in: ["created", "advance_paid", "replacement_pending", "replacement"] },
+      });
+      if (hasActiveOrders) {
+        return {
+          success: false,
+          error: "Cannot delete product: It is referenced by active orders awaiting pickup or replacement.",
+        };
+      }
+
       await Product.deleteOne({
         _id: product._id,
         tenantId: new Types.ObjectId(tenantId),
@@ -5008,6 +5099,18 @@ export async function deleteServiceAction(serviceId: string): Promise<{
       return { success: false, error: "Tenant not found" };
     }
 
+    const hasActiveOrders = await Order.exists({
+      tenantId: new Types.ObjectId(tenantId),
+      "lineItems.itemId": new Types.ObjectId(serviceId),
+      status: { $in: ["created", "advance_paid"] },
+    });
+    if (hasActiveOrders) {
+      return {
+        success: false,
+        error: "Cannot delete service: Active customer appointments or bookings reference this service.",
+      };
+    }
+
     const deleted = await Service.findOneAndDelete({
       _id: new Types.ObjectId(serviceId),
       tenantId: new Types.ObjectId(tenantId),
@@ -5280,6 +5383,18 @@ export async function deletePackageAction(packageId: string): Promise<{
     const tenantId = await resolveTenantId(session);
     if (!tenantId) {
       return { success: false, error: "Tenant not found" };
+    }
+
+    const hasActiveOrders = await Order.exists({
+      tenantId: new Types.ObjectId(tenantId),
+      "lineItems.itemId": new Types.ObjectId(packageId),
+      status: { $in: ["created", "advance_paid"] },
+    });
+    if (hasActiveOrders) {
+      return {
+        success: false,
+        error: "Cannot delete package: Active customer appointments or bookings reference this package.",
+      };
     }
 
     const deleted = await PackageTemplate.findOneAndDelete({
