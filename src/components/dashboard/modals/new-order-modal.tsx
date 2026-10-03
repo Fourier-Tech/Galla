@@ -346,11 +346,10 @@ function SettlementModeSelect({
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-sans flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs select-none ${
-            isOpen
+          className={`w-full bg-galla-surface border rounded-[5px] px-3 py-2 text-[13px] font-sans flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs select-none ${isOpen
               ? "border-galla-teal ring-1 ring-galla-teal"
               : "border-galla-line hover:border-galla-ink-soft/40"
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="h-6 w-6 rounded-[4px] bg-galla-teal-soft/80 border border-galla-teal/20 text-galla-teal flex items-center justify-center shrink-0">
@@ -366,9 +365,8 @@ function SettlementModeSelect({
             </div>
           </div>
           <ChevronDown
-            className={`h-4 w-4 text-galla-ink-soft shrink-0 transition-transform duration-200 ${
-              isOpen ? "rotate-180 text-galla-teal" : ""
-            }`}
+            className={`h-4 w-4 text-galla-ink-soft shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180 text-galla-teal" : ""
+              }`}
           />
         </button>
 
@@ -428,30 +426,27 @@ function SettlementModeSelect({
                       setIsOpen(false);
                     }
                   }}
-                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 text-[12.5px] transition-colors ${
-                    isDisabled
+                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 text-[12.5px] transition-colors ${isDisabled
                       ? "opacity-50 cursor-not-allowed bg-galla-paper/40"
                       : isSelected
                         ? "bg-galla-teal/10 cursor-pointer"
                         : "hover:bg-galla-paper/70 cursor-pointer"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`h-6 w-6 rounded-[4px] flex items-center justify-center shrink-0 ${
-                        isSelected
+                      className={`h-6 w-6 rounded-[4px] flex items-center justify-center shrink-0 ${isSelected
                           ? "bg-galla-teal text-white"
                           : "bg-galla-paper text-galla-ink-soft border border-galla-line"
-                      }`}
+                        }`}
                     >
                       <Icon className="h-3.5 w-3.5" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`font-semibold text-[13px] ${
-                            isSelected ? "text-galla-teal" : "text-galla-ink"
-                          }`}
+                          className={`font-semibold text-[13px] ${isSelected ? "text-galla-teal" : "text-galla-ink"
+                            }`}
                         >
                           {opt.label}
                         </span>
@@ -547,6 +542,9 @@ export function NewOrderModal({
   // Pricing & Settlement State
   const [discount, setDiscount] = useState("");
   const [discountType, setDiscountType] = useState<"percentage" | "flat">("percentage");
+  const [extraCharge, setExtraCharge] = useState<number>(0);
+  const [totalInput, setTotalInput] = useState<string>("");
+  const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false);
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card">("cash");
   const [settlementMode, setSettlementMode] = useState<"completed" | "pay_later" | "advance" | "paid_full">("completed");
   const [payLaterPaid, setPayLaterPaid] = useState("");
@@ -665,10 +663,27 @@ export function NewOrderModal({
     return Math.min(calculatedSubtotal, discountValue);
   }, [calculatedSubtotal, discountValue, discountType]);
 
-  const finalTotal = useMemo(() => {
+  const baseOrderTotal = useMemo(() => {
     const base = Math.max(0, calculatedSubtotal - calculatedDiscountAmount);
     return includePreviousDue ? base + totalPreviousDue : base;
   }, [calculatedSubtotal, calculatedDiscountAmount, includePreviousDue, totalPreviousDue]);
+
+  const finalTotal = useMemo(() => {
+    return baseOrderTotal + extraCharge;
+  }, [baseOrderTotal, extraCharge]);
+
+  const isTotalBelowBase = useMemo(() => {
+    if (!isEditingTotal || totalInput.trim() === "") return false;
+    return Number(totalInput) < baseOrderTotal;
+  }, [isEditingTotal, totalInput, baseOrderTotal]);
+
+  useEffect(() => {
+    if (selectedItems.length === 0) {
+      setExtraCharge(0);
+      setTotalInput("");
+      setIsEditingTotal(false);
+    }
+  }, [selectedItems.length]);
 
   const enteredPayLaterPaid = Number(payLaterPaid) || 0;
   const enteredAdvance = Number(advance) || 0;
@@ -885,6 +900,9 @@ export function NewOrderModal({
     setSelectedItems([]);
     setDiscount("");
     setDiscountType("percentage");
+    setExtraCharge(0);
+    setTotalInput("");
+    setIsEditingTotal(false);
     setPaymentMode("cash");
     setSettlementMode("completed");
     setPayLaterPaid("");
@@ -979,6 +997,11 @@ export function NewOrderModal({
 
     if (selectedItems.length === 0) {
       setErrorMsg("Please select at least one item to create the order.");
+      return;
+    }
+
+    if (isTotalBelowBase) {
+      setErrorMsg(`Total cannot be less than order amount (${formatRupee(baseOrderTotal)}). To give a discount, use the Discount field.`);
       return;
     }
 
@@ -1105,6 +1128,9 @@ export function NewOrderModal({
 
       const resolvedCustomerName = formatCustomerName(customer) || phoneConflictCustomer?.name || "Walk-in Guest";
 
+      const extraChargeNote = extraCharge > 0 ? `Extra Charge: ₹${extraCharge}` : undefined;
+      const combinedNotes = [notes.trim(), extraChargeNote].filter(Boolean).join(" | ") || undefined;
+
       const res = await createOrderAction({
         customerName: resolvedCustomerName,
         customerPhone: formattedPhone,
@@ -1119,7 +1145,7 @@ export function NewOrderModal({
         paymentMode: paymentMode,
         bookingDate: resolvedBookingDate,
         bookingTime: resolvedBookingTime,
-        notes: notes.trim() || undefined,
+        notes: combinedNotes,
         lineItems,
         clearedDueOrderIds,
         clearedDueAmount,
@@ -1423,8 +1449,8 @@ export function NewOrderModal({
                     type="button"
                     onClick={() => setDiscountType("percentage")}
                     className={`px-2.5 py-1 text-[12px] font-semibold rounded-[4px] transition-colors cursor-pointer ${discountType === "percentage"
-                        ? "bg-galla-teal text-white shadow-2xs"
-                        : "text-galla-ink-soft hover:text-galla-ink"
+                      ? "bg-galla-teal text-white shadow-2xs"
+                      : "text-galla-ink-soft hover:text-galla-ink"
                       }`}
                   >
                     %
@@ -1433,8 +1459,8 @@ export function NewOrderModal({
                     type="button"
                     onClick={() => setDiscountType("flat")}
                     className={`px-2.5 py-1 text-[12px] font-semibold rounded-[4px] transition-colors cursor-pointer ${discountType === "flat"
-                        ? "bg-galla-teal text-white shadow-2xs"
-                        : "text-galla-ink-soft hover:text-galla-ink"
+                      ? "bg-galla-teal text-white shadow-2xs"
+                      : "text-galla-ink-soft hover:text-galla-ink"
                       }`}
                   >
                     ₹
@@ -1464,9 +1490,91 @@ export function NewOrderModal({
                 </div>
               )}
 
-              <div className="flex justify-between items-baseline pt-2 border-t border-galla-line text-[16px] font-bold text-galla-ink">
-                <span>Total</span>
-                <span className="text-xl tabular-nums text-galla-teal">{formatRupee(finalTotal)}</span>
+              {extraCharge > 0 && (
+                <div className="flex justify-between text-amber-800">
+                  <div className="flex items-center gap-1.5">
+                    <span>Extra Charge</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExtraCharge(0);
+                        setTotalInput(String(baseOrderTotal));
+                        setIsEditingTotal(false);
+                      }}
+                      className="text-[10.5px] text-galla-ink-soft hover:text-rose-600 underline cursor-pointer"
+                      title="Reset extra charge"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <span className="tabular-nums font-medium">+ {formatRupee(extraCharge)}</span>
+                </div>
+              )}
+
+              {/* Editable Total Field */}
+              <div className="pt-2 border-t border-galla-line space-y-1">
+                <div className="flex justify-between items-center text-[15px] font-bold text-galla-ink">
+                  <div className="flex flex-col">
+                    <span>Total</span>
+                  </div>
+                  <div className="relative flex items-center w-36">
+                    <span className="absolute left-2.5 text-[15px] font-bold text-galla-teal select-none pointer-events-none">
+                      ₹
+                    </span>
+                    <input
+                      type="text"
+                      value={isEditingTotal ? totalInput : (finalTotal > 0 ? String(finalTotal) : "0")}
+                      onFocus={() => {
+                        setIsEditingTotal(true);
+                        setTotalInput(String(finalTotal));
+                      }}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, "");
+                        setTotalInput(raw);
+                        if (raw !== "") {
+                          const val = Number(raw);
+                          if (val >= baseOrderTotal) {
+                            setExtraCharge(val - baseOrderTotal);
+                          } else {
+                            setExtraCharge(0);
+                          }
+                        } else {
+                          setExtraCharge(0);
+                        }
+                      }}
+                      onBlur={() => {
+                        setIsEditingTotal(false);
+                        if (totalInput !== "") {
+                          const val = Number(totalInput);
+                          if (val < baseOrderTotal) {
+                            setExtraCharge(0);
+                            setTotalInput(String(baseOrderTotal));
+                          } else {
+                            setExtraCharge(val - baseOrderTotal);
+                            setTotalInput(String(val));
+                          }
+                        } else {
+                          setExtraCharge(0);
+                          setTotalInput(String(baseOrderTotal));
+                        }
+                      }}
+                      placeholder={String(baseOrderTotal)}
+                      disabled={selectedItems.length === 0}
+                      className={`w-full pl-6 pr-2.5 py-1.5 text-right text-[17px] font-bold tabular-nums rounded-[5px] border transition-all focus:outline-none shadow-2xs ${
+                        isTotalBelowBase
+                          ? "border-rose-400 bg-rose-50/50 text-rose-700 focus:border-rose-500 ring-1 ring-rose-300"
+                          : extraCharge > 0
+                          ? "border-amber-300 bg-amber-50/40 text-galla-teal focus:border-amber-400 ring-1 ring-amber-200"
+                          : "border-galla-line bg-galla-surface text-galla-teal focus:border-galla-teal focus:ring-1 focus:ring-galla-teal"
+                      } disabled:opacity-50 disabled:bg-galla-paper/50 cursor-text`}
+                    />
+                  </div>
+                </div>
+                {isTotalBelowBase && (
+                  <p className="text-[11px] text-rose-600 text-center font-medium">
+                    Total cannot be less than order amount ({formatRupee(baseOrderTotal)}). Use the Discount field for discounts.
+                  </p>
+                )}
               </div>
 
               {/* Settlement specifics */}
@@ -1506,7 +1614,8 @@ export function NewOrderModal({
                   isSubmitting ||
                   selectedItems.length === 0 ||
                   !customer.trim() ||
-                  getPhoneDigits(phone).length < 10
+                  getPhoneDigits(phone).length < 10 ||
+                  isTotalBelowBase
                 }
                 className="w-full py-3 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] shadow-sm disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 transition-all"
               >
@@ -1675,8 +1784,8 @@ export function NewOrderModal({
                   type="button"
                   onClick={() => setCatalogTab("services")}
                   className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-[4px] transition-all cursor-pointer ${catalogTab === "services"
-                      ? "bg-galla-teal text-white shadow-xs font-semibold"
-                      : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
+                    ? "bg-galla-teal text-white shadow-xs font-semibold"
+                    : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                     }`}
                 >
                   Services ({services.length})
@@ -1685,8 +1794,8 @@ export function NewOrderModal({
                   type="button"
                   onClick={() => setCatalogTab("packages")}
                   className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-[4px] transition-all cursor-pointer ${catalogTab === "packages"
-                      ? "bg-galla-teal text-white shadow-xs font-semibold"
-                      : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
+                    ? "bg-galla-teal text-white shadow-xs font-semibold"
+                    : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                     }`}
                 >
                   Packages ({packages.length})
@@ -1698,8 +1807,8 @@ export function NewOrderModal({
                     fetchLiveProducts();
                   }}
                   className={`px-3.5 py-1.5 text-[12px] font-sans font-medium rounded-[4px] transition-all cursor-pointer ${catalogTab === "products"
-                      ? "bg-galla-teal text-white shadow-xs font-semibold"
-                      : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
+                    ? "bg-galla-teal text-white shadow-xs font-semibold"
+                    : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper"
                     }`}
                 >
                   Products ({liveProducts.length})
@@ -1751,15 +1860,15 @@ export function NewOrderModal({
                           })
                         }
                         className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${isSelected
-                            ? "bg-galla-teal/8 hover:bg-galla-teal/12"
-                            : "hover:bg-galla-paper/60"
+                          ? "bg-galla-teal/8 hover:bg-galla-teal/12"
+                          : "hover:bg-galla-paper/60"
                           }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${isSelected
-                                ? "bg-galla-teal border-galla-teal text-white"
-                                : "border-galla-line bg-galla-surface"
+                              ? "bg-galla-teal border-galla-teal text-white"
+                              : "border-galla-line bg-galla-surface"
                               }`}
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
@@ -1837,15 +1946,15 @@ export function NewOrderModal({
                           })
                         }
                         className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${isSelected
-                            ? "bg-galla-teal/8 hover:bg-galla-teal/12"
-                            : "hover:bg-galla-paper/60"
+                          ? "bg-galla-teal/8 hover:bg-galla-teal/12"
+                          : "hover:bg-galla-paper/60"
                           }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${isSelected
-                                ? "bg-galla-teal border-galla-teal text-white"
-                                : "border-galla-line bg-galla-surface"
+                              ? "bg-galla-teal border-galla-teal text-white"
+                              : "border-galla-line bg-galla-surface"
                               }`}
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
@@ -1914,15 +2023,15 @@ export function NewOrderModal({
                           })
                         }
                         className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${isSelected
-                            ? "bg-galla-teal/8 hover:bg-galla-teal/12"
-                            : "hover:bg-galla-paper/60"
+                          ? "bg-galla-teal/8 hover:bg-galla-teal/12"
+                          : "hover:bg-galla-paper/60"
                           }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${isSelected
-                                ? "bg-galla-teal border-galla-teal text-white"
-                                : "border-galla-line bg-galla-surface"
+                              ? "bg-galla-teal border-galla-teal text-white"
+                              : "border-galla-line bg-galla-surface"
                               }`}
                           >
                             {isSelected && <Check className="h-3 w-3 stroke-[3]" />}

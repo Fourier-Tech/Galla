@@ -51,6 +51,8 @@ export function SettleReplacementModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = React.useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [customReturnValue, setCustomReturnValue] = useState<string>("");
+  const [isEditingPrice, setIsEditingPrice] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && product) {
@@ -62,6 +64,8 @@ export function SettleReplacementModal({
       setSupplierPaymentMode("cash");
       setNotes("");
       setSelectedPOId("");
+      setCustomReturnValue("");
+      setIsEditingPrice(false);
       setErrorMsg(null);
 
       // Load purchase bills that might have replacement_pending
@@ -87,14 +91,18 @@ export function SettleReplacementModal({
   const numQty = parseInt(quantity, 10);
   const isValidQty = !isNaN(numQty) && numQty > 0 && numQty <= maxDefective;
   const estimatedCost = (product.purchaseCost || 0) * (isValidQty ? numQty : 0);
+  const effectiveTotalReturnValue =
+    customReturnValue.trim() !== "" && !isNaN(Number(customReturnValue))
+      ? Math.max(0, Number(customReturnValue))
+      : estimatedCost;
 
   const selectedPO = pos.find((p) => String(p.id) === String(selectedPOId));
   const pendingDue = Math.max(0, selectedPO?.amountPending || 0);
   const hasDue = Boolean(selectedPO && pendingDue > 0);
   const effectiveDeductFromDue = hasDue && deductFromDue;
-  const dueDeduction = effectiveDeductFromDue ? Math.min(pendingDue, estimatedCost) : 0;
+  const dueDeduction = effectiveDeductFromDue ? Math.min(pendingDue, effectiveTotalReturnValue) : 0;
   const remainingDueAfterReturn = hasDue ? Math.max(0, pendingDue - dueDeduction) : 0;
-  const cashRefund = Math.max(0, estimatedCost - dueDeduction);
+  const cashRefund = Math.max(0, effectiveTotalReturnValue - dueDeduction);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +130,7 @@ export function SettleReplacementModal({
           paymentMode: resolutionType === "credit_refund" ? supplierPaymentMode : undefined,
           poId: selectedPOId,
           notes: notes.trim() || undefined,
+          customReturnValue: resolutionType === "credit_refund" ? effectiveTotalReturnValue : undefined,
         }
       );
 
@@ -438,8 +447,48 @@ export function SettleReplacementModal({
 
                   <div className="space-y-2 text-[12.5px] font-sans bg-white p-3 rounded-[6px] border border-galla-line/70 shadow-2xs">
                     <div className="flex justify-between items-center text-galla-ink">
-                      <span className="text-galla-ink-soft">Total Return Value:</span>
-                      <span className="font-semibold tabular-nums">{formatRupee(estimatedCost)}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-galla-ink">Total Return Value:</span>
+                        {customReturnValue.trim() !== "" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomReturnValue("");
+                              setIsEditingPrice(false);
+                            }}
+                            className="text-[10.5px] text-galla-ink-soft hover:text-rose-600 underline cursor-pointer"
+                            title="Reset to default estimated cost"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative flex items-center w-36">
+                        <span className="absolute left-2.5 text-[14px] font-bold text-galla-teal select-none pointer-events-none">
+                          ₹
+                        </span>
+                        <input
+                          type="text"
+                          value={isEditingPrice ? customReturnValue : (customReturnValue !== "" ? customReturnValue : (effectiveTotalReturnValue > 0 ? String(effectiveTotalReturnValue) : "0"))}
+                          onFocus={() => {
+                            setIsEditingPrice(true);
+                            if (customReturnValue === "") {
+                              setCustomReturnValue(String(effectiveTotalReturnValue));
+                            }
+                          }}
+                          onChange={(e) => {
+                            setCustomReturnValue(e.target.value.replace(/\D/g, ""));
+                          }}
+                          onBlur={() => {
+                            setIsEditingPrice(false);
+                            if (customReturnValue !== "" && Number(customReturnValue) === estimatedCost) {
+                              setCustomReturnValue("");
+                            }
+                          }}
+                          placeholder={String(estimatedCost)}
+                          className="w-full pl-6 pr-2.5 py-1 text-right text-[14.5px] font-bold tabular-nums rounded-[5px] border border-galla-line bg-white text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all shadow-2xs"
+                        />
+                      </div>
                     </div>
 
                     {effectiveDeductFromDue && dueDeduction > 0 && (

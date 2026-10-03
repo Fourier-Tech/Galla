@@ -19,7 +19,7 @@ import {
   ArrowUpDown,
   Undo2,
 } from "lucide-react";
-import { DashboardPurchaseOrder, DashboardSupplier, DashboardExpense, DashboardProduct } from "@/types/dashboard";
+import { DashboardPurchaseOrder, DashboardSupplier, DashboardExpense, DashboardProduct, DashboardPurchaseOrderReturn } from "@/types/dashboard";
 import {
   formatRupee,
   formatPhoneNumber,
@@ -76,6 +76,30 @@ interface PurchaseOrdersViewProps {
   purchaseOrders?: DashboardPurchaseOrder[];
   salonName?: string;
   initialFilter?: PurchaseBillFilterKey;
+}
+
+function formatDateTime(dateStr?: string | Date | null): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return typeof dateStr === "string" ? dateStr : "";
+    return d.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return typeof dateStr === "string" ? dateStr : "";
+  }
+}
+
+interface ReturnEntryItem {
+  id: string;
+  po: DashboardPurchaseOrder;
+  returnItem: DashboardPurchaseOrderReturn;
+  returnedAtDate: string;
 }
 
 export function PurchaseOrdersView({
@@ -199,7 +223,7 @@ export function PurchaseOrdersView({
       pending: orders.filter((o) => getBillStatus(o).statusKey === "pending").length,
       advance: orders.filter((o) => getBillStatus(o).statusKey === "advance").length,
       completed: orders.filter((o) => getBillStatus(o).statusKey === "completed").length,
-      returns: orders.filter((o) => Boolean(o.returns && o.returns.length > 0)).length,
+      returns: orders.reduce((sum, o) => sum + (o.returns?.length || 0), 0),
     };
   }, [orders]);
 
@@ -220,7 +244,55 @@ export function PurchaseOrdersView({
     return { totalPending, pendingCount: statusCounts.pending };
   }, [orders, statusCounts]);
 
-  // Filtered and sorted orders (matching Orders Tab logic)
+  // ponytail: In-memory flatten of PO returns for ledger filtering. Ceiling: client-side memory if PO returns exceed thousands. Upgrade path: dedicated indexed server endpoint /api/purchase-orders/returns.
+  const filteredReturnEntries = useMemo(() => {
+    const list: ReturnEntryItem[] = [];
+
+    for (const po of orders) {
+      if (!po.returns || po.returns.length === 0) continue;
+
+      for (let i = 0; i < po.returns.length; i++) {
+        const ret = po.returns[i];
+        const dateStr = ret.returnedAt
+          ? getLocalDateString(new Date(ret.returnedAt))
+          : po.createdAt
+          ? getLocalDateString(new Date(po.createdAt))
+          : "";
+
+        if (startDate && dateStr && dateStr < startDate) continue;
+        if (endDate && dateStr && dateStr > endDate) continue;
+
+        const q = activeSearchQuery.trim().toLowerCase();
+        if (q) {
+          const matchProd = ret.productName?.toLowerCase().includes(q);
+          const matchSup =
+            po.supplierName?.toLowerCase().includes(q) ||
+            po.supplierCompany?.toLowerCase().includes(q);
+          const matchPO =
+            po.purchaseOrderNumber?.toLowerCase().includes(q) ||
+            formatDisplayNumber(po.purchaseOrderNumber)?.toLowerCase().includes(q);
+          const matchInv = po.dealerInvoiceNumber?.toLowerCase().includes(q);
+          const matchNote = ret.notes?.toLowerCase().includes(q) || po.notes?.toLowerCase().includes(q);
+          if (!matchProd && !matchSup && !matchPO && !matchInv && !matchNote) continue;
+        }
+
+        list.push({
+          id: `${po.id}-${ret.returnNumber || i}-${i}`,
+          po,
+          returnItem: ret,
+          returnedAtDate: ret.returnedAt || po.createdAt || "",
+        });
+      }
+    }
+
+    return list.sort((a, b) => {
+      const timeA = new Date(a.returnedAtDate).getTime() || 0;
+      const timeB = new Date(b.returnedAtDate).getTime() || 0;
+      return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
+    });
+  }, [orders, startDate, endDate, activeSearchQuery, sortOrder]);
+
+  // Filtered and sorted orders (for all, pending, advance, completed)
   const filteredOrders = useMemo(() => {
     const result = orders.filter((o) => {
       if (activeFilter === "returns") {
@@ -274,7 +346,8 @@ export function PurchaseOrdersView({
     });
   }, [orders, activeFilter, startDate, endDate, sortOrder, activeSearchQuery]);
 
-  const totalCount = filteredOrders.length;
+  const isReturnsFilter = activeFilter === "returns";
+  const totalCount = isReturnsFilter ? filteredReturnEntries.length : filteredOrders.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const currentPage = Math.min(page, totalPages);
 
@@ -282,6 +355,11 @@ export function PurchaseOrdersView({
     const start = (currentPage - 1) * pageSize;
     return filteredOrders.slice(start, start + pageSize);
   }, [filteredOrders, currentPage, pageSize]);
+
+  const paginatedReturnEntries = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredReturnEntries.slice(start, start + pageSize);
+  }, [filteredReturnEntries, currentPage, pageSize]);
 
   const handleOpenPayNow = (po: DashboardPurchaseOrder) => {
     setSelectedPOForPayment(po);
@@ -601,18 +679,158 @@ export function PurchaseOrdersView({
         )}
       </div>
 
-      {/* Bills Table Container (Matching Orders Tab Pixel-for-Pixel) */}
+      {/* Bills / Returns Container */}
       <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
-          <div className="min-w-[920px]">
-            {/* Desktop Table Header - Matching Orders Tab Layout */}
-            <div className="grid grid-cols-[115px_minmax(240px,1.5fr)_175px_140px_140px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line text-[12px] font-medium text-galla-ink-soft">
-              <span>Order / Bill</span>
-              <span>Supplier</span>
-              <span className="text-right">Settlement</span>
-              <span className="text-center">Status</span>
-              <span className="text-right">Action</span>
-            </div>
+        {isReturnsFilter ? (
+          /* Returns List View - matching Expenses Tab style */
+          <div className="divide-y divide-galla-line">
+            {isLoading ? (
+              <div className="py-20 text-center text-galla-ink-soft font-sans text-[13px] flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
+                <span>Loading returns...</span>
+              </div>
+            ) : paginatedReturnEntries.length === 0 ? (
+              <div className="py-20 text-center text-galla-ink-soft font-sans text-[13px]">
+                No stock returns or replacements found matching your filter.
+              </div>
+            ) : (
+              paginatedReturnEntries.map((entry) => {
+                const ret = entry.returnItem;
+                const po = entry.po;
+                const isReplacement =
+                  ret.refundMode === "replacement_pending" ||
+                  Boolean(ret.replacementStatus) ||
+                  (ret as any).customerResolution === "replacement";
+
+                const isDefective = ret.stockType === "defective";
+                const stockTypeBadge = isDefective
+                  ? { label: "Defective Stock", style: "bg-rose-50 text-rose-800 border-rose-200" }
+                  : ret.stockType === "use"
+                  ? { label: "Salon In-Use", style: "bg-purple-50 text-purple-700 border-purple-200" }
+                  : { label: "Retail Sell Stock", style: "bg-amber-50 text-amber-800 border-amber-200" };
+
+                const formattedDate = entry.returnedAtDate ? formatDateTime(entry.returnedAtDate) : "";
+                const returnAmount = ret.totalRefundAmount || (ret.unitCost * ret.quantity) || 0;
+
+                const modeLabel = isReplacement
+                  ? ret.replacementStatus === "fulfilled"
+                    ? "Replacement Arrived"
+                    : "Awaiting Replacement"
+                  : ret.amountDeductedFromDue > 0 && returnAmount === ret.amountDeductedFromDue
+                  ? "Deducted from Due"
+                  : (ret.refundMode as string) === "credit"
+                  ? "Supplier Credit"
+                  : ret.refundMode === "cash"
+                  ? "Cash Refund"
+                  : ret.refundMode === "upi"
+                  ? "UPI Refund"
+                  : ret.refundMode === "card"
+                  ? "Card Refund"
+                  : ret.refundMode === "bank_transfer"
+                  ? "Bank Transfer"
+                  : ret.amountDeductedFromDue > 0
+                  ? `Deduction + ${ret.refundMode?.toUpperCase()}`
+                  : "Refund";
+
+                return (
+                  <div
+                    key={entry.id}
+                    onClick={() => setSelectedBillForDetails(po)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedBillForDetails(po);
+                      }
+                    }}
+                    className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/60 transition-colors cursor-pointer group select-none"
+                    title="Click to view purchase order bill details"
+                  >
+                    <div className="min-w-0 flex-1 pr-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-sans font-semibold text-[15px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                          {ret.quantity}x {ret.productName}
+                        </span>
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-[4px] border text-[11px] font-semibold ${
+                            isReplacement
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                          }`}
+                        >
+                          {isReplacement ? "Replacement" : "Return"}
+                        </span>
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-[4px] border text-[11px] font-medium ${stockTypeBadge.style}`}
+                        >
+                          {stockTypeBadge.label}
+                        </span>
+                      </div>
+
+                      <div className="font-sans text-[12px] text-galla-ink-soft mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span className="tabular-nums font-semibold text-galla-teal">
+                          #{formatDisplayNumber(po.purchaseOrderNumber)}
+                        </span>
+                        <span>&bull;</span>
+                        <span className="text-galla-ink font-medium">
+                          {po.supplierName || po.supplierCompany || "Supplier"}
+                        </span>
+                        {formattedDate && (
+                          <>
+                            <span>&bull;</span>
+                            <span>{formattedDate}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {ret.notes && (
+                        <div
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1.5 max-w-full shadow-2xs"
+                          title={`Note: ${formatNoteDisplay(ret.notes)}`}
+                        >
+                          <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
+                            Note
+                          </span>
+                          <span className="truncate font-medium">{formatNoteDisplay(ret.notes)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <div
+                          className={`font-semibold text-[15px] tabular-nums ${
+                            isReplacement ? "text-blue-800" : "text-emerald-700"
+                          }`}
+                        >
+                          {isReplacement
+                            ? `${ret.quantity} pcs replaced`
+                            : `+${formatRupee(returnAmount)}`}
+                        </div>
+                        <div className="text-[11px] text-galla-ink-soft mt-0.5">
+                          {modeLabel}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          /* Desktop Table View - All Bills */
+          <div className="overflow-x-auto">
+            <div className="min-w-[920px]">
+              {/* Desktop Table Header - Matching Orders Tab Layout */}
+              <div className="grid grid-cols-[115px_minmax(240px,1.5fr)_175px_140px_140px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line text-[12px] font-medium text-galla-ink-soft">
+                <span>Order / Bill</span>
+                <span>Supplier</span>
+                <span className="text-right">Settlement</span>
+                <span className="text-center">Status</span>
+                <span className="text-right">Action</span>
+              </div>
 
             {/* Table Rows */}
             <div className="divide-y divide-galla-line">
@@ -1004,6 +1222,7 @@ export function PurchaseOrdersView({
             </div>
           </div>
         </div>
+      )}
 
         {/* Pagination Footer (Matching Orders Tab) */}
         {totalCount > 0 && (
@@ -1011,7 +1230,7 @@ export function PurchaseOrdersView({
             <div className="font-sans text-[12.5px] text-galla-ink-soft">
               Showing <span className="font-medium text-galla-ink">{(currentPage - 1) * pageSize + 1}</span> to{" "}
               <span className="font-medium text-galla-ink">{Math.min(currentPage * pageSize, totalCount)}</span> of{" "}
-              <span className="font-medium text-galla-ink">{totalCount}</span> purchase orders
+              <span className="font-medium text-galla-ink">{totalCount}</span> {isReturnsFilter ? "return entries" : "purchase orders"}
             </div>
 
             <div className="flex items-center gap-2 self-end sm:self-auto">

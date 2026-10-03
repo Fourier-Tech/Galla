@@ -7373,6 +7373,7 @@ export async function settleSupplierReplacementAction(
     notes?: string;
     deductFromDue?: boolean;
     paymentMode?: "cash" | "upi" | "card" | "bank_transfer" | "credit";
+    customReturnValue?: number;
   }
 ): Promise<{
   success: boolean;
@@ -7430,7 +7431,10 @@ export async function settleSupplierReplacementAction(
           (i.productName && i.productName.trim().toLowerCase() === product.name.trim().toLowerCase())
       );
       const unitCost = poItem?.purchaseCost || product.purchaseCost || 0;
-      const totalCreditAmount = quantity * unitCost;
+      const totalCreditAmount =
+        typeof options?.customReturnValue === "number" && options.customReturnValue >= 0
+          ? options.customReturnValue
+          : quantity * unitCost;
 
       let updatedSupplierDoc: any = null;
       let cashRefundReceived = 0;

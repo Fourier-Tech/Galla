@@ -922,11 +922,6 @@ export function PurchaseBillDetailsModal({
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border ${stockTypeBadge.style}`}>
                             {stockTypeBadge.label}
                           </span>
-                          {ret.returnNumber && (
-                            <span className="text-[11px] text-galla-ink-soft tabular-nums">
-                              #{formatDisplayNumber(ret.returnNumber)}
-                            </span>
-                          )}
                         </div>
                         <span className="tabular-nums text-[11.5px] text-galla-ink-soft shrink-0">
                           {ret.returnedAt ? formatDateTime(ret.returnedAt) : ""}
