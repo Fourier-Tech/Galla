@@ -7,12 +7,6 @@ export interface IUser extends Document {
   passwordHash?: string;
   ownerPinHash?: string;
   staffPinHash?: string;
-  ownerCodeHash?: string;
-  staffCodeHash?: string;
-  previousOwnerCodeHash?: string | null;
-  previousStaffCodeHash?: string | null;
-  codeExpiresAt?: Date;
-  graceExpiresAt?: Date | null;
   ownerActiveSessionId?: string | null;
   staffActiveSessionId?: string | null;
   lastRoleLoginAt?: Date | null;
@@ -52,30 +46,6 @@ const UserSchema = new Schema<IUser>(
       type: String,
       default: null,
       index: true,
-    },
-    ownerCodeHash: {
-      type: String,
-      default: null,
-    },
-    staffCodeHash: {
-      type: String,
-      default: null,
-    },
-    previousOwnerCodeHash: {
-      type: String,
-      default: null,
-    },
-    previousStaffCodeHash: {
-      type: String,
-      default: null,
-    },
-    codeExpiresAt: {
-      type: Date,
-      default: null,
-    },
-    graceExpiresAt: {
-      type: Date,
-      default: null,
     },
     ownerActiveSessionId: {
       type: String,

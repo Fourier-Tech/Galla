@@ -107,17 +107,5 @@ export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): P
   }
 }
 
-/**
- * Legacy stub for access codes dispatch
- */
-export async function sendAccessCodesEmail(options: {
-  to: string;
-  ownerCode: string;
-  staffCode: string;
-  rotationDate: Date;
-  graceExpiresAt: Date;
-}): Promise<boolean> {
-  console.log(`[Email] Legacy access codes dispatch to ${options.to}`);
-  return true;
-}
+
 
