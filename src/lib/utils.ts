@@ -790,24 +790,17 @@ export function resolvePurchaseOrderItems(items: any[], returns?: any[]) {
     let replacedQuantity = typeof it.replacedQuantity === "number" ? it.replacedQuantity : 0;
 
     if (itemReturns.length > 0) {
+      const isReplacement = (r: any) =>
+        r.refundMode === "replacement_pending" ||
+        r.refundMode === "replacement" ||
+        Boolean(r.replacementStatus && r.refundMode !== "reduce_due" && !["cash", "upi", "card", "bank_transfer", "credit"].includes(r.refundMode));
+
       replacedQuantity = itemReturns
-        .filter(
-          (r: any) =>
-            r.refundMode === "replacement_pending" ||
-            (r.refundMode !== "reduce_due" &&
-              !["cash", "upi", "card", "bank_transfer"].includes(r.refundMode) &&
-              (r.replacementStatus === "pending" || r.replacementStatus === "fulfilled"))
-        )
+        .filter((r: any) => isReplacement(r))
         .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
+
       returnedQuantity = itemReturns
-        .filter(
-          (r: any) =>
-            r.refundMode === "reduce_due" ||
-            ["cash", "upi", "card", "bank_transfer"].includes(r.refundMode) ||
-            (r.refundMode !== "replacement_pending" &&
-              r.replacementStatus !== "pending" &&
-              r.replacementStatus !== "fulfilled")
-        )
+        .filter((r: any) => !isReplacement(r))
         .reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
     }
 

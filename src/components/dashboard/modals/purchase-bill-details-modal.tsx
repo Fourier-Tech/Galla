@@ -745,26 +745,18 @@ export function PurchaseBillDetailsModal({
                       ret.productId === item.productId ||
                       (ret.productName && ret.productName.toLowerCase() === item.productName.toLowerCase()),
                   );
+                  const isReplacementReturn = (ret: any) =>
+                    ret.refundMode === "replacement_pending";
+
                   const replacedQty = itemReturnRecords.length > 0
                     ? itemReturnRecords
-                        .filter(
-                          (ret) =>
-                            ret.refundMode === "replacement_pending" ||
-                            (ret.refundMode !== "reduce_due" &&
-                              !["cash", "upi", "card", "bank_transfer"].includes(ret.refundMode) &&
-                              ret.replacementStatus === "pending"),
-                        )
+                        .filter((ret) => isReplacementReturn(ret))
                         .reduce((sum, r) => sum + (r.quantity || 0), 0)
                     : (item.replacedQuantity || 0);
 
                   const returnedQty = itemReturnRecords.length > 0
                     ? itemReturnRecords
-                        .filter(
-                          (ret) =>
-                            ret.refundMode === "reduce_due" ||
-                            ["cash", "upi", "card", "bank_transfer"].includes(ret.refundMode) ||
-                            ret.replacementStatus === "fulfilled",
-                        )
+                        .filter((ret) => !isReplacementReturn(ret))
                         .reduce((sum, r) => sum + (r.quantity || 0), 0)
                     : (item.returnedQuantity || 0);
 
@@ -902,21 +894,30 @@ export function PurchaseBillDetailsModal({
                     };
                   })();
 
-                  const isPendingReplacement =
-                    ret.refundMode === "replacement_pending" ||
-                    (ret.refundMode !== "reduce_due" &&
-                      !["cash", "upi", "card", "bank_transfer"].includes(ret.refundMode) &&
-                      ret.replacementStatus === "pending");
+                  const isReplacement = ret.refundMode === "replacement_pending";
 
                   return (
                     <div
                       key={rIdx}
-                      className="p-3.5 bg-rose-50/30 rounded-[6px] border border-rose-200/80 text-[12.5px] space-y-2"
+                      className={`p-3.5 rounded-[6px] border text-[12.5px] space-y-2 ${
+                        isReplacement
+                          ? "bg-blue-50/20 border-blue-200/80"
+                          : "bg-rose-50/30 border-rose-200/80"
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-galla-ink text-[13.5px]">
                             {ret.quantity}x {ret.productName}
+                          </span>
+                          <span
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border ${
+                              isReplacement
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200"
+                            }`}
+                          >
+                            {isReplacement ? "Replacement" : "Return"}
                           </span>
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border ${stockTypeBadge.style}`}>
                             {stockTypeBadge.label}
@@ -936,8 +937,14 @@ export function PurchaseBillDetailsModal({
                         <span>
                           Resolution:{" "}
                           <strong className="text-galla-ink font-medium">
-                            {isPendingReplacement
-                              ? "Waiting for Replacement from Supplier"
+                            {isReplacement
+                              ? (() => {
+                                  const isSalon = ret.notes?.toLowerCase().includes("salon use");
+                                  const isRetail = ret.notes?.toLowerCase().includes("retail");
+                                  if (isSalon) return "Replaced with New Stock (Salon Use)";
+                                  if (isRetail) return "Replaced with New Stock (Retail Shelf)";
+                                  return "Replaced with New Stock";
+                                })()
                               : ret.refundMode === "reduce_due"
                                 ? (() => {
                                     const due = ret.amountDeductedFromDue || 0;
@@ -972,11 +979,23 @@ export function PurchaseBillDetailsModal({
                         )}
                       </div>
 
-                      {ret.notes && (
-                        <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/60 whitespace-pre-wrap break-words">
-                          {formatNoteDisplay(ret.notes)}
-                        </div>
-                      )}
+                      {(() => {
+                        const displayNote = ret.notes
+                          ? ret.notes
+                              .replace(/₹\d+(?:\.\d+)?\s+received\s+via\s+[A-Za-z_-]+(?:\.|\s|$)/gi, "")
+                              .replace(/₹\d+(?:\.\d+)?\s+deducted\s+from\s+bill\s+due(?:\.|\s|$)/gi, "")
+                              .replace(/₹\d+(?:\.\d+)?\s+added\s+as\s+supplier\s+credit(?:\.|\s|$)/gi, "")
+                              .replace(/\[Stock\s+Replaced\]\s*Received[^\n\r.]*(?:\.|$)/gi, "")
+                              .replace(/^[\s.,-]+|[\s.,-]+$/g, "")
+                              .trim()
+                          : "";
+                        if (!displayNote) return null;
+                        return (
+                          <div className="text-[12px] text-galla-ink-soft bg-galla-surface p-2 rounded-[4px] border border-galla-line/60 whitespace-pre-wrap break-words">
+                            {formatNoteDisplay(displayNote)}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

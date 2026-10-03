@@ -492,7 +492,7 @@ export async function getDashboardInitialData(
       totalRefundAmount: r.totalRefundAmount,
       refundMode: r.refundMode,
       amountDeductedFromDue: r.amountDeductedFromDue || 0,
-      replacementStatus: r.replacementStatus || "pending",
+      replacementStatus: r.replacementStatus || undefined,
       notes: r.notes,
       recordedBy: r.recordedBy,
       returnedAt: r.returnedAt ? new Date(r.returnedAt).toISOString() : undefined,

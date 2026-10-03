@@ -6481,15 +6481,7 @@ async function processSupplierReturn(
     refundMode: returnRefundMode,
     amountDeductedFromDue,
     replacementStatus: isReplacement ? "pending" : undefined,
-    notes: [
-      amountDeductedFromDue > 0 ? `₹${amountDeductedFromDue} deducted from bill due` : null,
-      creditAmount > 0 ? `₹${creditAmount} added as supplier credit` : null,
-      cashRefundReceived > 0 ? `₹${cashRefundReceived} received via ${chosenMode.toUpperCase()}` : null,
-      notes || "",
-    ]
-      .filter(Boolean)
-      .join(". ")
-      .trim() || undefined,
+    notes: notes?.trim() || undefined,
     returnedAt: new Date(),
     recordedBy: userRole === "staff" ? "staff" : "owner",
   });
@@ -7451,6 +7443,11 @@ export async function settleSupplierReplacementAction(
           product.useStock += quantity;
         }
 
+        if (poItem) {
+          poItem.replacedQuantity = (poItem.replacedQuantity || 0) + quantity;
+          po.markModified("items");
+        }
+
         // Close matching pending replacement return or record fulfillment on PO returns
         po.returns = po.returns || [];
         let remainingToFulfill = quantity;
@@ -7471,7 +7468,7 @@ export async function settleSupplierReplacementAction(
                 quantity: remainingToFulfill,
                 replacementStatus: "fulfilled",
                 returnedAt: new Date(),
-                notes: options?.notes || `[Stock Replaced] Received ${remainingToFulfill}x ${product.name}`,
+                notes: options?.notes?.trim() || undefined,
               });
               remainingToFulfill = 0;
             }
@@ -7490,7 +7487,7 @@ export async function settleSupplierReplacementAction(
             refundMode: "replacement_pending",
             replacementStatus: "fulfilled",
             amountDeductedFromDue: 0,
-            notes: options?.notes || `[Stock Replaced] Received ${remainingToFulfill}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock`,
+            notes: options?.notes?.trim() || undefined,
             recordedBy: userRole === "staff" ? "staff" : "owner",
             returnedAt: new Date(),
           });
@@ -7624,15 +7621,7 @@ export async function settleSupplierReplacementAction(
           totalRefundAmount: totalCreditAmount,
           refundMode: returnRefundMode as any,
           amountDeductedFromDue,
-          notes: [
-            amountDeductedFromDue > 0 ? `₹${amountDeductedFromDue} deducted from bill due` : null,
-            creditAmount > 0 ? `₹${creditAmount} added as supplier credit` : null,
-            cashRefundReceived > 0 ? `₹${cashRefundReceived} received via ${chosenMode.toUpperCase()}` : null,
-            options?.notes || "",
-          ]
-            .filter(Boolean)
-            .join(". ")
-            .trim() || undefined,
+          notes: options?.notes?.trim() || undefined,
           recordedBy: userRole === "staff" ? "staff" : "owner",
           returnedAt: new Date(),
         });
