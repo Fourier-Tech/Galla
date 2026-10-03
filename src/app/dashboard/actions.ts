@@ -1434,21 +1434,6 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
         : notes.trim();
     }
 
-    // Also update any matching CustomerReplacement to completed
-    await CustomerReplacement.updateMany(
-      {
-        tenantId,
-        $or: [{ orderId: order._id }, { orderNumber: order.orderNumber }],
-        status: { $in: ["pending_dealer", "arrived_call_client"] },
-      },
-      {
-        $set: {
-          status: "completed",
-          pendingQuantity: 0,
-          completedAt: new Date(),
-        },
-      }
-    );
 
     // Update customer stats
     if (order.customerSnapshot?.phone) {
@@ -1549,10 +1534,30 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       await cleanupProductBatchNames(tenantId, pName);
     }
 
+    // For replacement orders only: mark linked CustomerReplacement records completed after stock validation
+    if (isReplacementOrder) {
+      await CustomerReplacement.updateMany(
+        {
+          tenantId,
+          $or: [{ orderId: order._id }, { orderNumber: order.orderNumber }],
+          status: { $in: ["pending_dealer", "arrived_call_client"] },
+        },
+        {
+          $set: {
+            status: "completed",
+            pendingQuantity: 0,
+            completedAt: new Date(),
+          },
+        }
+      );
+    }
+
     await order.save();
     revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_completed");
-    broadcastUpdate(tenantId, "customer_replacement_updated");
+    if (isReplacementOrder) {
+      broadcastUpdate(tenantId, "customer_replacement_updated");
+    }
     triggerLiveRollupSync(tenantId);
 
     const mappedType = mapOrderType(order.orderType);
@@ -2853,22 +2858,27 @@ export async function returnInventoryToSupplierAction(
       }).session(dbSession);
 
       let updatedSupplier: DashboardSupplier | undefined = undefined;
+      const supplierBalanceChanged =
+        (returnResult?.amountDeductedFromDue || 0) > 0 ||
+        (returnResult?.creditAmount || 0) > 0;
+
+      let supplierDocForSnapshot: any = null;
       if (poDoc?.supplierId) {
-        const suppDoc = await Supplier.findOne({ _id: poDoc.supplierId, tenantId }).session(dbSession);
-        if (suppDoc) {
+        supplierDocForSnapshot = await Supplier.findOne({ _id: poDoc.supplierId, tenantId }).session(dbSession);
+        if (supplierDocForSnapshot && supplierBalanceChanged) {
           updatedSupplier = {
-            id: suppDoc._id.toString(),
-            name: suppDoc.name,
-            companyName: suppDoc.companyName,
-            phone: formatPhoneNumber(suppDoc.phone || ""),
-            email: suppDoc.email,
-            address: suppDoc.address,
-            gstin: suppDoc.gstin,
-            notes: suppDoc.notes,
-            totalPurchases: suppDoc.totalPurchases ?? 0,
-            totalPaid: suppDoc.totalPaid ?? 0,
-            totalPending: suppDoc.totalPending ?? 0,
-            isActive: suppDoc.isActive !== false,
+            id: supplierDocForSnapshot._id.toString(),
+            name: supplierDocForSnapshot.name,
+            companyName: supplierDocForSnapshot.companyName,
+            phone: formatPhoneNumber(supplierDocForSnapshot.phone || ""),
+            email: supplierDocForSnapshot.email,
+            address: supplierDocForSnapshot.address,
+            gstin: supplierDocForSnapshot.gstin,
+            notes: supplierDocForSnapshot.notes,
+            totalPurchases: supplierDocForSnapshot.totalPurchases ?? 0,
+            totalPaid: supplierDocForSnapshot.totalPaid ?? 0,
+            totalPending: supplierDocForSnapshot.totalPending ?? 0,
+            isActive: supplierDocForSnapshot.isActive !== false,
           };
         }
       }
@@ -2879,9 +2889,9 @@ export async function returnInventoryToSupplierAction(
           id: poDoc._id.toString(),
           purchaseOrderNumber: poDoc.purchaseOrderNumber,
           supplierId: poDoc.supplierId?.toString() || "",
-          supplierName: updatedSupplier?.name || poDoc.supplierSnapshot?.name || "Unknown Supplier",
-          supplierPhone: updatedSupplier?.phone || poDoc.supplierSnapshot?.phone,
-          supplierCompany: updatedSupplier?.companyName || poDoc.supplierSnapshot?.companyName,
+          supplierName: updatedSupplier?.name || supplierDocForSnapshot?.name || poDoc.supplierSnapshot?.name || "Unknown Supplier",
+          supplierPhone: updatedSupplier?.phone || (supplierDocForSnapshot?.phone ? formatPhoneNumber(supplierDocForSnapshot.phone) : undefined) || poDoc.supplierSnapshot?.phone,
+          supplierCompany: updatedSupplier?.companyName || supplierDocForSnapshot?.companyName || poDoc.supplierSnapshot?.companyName,
           itemsCount: poDoc.items?.length || 0,
           items: (poDoc.items || []).map((it: any) => ({
             productId: it.productId?.toString() || "",
@@ -2943,7 +2953,9 @@ export async function returnInventoryToSupplierAction(
       }
       revalidatePath("/dashboard");
       broadcastUpdate(tenantId, "inventory_returned_to_supplier");
-      broadcastUpdate(tenantId, "supplier_updated");
+      if (result.updatedSupplier) {
+        broadcastUpdate(tenantId, "supplier_updated");
+      }
       broadcastUpdate(tenantId, "purchase_order_updated");
     }
 
@@ -4012,10 +4024,7 @@ export async function recordPurchaseOrderPaymentAction(
         }).session(dbSession);
         if (supplier) {
           supplier.totalPaid = (supplier.totalPaid || 0) + input.amount;
-          supplier.totalPending = Math.max(
-            0,
-            (supplier.totalPending || 0) - input.amount,
-          );
+          supplier.totalPending = (supplier.totalPending || 0) - input.amount;
           await supplier.save({ session: dbSession });
           updatedSupplierDoc = supplier;
         }
@@ -7327,23 +7336,50 @@ export async function settleSupplierReplacementAction(
           product.useStock += quantity;
         }
 
-        // Record replacement fulfillment on PO returns
+        // Close matching pending replacement return or record fulfillment on PO returns
         po.returns = po.returns || [];
-        po.returns.push({
-          returnNumber: `RET-${Date.now()}`,
-          productId: product._id,
-          productName: product.name,
-          quantity,
-          stockType: "defective",
-          unitCost,
-          totalRefundAmount: 0,
-          refundMode: "replacement_pending",
-          replacementStatus: "fulfilled",
-          amountDeductedFromDue: 0,
-          notes: options.notes || `[Stock Replaced] Received ${quantity}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock`,
-          recordedBy: userRole === "staff" ? "staff" : "owner",
-          returnedAt: new Date(),
-        });
+        let remainingToFulfill = quantity;
+        for (const ret of po.returns) {
+          if (
+            (ret.productId?.toString() === product._id.toString() ||
+              ret.productName?.trim().toLowerCase() === product.name?.trim().toLowerCase()) &&
+            ret.replacementStatus === "pending"
+          ) {
+            if (ret.quantity <= remainingToFulfill) {
+              ret.replacementStatus = "fulfilled";
+              remainingToFulfill -= ret.quantity;
+            } else {
+              ret.quantity -= remainingToFulfill;
+              po.returns.push({
+                ...((ret as any).toObject ? (ret as any).toObject() : ret),
+                returnNumber: `RET-${Date.now()}`,
+                quantity: remainingToFulfill,
+                replacementStatus: "fulfilled",
+                returnedAt: new Date(),
+                notes: options?.notes || `[Stock Replaced] Received ${remainingToFulfill}x ${product.name}`,
+              });
+              remainingToFulfill = 0;
+            }
+            if (remainingToFulfill <= 0) break;
+          }
+        }
+        if (remainingToFulfill > 0) {
+          po.returns.push({
+            returnNumber: `RET-${Date.now()}`,
+            productId: product._id,
+            productName: product.name,
+            quantity: remainingToFulfill,
+            stockType: "defective",
+            unitCost,
+            totalRefundAmount: 0,
+            refundMode: "replacement_pending",
+            replacementStatus: "fulfilled",
+            amountDeductedFromDue: 0,
+            notes: options?.notes || `[Stock Replaced] Received ${remainingToFulfill}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock`,
+            recordedBy: userRole === "staff" ? "staff" : "owner",
+            returnedAt: new Date(),
+          });
+        }
 
         const noteText = `[Replacement Received] Received ${quantity}x ${product.name} into ${target === "sellStock" ? "retail" : "salon use"} stock.${options.notes ? ` Note: ${options.notes}` : ""}`;
         po.notes = po.notes ? `${po.notes}\n${noteText}` : noteText;
@@ -7486,8 +7522,30 @@ export async function settleSupplierReplacementAction(
           returnedAt: new Date(),
         });
 
+        // Close matching pending replacement return when converted to credit/refund
+        let remainingToClose = quantity;
+        for (const ret of po.returns) {
+          if (
+            (ret.productId?.toString() === product._id.toString() ||
+              ret.productName?.trim().toLowerCase() === product.name?.trim().toLowerCase()) &&
+            ret.replacementStatus === "pending"
+          ) {
+            if (ret.quantity <= remainingToClose) {
+              ret.replacementStatus = "fulfilled";
+              remainingToClose -= ret.quantity;
+            } else {
+              ret.quantity -= remainingToClose;
+              remainingToClose = 0;
+            }
+            if (remainingToClose <= 0) break;
+          }
+        }
+
         if (poItem) {
           poItem.returnedQuantity = (poItem.returnedQuantity || 0) + quantity;
+          if (poItem.replacedQuantity && poItem.replacedQuantity > 0) {
+            poItem.replacedQuantity = Math.max(0, poItem.replacedQuantity - quantity);
+          }
           po.markModified("items");
         }
 

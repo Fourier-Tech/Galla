@@ -138,19 +138,29 @@ export function PurchaseBillDetailsModal({
   const resolvedPayments: DashboardPurchaseOrderPayment[] = useMemo(() => {
     if (!bill) return [];
     const payments = Array.isArray(bill.payments) ? [...bill.payments] : [];
+    const matchedPaymentIndices = new Set<number>();
 
     returnEvents.forEach((ret) => {
       const dueDed = ret.amountDeductedFromDue || 0;
       if (dueDed > 0) {
-        const alreadyInPayments = payments.some(
-          (p) =>
+        const foundIdx = payments.findIndex(
+          (p, idx) =>
+            !matchedPaymentIndices.has(idx) &&
             (p.type === "return_due_deduction" ||
               p.paymentMode === "reduce_due") &&
             Math.abs(Math.abs(p.amount) - dueDed) < 0.01 &&
-            (p.notes?.includes(ret.productName) ||
-              (p.notes?.includes("due") && p.notes?.includes("Return"))),
+            (
+              (ret.returnNumber && p.notes?.includes(ret.returnNumber)) ||
+              (ret.returnedAt &&
+                p.recordedAt &&
+                Math.abs(new Date(p.recordedAt).getTime() - new Date(ret.returnedAt).getTime()) < 60000) ||
+              p.notes?.includes(ret.productName) ||
+              (p.notes?.includes("due") && p.notes?.includes("Return"))
+            ),
         );
-        if (!alreadyInPayments) {
+        if (foundIdx !== -1) {
+          matchedPaymentIndices.add(foundIdx);
+        } else {
           payments.push({
             amount: -dueDed,
             paymentMode: "reduce_due",
@@ -168,13 +178,22 @@ export function PurchaseBillDetailsModal({
         ret.totalRefundAmount || ret.quantity * (ret.unitCost || 0);
       const supplierCredit = Math.max(0, totalVal - dueDed);
       if (supplierCredit > 0 && ret.refundMode === "reduce_due") {
-        const alreadyCredited = payments.some(
-          (p) =>
+        const foundCreditIdx = payments.findIndex(
+          (p, idx) =>
+            !matchedPaymentIndices.has(idx) &&
             p.type === "supplier_credit" &&
             Math.abs(Math.abs(p.amount) - supplierCredit) < 0.01 &&
-            p.notes?.includes(ret.productName),
+            (
+              (ret.returnNumber && p.notes?.includes(ret.returnNumber)) ||
+              (ret.returnedAt &&
+                p.recordedAt &&
+                Math.abs(new Date(p.recordedAt).getTime() - new Date(ret.returnedAt).getTime()) < 60000) ||
+              p.notes?.includes(ret.productName)
+            ),
         );
-        if (!alreadyCredited) {
+        if (foundCreditIdx !== -1) {
+          matchedPaymentIndices.add(foundCreditIdx);
+        } else {
           payments.push({
             amount: supplierCredit,
             paymentMode: "credit",
