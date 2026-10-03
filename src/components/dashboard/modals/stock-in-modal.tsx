@@ -268,6 +268,8 @@ export function StockInModal({
   >("cash");
   const [notes, setNotes] = useState("");
   const [applyLedgerBalance, setApplyLedgerBalance] = useState(false);
+  const [customPayable, setCustomPayable] = useState("");
+  const [isEditingPayable, setIsEditingPayable] = useState(false);
 
   // Preload suppliers once if not passed in props (fallback)
   useEffect(() => {
@@ -520,6 +522,8 @@ export function StockInModal({
       setDeliveryTime("");
       setPaymentMode("cash");
       setNotes("");
+      setCustomPayable("");
+      setIsEditingPayable(false);
       setErrorMsg(null);
       setShowConfirm(false);
       setItems([createInitialDraftItem(products)]);
@@ -702,24 +706,30 @@ export function StockInModal({
     : totalCalculatedCost;
   const minPayable = Math.max(0, netPayable);
 
+  const defaultPayable = effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost;
+  const effectivePayable =
+    customPayable.trim() !== "" && !isNaN(Number(customPayable))
+      ? Math.max(0, Number(customPayable))
+      : defaultPayable;
+
   const currentAmountPaid =
     settlementMode === "completed" || settlementMode === "paid_full"
-      ? minPayable
+      ? effectivePayable
       : settlementMode === "pending"
-        ? Math.min(minPayable, enteredPayLaterPaid)
+        ? Math.min(effectivePayable, enteredPayLaterPaid)
         : settlementMode === "advance"
-          ? Math.min(minPayable, enteredAdvance)
+          ? Math.min(effectivePayable, enteredAdvance)
           : 0;
 
   const ledgerAdj =
     effectiveApplyLedgerBalance && supplierPending !== 0
       ? supplierPending < 0
-        ? Math.min(Math.abs(supplierPending), totalCalculatedCost)
+        ? Math.min(Math.abs(supplierPending), effectivePayable)
         : -supplierPending
       : 0;
 
-  // The true pending amount on THIS bill matches backend logic: totalCalculatedCost - amountPaid - ledgerAdj
-  const amountPending = totalCalculatedCost - currentAmountPaid - ledgerAdj;
+  // The true pending amount on THIS bill matches backend logic: effectivePayable - currentAmountPaid - ledgerAdj
+  const amountPending = Math.max(0, effectivePayable - currentAmountPaid - ledgerAdj);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -864,7 +874,7 @@ export function StockInModal({
         setErrorMsg("Please enter an advance deposit amount greater than 0");
         return;
       }
-      if (enteredAdvance >= minPayable) {
+      if (enteredAdvance >= effectivePayable) {
         setErrorMsg(
           "Advance amount cannot equal or exceed total payable amount. Use 'Completed' or 'Paid in Full' instead.",
         );
@@ -883,9 +893,9 @@ export function StockInModal({
       return;
     }
 
-    if (settlementMode === "pending" && enteredPayLaterPaid > minPayable) {
+    if (settlementMode === "pending" && enteredPayLaterPaid > effectivePayable) {
       setErrorMsg(
-        `Amount paid now cannot exceed total payable amount of ${formatRupee(minPayable)}`,
+        `Amount paid now cannot exceed total payable amount of ${formatRupee(effectivePayable)}`,
       );
       return;
     }
@@ -943,6 +953,7 @@ export function StockInModal({
             : undefined,
         paymentMode: currentAmountPaid > 0 ? paymentMode : "credit",
         amountPaid: currentAmountPaid,
+        customTotalAmount: customPayable.trim() !== "" ? effectivePayable : undefined,
         ledgerAdjustment: ledgerAdj !== 0 ? ledgerAdj : undefined,
         notes: notes.trim() || undefined,
       });
@@ -1913,11 +1924,29 @@ export function StockInModal({
             {/* Calculations Breakdown */}
             <div className="space-y-1 text-[12.5px]">
               <div className="flex justify-between text-galla-ink-soft">
-                <span>Total Batch Cost</span>
+                <span>Products Subtotal</span>
                 <span className="tabular-nums font-medium text-galla-ink">
                   {formatRupee(totalCalculatedCost)}
                 </span>
               </div>
+
+              {customPayable.trim() !== "" && !isNaN(Number(customPayable)) && Number(customPayable) !== defaultPayable && (
+                effectivePayable < defaultPayable ? (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Discount</span>
+                    <span className="tabular-nums font-semibold">
+                      -{formatRupee(defaultPayable - effectivePayable)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-amber-700 font-medium">
+                    <span>Extra Charge</span>
+                    <span className="tabular-nums font-semibold">
+                      +{formatRupee(effectivePayable - defaultPayable)}
+                    </span>
+                  </div>
+                )
+              )}
 
               {effectiveApplyLedgerBalance && supplierPending !== 0 && (
                 <div className="flex justify-between text-emerald-700">
@@ -1929,11 +1958,54 @@ export function StockInModal({
                 </div>
               )}
 
-              <div className="flex justify-between items-baseline pt-2 border-t border-galla-line text-[16px] font-bold text-galla-ink">
-                <span>{effectiveApplyLedgerBalance ? "Net Payable" : "Total Payable"}</span>
-                <span className="text-xl tabular-nums text-galla-teal">
-                  {formatRupee(effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost)}
-                </span>
+              <div className="flex justify-between items-center pt-2 border-t border-galla-line">
+                <div className="flex flex-col">
+                  <span className="text-[16px] font-bold text-galla-ink">
+                    {effectiveApplyLedgerBalance ? "Net Payable" : "Total Payable"}
+                  </span>
+                  {customPayable.trim() !== "" && Number(customPayable) !== defaultPayable && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomPayable("")}
+                      className="text-[11px] text-galla-teal hover:underline text-left cursor-pointer"
+                    >
+                      Reset to {formatRupee(defaultPayable)}
+                    </button>
+                  )}
+                </div>
+                <div className="relative flex items-center w-36">
+                  <span className="absolute left-2.5 text-[15px] font-bold text-galla-teal select-none pointer-events-none">
+                    ₹
+                  </span>
+                  <input
+                    type="text"
+                    value={
+                      isEditingPayable
+                        ? customPayable
+                        : customPayable.trim() !== ""
+                          ? customPayable
+                          : defaultPayable > 0
+                            ? String(defaultPayable)
+                            : "0"
+                    }
+                    onFocus={() => {
+                      setIsEditingPayable(true);
+                      if (customPayable.trim() === "") {
+                        setCustomPayable(defaultPayable > 0 ? String(defaultPayable) : "0");
+                      }
+                    }}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, "");
+                      setCustomPayable(raw);
+                    }}
+                    onBlur={() => {
+                      setIsEditingPayable(false);
+                    }}
+                    placeholder={String(defaultPayable)}
+                    disabled={items.length === 0}
+                    className="w-full pl-6 pr-2.5 py-1.5 text-right text-[17px] font-bold tabular-nums rounded-[5px] border border-galla-line bg-galla-surface text-galla-teal focus:border-galla-teal focus:ring-1 focus:ring-galla-teal focus:outline-none shadow-2xs cursor-text disabled:opacity-50"
+                  />
+                </div>
               </div>
 
               {/* Settlement specifics */}
@@ -1989,12 +2061,12 @@ export function StockInModal({
                     {settlementMode === "pending"
                       ? enteredPayLaterPaid > 0
                         ? `Confirm Stock In (Paid: ${formatRupee(enteredPayLaterPaid)}, Due: ${formatRupee(amountPending)})`
-                        : `Confirm Stock In (Due: ${formatRupee(totalCalculatedCost)})`
+                        : `Confirm Stock In (Due: ${formatRupee(effectivePayable)})`
                       : settlementMode === "advance"
                         ? `Confirm Stock In (Advance: ${formatRupee(enteredAdvance)}, Due: ${formatRupee(amountPending)})`
                         : settlementMode === "paid_full"
-                          ? `Confirm Stock In (Paid in Full: ${formatRupee(totalCalculatedCost)})`
-                          : `Confirm Stock In (${formatRupee(effectiveApplyLedgerBalance ? minPayable : totalCalculatedCost)})`}
+                          ? `Confirm Stock In (Paid in Full: ${formatRupee(effectivePayable)})`
+                          : `Confirm Stock In (${formatRupee(effectivePayable)})`}
                   </span>
                 )}
               </button>
@@ -2034,7 +2106,7 @@ export function StockInModal({
               </strong>{" "}
               totalling{" "}
               <strong className="font-semibold text-galla-ink">
-                {formatRupee(totalCalculatedCost)}
+                {formatRupee(effectivePayable)}
               </strong>{" "}
               with{" "}
               {enteredPayLaterPaid > 0 ? (
@@ -2087,7 +2159,7 @@ export function StockInModal({
               </strong>{" "}
               for{" "}
               <strong className="font-semibold text-galla-ink">
-                {formatRupee(totalCalculatedCost)}
+                {formatRupee(effectivePayable)}
               </strong>{" "}
               via{" "}
               <strong className="font-semibold text-galla-ink">
@@ -2110,7 +2182,7 @@ export function StockInModal({
               </strong>{" "}
               totalling{" "}
               <strong className="font-semibold text-galla-ink">
-                {formatRupee(totalCalculatedCost)}
+                {formatRupee(effectivePayable)}
               </strong>{" "}
               via{" "}
               <strong className="font-semibold text-galla-ink">

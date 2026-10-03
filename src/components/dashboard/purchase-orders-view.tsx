@@ -78,23 +78,6 @@ interface PurchaseOrdersViewProps {
   initialFilter?: PurchaseBillFilterKey;
 }
 
-function formatDateTime(dateStr?: string | Date | null): string {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return typeof dateStr === "string" ? dateStr : "";
-    return d.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return typeof dateStr === "string" ? dateStr : "";
-  }
-}
-
 interface ReturnEntryItem {
   id: string;
   po: DashboardPurchaseOrder;
@@ -709,7 +692,7 @@ export function PurchaseOrdersView({
                   ? { label: "Salon In-Use", style: "bg-purple-50 text-purple-700 border-purple-200" }
                   : { label: "Retail Sell Stock", style: "bg-amber-50 text-amber-800 border-amber-200" };
 
-                const formattedDate = entry.returnedAtDate ? formatDateTime(entry.returnedAtDate) : "";
+                const formattedDate = entry.returnedAtDate ? formatOrderTime(entry.returnedAtDate) : "";
                 const returnAmount = ret.totalRefundAmount || (ret.unitCost * ret.quantity) || 0;
 
                 const modeLabel = isReplacement

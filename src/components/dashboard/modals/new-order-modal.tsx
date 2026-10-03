@@ -1166,77 +1166,81 @@ export function NewOrderModal({
     }
   };
 
+  if (createdOrderResult) {
+    return (
+      <div
+        role="region"
+        aria-label="Order Confirmation"
+        className="fixed inset-0 z-50 bg-galla-paper flex items-center justify-center p-4"
+      >
+        <div className="bg-galla-surface border border-galla-line rounded-[8px] p-8 max-w-md w-full text-center shadow-xl space-y-5">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-bold shadow-2xs">
+            ✓
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-galla-ink">Order Created Successfully</h2>
+            <p className="text-[13px] text-galla-ink-soft mt-1">
+              Order has been confirmed and saved to your register.
+            </p>
+          </div>
+
+          <div className="text-[13.5px] text-galla-ink bg-galla-paper/70 p-4 rounded-[6px] border border-galla-line/60 space-y-1.5 text-left">
+            <div className="flex justify-between items-center pb-1.5 border-b border-galla-line/50">
+              <span className="text-galla-ink-soft text-[12.5px]">Order ID</span>
+              <span className="font-semibold text-galla-ink">
+                {formatDisplayNumber(createdOrderResult.id)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-galla-ink-soft text-[12.5px]">Customer</span>
+              <span className="font-medium text-galla-ink">
+                {createdOrderResult.customer}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-galla-ink-soft text-[12.5px]">Total Amount</span>
+              <span className="font-bold text-galla-teal">
+                {formatRupee(createdOrderResult.amount)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-galla-ink-soft text-[12.5px]">Payment Mode</span>
+              <span className="font-medium text-galla-ink uppercase">
+                {createdOrderResult.paymentMode || paymentMode}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-galla-ink-soft text-[12.5px]">Settlement</span>
+              <span className="font-medium text-galla-ink">
+                {createdOrderResult.status === "completed"
+                  ? "Complete"
+                  : createdOrderResult.status === "paid_full"
+                    ? "Paid in Full (Advance)"
+                    : createdOrderResult.status === "advance_paid"
+                      ? `Advance: ${formatRupee(createdOrderResult.paid)}`
+                      : `Due: ${formatRupee((createdOrderResult.amount || 0) - (createdOrderResult.paid || 0))}`}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleClose}
+            className="w-full py-3 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] transition-all cursor-pointer shadow-sm"
+          >
+            Back to counter
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       role="region"
       aria-label="New Order"
       className="fixed inset-0 z-50 bg-galla-paper flex flex-col overflow-y-auto"
     >
-      {/* ======================================================== */}
-      {/* SUCCESS SCREEN OVERLAY                                   */}
-      {/* ======================================================== */}
-      {createdOrderResult && (
-        <div className="fixed inset-0 z-50 bg-galla-paper flex items-center justify-center p-4">
-          <div className="bg-galla-surface border border-galla-line rounded-[8px] p-8 max-w-md w-full text-center shadow-xl space-y-5">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-bold shadow-2xs">
-              ✓
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-galla-ink">Order Created Successfully</h2>
-              <p className="text-[13px] text-galla-ink-soft mt-1">
-                Order has been confirmed and saved to your register.
-              </p>
-            </div>
-
-            <div className="text-[13.5px] text-galla-ink bg-galla-paper/70 p-4 rounded-[6px] border border-galla-line/60 space-y-1.5 text-left">
-              <div className="flex justify-between items-center pb-1.5 border-b border-galla-line/50">
-                <span className="text-galla-ink-soft text-[12.5px]">Order ID</span>
-                <span className="font-semibold text-galla-ink">
-                  {formatDisplayNumber(createdOrderResult.id)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-galla-ink-soft text-[12.5px]">Customer</span>
-                <span className="font-medium text-galla-ink">
-                  {createdOrderResult.customer}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-galla-ink-soft text-[12.5px]">Total Amount</span>
-                <span className="font-bold text-galla-teal">
-                  {formatRupee(createdOrderResult.amount)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-galla-ink-soft text-[12.5px]">Payment Mode</span>
-                <span className="font-medium text-galla-ink uppercase">
-                  {createdOrderResult.paymentMode || paymentMode}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-galla-ink-soft text-[12.5px]">Settlement</span>
-                <span className="font-medium text-galla-ink">
-                  {createdOrderResult.status === "completed"
-                    ? "Complete"
-                    : createdOrderResult.status === "paid_full"
-                      ? "Paid in Full (Advance)"
-                      : createdOrderResult.status === "advance_paid"
-                        ? `Advance: ${formatRupee(createdOrderResult.paid)}`
-                        : `Due: ${formatRupee((createdOrderResult.amount || 0) - (createdOrderResult.paid || 0))}`}
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleClose}
-              className="w-full py-3 rounded-[5px] bg-galla-teal hover:opacity-95 text-white font-semibold text-[14px] transition-all cursor-pointer shadow-sm"
-            >
-              Back to counter
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ======================================================== */}
       {/* TOP HEADER (Sticky, covers sidebar, cancel button)       */}

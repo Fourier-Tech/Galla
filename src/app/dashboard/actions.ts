@@ -1198,7 +1198,6 @@ export async function createOrderAction(rawInput: unknown): Promise<{
       return { createdOrder, affectedProductsList };
     });
 
-    revalidatePath("/dashboard");
     broadcastUpdate(tenantId, "order_created");
     broadcastUpdate(tenantId, "customer_updated");
     triggerLiveRollupSync(tenantId);
@@ -3490,10 +3489,14 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
         }
       }
 
-      const totalAmount = poItems.reduce(
+      const computedTotalAmount = poItems.reduce(
         (sum, it) => sum + it.itemTotalCost,
         0,
       );
+      const totalAmount =
+        input.customTotalAmount !== undefined && input.customTotalAmount !== null
+          ? input.customTotalAmount
+          : computedTotalAmount;
 
       // Rule 1: settlementMode, paymentMode and amountPaid calculation
       let finalAmountPaid: number;
@@ -4805,7 +4808,11 @@ export async function uploadSalonProfileImageAction(
 
     // Max 5MB file size limit
     if (file.size > 5 * 1024 * 1024) {
-      return { success: false, error: "Image file exceeds 5MB size limit" };
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      return {
+        success: false,
+        error: `Image size is ${fileSizeMB} MB. Please upload a file smaller than 5 MB.`,
+      };
     }
 
     await connectToDatabase();

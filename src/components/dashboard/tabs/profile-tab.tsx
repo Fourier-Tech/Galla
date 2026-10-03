@@ -3,6 +3,7 @@
 import React, { useState, useRef } from "react";
 import Image from "next/image";
 import {
+  AlertCircle,
   Building2,
   Camera,
   Check,
@@ -55,6 +56,19 @@ export function ProfileTab({
 
     // Reset feedback
     setFeedback(null);
+
+    // 5MB file size validation (relative error showing actual size)
+    const maxSizeBytes = 5 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      setFeedback({
+        type: "error",
+        message: `Image size is ${fileSizeMB} MB. Please upload a file smaller than 5 MB.`,
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setIsUploadingImage(true);
 
     try {
@@ -163,7 +177,9 @@ export function ProfileTab({
         >
           {feedback.type === "success" ? (
             <Check className="h-4 w-4 text-emerald-600 shrink-0" />
-          ) : null}
+          ) : (
+            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+          )}
           <span>{feedback.message}</span>
         </div>
       )}
@@ -242,7 +258,7 @@ export function ProfileTab({
             )}
 
             {/* Change Photo Action */}
-            <div className="mt-3 flex items-center gap-3">
+            <div className="mt-3 flex items-center gap-3 flex-wrap">
               <button
                 type="button"
                 disabled={isUploadingImage}
@@ -252,6 +268,9 @@ export function ProfileTab({
                 <Upload className="h-3.5 w-3.5 text-galla-ink-soft" />
                 <span>{isUploadingImage ? "Uploading to Cloudinary..." : "Change Profile Photo"}</span>
               </button>
+              <span className="text-[11.5px] text-galla-ink-soft font-sans">
+                Max 5 MB (PNG, JPG, WEBP)
+              </span>
             </div>
           </div>
         </div>
