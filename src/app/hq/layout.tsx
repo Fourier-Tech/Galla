@@ -11,7 +11,7 @@ import {
   LogOut,
   ChevronRight,
 } from "lucide-react";
-import { hqLogoutAction } from "./actions";
+import { hqLogoutAction, checkHqSessionAction } from "./actions";
 
 const NAV = [
   { label: "Dashboard", href: "/hq", icon: LayoutDashboard, exact: true },
@@ -21,6 +21,33 @@ const NAV = [
 
 export default function HqLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
+  // Monitor single-device active session concurrency
+  React.useEffect(() => {
+    if (pathname === "/hq/login") return;
+
+    let isMounted = true;
+
+    const checkSession = async () => {
+      try {
+        const res = await checkHqSessionAction();
+        if (isMounted && !res.valid) {
+          window.location.href = "/hq/login?evicted=1";
+        }
+      } catch {
+        // Do not evict on transient network issues
+      }
+    };
+
+    const interval = setInterval(checkSession, 15000);
+    window.addEventListener("focus", checkSession);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", checkSession);
+    };
+  }, [pathname]);
 
   // Login page gets a bare layout — no sidebar
   if (pathname === "/hq/login") {

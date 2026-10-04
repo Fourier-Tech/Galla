@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { provisionTenantAction, type PlanType } from "@/app/hq/actions";
 
@@ -49,6 +51,7 @@ export function ProvisionSalonModal({ isOpen, onClose }: Props) {
   // Credentials fields
   const [showCredentials, setShowCredentials] = useState(false);
   const [password, setPassword] = useState("password123");
+  const [showPassword, setShowPassword] = useState(false);
   const [ownerPin, setOwnerPin] = useState("888888");
   const [staffPin, setStaffPin] = useState("567890");
 
@@ -455,12 +458,26 @@ export function ProvisionSalonModal({ isOpen, onClose }: Props) {
                       <label className="block text-[11px] font-semibold text-galla-ink-soft uppercase tracking-wide mb-1">
                         Default Password
                       </label>
-                      <input
-                        type="text"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-white border border-galla-line rounded-[6px] px-2.5 py-1.5 text-[13px] font-mono text-galla-ink focus:outline-none focus:border-galla-teal"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full bg-white border border-galla-line rounded-[6px] pl-2.5 pr-8 py-1.5 text-[13px] font-mono text-galla-ink focus:outline-none focus:border-galla-teal"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
 
                     <div>

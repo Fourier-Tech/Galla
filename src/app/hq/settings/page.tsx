@@ -9,6 +9,7 @@ export default function HqSettingsPage() {
   const [confirm, setConfirm] = useState("");
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const isSubmittingRef = React.useRef(false);
@@ -32,6 +33,11 @@ export default function HqSettingsPage() {
         body: JSON.stringify({ currentPassword: current, newPassword: newPwd }),
       });
       const data = await res.json();
+
+      if (res.status === 401 || data.error?.includes("Unauthorized")) {
+        window.location.href = "/hq/login?evicted=1";
+        return;
+      }
 
       if (data.success) {
         setMsg({ type: "success", text: "Password updated successfully." });
@@ -121,16 +127,13 @@ export default function HqSettingsPage() {
               autoComplete="new-password"
             />
             <div>
-              <label className="block text-[12px] font-semibold text-galla-ink-soft uppercase tracking-wide mb-1.5">
-                Confirm New Password
-              </label>
-              <input
-                type="password"
-                required
-                autoComplete="new-password"
+              <InputWithToggle
+                label="Confirm New Password"
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className={["w-full bg-galla-paper border rounded-[6px] px-3.5 py-2.5 text-[14px] text-galla-ink focus:outline-none focus:ring-2 transition-all", confirm && newPwd && confirm !== newPwd ? "border-red-300 focus:border-red-400 focus:ring-red-100" : "border-galla-line focus:border-galla-teal focus:ring-galla-teal/10"].join(" ")}
+                onChange={setConfirm}
+                show={showConfirm}
+                setShow={setShowConfirm}
+                autoComplete="new-password"
               />
               {confirm && newPwd && confirm !== newPwd && (
                 <p className="text-[11px] text-red-500 mt-1">Passwords don&apos;t match</p>

@@ -13,6 +13,11 @@ const PIN_MAX_ATTEMPTS = 5;
 const PIN_WINDOW_MS = 10 * 60 * 1000;
 const pinAttempts = new Map<string, RateLimitRecord>();
 
+// Tier 3: Admin / HQ Login (Strict: 3 attempts per 15 minutes)
+const HQ_MAX_ATTEMPTS = 3;
+const HQ_WINDOW_MS = 15 * 60 * 1000;
+const hqAttempts = new Map<string, RateLimitRecord>();
+
 // Generic helper
 function checkStore(
   store: Map<string, RateLimitRecord>,
@@ -105,6 +110,22 @@ export function recordFailedRolePin(identifier: string) {
 
 export function resetRolePinRateLimit(identifier: string): void {
   pinAttempts.delete(identifier);
+}
+
+/* =========================================================================
+   Tier 3: Admin / HQ Login Rate Limiting (Strict: 3 attempts per 15 min)
+   ========================================================================= */
+
+export function checkHqLoginRateLimit(identifier: string) {
+  return checkStore(hqAttempts, identifier, HQ_MAX_ATTEMPTS);
+}
+
+export function recordFailedHqLogin(identifier: string) {
+  return recordFailInStore(hqAttempts, identifier, HQ_MAX_ATTEMPTS, HQ_WINDOW_MS);
+}
+
+export function resetHqLoginRateLimit(identifier: string): void {
+  hqAttempts.delete(identifier);
 }
 
 // Backward compatibility aliases

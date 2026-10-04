@@ -7,6 +7,7 @@ export interface ISuperAdmin extends Document {
   passwordHash: string;
   role: "superadmin" | "support";
   isActive: boolean;
+  activeSessionId?: string | null;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +40,10 @@ const SuperAdminSchema = new Schema<ISuperAdmin>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    activeSessionId: {
+      type: String,
+      default: null,
     },
     lastLoginAt: {
       type: Date,

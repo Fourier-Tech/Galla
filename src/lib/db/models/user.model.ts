@@ -5,6 +5,7 @@ export interface IUser extends Document {
   tenantId: Types.ObjectId;
   ownerEmail: string;
   passwordHash?: string;
+  passwordChangedAt?: Date | null;
   ownerPinHash?: string;
   staffPinHash?: string;
   ownerActiveSessionId?: string | null;
@@ -36,6 +37,10 @@ const UserSchema = new Schema<IUser>(
     passwordHash: {
       type: String,
       required: false,
+    },
+    passwordChangedAt: {
+      type: Date,
+      default: null,
     },
     ownerPinHash: {
       type: String,

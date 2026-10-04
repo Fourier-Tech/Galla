@@ -42,10 +42,15 @@ export const changeRolePinsSchema = z
       .pipe(z.string().regex(/^\d{6}$/, "New Staff PIN must be exactly 6 digits"))
       .optional()
       .or(z.literal("")),
+    newShopPassword: z
+      .string()
+      .min(6, "New master shop password must be at least 6 characters")
+      .optional()
+      .or(z.literal("")),
   })
   .refine(
-    (data) => Boolean(data.newOwnerPin || data.newStaffPin),
-    { message: "Please specify at least one new PIN to update", path: ["newOwnerPin"] }
+    (data) => Boolean(data.newOwnerPin || data.newStaffPin || data.newShopPassword),
+    { message: "Please specify a new password or at least one new PIN to update", path: ["newShopPassword"] }
   )
   .refine(
     (data) => !(data.newOwnerPin && data.newStaffPin && data.newOwnerPin === data.newStaffPin),

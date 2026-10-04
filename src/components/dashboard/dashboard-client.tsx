@@ -556,6 +556,24 @@ export function DashboardClient({
     },
   });
 
+  // Real-time shop password change: instantly log out all active sessions
+  useTenantSubscription<{ message?: string }>({
+    tenantId,
+    event: "shop_password_changed",
+    onEvent: () => {
+      console.warn("[Realtime] Shop password was changed. Logging out all active sessions.");
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("galla_role_session");
+        try {
+          const bc = new BroadcastChannel("galla_role_channel");
+          bc.postMessage({ type: "PASSWORD_CHANGED" });
+          bc.close();
+        } catch {}
+        window.location.href = "/login?password_changed=1";
+      }
+    },
+  });
+
   // Same-browser cross-tab listener for instant multi-tab displacement
   useEffect(() => {
     if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
@@ -564,6 +582,14 @@ export function DashboardClient({
       // HQ Admin impersonation sessions are immune to counter cross-tab locks
       if (roleRef.current === "admin") return;
       const data = event.data;
+
+      if (data?.type === "PASSWORD_CHANGED") {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("galla_role_session");
+          window.location.href = "/login?password_changed=1";
+        }
+        return;
+      }
 
       if (data?.type === "ROLE_LOCK" || data?.type === "ROLE_LOGOUT") {
         if (typeof window !== "undefined") {

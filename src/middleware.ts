@@ -18,6 +18,15 @@ export function middleware(request: NextRequest) {
     }
 
     if (hqToken && isHqLogin) {
+      if (
+        request.nextUrl.searchParams.has("evicted") ||
+        request.nextUrl.searchParams.has("error") ||
+        request.nextUrl.searchParams.has("expired")
+      ) {
+        const response = NextResponse.next();
+        response.cookies.delete("galla_hq_session");
+        return response;
+      }
       const url = request.nextUrl.clone();
       url.pathname = "/hq";
       return NextResponse.redirect(url);
@@ -62,7 +71,11 @@ export function middleware(request: NextRequest) {
   }
 
   if (isLoginPage && token) {
-    if (request.nextUrl.searchParams.has("error") || request.nextUrl.searchParams.has("expired")) {
+    if (
+      request.nextUrl.searchParams.has("error") ||
+      request.nextUrl.searchParams.has("expired") ||
+      request.nextUrl.searchParams.has("password_changed")
+    ) {
       const response = NextResponse.next();
       response.cookies.delete("authjs.session-token");
       response.cookies.delete("__Secure-authjs.session-token");

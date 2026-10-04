@@ -11,9 +11,11 @@ interface ChangePinModalProps {
 
 export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
   const [emailPassword, setEmailPassword] = useState("");
+  const [newShopPassword, setNewShopPassword] = useState("");
   const [newOwnerPin, setNewOwnerPin] = useState("");
   const [newStaffPin, setNewStaffPin] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewShopPassword, setShowNewShopPassword] = useState(false);
   const [showOwnerPin, setShowOwnerPin] = useState(false);
   const [showStaffPin, setShowStaffPin] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,8 +37,13 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
       return;
     }
 
-    if (!newOwnerPin && !newStaffPin) {
-      setError("Please specify at least one new PIN to update.");
+    if (!newOwnerPin && !newStaffPin && !newShopPassword) {
+      setError("Please specify a new password or at least one new PIN to update.");
+      return;
+    }
+
+    if (newShopPassword && newShopPassword.trim().length < 6) {
+      setError("New master shop password must be at least 6 characters.");
       return;
     }
 
@@ -55,33 +62,51 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
       return;
     }
 
-    if (isSubmittingRef.current) return; isSubmittingRef.current = true; setLoading(true);
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setLoading(true);
 
     try {
       const res = await changeRolePinsAction({
         emailPassword,
+        newShopPassword: newShopPassword.trim() || undefined,
         newOwnerPin: newOwnerPin || undefined,
         newStaffPin: newStaffPin || undefined,
       });
 
       if (!res.success) {
-        setError(res.error || "Failed to update role PINs.");
-        isSubmittingRef.current = false; setLoading(false);
+        setError(res.error || "Failed to update credentials.");
+        isSubmittingRef.current = false;
+        setLoading(false);
         return;
       }
 
-      setSuccessMsg(res.message || "Role PINs updated successfully.");
+      setSuccessMsg(res.message || "Credentials updated successfully.");
       setEmailPassword("");
+      setNewShopPassword("");
       setNewOwnerPin("");
       setNewStaffPin("");
+
+      if (res.passwordChanged) {
+        // Log out immediately across all devices
+        setTimeout(() => {
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem("galla_role_session");
+            window.location.href = "/login?password_changed=1";
+          }
+        }, 1200);
+        return;
+      }
+
       setTimeout(() => {
         onClose();
         setSuccessMsg(null);
       }, 1500);
     } catch {
-      setError("An unexpected error occurred while updating PINs.");
+      setError("An unexpected error occurred while updating credentials.");
     } finally {
-      isSubmittingRef.current = false; setLoading(false);
+      isSubmittingRef.current = false;
+      setLoading(false);
     }
   };
 
@@ -96,10 +121,10 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
             </div>
             <div>
               <h3 className="font-bold text-[16px] text-galla-ink tracking-tight">
-                Update Role PINs
+                Update Password &amp; Role PINs
               </h3>
               <p className="text-[12.5px] text-galla-ink-soft">
-                Manage your counter access codes (Owner &amp; Staff)
+                Manage master shop password and counter access PINs
               </p>
             </div>
           </div>
@@ -134,7 +159,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
           {/* Email Password */}
           <div>
             <label className="block text-[12.5px] font-medium text-galla-ink mb-1">
-              Shop Email Password <span className="text-red-500">*</span>
+              Current Shop Password <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-galla-ink-soft">
@@ -147,7 +172,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
                 disabled={loading}
                 value={emailPassword}
                 onChange={(e) => setEmailPassword(e.target.value)}
-                placeholder="Enter shop account password"
+                placeholder="Enter current shop password"
                 className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-9 py-2 text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
               />
               <button
@@ -160,7 +185,38 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
               </button>
             </div>
             <p className="text-[11px] text-galla-ink-soft mt-1">
-              Required to verify owner authorization
+              Required to authorize changes
+            </p>
+          </div>
+
+          {/* New Master Shop Password */}
+          <div>
+            <label className="block text-[12.5px] font-medium text-galla-ink mb-1">
+              New Master Shop Password <span className="text-galla-ink-soft text-[11px]">(Optional)</span>
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-galla-ink-soft">
+                <KeyRound className="h-4 w-4" />
+              </div>
+              <input
+                type={showNewShopPassword ? "text" : "password"}
+                disabled={loading}
+                value={newShopPassword}
+                onChange={(e) => setNewShopPassword(e.target.value)}
+                placeholder="Leave blank to keep current password"
+                className="w-full bg-galla-paper/60 border border-galla-line rounded-[6px] pl-9 pr-9 py-2 text-[13.5px] text-galla-ink placeholder:text-galla-ink-soft/40 focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowNewShopPassword(!showNewShopPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-galla-ink-soft hover:text-galla-ink cursor-pointer"
+              >
+                {showNewShopPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-galla-ink-soft mt-1">
+              Min 6 characters. Updating password logs out all other active sessions.
             </p>
           </div>
 
@@ -247,7 +303,8 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
               disabled={
                 loading ||
                 !emailPassword ||
-                (!newOwnerPin && !newStaffPin) ||
+                (!newOwnerPin && !newStaffPin && !newShopPassword) ||
+                (Boolean(newShopPassword) && newShopPassword.trim().length < 6) ||
                 (Boolean(newOwnerPin) && newOwnerPin.length !== 6) ||
                 (Boolean(newStaffPin) && newStaffPin.length !== 6) ||
                 isSamePin
@@ -260,7 +317,7 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
                   <span>Updating...</span>
                 </>
               ) : (
-                <span>Update PINs</span>
+                <span>Update Credentials</span>
               )}
             </button>
           </div>

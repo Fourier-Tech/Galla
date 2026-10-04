@@ -202,7 +202,7 @@ export function Sidebar({
           </button>
         )}
 
-        {/* Manage PINs (Owner & Admin) */}
+        {/* Manage Password & PINs (Owner & Admin) */}
         {(role === "owner" || role === "admin") && onOpenChangePins && (
           <button
             type="button"
@@ -210,7 +210,7 @@ export function Sidebar({
             className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 transition-colors cursor-pointer"
           >
             <KeyRound className="h-3.5 w-3.5" />
-            <span>Manage Role PINs</span>
+            <span>Manage Password &amp; PINs</span>
           </button>
         )}
 

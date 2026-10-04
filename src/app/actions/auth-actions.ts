@@ -176,6 +176,7 @@ export async function lockRoleSessionAction(): Promise<{ success: boolean }> {
  */
 export async function changeRolePinsAction(rawInput: unknown): Promise<{
   success: boolean;
+  passwordChanged?: boolean;
   message?: string;
   error?: string;
 }> {
@@ -184,7 +185,7 @@ export async function changeRolePinsAction(rawInput: unknown): Promise<{
     if (roleSession.role !== "owner") {
       return {
         success: false,
-        error: "Permission denied. Only the salon owner can change role PINs.",
+        error: "Permission denied. Only the salon owner can change role PINs or shop password.",
       };
     }
 
@@ -194,7 +195,7 @@ export async function changeRolePinsAction(rawInput: unknown): Promise<{
       return { success: false, error: firstErr };
     }
 
-    const { emailPassword, newOwnerPin, newStaffPin } = parsed.data;
+    const { emailPassword, newOwnerPin, newStaffPin, newShopPassword } = parsed.data;
 
     const session = await auth();
     if (!session?.user?.id) {
@@ -219,7 +220,7 @@ export async function changeRolePinsAction(rawInput: unknown): Promise<{
     if (!isPasswordCorrect) {
       return {
         success: false,
-        error: "Incorrect shop email password. PIN changes were not saved.",
+        error: "Incorrect current shop password. Credentials were not saved.",
       };
     }
 
@@ -252,6 +253,15 @@ export async function changeRolePinsAction(rawInput: unknown): Promise<{
     }
 
     const updates: Record<string, unknown> = {};
+    const passwordChanged = Boolean(newShopPassword && newShopPassword.trim().length >= 6);
+
+    if (passwordChanged) {
+      updates.passwordHash = await bcrypt.hash(newShopPassword!.trim(), 10);
+      updates.passwordChangedAt = new Date();
+      updates.ownerActiveSessionId = null;
+      updates.staffActiveSessionId = null;
+    }
+
     if (newOwnerPin) {
       updates.ownerPinHash = await bcrypt.hash(newOwnerPin, 10);
     }
@@ -265,14 +275,35 @@ export async function changeRolePinsAction(rawInput: unknown): Promise<{
     const tenantUpdates: Record<string, unknown> = {};
     if (newOwnerPin) tenantUpdates.ownerPinHash = updates.ownerPinHash;
     if (newStaffPin) tenantUpdates.staffPinHash = updates.staffPinHash;
-    await Tenant.updateOne({ _id: user.tenantId }, { $set: tenantUpdates });
+    if (Object.keys(tenantUpdates).length > 0) {
+      await Tenant.updateOne({ _id: user.tenantId }, { $set: tenantUpdates });
+    }
+
+    if (passwordChanged) {
+      // Invalidate all active sessions across all devices for this shop
+      await triggerTenantEvent({
+        tenantId: user.tenantId.toString(),
+        event: "shop_password_changed",
+        data: {
+          message: "Master shop password has been changed. All active sessions have been signed out.",
+        },
+      });
+
+      await lockRoleSessionAction();
+
+      return {
+        success: true,
+        passwordChanged: true,
+        message: "Shop password updated successfully. Logging out all sessions...",
+      };
+    }
 
     return { success: true, message: "Role PINs updated successfully." };
   } catch (error) {
     console.error("[AuthAction] changeRolePinsAction error:", error);
     return {
       success: false,
-      error: "Failed to update role PINs. Please try again.",
+      error: "Failed to update credentials. Please try again.",
     };
   }
 }

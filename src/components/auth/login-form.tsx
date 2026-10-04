@@ -43,6 +43,9 @@ function LoginFormContent() {
     if (urlCode === "rate_limited" || urlError === "rate_limited") {
       return "Too many failed attempts. For your salon's security, login is temporarily locked for 15 minutes.";
     }
+    if (searchParams.get("password_changed") === "1" || urlError === "password_changed") {
+      return "The shop password was changed. All active sessions have been signed out. Please sign in with the new password.";
+    }
     if (urlError === "CredentialsSignin") {
       return "Invalid email address or password. Please check your credentials.";
     }

@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -10,25 +10,76 @@ import SuperAdmin from "@/lib/db/models/super-admin.model";
 import Tenant from "@/lib/db/models/tenant.model";
 import User from "@/lib/db/models/user.model";
 import { Counter } from "@/lib/db/models/counter.model";
-import { signHqSession, HQ_COOKIE_NAME, getHqSession, ADMIN_SECRET } from "@/lib/auth/admin-auth";
+import { signHqSession, HQ_COOKIE_NAME, getHqSession, ADMIN_SECRET, verifyHqSession } from "@/lib/auth/admin-auth";
+import {
+  checkHqLoginRateLimit,
+  recordFailedHqLogin,
+  resetHqLoginRateLimit,
+} from "@/lib/auth/rate-limiter";
 import { revalidatePath } from "next/cache";
+
+async function getClientIp(): Promise<string> {
+  const headerList = await headers();
+  return (
+    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1"
+  );
+}
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export async function hqLoginAction(email: string, password: string) {
   try {
+    const ip = await getClientIp();
+    const rateCheck = checkHqLoginRateLimit(ip);
+    if (!rateCheck.allowed) {
+      const mins = Math.ceil(rateCheck.retryAfterSeconds / 60);
+      return {
+        success: false,
+        error: `Too many failed attempts. Admin portal is locked for ${mins} minute(s).`,
+      };
+    }
+
     await connectToDatabase();
-    const admin = await SuperAdmin.findOne({ email: email.toLowerCase().trim() });
+    const cleanEmail = email.toLowerCase().trim();
+    const admin = await SuperAdmin.findOne({ email: cleanEmail });
 
     if (!admin || !admin.isActive) {
-      return { success: false, error: "Invalid credentials." };
+      const fail = recordFailedHqLogin(ip);
+      if (!fail.allowed) {
+        const mins = Math.ceil(fail.retryAfterSeconds / 60);
+        return {
+          success: false,
+          error: `Too many failed attempts. Admin portal is locked for ${mins} minute(s).`,
+        };
+      }
+      return {
+        success: false,
+        error: `Invalid credentials. (${fail.remainingAttempts} attempt(s) remaining)`,
+      };
     }
 
     const isValid = await bcrypt.compare(password, admin.passwordHash);
     if (!isValid) {
-      return { success: false, error: "Invalid credentials." };
+      const fail = recordFailedHqLogin(ip);
+      if (!fail.allowed) {
+        const mins = Math.ceil(fail.retryAfterSeconds / 60);
+        return {
+          success: false,
+          error: `Too many failed attempts. Admin portal is locked for ${mins} minute(s).`,
+        };
+      }
+      return {
+        success: false,
+        error: `Invalid credentials. (${fail.remainingAttempts} attempt(s) remaining)`,
+      };
     }
 
+    // Successful login — reset failed attempts
+    resetHqLoginRateLimit(ip);
+
+    // Single-device concurrency: assign a new unique session ID to displace any other active session
+    const activeSessionId = crypto.randomUUID();
+    admin.activeSessionId = activeSessionId;
     admin.lastLoginAt = new Date();
     await admin.save();
 
@@ -36,6 +87,7 @@ export async function hqLoginAction(email: string, password: string) {
       adminId: admin._id.toString(),
       email: admin.email,
       role: admin.role,
+      activeSessionId,
     });
 
     (await cookies()).set(HQ_COOKIE_NAME, token, {
@@ -47,14 +99,37 @@ export async function hqLoginAction(email: string, password: string) {
     });
 
     return { success: true };
-  } catch {
+  } catch (err) {
+    console.error("[hqLoginAction] Error:", err);
     return { success: false, error: "An unexpected error occurred." };
   }
 }
 
 export async function hqLogoutAction() {
-  (await cookies()).delete(HQ_COOKIE_NAME);
+  const cookieStore = await cookies();
+  const token = cookieStore.get(HQ_COOKIE_NAME)?.value;
+  if (token) {
+    try {
+      const payload = await verifyHqSession(token);
+      if (payload?.adminId) {
+        await connectToDatabase();
+        await SuperAdmin.findByIdAndUpdate(payload.adminId, { activeSessionId: null });
+      }
+    } catch (e) {
+      console.error("[hqLogoutAction] Error clearing activeSessionId:", e);
+    }
+  }
+  cookieStore.delete(HQ_COOKIE_NAME);
   redirect("/hq/login");
+}
+
+export async function checkHqSessionAction(): Promise<{ valid: boolean }> {
+  try {
+    const session = await getHqSession();
+    return { valid: Boolean(session) };
+  } catch {
+    return { valid: true };
+  }
 }
 
 // ─── Tenant Provisioning ─────────────────────────────────────────────────────
@@ -267,8 +342,12 @@ export async function updateTenantAction(
     if (data.ownerEmail?.trim()) {
       userUpdates.ownerEmail = data.ownerEmail.trim().toLowerCase();
     }
-    if (data.resetPassword && data.resetPassword.trim().length >= 6) {
-      userUpdates.passwordHash = await bcrypt.hash(data.resetPassword.trim(), 10);
+    const passwordChanged = Boolean(data.resetPassword && data.resetPassword.trim().length >= 6);
+    if (passwordChanged) {
+      userUpdates.passwordHash = await bcrypt.hash(data.resetPassword!.trim(), 10);
+      userUpdates.passwordChangedAt = new Date();
+      userUpdates.ownerActiveSessionId = null;
+      userUpdates.staffActiveSessionId = null;
     }
     if (setFields.ownerPinHash) {
       userUpdates.ownerPinHash = setFields.ownerPinHash;
@@ -279,6 +358,21 @@ export async function updateTenantAction(
 
     if (Object.keys(userUpdates).length > 0) {
       await User.updateOne({ tenantId }, { $set: userUpdates });
+    }
+
+    if (passwordChanged) {
+      try {
+        const { triggerTenantEvent } = await import("@/lib/realtime/pusher-server");
+        await triggerTenantEvent({
+          tenantId: tenantId.toString(),
+          event: "shop_password_changed",
+          data: {
+            message: "Master shop password has been changed by SuperAdmin. All sessions signed out.",
+          },
+        });
+      } catch (err) {
+        console.error("Failed to broadcast shop_password_changed event:", err);
+      }
     }
 
     revalidatePath("/hq/salons");

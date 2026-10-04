@@ -1,7 +1,9 @@
 import React from "react";
+import { redirect } from "next/navigation";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import Tenant from "@/lib/db/models/tenant.model";
 import { Store, Activity, AlertTriangle, TrendingUp } from "lucide-react";
+import { getHqSession } from "@/lib/auth/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,11 @@ async function getStats() {
 }
 
 export default async function HqDashboardPage() {
+  const session = await getHqSession();
+  if (!session) {
+    redirect("/hq/login?evicted=1");
+  }
+
   const stats = await getStats();
 
   const cards = [

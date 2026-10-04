@@ -83,6 +83,10 @@ export default function HqSalonsPage() {
     setLoading(true);
     try {
       const res = await getSalonsAction();
+      if (!res.success && res.error?.includes("Unauthorized")) {
+        window.location.href = "/hq/login?evicted=1";
+        return;
+      }
       if (res.success && res.salons) {
         setSalons(res.salons as Salon[]);
       }
@@ -115,7 +119,11 @@ export default function HqSalonsPage() {
     setActionLoading(salon._id);
     setOpenMenu(null);
     try {
-      await toggleTenantStatusAction(salon._id, salon.status !== "suspended");
+      const res = await toggleTenantStatusAction(salon._id, salon.status !== "suspended");
+      if (!res.success && res.error?.includes("Unauthorized")) {
+        window.location.href = "/hq/login?evicted=1";
+        return;
+      }
       await refresh();
     } finally {
       setActionLoading(null);

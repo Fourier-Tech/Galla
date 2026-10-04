@@ -11,6 +11,8 @@ import {
   Store,
   ChevronDown,
   ChevronUp,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { updateTenantAction, type PlanType } from "@/app/hq/actions";
 
@@ -75,6 +77,7 @@ export function ManagePlanModal({ salon, onClose }: Props) {
   // Security / PIN & Password reset (optional)
   const [showSecurity, setShowSecurity] = useState(false);
   const [resetPassword, setResetPassword] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetOwnerPin, setResetOwnerPin] = useState("");
   const [resetStaffPin, setResetStaffPin] = useState("");
 
@@ -444,13 +447,27 @@ export function ManagePlanModal({ salon, onClose }: Props) {
                     <label className="block text-[11px] font-semibold text-galla-ink-soft uppercase tracking-wide mb-1">
                       New Master Shop Login Password
                     </label>
-                    <input
-                      type="text"
-                      value={resetPassword}
-                      onChange={(e) => setResetPassword(e.target.value)}
-                      placeholder="Leave blank to keep existing password"
-                      className="w-full bg-white border border-galla-line rounded-[6px] px-3 py-1.5 text-[13px] font-mono text-galla-ink focus:outline-none focus:border-galla-teal"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showResetPassword ? "text" : "password"}
+                        value={resetPassword}
+                        onChange={(e) => setResetPassword(e.target.value)}
+                        placeholder="Leave blank to keep existing password"
+                        className="w-full bg-white border border-galla-line rounded-[6px] pl-3 pr-10 py-1.5 text-[13px] font-mono text-galla-ink focus:outline-none focus:border-galla-teal"
+                      />
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setShowResetPassword(!showResetPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer"
+                      >
+                        {showResetPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                     <p className="text-[10px] text-galla-ink-soft mt-0.5">
                       Resets the shop owner&apos;s primary login password. Minimum 6 characters.
                     </p>

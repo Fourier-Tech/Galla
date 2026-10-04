@@ -121,6 +121,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.email = user.email;
         token.sessionCreatedAt = Date.now();
         token.shopLoginAt = Date.now();
+        token.tokenIssuedAt = Date.now();
         token.lastActive = Date.now();
         return token;
       }
@@ -133,6 +134,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (now - lastActive > SEVEN_DAYS_MS) {
         console.warn("[Auth] Session invalidated: 7 days of inactivity exceeded");
         return null;
+      }
+
+      // Invalidate session if shop password was changed after this session token was issued
+      if (token.id) {
+        try {
+          await connectToDatabase();
+          const userDoc = await User.collection.findOne(
+            { _id: new Types.ObjectId(token.id as string) },
+            { projection: { passwordChangedAt: 1 } }
+          );
+          if (userDoc?.passwordChangedAt) {
+            const tokenIssuedAt = (token.tokenIssuedAt || token.shopLoginAt || token.sessionCreatedAt || 0) as number;
+            const pwdChangedTime = new Date(userDoc.passwordChangedAt).getTime();
+            if (pwdChangedTime > tokenIssuedAt) {
+              console.warn(
+                `[Auth] Session invalidated: shop password changed at ${new Date(pwdChangedTime).toISOString()} (token issued at ${new Date(tokenIssuedAt).toISOString()})`
+              );
+              return null;
+            }
+          }
+        } catch (e) {
+          console.error("[Auth] Error validating passwordChangedAt in jwt callback:", e);
+        }
       }
 
       token.lastActive = now;

@@ -11,6 +11,7 @@ export interface HqSessionPayload {
   adminId: string;
   email: string;
   role: string;
+  activeSessionId?: string | null;
 }
 
 export async function signHqSession(payload: HqSessionPayload): Promise<string> {
@@ -34,5 +35,39 @@ export async function getHqSession(): Promise<HqSessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(HQ_COOKIE_NAME)?.value;
   if (!token) return null;
-  return verifyHqSession(token);
+
+  const payload = await verifyHqSession(token);
+  if (!payload || !payload.adminId) return null;
+
+  try {
+    const { connectToDatabase } = await import("@/lib/db/mongodb");
+    const { default: SuperAdmin } = await import("@/lib/db/models/super-admin.model");
+    await connectToDatabase();
+
+    const safeDeleteCookie = () => {
+      try {
+        cookieStore.delete(HQ_COOKIE_NAME);
+      } catch {
+        // cookies() is read-only in Server Components; cookie deletion is handled on redirect by middleware
+      }
+    };
+
+    const admin = await SuperAdmin.findById(payload.adminId).select("activeSessionId isActive");
+    if (!admin || !admin.isActive) {
+      safeDeleteCookie();
+      return null;
+    }
+
+    // Single-device concurrency check:
+    // If activeSessionId is not present or doesn't match the current DB session, session is displaced.
+    if (!payload.activeSessionId || admin.activeSessionId !== payload.activeSessionId) {
+      safeDeleteCookie();
+      return null;
+    }
+
+    return payload;
+  } catch (err) {
+    console.error("[getHqSession] Failed to verify activeSessionId:", err);
+    return null;
+  }
 }
