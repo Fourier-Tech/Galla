@@ -113,7 +113,15 @@ export async function syncRollupForPeriod(
               { createdAt: { $gte: startDate, $lte: endDate } },
               { "payments.recordedAt": { $gte: startDate, $lte: endDate } },
             ],
-            status: { $nin: ["cancelled_refunded", "cancelled_converted"] },
+            status: {
+              $nin: [
+                "cancelled_refunded",
+                "cancelled_converted",
+                "replacement_pending",
+                "replacement",
+                "replacement_completed",
+              ],
+            },
           },
         },
         {
@@ -349,7 +357,10 @@ export async function syncRollupForPeriod(
           $match: {
             tenantId,
             expenseDate: { $gte: startDate, $lte: endDate },
-            category: "stock_transfer_internal",
+            $or: [
+              { category: "stock_transfer_internal" },
+              { paymentMode: "internal_transfer" },
+            ],
           },
         },
         {
@@ -378,11 +389,82 @@ export async function syncRollupForPeriod(
         },
       ]),
 
-      // 5. New Customers
-      Customer.countDocuments({
-        tenantId,
-        createdAt: { $gte: startDate, $lte: endDate },
-      }),
+      // 5. Client Retention (Unique clients served in window)
+      Order.aggregate([
+        {
+          $match: {
+            tenantId,
+            createdAt: { $gte: startDate, $lte: endDate },
+            status: {
+              $nin: [
+                "cancelled_refunded",
+                "cancelled_converted",
+                "replacement_pending",
+                "replacement",
+                "replacement_completed",
+              ],
+            },
+          },
+        },
+        {
+          $facet: {
+            registeredClients: [
+              { $match: { customerId: { $ne: null } } },
+              {
+                $group: {
+                  _id: "$customerId",
+                  orderCount: { $sum: 1 },
+                },
+              },
+              // ponytail: Checks for prior completed orders before window startDate via a single limit(1) lookup. Upgrade path: indexed customer.firstOrderAt field if order history exceeds millions.
+              {
+                $lookup: {
+                  from: "orders",
+                  let: { cId: "$_id" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: {
+                          $and: [
+                            { $eq: ["$customerId", "$$cId"] },
+                            { $lt: ["$createdAt", startDate] },
+                            {
+                              $not: {
+                                $in: [
+                                  "$status",
+                                  [
+                                    "cancelled_refunded",
+                                    "cancelled_converted",
+                                    "replacement_pending",
+                                    "replacement",
+                                    "replacement_completed",
+                                  ],
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    },
+                    { $limit: 1 },
+                  ],
+                  as: "priorOrders",
+                },
+              },
+              {
+                $project: {
+                  customerId: "$_id",
+                  hasPriorOrders: { $gt: [{ $size: "$priorOrders" }, 0] },
+                },
+              },
+            ],
+            guestOrders: [
+              { $match: { customerId: null } },
+              { $count: "count" },
+            ],
+          },
+        },
+      ]),
 
       // 6. Supplier Returns / Refunds Received
       PurchaseOrder.aggregate([
@@ -440,6 +522,21 @@ export async function syncRollupForPeriod(
   const netProfit = totalRev - totalExp;
   const totalOrders = ordMeta.totalOrders || 0;
   const completedOrders = ordMeta.completedOrders || 0;
+  const clientRetentionFacet = (newCustomersCount as any)?.[0] || {};
+  const registeredList = clientRetentionFacet.registeredClients || [];
+  const guestCount = clientRetentionFacet.guestOrders?.[0]?.count || 0;
+
+  let retReturningCount = 0;
+  let retNewCount = guestCount;
+
+  for (const c of registeredList) {
+    if (c.hasPriorOrders) {
+      retReturningCount++;
+    } else {
+      retNewCount++;
+    }
+  }
+
   const atv = completedOrders > 0 ? Math.round(totalRev / completedOrders) : 0;
 
   const expiresAt = getRollupExpirationDate(periodType, endDate);
@@ -473,8 +570,8 @@ export async function syncRollupForPeriod(
           footfall: totalOrders,
           averageTicketValue: atv,
           uncollectedDues: duesSummary[0]?.uncollectedDues || 0,
-          newCustomersCount,
-          returningCustomersCount: Math.max(0, totalOrders - newCustomersCount),
+          newCustomersCount: retNewCount,
+          returningCustomersCount: retReturningCount,
           paymentModes: {
             cash: (ordMeta.cash || 0) + (suppRefund.cash || 0),
             upi: (ordMeta.upi || 0) + (suppRefund.upi || 0),
@@ -661,8 +758,8 @@ export async function ensureDailyRollupsForRange(
     }
   }
 
-  // If today was completely missing, sync it once
-  if (needsTodaySync && !existingMap.has(todayKey)) {
+  // Always keep today's dynamic rollup fresh if today is within the queried range
+  if (targetKeys.some((k) => k.periodKey === todayKey)) {
     const todayDoc = await syncRollupForPeriod(tenantId, "daily", now);
     if (todayDoc) {
       existingMap.set(todayKey, todayDoc.toObject ? todayDoc.toObject() : todayDoc);

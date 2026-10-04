@@ -334,7 +334,7 @@ async function deductServiceProductsFromStock(
                 tenantId: new Types.ObjectId(tenantId),
                 expenseDate: new Date(),
                 title: `Service usage: ${takeUnits}x ${batch.name} (${service.name})`,
-                category: "other",
+                category: "stock_transfer_internal",
                 amount: consumptionCost,
                 paymentMode: "internal_transfer",
                 linkedProductId: batch._id,
@@ -2151,6 +2151,7 @@ export async function refundOrderAction(rawInput: unknown): Promise<{
             ],
           },
           {
+            // ponytail: Store footfall visits represent physical visits that genuinely occurred; refunds adjust spend/balance but do not deduct totalVisits.
             $inc: {
               "stats.totalSpend": -Math.min(remainingPaid, refundAmount),
               "stats.outstandingBalance": -prevPending,
@@ -2535,7 +2536,7 @@ export async function consumeUseStockAction(rawInput: unknown): Promise<{
             {
               tenantId,
               title: `Internal consumption — ${quantity}x ${product.name} (${reasonLabel})`,
-              category: "other",
+              category: "stock_transfer_internal",
               amount: consumptionCost,
               paymentMode: "internal_transfer",
               linkedProductId: product._id,

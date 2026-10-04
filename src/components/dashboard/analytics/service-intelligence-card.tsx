@@ -79,33 +79,39 @@ export function ServiceIntelligenceCard({
             Turnover distribution across Hair, Skin, Nails, Spa &amp; Makeup
           </p>
 
-          <div className="space-y-4">
-            {categoryContribution.map((cat, idx) => (
-              <div key={idx}>
-                <div className="flex items-center justify-between text-[12px] font-sans mb-1.5">
-                  <span className="font-medium text-galla-ink">{cat.category}</span>
-                  <div className="text-right">
-                    <span className="font-sans font-medium text-galla-ink tabular-nums">
-                      {formatRupee(cat.revenue)}
-                    </span>{" "}
-                    <span className="text-galla-ink-soft text-[11px] tabular-nums">({cat.percent}%)</span>
+          {categoryContribution.length === 0 ? (
+            <div className="py-8 text-center font-sans text-[12px] text-galla-ink-soft">
+              No department turnover records for this period
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {categoryContribution.map((cat, idx) => (
+                <div key={idx}>
+                  <div className="flex items-center justify-between text-[12px] font-sans mb-1.5">
+                    <span className="font-medium text-galla-ink">{cat.category}</span>
+                    <div className="text-right">
+                      <span className="font-sans font-medium text-galla-ink tabular-nums">
+                        {formatRupee(cat.revenue)}
+                      </span>{" "}
+                      <span className="text-galla-ink-soft text-[11px] tabular-nums">({cat.percent}%)</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full bg-galla-paper rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-galla-brass transition-all duration-500"
+                      style={{ width: `${cat.percent}%` }}
+                    />
                   </div>
                 </div>
-                <div className="h-1.5 w-full bg-galla-paper rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-galla-brass transition-all duration-500"
-                    style={{ width: `${cat.percent}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-4 pt-3 border-t border-galla-line text-[11px] font-sans text-galla-ink-soft flex items-center justify-between">
           <span>Primary Treatment Core</span>
           <span className="font-medium text-galla-ink">
-            {categoryContribution[0]?.category || "General"}
+            {categoryContribution[0]?.category || "—"}
           </span>
         </div>
       </div>

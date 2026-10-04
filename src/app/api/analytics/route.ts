@@ -10,6 +10,7 @@ import { Product } from "@/lib/db/models/product.model";
 import { Customer } from "@/lib/db/models/customer.model";
 import { Supplier } from "@/lib/db/models/supplier.model";
 import { PurchaseOrder } from "@/lib/db/models/purchase-order.model";
+import { Expense } from "@/lib/db/models/expense.model";
 import { ensureDailyRollupsForRange } from "@/lib/analytics/rollup-service";
 import {
   AnalyticsRangePreset,
@@ -93,12 +94,19 @@ function resolveDateWindows(
     const windowDurationMs = endDate.getTime() - startDate.getTime();
     previousEndDate = new Date(previousStartDate.getTime() + windowDurationMs);
   } else if (range === "custom" && customStart && customEnd) {
-    startDate = new Date(customStart);
-    endDate = new Date(customEnd);
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    const [sYear, sMonth, sDate] = customStart.split("-").map(Number);
+    const [eYear, eMonth, eDate] = customEnd.split("-").map(Number);
+
+    if (sYear && sMonth && sDate && eYear && eMonth && eDate) {
+      // Start of day in IST (00:00:00.000 IST -> UTC - 5.5 hours)
+      startDate = new Date(Date.UTC(sYear, sMonth - 1, sDate) - istOffsetMs);
+      // End of day in IST (23:59:59.999 IST -> UTC - 5.5 hours)
+      endDate = new Date(Date.UTC(eYear, eMonth - 1, eDate, 23, 59, 59, 999) - istOffsetMs);
+    } else {
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       endDate = now;
     }
+
     const windowDurationMs = Math.max(24 * 60 * 60 * 1000, endDate.getTime() - startDate.getTime());
     previousStartDate = new Date(startDate.getTime() - windowDurationMs);
     previousEndDate = new Date(startDate.getTime() - 1);
@@ -195,18 +203,29 @@ export async function GET(request: Request) {
     const matchCurrentOrders = {
       tenantId,
       createdAt: { $gte: startDate, $lte: endDate },
-      status: { $nin: ["cancelled_refunded", "cancelled_converted"] },
+      status: {
+        $nin: [
+          "cancelled_refunded",
+          "cancelled_converted",
+          "replacement_pending",
+          "replacement",
+          "replacement_completed",
+        ],
+      },
     };
 
     const [
       lineItemsFacetAgg,
       hourlyDayDistributionAgg,
       todayHourlyRevenueAgg,
+      todayHourlyExpenseAgg,
       allActiveProducts,
       procurementAgg,
       supplierBalancesAgg,
       vipClientsAgg,
       dormantClientsCount,
+      internalConsumptionAgg,
+      clientsServedAgg,
     ] = await Promise.all([
       // Top 5 Services & Top 5 Retail Products sold
       Order.aggregate([
@@ -262,6 +281,117 @@ export async function GET(request: Request) {
               { $sort: { grossRevenue: -1 } },
               { $limit: 5 },
             ],
+            serviceCategories: [
+              { $match: { "lineItems.itemType": "service" } },
+              {
+                $lookup: {
+                  from: "services",
+                  localField: "lineItems.itemId",
+                  foreignField: "_id",
+                  as: "serviceDoc",
+                },
+              },
+              {
+                $group: {
+                  _id: {
+                    $ifNull: [
+                      { $arrayElemAt: ["$serviceDoc.category", 0] },
+                      "General",
+                    ],
+                  },
+                  revenue: {
+                    $sum: {
+                      $multiply: [
+                        { $ifNull: ["$lineItems.unitPrice", 0] },
+                        { $ifNull: ["$lineItems.quantity", 1] },
+                      ],
+                    },
+                  },
+                  bookingsCount: {
+                    $sum: { $ifNull: ["$lineItems.quantity", 1] },
+                  },
+                },
+              },
+              { $sort: { revenue: -1 } },
+            ],
+            serviceTotalUnits: [
+              { $match: { "lineItems.itemType": "service" } },
+              {
+                $group: {
+                  _id: null,
+                  count: {
+                    $sum: {
+                      $max: [
+                        0,
+                        {
+                          $subtract: [
+                            { $ifNull: ["$lineItems.quantity", 1] },
+                            {
+                              $add: [
+                                { $ifNull: ["$lineItems.returnedQuantity", 0] },
+                                { $ifNull: ["$lineItems.replacedQuantity", 0] },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+            productTotalUnits: [
+              { $match: { "lineItems.itemType": "product" } },
+              {
+                $group: {
+                  _id: null,
+                  count: {
+                    $sum: {
+                      $max: [
+                        0,
+                        {
+                          $subtract: [
+                            { $ifNull: ["$lineItems.quantity", 1] },
+                            {
+                              $add: [
+                                { $ifNull: ["$lineItems.returnedQuantity", 0] },
+                                { $ifNull: ["$lineItems.replacedQuantity", 0] },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+            packageTotalUnits: [
+              { $match: { "lineItems.itemType": "package" } },
+              {
+                $group: {
+                  _id: null,
+                  count: {
+                    $sum: {
+                      $max: [
+                        0,
+                        {
+                          $subtract: [
+                            { $ifNull: ["$lineItems.quantity", 1] },
+                            {
+                              $add: [
+                                { $ifNull: ["$lineItems.returnedQuantity", 0] },
+                                { $ifNull: ["$lineItems.replacedQuantity", 0] },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
           },
         },
       ]),
@@ -311,18 +441,47 @@ export async function GET(request: Request) {
           ])
         : Promise.resolve([]),
 
+      // If "today" range, get hourly expenses for today's chart curve
+      rangeParam === "today"
+        ? Expense.aggregate([
+            {
+              $match: {
+                tenantId,
+                expenseDate: { $gte: startDate, $lte: endDate },
+                category: { $ne: "stock_transfer_internal" },
+                isSameDay: { $ne: true },
+              },
+            },
+            {
+              $group: {
+                _id: {
+                  $dateToString: {
+                    format: "%H:00",
+                    date: "$expenseDate",
+                    timezone: "+05:30",
+                  },
+                },
+                expense: { $sum: "$amount" },
+              },
+            },
+          ])
+        : Promise.resolve([]),
+
       // Active product catalog for margin & slow-moving stock
       Product.find(
         { tenantId, isActive: true },
         { name: 1, category: 1, expectedSellPrice: 1, purchaseCost: 1, sellStock: 1 }
       ).lean(),
 
-      // Procurement Spend in window
+      // Procurement Spend in window: match either createdAt or invoiceDate
       PurchaseOrder.aggregate([
         {
           $match: {
             tenantId,
-            createdAt: { $gte: startDate, $lte: endDate },
+            $or: [
+              { createdAt: { $gte: startDate, $lte: endDate } },
+              { invoiceDate: { $gte: startDate, $lte: endDate } },
+            ],
             status: { $ne: "cancelled" },
           },
         },
@@ -345,7 +504,7 @@ export async function GET(request: Request) {
               $sum: { $cond: [{ $gt: ["$totalPending", 0] }, "$totalPending", 0] },
             },
             credits: {
-              $sum: { $cond: [{ $lt: ["$totalPending", 0] }, "$totalPending", 0] },
+              $sum: { $ifNull: ["$totalCredit", 0] },
             },
           },
         },
@@ -369,6 +528,90 @@ export async function GET(request: Request) {
           $lt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
         },
       }),
+
+      // Internal Salon Consumption Cost & Movements in date window
+      Expense.aggregate([
+        {
+          $match: {
+            tenantId,
+            expenseDate: { $gte: startDate, $lte: endDate },
+            $or: [
+              { category: "stock_transfer_internal" },
+              { paymentMode: "internal_transfer" },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalCost: { $sum: "$amount" },
+            transfersCount: { $sum: 1 },
+          },
+        },
+      ]),
+
+      // Unique Clients Served in window and their retention status
+      Order.aggregate([
+        { $match: matchCurrentOrders },
+        {
+          $facet: {
+            registeredClients: [
+              { $match: { customerId: { $ne: null } } },
+              {
+                $group: {
+                  _id: "$customerId",
+                  orderCount: { $sum: 1 },
+                },
+              },
+              // ponytail: Checks for prior completed orders before window startDate via a single limit(1) lookup. Upgrade path: indexed customer.firstOrderAt field if order history exceeds millions.
+              {
+                $lookup: {
+                  from: "orders",
+                  let: { cId: "$_id" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: {
+                          $and: [
+                            { $eq: ["$customerId", "$$cId"] },
+                            { $lt: ["$createdAt", startDate] },
+                            {
+                              $not: {
+                                $in: [
+                                  "$status",
+                                  [
+                                    "cancelled_refunded",
+                                    "cancelled_converted",
+                                    "replacement_pending",
+                                    "replacement",
+                                    "replacement_completed",
+                                  ],
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    },
+                    { $limit: 1 },
+                  ],
+                  as: "priorOrders",
+                },
+              },
+              {
+                $project: {
+                  customerId: "$_id",
+                  hasPriorOrders: { $gt: [{ $size: "$priorOrders" }, 0] },
+                },
+              },
+            ],
+            guestOrders: [
+              { $match: { customerId: null } },
+              { $count: "count" },
+            ],
+          },
+        },
+      ]),
     ]);
 
     // 3. Compute Executive Metrics from Rollup Summaries
@@ -404,16 +647,22 @@ export async function GET(request: Request) {
         todayHourlyMap.set(item._id, item.revenue || 0);
       });
 
+      const todayHourlyExpMap = new Map<string, number>();
+      (todayHourlyExpenseAgg || []).forEach((item: { _id: string; expense: number }) => {
+        todayHourlyExpMap.set(item._id, item.expense || 0);
+      });
+
       for (let h = 9; h <= 21; h++) {
         const hourStr = `${h.toString().padStart(2, "0")}:00`;
         const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
         const rev = todayHourlyMap.get(hourStr) || 0;
+        const exp = todayHourlyExpMap.get(hourStr) || 0;
         timeline.push({
           date: hourStr,
           label,
           revenue: rev,
-          expense: 0,
-          net: rev,
+          expense: exp,
+          net: rev - exp,
         });
       }
     } else {
@@ -430,27 +679,31 @@ export async function GET(request: Request) {
       });
     }
 
-    // 5. Revenue Mix from Rollup Summaries
+    // 5. Revenue Mix from Rollup Summaries & Facet Unit Counts
     const totalServiceRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.service || 0), 0);
     const totalProductRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.product || 0), 0);
     const totalPackageRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.package || 0), 0);
     const totalMixRevenue = totalServiceRev + totalProductRev + totalPackageRev || currentRev;
 
+    const totalServiceUnits = lineItemsFacetAgg[0]?.serviceTotalUnits[0]?.count ?? 0;
+    const totalProductUnits = lineItemsFacetAgg[0]?.productTotalUnits[0]?.count ?? 0;
+    const totalPackageUnits = lineItemsFacetAgg[0]?.packageTotalUnits[0]?.count ?? 0;
+
     const revenueMix: AnalyticsResponseData["cashflow"]["revenueMix"] = {
       services: {
         amount: totalServiceRev,
         percent: totalMixRevenue > 0 ? Math.round((totalServiceRev / totalMixRevenue) * 100) : 0,
-        count: currentCompletedCount,
+        count: totalServiceUnits,
       },
       products: {
         amount: totalProductRev,
         percent: totalMixRevenue > 0 ? Math.round((totalProductRev / totalMixRevenue) * 100) : 0,
-        count: 0,
+        count: totalProductUnits,
       },
       packages: {
         amount: totalPackageRev,
         percent: totalMixRevenue > 0 ? Math.round((totalPackageRev / totalMixRevenue) * 100) : 0,
-        count: 0,
+        count: totalPackageUnits,
       },
       total: totalMixRevenue,
     };
@@ -538,33 +791,19 @@ export async function GET(request: Request) {
       }
     );
 
-    // 8. Category Contribution
-    const categoryContribution: AnalyticsResponseData["services"]["categoryContribution"] = [
-      {
-        category: "Hair Treatments",
-        revenue: Math.round(totalServiceRev * 0.45),
-        percent: 45,
-        bookingsCount: Math.round(currentCompletedCount * 0.45),
-      },
-      {
-        category: "Skin & Facials",
-        revenue: Math.round(totalServiceRev * 0.3),
-        percent: 30,
-        bookingsCount: Math.round(currentCompletedCount * 0.3),
-      },
-      {
-        category: "Nails & Manicure",
-        revenue: Math.round(totalServiceRev * 0.15),
-        percent: 15,
-        bookingsCount: Math.round(currentCompletedCount * 0.15),
-      },
-      {
-        category: "Spa & Body",
-        revenue: Math.max(0, totalServiceRev - Math.round(totalServiceRev * 0.9)),
-        percent: 10,
-        bookingsCount: Math.max(1, currentCompletedCount - Math.round(currentCompletedCount * 0.9)),
-      },
-    ];
+    // 8. Category Contribution from actual data
+    const rawCategories = lineItemsFacetAgg[0]?.serviceCategories || [];
+    const totalCatRevenue =
+      rawCategories.reduce((sum: number, c: any) => sum + (c.revenue || 0), 0) ||
+      totalServiceRev ||
+      1;
+    const categoryContribution: AnalyticsResponseData["services"]["categoryContribution"] =
+      rawCategories.map((c: any) => ({
+        category: c._id || "General",
+        revenue: c.revenue || 0,
+        percent: Math.round(((c.revenue || 0) / totalCatRevenue) * 100),
+        bookingsCount: c.bookingsCount || 0,
+      }));
 
     // 9. Heatmap: Hourly & Weekday
     const hourlyMap = new Map<number, { count: number; revenue: number }>();
@@ -636,8 +875,8 @@ export async function GET(request: Request) {
           sellStock: p.sellStock || 0,
         };
       })
-      .filter((p) => p.marginRupees > 0 && p.sellStock > 0)
-      .sort((a, b) => b.marginPercent - a.marginPercent)
+      .filter((p: any) => p.marginRupees > 0 && p.sellStock > 0)
+      .sort((a: any, b: any) => b.marginPercent - a.marginPercent)
       .slice(0, 5);
 
     const slowMovingStock: AnalyticsResponseData["inventory"]["slowMovingStock"] = (
@@ -657,12 +896,25 @@ export async function GET(request: Request) {
         purchaseCost: p.purchaseCost || 0,
         lockedCapital: (p.sellStock || 0) * (p.purchaseCost || 0),
       }))
-      .sort((a, b) => b.lockedCapital - a.lockedCapital)
+      .sort((a: any, b: any) => b.lockedCapital - a.lockedCapital)
       .slice(0, 5);
 
-    // 11. Client Retention from Rollup Summaries
-    const newClientsCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.newCustomersCount || 0), 0);
-    const returningClientsCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.returningCustomersCount || 0), 0);
+    // 11. Client Retention: Evaluated from clients actually served in this window
+    const clientRetentionFacet = (clientsServedAgg as any)?.[0] || {};
+    const registeredList = clientRetentionFacet.registeredClients || [];
+    const guestCount = clientRetentionFacet.guestOrders?.[0]?.count || 0;
+
+    let returningClientsCount = 0;
+    let newClientsCount = guestCount;
+
+    for (const c of registeredList) {
+      if (c.hasPriorOrders) {
+        returningClientsCount++;
+      } else {
+        newClientsCount++;
+      }
+    }
+
     const totalClientsServed = newClientsCount + returningClientsCount;
     const repeatRatePercent =
       totalClientsServed > 0
@@ -725,8 +977,8 @@ export async function GET(request: Request) {
         topRetailProducts,
         highestMarginProducts,
         internalConsumption: {
-          totalCost: internalStockCost,
-          transfersCount: 0,
+          totalCost: internalConsumptionAgg[0]?.totalCost || internalStockCost || 0,
+          transfersCount: internalConsumptionAgg[0]?.transfersCount || 0,
         },
         slowMovingStock,
       },

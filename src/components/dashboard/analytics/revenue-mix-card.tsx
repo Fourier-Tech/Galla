@@ -15,18 +15,21 @@ export function RevenueMixCard({ mix }: RevenueMixCardProps) {
       data: mix.services,
       color: "bg-[#18635B]", // galla-teal
       textTone: "text-[#18635B]",
+      unitLabel: (count: number) => `${count} ${count === 1 ? "session booked" : "sessions booked"}`,
     },
     {
       label: "Retail Product Sales",
       data: mix.products,
       color: "bg-[#B86A28]", // galla-brass
       textTone: "text-[#B86A28]",
+      unitLabel: (count: number) => `${count} ${count === 1 ? "unit sold" : "units sold"}`,
     },
     {
       label: "Packages / Bundles",
       data: mix.packages,
       color: "bg-[#B83A5D]", // galla-brick
       textTone: "text-[#B83A5D]",
+      unitLabel: (count: number) => `${count} ${count === 1 ? "package sold" : "packages sold"}`,
     },
   ];
 
@@ -68,7 +71,7 @@ export function RevenueMixCard({ mix }: RevenueMixCardProps) {
                     {it.label}
                   </div>
                   <div className="font-sans text-[11px] text-galla-ink-soft tabular-nums">
-                    {it.data.count} units / sessions booked
+                    {it.unitLabel(it.data.count)}
                   </div>
                 </div>
               </div>
@@ -77,7 +80,7 @@ export function RevenueMixCard({ mix }: RevenueMixCardProps) {
                   {formatRupee(it.data.amount)}
                 </div>
                 <div className={`font-sans text-[11px] font-semibold tabular-nums ${it.textTone}`}>
-                  {it.data.percent}% share
+                  {it.data.percent}%
                 </div>
               </div>
             </div>

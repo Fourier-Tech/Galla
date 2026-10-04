@@ -36,7 +36,7 @@ export function InventoryIntelligenceCard({
               Internal Salon Consumption Cost
             </div>
             <div className="font-sans text-[12px] text-galla-ink-soft">
-              Wholesale value of shelf products moved to in-use stock for treatments
+              Wholesale value of products consumed in salon services &amp; in-use treatments
             </div>
           </div>
         </div>

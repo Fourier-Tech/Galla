@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { RefreshCw, Calendar } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { AnalyticsRangePreset } from "@/types/analytics";
 
 interface AnalyticsHeaderProps {
@@ -27,6 +27,7 @@ export function AnalyticsHeader({
   onRangeChange,
   customStartDate,
   customEndDate,
+  onCustomDateChange,
   onRefresh,
   isLoading,
 }: AnalyticsHeaderProps) {
@@ -70,19 +71,30 @@ export function AnalyticsHeader({
         {/* Custom Date Inputs if custom is active */}
         {range === "custom" && (
           <div className="flex items-center gap-1.5 bg-galla-paper border border-galla-line rounded-[5px] px-2.5 py-1 text-[12px] font-sans">
-            <Calendar className="w-3.5 h-3.5 text-galla-ink-soft" />
             <input
               type="date"
               value={customStartDate}
-              onChange={(e) => onRangeChange("custom")}
-              className="bg-transparent text-galla-ink text-[12px] outline-none tabular-nums"
+              max={customEndDate || undefined}
+              onChange={(e) => onCustomDateChange(e.target.value, customEndDate)}
+              onClick={(e) => {
+                try {
+                  (e.target as HTMLInputElement).showPicker?.();
+                } catch {}
+              }}
+              className="bg-transparent text-galla-ink text-[12px] outline-none tabular-nums cursor-pointer"
             />
-            <span className="text-galla-ink-soft text-[11px]">to</span>
+            <span className="text-galla-ink-soft text-[11px] px-0.5">to</span>
             <input
               type="date"
               value={customEndDate}
-              onChange={(e) => onRangeChange("custom")}
-              className="bg-transparent text-galla-ink text-[12px] outline-none tabular-nums"
+              min={customStartDate || undefined}
+              onChange={(e) => onCustomDateChange(customStartDate, e.target.value)}
+              onClick={(e) => {
+                try {
+                  (e.target as HTMLInputElement).showPicker?.();
+                } catch {}
+              }}
+              className="bg-transparent text-galla-ink text-[12px] outline-none tabular-nums cursor-pointer"
             />
           </div>
         )}

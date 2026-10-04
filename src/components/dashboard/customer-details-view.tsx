@@ -126,24 +126,29 @@ export function CustomerDetailsView({
 
   // Financial & Visit Metrics
   const metrics = useMemo(() => {
-    const validOrders = orders.filter(
-      (o) => o.status !== "cancelled_refunded" && o.status !== "cancelled_converted"
+    // Only count genuine purchase orders (exclude cancelled, fully refunded, and replacement orders from returns)
+    const validPurchases = orders.filter(
+      (o) =>
+        o.status !== "cancelled_refunded" &&
+        o.status !== "cancelled_converted" &&
+        o.status !== "replacement_pending" &&
+        o.status !== "replacement" &&
+        o.status !== "replacement_completed" &&
+        !(o.notes && o.notes.includes("[Replacement Order #"))
     );
 
-    const totalOrders = validOrders.length;
-    const totalSpendFromOrders = validOrders.reduce((sum, o) => sum + (o.paid || 0), 0);
+    const totalOrders = validPurchases.length;
+    const totalSpendFromOrders = validPurchases.reduce((sum, o) => sum + (o.paid || 0), 0);
     const pendingDuesFromOrders = calculatePendingAmount(orders);
 
     const totalSpend = customer.totalSpent || 0;
     const outstandingDue = customer.outstandingDue || 0;
 
-    const totalVisits = !isLoading
-      ? totalOrders > 0
-        ? totalOrders
-        : orders.length > 0
-        ? 1
-        : customer.visits || 0
-      : customer.visits || 0;
+    // Use authoritative customer profile visit count (only incremented when new orders are created)
+    const totalVisits =
+      typeof customer.visits === "number" && customer.visits > 0
+        ? customer.visits
+        : validPurchases.length;
 
     const avgTicket = totalVisits > 0 ? Math.round(totalSpend / totalVisits) : totalSpend;
 

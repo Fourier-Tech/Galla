@@ -3,7 +3,7 @@
 import React from "react";
 import { formatRupee } from "@/lib/utils";
 import { ClientRetentionData, TopVipClientItem } from "@/types/analytics";
-import { Users, Crown, UserX, Phone } from "lucide-react";
+import { Users, Crown, Phone } from "lucide-react";
 
 interface ClientRetentionCardProps {
   retention: ClientRetentionData;
@@ -30,7 +30,7 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
           <div className="grid grid-cols-2 gap-3 mb-5">
             <div className="p-3 rounded-[5px] bg-galla-paper border border-galla-line">
               <span className="font-sans text-[11px] text-galla-ink-soft block">
-                Returning Regulars
+                Returning Customers
               </span>
               <div className="font-semibold text-[20px] text-galla-teal mt-0.5 tabular-nums">
                 {retention.returningClientsCount}
@@ -42,19 +42,19 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
 
             <div className="p-3 rounded-[5px] bg-galla-paper border border-galla-line">
               <span className="font-sans text-[11px] text-galla-ink-soft block">
-                First-Time Walk-Ins
+                Total Customers
               </span>
               <div className="font-semibold text-[20px] text-galla-ink mt-0.5 tabular-nums">
-                {retention.newClientsCount}
+                {retention.totalClientsServed}
               </div>
               <span className="font-sans text-[11px] text-galla-ink-soft">
-                New client intake
+                {retention.newClientsCount} first-time walk-in{retention.newClientsCount === 1 ? "" : "s"}
               </span>
             </div>
           </div>
 
           {/* Ratio Bar */}
-          <div className="space-y-1.5 mb-6">
+          <div className="space-y-1.5">
             <div className="flex justify-between font-sans text-[11px] text-galla-ink-soft tabular-nums">
               <span>{retention.repeatRatePercent}% Regulars</span>
               <span>{100 - retention.repeatRatePercent}% First-Timers</span>
@@ -69,24 +69,6 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
                 style={{ width: `${100 - retention.repeatRatePercent}%` }}
               />
             </div>
-          </div>
-
-          {/* Dormant / At-Risk Callout */}
-          <div className="p-3.5 rounded-[5px] bg-red-50/60 border border-red-200/70 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <UserX className="w-4 h-4 text-red-600 shrink-0" />
-              <div>
-                <div className="font-sans text-[12px] font-semibold text-red-900 leading-tight">
-                  <span className="tabular-nums">{retention.dormantClientsCount}</span> Dormant / At-Risk Clients
-                </div>
-                <div className="font-sans text-[11px] text-red-700/80">
-                  Regulars with 2+ visits who haven&apos;t visited in 45+ days
-                </div>
-              </div>
-            </div>
-            <span className="font-sans text-[10px] font-semibold px-2 py-0.5 rounded-[3px] bg-white text-red-700 border border-red-200 shrink-0">
-              Needs Follow-up
-            </span>
           </div>
         </div>
 
@@ -147,10 +129,6 @@ export function ClientRetentionCard({ retention, vipClients }: ClientRetentionCa
               ))}
             </div>
           )}
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-galla-line text-[11px] font-sans text-galla-ink-soft">
-          Personalized concierge follow-ups for VIPs safeguard recurring monthly revenue
         </div>
       </div>
     </div>
