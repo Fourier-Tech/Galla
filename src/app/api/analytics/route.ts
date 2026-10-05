@@ -15,13 +15,38 @@ import { ensureDailyRollupsForRange } from "@/lib/analytics/rollup-service";
 import {
   AnalyticsRangePreset,
   AnalyticsResponseData,
+  MainAnalyticsData,
+  PerformanceAnalyticsData,
+  TrafficAnalyticsData,
+  WeekdayAnalyticsData,
+  ConsumptionDetailsData,
+  InternalConsumptionMovementItem,
+  MonthlyRangePreset,
+  TrafficRangePreset,
+  WeekdayRangePreset,
   MetricDelta,
+  TenderSplitItem,
 } from "@/types/analytics";
 
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 function formatISTDateLabel(d: Date): string {
-  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  const ist = new Date(d.getTime() + IST_OFFSET_MS);
   return `${MONTH_NAMES[ist.getUTCMonth()]} ${ist.getUTCDate()}`;
 }
 
@@ -44,15 +69,14 @@ function calculateMetricDelta(current: number, previous: number): MetricDelta {
   };
 }
 
-// Helper: Resolve date windows in Indian Standard Time (UTC+05:30)
+// Helper: Resolve date windows in Indian Standard Time (UTC+05:30) for Main Filter
 function resolveDateWindows(
   range: AnalyticsRangePreset,
   customStart?: string | null,
   customEnd?: string | null
 ) {
   const now = new Date();
-  const istOffsetMs = 5.5 * 60 * 60 * 1000;
-  const istNow = new Date(now.getTime() + istOffsetMs);
+  const istNow = new Date(now.getTime() + IST_OFFSET_MS);
 
   let startDate: Date;
   let endDate: Date = now;
@@ -64,7 +88,7 @@ function resolveDateWindows(
     const month = istNow.getUTCMonth();
     const date = istNow.getUTCDate();
 
-    startDate = new Date(Date.UTC(year, month, date) - istOffsetMs);
+    startDate = new Date(Date.UTC(year, month, date) - IST_OFFSET_MS);
     endDate = now;
 
     previousStartDate = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
@@ -74,7 +98,7 @@ function resolveDateWindows(
     const month = istNow.getUTCMonth();
     const date = istNow.getUTCDate();
 
-    const startOfTodayUtc = Date.UTC(year, month, date) - istOffsetMs;
+    const startOfTodayUtc = Date.UTC(year, month, date) - IST_OFFSET_MS;
     startDate = new Date(startOfTodayUtc - 6 * 24 * 60 * 60 * 1000);
     endDate = now;
 
@@ -85,12 +109,12 @@ function resolveDateWindows(
     const year = istNow.getUTCFullYear();
     const month = istNow.getUTCMonth();
 
-    startDate = new Date(Date.UTC(year, month, 1) - istOffsetMs);
+    startDate = new Date(Date.UTC(year, month, 1) - IST_OFFSET_MS);
     endDate = now;
 
     const prevMonthYear = month === 0 ? year - 1 : year;
     const prevMonth = month === 0 ? 11 : month - 1;
-    previousStartDate = new Date(Date.UTC(prevMonthYear, prevMonth, 1) - istOffsetMs);
+    previousStartDate = new Date(Date.UTC(prevMonthYear, prevMonth, 1) - IST_OFFSET_MS);
     const windowDurationMs = endDate.getTime() - startDate.getTime();
     previousEndDate = new Date(previousStartDate.getTime() + windowDurationMs);
   } else if (range === "custom" && customStart && customEnd) {
@@ -98,16 +122,19 @@ function resolveDateWindows(
     const [eYear, eMonth, eDate] = customEnd.split("-").map(Number);
 
     if (sYear && sMonth && sDate && eYear && eMonth && eDate) {
-      // Start of day in IST (00:00:00.000 IST -> UTC - 5.5 hours)
-      startDate = new Date(Date.UTC(sYear, sMonth - 1, sDate) - istOffsetMs);
-      // End of day in IST (23:59:59.999 IST -> UTC - 5.5 hours)
-      endDate = new Date(Date.UTC(eYear, eMonth - 1, eDate, 23, 59, 59, 999) - istOffsetMs);
+      startDate = new Date(Date.UTC(sYear, sMonth - 1, sDate) - IST_OFFSET_MS);
+      endDate = new Date(
+        Date.UTC(eYear, eMonth - 1, eDate, 23, 59, 59, 999) - IST_OFFSET_MS
+      );
     } else {
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       endDate = now;
     }
 
-    const windowDurationMs = Math.max(24 * 60 * 60 * 1000, endDate.getTime() - startDate.getTime());
+    const windowDurationMs = Math.max(
+      24 * 60 * 60 * 1000,
+      endDate.getTime() - startDate.getTime()
+    );
     previousStartDate = new Date(startDate.getTime() - windowDurationMs);
     previousEndDate = new Date(startDate.getTime() - 1);
   } else {
@@ -116,7 +143,7 @@ function resolveDateWindows(
     const month = istNow.getUTCMonth();
     const date = istNow.getUTCDate();
 
-    const startOfTodayUtc = Date.UTC(year, month, date) - istOffsetMs;
+    const startOfTodayUtc = Date.UTC(year, month, date) - IST_OFFSET_MS;
     startDate = new Date(startOfTodayUtc - 29 * 24 * 60 * 60 * 1000);
     endDate = now;
 
@@ -128,6 +155,138 @@ function resolveDateWindows(
   return { startDate, endDate, previousStartDate, previousEndDate };
 }
 
+// Helper: Resolve Monthly Windows
+function resolveMonthlyWindows(
+  monthlyRange: MonthlyRangePreset,
+  customYear?: number | null,
+  customMonth?: number | null
+): { startDate: Date; endDate: Date; label: string } {
+  const now = new Date();
+  const istNow = new Date(now.getTime() + IST_OFFSET_MS);
+  const currentYear = istNow.getUTCFullYear();
+  const currentMonth = istNow.getUTCMonth(); // 0-indexed
+
+  if (monthlyRange === "30d") {
+    const startOfTodayUtc =
+      Date.UTC(currentYear, currentMonth, istNow.getUTCDate()) - IST_OFFSET_MS;
+    const startDate = new Date(startOfTodayUtc - 29 * 24 * 60 * 60 * 1000);
+    return { startDate, endDate: now, label: "Last 30 Days" };
+  }
+
+  if (monthlyRange === "custom_month" && customYear && customMonth) {
+    const y = customYear;
+    const m = customMonth - 1; // 0-indexed
+    const startDate = new Date(Date.UTC(y, m, 1) - IST_OFFSET_MS);
+    const nextMonthUtc =
+      Date.UTC(m === 11 ? y + 1 : y, (m + 1) % 12, 1) - IST_OFFSET_MS;
+    const endDate = new Date(nextMonthUtc - 1);
+    return {
+      startDate,
+      endDate: y === currentYear && m === currentMonth ? now : endDate,
+      label: `${MONTH_NAMES[m]} ${y}`,
+    };
+  }
+
+  if (monthlyRange === "yearly") {
+    const y = customYear || currentYear;
+    const startDate = new Date(Date.UTC(y, 0, 1) - IST_OFFSET_MS);
+    const endDate =
+      y === currentYear
+        ? now
+        : new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999) - IST_OFFSET_MS);
+    return { startDate, endDate, label: `Year ${y}` };
+  }
+
+  if (monthlyRange === "all_time") {
+    const startDate = new Date(0);
+    return { startDate, endDate: now, label: "All Time" };
+  }
+
+  // Default: "this_month"
+  const startDate = new Date(Date.UTC(currentYear, currentMonth, 1) - IST_OFFSET_MS);
+  return {
+    startDate,
+    endDate: now,
+    label: `${MONTH_NAMES[currentMonth]} ${currentYear}`,
+  };
+}
+
+// Helper: Resolve Weekday Windows (Monday to Sunday in IST)
+function resolveWeekdayWindows(preset: WeekdayRangePreset): {
+  startDate: Date;
+  endDate: Date;
+  label: string;
+} {
+  const now = new Date();
+  const istNow = new Date(now.getTime() + IST_OFFSET_MS);
+
+  // getUTCDay: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  const currentDow = istNow.getUTCDay();
+  const daysSinceMonday = (currentDow + 6) % 7; // Mon=0, Tue=1 ... Sun=6
+
+  const startOfTodayUtc =
+    Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) -
+    IST_OFFSET_MS;
+  const thisMondayUtc = startOfTodayUtc - daysSinceMonday * 24 * 60 * 60 * 1000;
+  const thisSundayEndUtc = thisMondayUtc + 7 * 24 * 60 * 60 * 1000 - 1;
+
+  if (preset === "last_week") {
+    const lastMondayUtc = thisMondayUtc - 7 * 24 * 60 * 60 * 1000;
+    const lastSundayEndUtc = thisMondayUtc - 1;
+    return {
+      startDate: new Date(lastMondayUtc),
+      endDate: new Date(lastSundayEndUtc),
+      label: "Last Week",
+    };
+  }
+
+  // "this_week"
+  return {
+    startDate: new Date(thisMondayUtc),
+    endDate: new Date(Math.min(now.getTime(), thisSundayEndUtc)),
+    label: "This Week",
+  };
+}
+
+// Helper: Resolve Traffic Windows (Today vs Yesterday in IST)
+function resolveTrafficWindows(preset: TrafficRangePreset): {
+  startDate: Date;
+  endDate: Date;
+  label: string;
+  dateStr: string;
+} {
+  const now = new Date();
+  const istNow = new Date(now.getTime() + IST_OFFSET_MS);
+
+  const isToday = preset === "today";
+  const targetDate = isToday
+    ? istNow
+    : new Date(istNow.getTime() - 24 * 60 * 60 * 1000);
+  const tYear = targetDate.getUTCFullYear();
+  const tMonth = targetDate.getUTCMonth();
+  const tDate = targetDate.getUTCDate();
+
+  const startUtc = new Date(Date.UTC(tYear, tMonth, tDate) - IST_OFFSET_MS);
+  const endUtc = isToday
+    ? now
+    : new Date(Date.UTC(tYear, tMonth, tDate, 23, 59, 59, 999) - IST_OFFSET_MS);
+
+  return {
+    startDate: startUtc,
+    endDate: endUtc,
+    label: isToday ? "Today" : "Yesterday",
+    dateStr: `${tYear}-${String(tMonth + 1).padStart(2, "0")}-${String(tDate).padStart(2, "0")}`,
+  };
+}
+
+const EXCLUDED_ORDER_STATUSES = [
+  "cancelled_refunded",
+  "cancelled_converted",
+  "replacement_pending",
+  "replacement",
+  "replacement_completed",
+];
+
 export async function GET(request: Request) {
   try {
     const session = await auth();
@@ -138,13 +297,20 @@ export async function GET(request: Request) {
       );
     }
 
-    // Strict Owner Privacy Boundary verified via Role PIN session
     const roleSession = await getRoleSession();
-    if (roleSession?.role !== "owner") {
+    if (!roleSession) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized role session" },
+        { status: 401 }
+      );
+    }
+
+    const { role } = roleSession;
+    if (role !== "owner" && role !== "admin") {
       return NextResponse.json(
         {
           success: false,
-          error: "Forbidden: Historical and deep analytics are restricted to Owner role only",
+          error: "Forbidden: Executive business analytics are restricted to owners only",
         },
         { status: 403 }
       );
@@ -152,328 +318,475 @@ export async function GET(request: Request) {
 
     await connectToDatabase();
 
-    // Strict multi-tenancy: resolve tenantId server-side from session
     let tenantId: Types.ObjectId | null = null;
-    const sessionTenantId = session.user.tenantId;
-
-    if (sessionTenantId && Types.ObjectId.isValid(sessionTenantId)) {
-      const exists = await Tenant.exists({ _id: new Types.ObjectId(sessionTenantId) });
-      if (exists) tenantId = new Types.ObjectId(sessionTenantId);
-    }
-
-    if (!tenantId && session.user.id && Types.ObjectId.isValid(session.user.id)) {
-      const dbUser = await User.findById(new Types.ObjectId(session.user.id));
-      if (dbUser && dbUser.tenantId) {
-        tenantId = dbUser.tenantId;
+    if (session.user.tenantId) {
+      tenantId = new Types.ObjectId(session.user.tenantId);
+    } else {
+      const user = await User.findById(session.user.id).select("tenantId").lean();
+      if (user?.tenantId) {
+        tenantId = user.tenantId as Types.ObjectId;
+      } else {
+        const tenant = await Tenant.findOne().select("_id").lean();
+        if (tenant) tenantId = tenant._id as Types.ObjectId;
       }
     }
 
     if (!tenantId) {
       return NextResponse.json(
-        { success: false, error: "Valid tenant context required" },
-        { status: 400 }
+        { success: false, error: "Tenant context not found" },
+        { status: 404 }
       );
     }
 
     const { searchParams } = new URL(request.url);
-    const rangeParam = (searchParams.get("range") || "today") as AnalyticsRangePreset;
-    const customStart = searchParams.get("startDate");
-    const customEnd = searchParams.get("endDate");
+    const section = searchParams.get("section") || "main";
+
+    // ==========================================
+    // SECTION: TRAFFIC (Hourly Booking Density)
+    // ==========================================
+    if (section === "traffic") {
+      const preset = (searchParams.get("preset") as TrafficRangePreset) || "today";
+      const { startDate, endDate, label, dateStr } = resolveTrafficWindows(preset);
+
+      const hourlyAgg = await Order.aggregate([
+        {
+          $match: {
+            tenantId,
+            createdAt: { $gte: startDate, $lte: endDate },
+            status: { $nin: EXCLUDED_ORDER_STATUSES },
+          },
+        },
+        {
+          $project: {
+            amountPaid: 1,
+            hour: { $hour: { date: "$createdAt", timezone: "+05:30" } },
+          },
+        },
+        {
+          $group: {
+            _id: "$hour",
+            count: { $sum: 1 },
+            revenue: { $sum: "$amountPaid" },
+          },
+        },
+      ]);
+
+      const hourlyMap = new Map<number, { count: number; revenue: number }>();
+      (hourlyAgg || []).forEach((item: { _id: number; count: number; revenue: number }) => {
+        hourlyMap.set(item._id, { count: item.count, revenue: item.revenue });
+      });
+
+      const hourly = [];
+      for (let h = 10; h <= 21; h++) {
+        const data = hourlyMap.get(h) || { count: 0, revenue: 0 };
+        const hLabel = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+        hourly.push({
+          hour: h,
+          label: hLabel,
+          count: data.count,
+          revenue: data.revenue,
+        });
+      }
+
+      const trafficData: TrafficAnalyticsData = {
+        preset,
+        date: dateStr,
+        label,
+        hourly,
+      };
+
+      return NextResponse.json({ success: true, data: trafficData });
+    }
+
+    // ==========================================
+    // SECTION: WEEKDAY (Busiest Days of Week)
+    // ==========================================
+    if (section === "weekday") {
+      const preset = (searchParams.get("preset") as WeekdayRangePreset) || "this_week";
+      const { startDate, endDate, label } = resolveWeekdayWindows(preset);
+
+      const weekdayAgg = await Order.aggregate([
+        {
+          $match: {
+            tenantId,
+            createdAt: { $gte: startDate, $lte: endDate },
+            status: { $nin: EXCLUDED_ORDER_STATUSES },
+          },
+        },
+        {
+          $project: {
+            amountPaid: 1,
+            dayOfWeek: { $dayOfWeek: { date: "$createdAt", timezone: "+05:30" } }, // 1=Sun, 2=Mon... 7=Sat
+          },
+        },
+        {
+          $group: {
+            _id: "$dayOfWeek",
+            count: { $sum: 1 },
+            revenue: { $sum: "$amountPaid" },
+          },
+        },
+      ]);
+
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const weekdayMap = new Map<number, { count: number; revenue: number }>();
+      (weekdayAgg || []).forEach((item: { _id: number; count: number; revenue: number }) => {
+        const dow = item._id - 1; // 0=Sun, 1=Mon...
+        weekdayMap.set(dow, { count: item.count, revenue: item.revenue });
+      });
+
+      // Display order: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+      const weekday = [1, 2, 3, 4, 5, 6, 0].map((dIndex) => {
+        const data = weekdayMap.get(dIndex) || { count: 0, revenue: 0 };
+        return {
+          day: dayNames[dIndex],
+          dayIndex: dIndex,
+          count: data.count,
+          revenue: data.revenue,
+        };
+      });
+
+      const weekdayData: WeekdayAnalyticsData = {
+        preset,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        label,
+        weekday,
+      };
+
+      return NextResponse.json({ success: true, data: weekdayData });
+    }
+
+    // ==========================================
+    // SECTION: CONSUMPTION DETAILS (Drill-Down)
+    // ==========================================
+    if (section === "consumption_details") {
+      const customStart = searchParams.get("startDate");
+      const customEnd = searchParams.get("endDate");
+      const rangeParam = (searchParams.get("range") as AnalyticsRangePreset) || "30d";
+
+      const { startDate, endDate } = resolveDateWindows(
+        rangeParam,
+        customStart,
+        customEnd
+      );
+
+      const expenses = await Expense.find({
+        tenantId,
+        expenseDate: { $gte: startDate, $lte: endDate },
+        $or: [
+          { category: "stock_transfer_internal" },
+          { paymentMode: "internal_transfer" },
+        ],
+      })
+        .populate("linkedProductId", "name category purchaseCost expectedSellPrice")
+        .sort({ expenseDate: -1 })
+        .lean();
+
+      let totalCost = 0;
+      const items: InternalConsumptionMovementItem[] = (expenses || []).map((exp: any) => {
+        const p = exp.linkedProductId;
+        const qty = exp.linkedQuantity || 1;
+        const cost = exp.amount || 0;
+        totalCost += cost;
+        const unitPrice =
+          qty > 0 ? Math.round((cost / qty) * 100) / 100 : p?.purchaseCost || 0;
+
+        let pName = p?.name;
+        if (!pName && exp.title) {
+          const match =
+            exp.title.match(/Internal consumption — \d+x (.+?) \(/) ||
+            exp.title.match(/Service usage: \d+x (.+?) \(/);
+          if (match) pName = match[1];
+          else pName = exp.title;
+        }
+
+        let reason: string | undefined;
+        if (exp.title && exp.title.includes("(") && exp.title.includes(")")) {
+          reason = exp.title.substring(
+            exp.title.indexOf("(") + 1,
+            exp.title.lastIndexOf(")")
+          );
+        }
+
+        return {
+          id: exp._id.toString(),
+          productName: pName || "Salon Consumable",
+          productId: p?._id?.toString() || exp.linkedProductId?.toString(),
+          dateTime: new Date(exp.expenseDate).toISOString(),
+          quantity: qty,
+          unitPrice,
+          totalCost: cost,
+          notes: exp.notes || undefined,
+          recordedBy: exp.recordedBy === "staff" ? "staff" : "owner",
+          reason,
+        };
+      });
+
+      const detailsData: ConsumptionDetailsData = {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        totalCost,
+        totalItems: items.length,
+        items,
+      };
+
+      return NextResponse.json({ success: true, data: detailsData });
+    }
+
+    // ==========================================
+    // SECTION: PERFORMANCE (Monthly Group)
+    // ==========================================
+    if (section === "performance") {
+      const monthlyRange =
+        (searchParams.get("monthlyRange") as MonthlyRangePreset) || "this_month";
+      const year = searchParams.get("year") ? Number(searchParams.get("year")) : null;
+      const month = searchParams.get("month") ? Number(searchParams.get("month")) : null;
+
+      const { startDate, endDate, label } = resolveMonthlyWindows(
+        monthlyRange,
+        year,
+        month
+      );
+
+      const matchOrders = {
+        tenantId,
+        createdAt: { $gte: startDate, $lte: endDate },
+        status: { $nin: EXCLUDED_ORDER_STATUSES },
+      };
+
+      const [lineItemsFacetAgg, allActiveProducts] = await Promise.all([
+        Order.aggregate([
+          { $match: matchOrders },
+          { $unwind: "$lineItems" },
+          {
+            $facet: {
+              topServices: [
+                { $match: { "lineItems.itemType": "service" } },
+                {
+                  $group: {
+                    _id: {
+                      itemId: "$lineItems.itemId",
+                      name: "$lineItems.name",
+                    },
+                    revenue: {
+                      $sum: {
+                        $multiply: [
+                          { $ifNull: ["$lineItems.unitPrice", 0] },
+                          { $ifNull: ["$lineItems.quantity", 1] },
+                        ],
+                      },
+                    },
+                    bookingsCount: {
+                      $sum: { $ifNull: ["$lineItems.quantity", 1] },
+                    },
+                  },
+                },
+                { $sort: { revenue: -1 } },
+                { $limit: 5 },
+              ],
+              topRetailProducts: [
+                { $match: { "lineItems.itemType": "product" } },
+                {
+                  $group: {
+                    _id: {
+                      itemId: "$lineItems.itemId",
+                      name: "$lineItems.name",
+                    },
+                    grossRevenue: {
+                      $sum: {
+                        $multiply: [
+                          { $ifNull: ["$lineItems.unitPrice", 0] },
+                          { $ifNull: ["$lineItems.quantity", 1] },
+                        ],
+                      },
+                    },
+                    unitsSold: {
+                      $sum: { $ifNull: ["$lineItems.quantity", 1] },
+                    },
+                  },
+                },
+                { $sort: { grossRevenue: -1 } },
+                { $limit: 5 },
+              ],
+              serviceCategories: [
+                { $match: { "lineItems.itemType": "service" } },
+                {
+                  $lookup: {
+                    from: "services",
+                    localField: "lineItems.itemId",
+                    foreignField: "_id",
+                    as: "serviceDoc",
+                  },
+                },
+                {
+                  $group: {
+                    _id: {
+                      $ifNull: [
+                        { $arrayElemAt: ["$serviceDoc.category", 0] },
+                        "General",
+                      ],
+                    },
+                    revenue: {
+                      $sum: {
+                        $multiply: [
+                          { $ifNull: ["$lineItems.unitPrice", 0] },
+                          { $ifNull: ["$lineItems.quantity", 1] },
+                        ],
+                      },
+                    },
+                    bookingsCount: {
+                      $sum: { $ifNull: ["$lineItems.quantity", 1] },
+                    },
+                  },
+                },
+                { $sort: { revenue: -1 } },
+              ],
+            },
+          },
+        ]),
+        Product.find(
+          { tenantId, isActive: true },
+          { name: 1, category: 1, sellStock: 1, purchaseCost: 1 }
+        ).lean(),
+      ]);
+
+      const topServices = (lineItemsFacetAgg[0]?.topServices || []).map(
+        (s: {
+          _id: { itemId: Types.ObjectId; name: string };
+          revenue: number;
+          bookingsCount: number;
+        }) => ({
+          id: s._id?.itemId?.toString() || "",
+          name: s._id?.name || "Service",
+          category: "Treatment",
+          revenue: s.revenue || 0,
+          bookingsCount: s.bookingsCount || 0,
+          avgPrice: s.bookingsCount > 0 ? Math.round(s.revenue / s.bookingsCount) : 0,
+        })
+      );
+
+      const soldProductIds = new Set<string>();
+      const topRetailProducts = (lineItemsFacetAgg[0]?.topRetailProducts || []).map(
+        (p: {
+          _id: { itemId: Types.ObjectId; name: string };
+          grossRevenue: number;
+          unitsSold: number;
+        }) => {
+          const prodId = p._id?.itemId?.toString() || "";
+          soldProductIds.add(prodId);
+          const matchingProduct = (allActiveProducts || []).find(
+            (ap: any) => ap._id.toString() === prodId
+          );
+          return {
+            id: prodId,
+            name: p._id?.name || "Product",
+            category: matchingProduct?.category || "Retail",
+            unitsSold: p.unitsSold || 0,
+            grossRevenue: p.grossRevenue || 0,
+            currentStock: matchingProduct?.sellStock || 0,
+          };
+        }
+      );
+
+      const rawCategories = lineItemsFacetAgg[0]?.serviceCategories || [];
+      const totalCatRevenue =
+        rawCategories.reduce((sum: number, c: any) => sum + (c.revenue || 0), 0) || 1;
+      const categoryContribution = rawCategories.map((c: any) => ({
+        category: c._id || "General",
+        revenue: c.revenue || 0,
+        percent: Math.round(((c.revenue || 0) / totalCatRevenue) * 100),
+        bookingsCount: c.bookingsCount || 0,
+      }));
+
+      // Slow Moving & Dead Stock Warning (products with sellStock > 0 and 0 retail sales in this window)
+      const slowMovingStock = (allActiveProducts || [])
+        .filter(
+          (p: any) =>
+            p.sellStock > 0 &&
+            !soldProductIds.has(p._id.toString()) &&
+            p.purchaseCost > 0
+        )
+        .map((p: any) => ({
+          id: p._id.toString(),
+          name: p.name,
+          category: p.category || "General",
+          sellStock: p.sellStock || 0,
+          purchaseCost: p.purchaseCost || 0,
+          lockedCapital: (p.sellStock || 0) * (p.purchaseCost || 0),
+        }))
+        .sort((a: any, b: any) => b.lockedCapital - a.lockedCapital)
+        .slice(0, 5);
+
+      const performanceData: PerformanceAnalyticsData = {
+        monthlyRange,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        label,
+        services: {
+          topServices,
+          categoryContribution,
+        },
+        inventory: {
+          topRetailProducts,
+          slowMovingStock,
+        },
+      };
+
+      return NextResponse.json({ success: true, data: performanceData });
+    }
+
+    // ==========================================
+    // SECTION: MAIN (Executive KPIs, Procurement, Cashflow, Retention)
+    // ==========================================
+    const rangeParam = (searchParams.get("range") as AnalyticsRangePreset) || "30d";
+    const customStart = searchParams.get("customStart");
+    const customEnd = searchParams.get("customEnd");
 
     const { startDate, endDate, previousStartDate, previousEndDate } =
       resolveDateWindows(rangeParam, customStart, customEnd);
 
-    // 1. Rollup Service: Fetch or Backfill pre-calculated daily rollups for the full window
-    // (covers both current range and previous comparison window in one cached operation)
-    const allRollups = await ensureDailyRollupsForRange(
-      tenantId,
-      previousStartDate,
-      endDate
-    );
+    // 1. Ensure daily rollups exist for current range
+    await ensureDailyRollupsForRange(tenantId, startDate, endDate);
 
-    // Filter into current and previous window rollups
-    const currentRollups = allRollups.filter(
-      (r) => r.startDate >= startDate && r.startDate <= endDate
+    const { AnalyticsRollup } = await import(
+      "@/lib/db/models/analytics-rollup.model"
     );
-    const previousRollups = allRollups.filter(
-      (r) => r.startDate >= previousStartDate && r.startDate <= previousEndDate
-    );
-
-    // 2. Query remaining detailed facets in parallel (top services, heatmap, catalog, procurement)
-    const matchCurrentOrders = {
-      tenantId,
-      createdAt: { $gte: startDate, $lte: endDate },
-      status: {
-        $nin: [
-          "cancelled_refunded",
-          "cancelled_converted",
-          "replacement_pending",
-          "replacement",
-          "replacement_completed",
-        ],
-      },
-    };
 
     const [
-      lineItemsFacetAgg,
-      hourlyDayDistributionAgg,
-      todayHourlyRevenueAgg,
-      todayHourlyExpenseAgg,
-      allActiveProducts,
+      currentRollups,
+      previousRollups,
+      uncollectedDuesAgg,
       procurementAgg,
       supplierBalancesAgg,
       vipClientsAgg,
       dormantClientsCount,
       internalConsumptionAgg,
       clientsServedAgg,
+      lineItemsUnitsAgg,
+      tenderCountsAgg,
     ] = await Promise.all([
-      // Top 5 Services & Top 5 Retail Products sold
-      Order.aggregate([
-        { $match: matchCurrentOrders },
-        { $unwind: "$lineItems" },
-        {
-          $facet: {
-            topServices: [
-              { $match: { "lineItems.itemType": "service" } },
-              {
-                $group: {
-                  _id: {
-                    itemId: "$lineItems.itemId",
-                    name: "$lineItems.name",
-                  },
-                  revenue: {
-                    $sum: {
-                      $multiply: [
-                        { $ifNull: ["$lineItems.unitPrice", 0] },
-                        { $ifNull: ["$lineItems.quantity", 1] },
-                      ],
-                    },
-                  },
-                  bookingsCount: {
-                    $sum: { $ifNull: ["$lineItems.quantity", 1] },
-                  },
-                },
-              },
-              { $sort: { revenue: -1 } },
-              { $limit: 5 },
-            ],
-            topRetailProducts: [
-              { $match: { "lineItems.itemType": "product" } },
-              {
-                $group: {
-                  _id: {
-                    itemId: "$lineItems.itemId",
-                    name: "$lineItems.name",
-                  },
-                  grossRevenue: {
-                    $sum: {
-                      $multiply: [
-                        { $ifNull: ["$lineItems.unitPrice", 0] },
-                        { $ifNull: ["$lineItems.quantity", 1] },
-                      ],
-                    },
-                  },
-                  unitsSold: {
-                    $sum: { $ifNull: ["$lineItems.quantity", 1] },
-                  },
-                },
-              },
-              { $sort: { grossRevenue: -1 } },
-              { $limit: 5 },
-            ],
-            serviceCategories: [
-              { $match: { "lineItems.itemType": "service" } },
-              {
-                $lookup: {
-                  from: "services",
-                  localField: "lineItems.itemId",
-                  foreignField: "_id",
-                  as: "serviceDoc",
-                },
-              },
-              {
-                $group: {
-                  _id: {
-                    $ifNull: [
-                      { $arrayElemAt: ["$serviceDoc.category", 0] },
-                      "General",
-                    ],
-                  },
-                  revenue: {
-                    $sum: {
-                      $multiply: [
-                        { $ifNull: ["$lineItems.unitPrice", 0] },
-                        { $ifNull: ["$lineItems.quantity", 1] },
-                      ],
-                    },
-                  },
-                  bookingsCount: {
-                    $sum: { $ifNull: ["$lineItems.quantity", 1] },
-                  },
-                },
-              },
-              { $sort: { revenue: -1 } },
-            ],
-            serviceTotalUnits: [
-              { $match: { "lineItems.itemType": "service" } },
-              {
-                $group: {
-                  _id: null,
-                  count: {
-                    $sum: {
-                      $max: [
-                        0,
-                        {
-                          $subtract: [
-                            { $ifNull: ["$lineItems.quantity", 1] },
-                            {
-                              $add: [
-                                { $ifNull: ["$lineItems.returnedQuantity", 0] },
-                                { $ifNull: ["$lineItems.replacedQuantity", 0] },
-                              ],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-            productTotalUnits: [
-              { $match: { "lineItems.itemType": "product" } },
-              {
-                $group: {
-                  _id: null,
-                  count: {
-                    $sum: {
-                      $max: [
-                        0,
-                        {
-                          $subtract: [
-                            { $ifNull: ["$lineItems.quantity", 1] },
-                            {
-                              $add: [
-                                { $ifNull: ["$lineItems.returnedQuantity", 0] },
-                                { $ifNull: ["$lineItems.replacedQuantity", 0] },
-                              ],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-            packageTotalUnits: [
-              { $match: { "lineItems.itemType": "package" } },
-              {
-                $group: {
-                  _id: null,
-                  count: {
-                    $sum: {
-                      $max: [
-                        0,
-                        {
-                          $subtract: [
-                            { $ifNull: ["$lineItems.quantity", 1] },
-                            {
-                              $add: [
-                                { $ifNull: ["$lineItems.returnedQuantity", 0] },
-                                { $ifNull: ["$lineItems.replacedQuantity", 0] },
-                              ],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
+      AnalyticsRollup.find({
+        tenantId,
+        periodType: "daily",
+        startDate: { $gte: startDate, $lte: endDate },
+      })
+        .sort({ startDate: 1 })
+        .lean(),
+
+      AnalyticsRollup.find({
+        tenantId,
+        periodType: "daily",
+        startDate: { $gte: previousStartDate, $lte: previousEndDate },
+      })
+        .sort({ startDate: 1 })
+        .lean(),
+
+      Customer.aggregate([
+        { $match: { tenantId, totalDue: { $gt: 0 } } },
+        { $group: { _id: null, totalDue: { $sum: "$totalDue" } } },
       ]),
 
-      // Peak Hour & Day of Week Heatmap (IST timezone)
-      Order.aggregate([
-        { $match: matchCurrentOrders },
-        {
-          $project: {
-            amountPaid: 1,
-            hour: {
-              $hour: { date: "$createdAt", timezone: "+05:30" },
-            },
-            dayOfWeek: {
-              $dayOfWeek: { date: "$createdAt", timezone: "+05:30" },
-            },
-          },
-        },
-        {
-          $group: {
-            _id: {
-              hour: "$hour",
-              dayOfWeek: "$dayOfWeek",
-            },
-            count: { $sum: 1 },
-            revenue: { $sum: "$amountPaid" },
-          },
-        },
-      ]),
-
-      // If "today" range, get hourly trend for today's chart curve
-      rangeParam === "today"
-        ? Order.aggregate([
-            { $match: matchCurrentOrders },
-            {
-              $group: {
-                _id: {
-                  $dateToString: {
-                    format: "%H:00",
-                    date: "$createdAt",
-                    timezone: "+05:30",
-                  },
-                },
-                revenue: { $sum: "$amountPaid" },
-              },
-            },
-          ])
-        : Promise.resolve([]),
-
-      // If "today" range, get hourly expenses for today's chart curve
-      rangeParam === "today"
-        ? Expense.aggregate([
-            {
-              $match: {
-                tenantId,
-                expenseDate: { $gte: startDate, $lte: endDate },
-                category: { $ne: "stock_transfer_internal" },
-                isSameDay: { $ne: true },
-              },
-            },
-            {
-              $group: {
-                _id: {
-                  $dateToString: {
-                    format: "%H:00",
-                    date: "$expenseDate",
-                    timezone: "+05:30",
-                  },
-                },
-                expense: { $sum: "$amount" },
-              },
-            },
-          ])
-        : Promise.resolve([]),
-
-      // Active product catalog for margin & slow-moving stock
-      Product.find(
-        { tenantId, isActive: true },
-        { name: 1, category: 1, expectedSellPrice: 1, purchaseCost: 1, sellStock: 1 }
-      ).lean(),
-
-      // Procurement Spend in window: match either createdAt or invoiceDate
       PurchaseOrder.aggregate([
         {
           $match: {
@@ -494,7 +807,6 @@ export async function GET(request: Request) {
         },
       ]),
 
-      // Supplier balances
       Supplier.aggregate([
         { $match: { tenantId } },
         {
@@ -510,7 +822,6 @@ export async function GET(request: Request) {
         },
       ]),
 
-      // Top VIP Clients
       Customer.find(
         { tenantId, isActive: true },
         { name: 1, phone: 1, stats: 1 }
@@ -519,7 +830,6 @@ export async function GET(request: Request) {
         .limit(5)
         .lean(),
 
-      // Dormant / At-Risk Clients (2+ visits, not visited in 45+ days)
       Customer.countDocuments({
         tenantId,
         isActive: true,
@@ -529,7 +839,6 @@ export async function GET(request: Request) {
         },
       }),
 
-      // Internal Salon Consumption Cost & Movements in date window
       Expense.aggregate([
         {
           $match: {
@@ -550,9 +859,14 @@ export async function GET(request: Request) {
         },
       ]),
 
-      // Unique Clients Served in window and their retention status
       Order.aggregate([
-        { $match: matchCurrentOrders },
+        {
+          $match: {
+            tenantId,
+            createdAt: { $gte: startDate, $lte: endDate },
+            status: { $nin: EXCLUDED_ORDER_STATUSES },
+          },
+        },
         {
           $facet: {
             registeredClients: [
@@ -560,35 +874,21 @@ export async function GET(request: Request) {
               {
                 $group: {
                   _id: "$customerId",
-                  orderCount: { $sum: 1 },
+                  firstOrderInWindow: { $min: "$createdAt" },
                 },
               },
-              // ponytail: Checks for prior completed orders before window startDate via a single limit(1) lookup. Upgrade path: indexed customer.firstOrderAt field if order history exceeds millions.
               {
                 $lookup: {
                   from: "orders",
-                  let: { cId: "$_id" },
+                  let: { custId: "$_id", firstWinDate: "$firstOrderInWindow" },
                   pipeline: [
                     {
                       $match: {
                         $expr: {
                           $and: [
-                            { $eq: ["$customerId", "$$cId"] },
-                            { $lt: ["$createdAt", startDate] },
-                            {
-                              $not: {
-                                $in: [
-                                  "$status",
-                                  [
-                                    "cancelled_refunded",
-                                    "cancelled_converted",
-                                    "replacement_pending",
-                                    "replacement",
-                                    "replacement_completed",
-                                  ],
-                                ],
-                              },
-                            },
+                            { $eq: ["$customerId", "$$custId"] },
+                            { $lt: ["$createdAt", "$$firstWinDate"] },
+                            { $not: { $in: ["$status", EXCLUDED_ORDER_STATUSES] } },
                           ],
                         },
                       },
@@ -600,63 +900,207 @@ export async function GET(request: Request) {
               },
               {
                 $project: {
-                  customerId: "$_id",
+                  _id: 1,
                   hasPriorOrders: { $gt: [{ $size: "$priorOrders" }, 0] },
                 },
               },
             ],
             guestOrders: [
               { $match: { customerId: null } },
-              { $count: "count" },
+              { $group: { _id: null, count: { $sum: 1 } } },
             ],
+          },
+        },
+      ]),
+
+      Order.aggregate([
+        {
+          $match: {
+            tenantId,
+            createdAt: { $gte: startDate, $lte: endDate },
+            status: { $nin: EXCLUDED_ORDER_STATUSES },
+          },
+        },
+        { $unwind: "$lineItems" },
+        {
+          $group: {
+            _id: "$lineItems.itemType",
+            totalUnits: {
+              $sum: {
+                $max: [
+                  0,
+                  {
+                    $subtract: [
+                      { $ifNull: ["$lineItems.quantity", 1] },
+                      {
+                        $add: [
+                          { $ifNull: ["$lineItems.returnedQuantity", 0] },
+                          { $ifNull: ["$lineItems.replacedQuantity", 0] },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ]),
+
+      Order.aggregate([
+        {
+          $match: {
+            tenantId,
+            $or: [
+              { createdAt: { $gte: startDate, $lte: endDate } },
+              { "payments.recordedAt": { $gte: startDate, $lte: endDate } },
+            ],
+            status: { $nin: EXCLUDED_ORDER_STATUSES },
+          },
+        },
+        {
+          $project: {
+            paymentMode: 1,
+            amountPaid: 1,
+            createdAt: 1,
+            payments: {
+              $filter: {
+                input: { $ifNull: ["$payments", []] },
+                as: "p",
+                cond: {
+                  $and: [
+                    { $gte: ["$$p.recordedAt", startDate] },
+                    { $lte: ["$$p.recordedAt", endDate] },
+                    { $gt: ["$$p.amount", 0] },
+                    { $ne: ["$$p.type", "refund"] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            effectivePayments: {
+              $cond: [
+                { $gt: [{ $size: "$payments" }, 0] },
+                "$payments",
+                {
+                  $cond: [
+                    {
+                      $and: [
+                        { $gte: ["$createdAt", startDate] },
+                        { $lte: ["$createdAt", endDate] },
+                        { $gt: ["$amountPaid", 0] },
+                      ],
+                    },
+                    [{ mode: { $ifNull: ["$paymentMode", "cash"] }, amount: "$amountPaid" }],
+                    [],
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        { $unwind: "$effectivePayments" },
+        {
+          $group: {
+            _id: { $toLower: "$effectivePayments.mode" },
+            count: { $sum: 1 },
           },
         },
       ]),
     ]);
 
-    // 3. Compute Executive Metrics from Rollup Summaries
-    const currentRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.total || 0), 0);
-    const prevRev = previousRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.total || 0), 0);
+    // Aggregate Executive Totals
+    const currentRev = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.revenue?.total || 0),
+      0
+    );
+    const prevRev = previousRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.revenue?.total || 0),
+      0
+    );
 
-    const currentExp = currentRollups.reduce((acc, r) => acc + (r.metrics?.expenses?.total || 0), 0);
-    const prevExp = previousRollups.reduce((acc, r) => acc + (r.metrics?.expenses?.total || 0), 0);
+    const currentExp = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.expenses?.total || 0),
+      0
+    );
+    const prevExp = previousRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.expenses?.total || 0),
+      0
+    );
 
     const currentProfit = currentRev - currentExp;
     const prevProfit = prevRev - prevExp;
 
-    const currentMarginPct = currentRev > 0 ? Math.round((currentProfit / currentRev) * 1000) / 10 : 0;
-    const prevMarginPct = prevRev > 0 ? Math.round((prevProfit / prevRev) * 1000) / 10 : 0;
+    const currentMarginPct =
+      currentRev > 0 ? Math.round((currentProfit / currentRev) * 1000) / 10 : 0;
+    const prevMarginPct =
+      prevRev > 0 ? Math.round((prevProfit / prevRev) * 1000) / 10 : 0;
 
-    const currentOrdersCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.totalOrders || 0), 0);
-    const prevOrdersCount = previousRollups.reduce((acc, r) => acc + (r.metrics?.totalOrders || 0), 0);
+    const currentOrdersCount = currentRollups.reduce(
+      (acc: number, r: any) =>
+        acc + (r.metrics?.totalOrders ?? r.metrics?.completedOrders ?? 0),
+      0
+    );
+    const prevOrdersCount = previousRollups.reduce(
+      (acc: number, r: any) =>
+        acc + (r.metrics?.totalOrders ?? r.metrics?.completedOrders ?? 0),
+      0
+    );
 
-    const currentCompletedCount = currentRollups.reduce((acc, r) => acc + (r.metrics?.completedOrders || 0), 0);
-    const prevCompletedCount = previousRollups.reduce((acc, r) => acc + (r.metrics?.completedOrders || 0), 0);
+    const currentAtv =
+      currentOrdersCount > 0 ? Math.round(currentRev / currentOrdersCount) : 0;
+    const prevAtv = prevOrdersCount > 0 ? Math.round(prevRev / prevOrdersCount) : 0;
 
-    const currentAtv = currentCompletedCount > 0 ? Math.round(currentRev / currentCompletedCount) : 0;
-    const prevAtv = prevCompletedCount > 0 ? Math.round(prevRev / prevCompletedCount) : 0;
+    const uncollectedDues = uncollectedDuesAgg[0]?.totalDue || 0;
 
-    const latestRollup = currentRollups[currentRollups.length - 1];
-    const uncollectedDues = latestRollup?.metrics?.uncollectedDues || 0;
-
-    // 4. Cashflow Timeline
-    const timeline: AnalyticsResponseData["cashflow"]["timeline"] = [];
+    // Cashflow Timeline
+    const timeline = [];
     if (rangeParam === "today") {
-      const todayHourlyMap = new Map<string, number>();
-      (todayHourlyRevenueAgg || []).forEach((item: { _id: string; revenue: number }) => {
-        todayHourlyMap.set(item._id, item.revenue || 0);
-      });
+      const [todayHourlyRev, todayHourlyExp] = await Promise.all([
+        Order.aggregate([
+          {
+            $match: {
+              tenantId,
+              createdAt: { $gte: startDate, $lte: endDate },
+              status: { $nin: EXCLUDED_ORDER_STATUSES },
+            },
+          },
+          {
+            $group: {
+              _id: { $hour: { date: "$createdAt", timezone: "+05:30" } },
+              revenue: { $sum: "$amountPaid" },
+            },
+          },
+        ]),
+        Expense.aggregate([
+          {
+            $match: {
+              tenantId,
+              expenseDate: { $gte: startDate, $lte: endDate },
+            },
+          },
+          {
+            $group: {
+              _id: { $hour: { date: "$expenseDate", timezone: "+05:30" } },
+              expense: { $sum: "$amount" },
+            },
+          },
+        ]),
+      ]);
 
-      const todayHourlyExpMap = new Map<string, number>();
-      (todayHourlyExpenseAgg || []).forEach((item: { _id: string; expense: number }) => {
-        todayHourlyExpMap.set(item._id, item.expense || 0);
-      });
+      const revByHour = new Map<number, number>();
+      todayHourlyRev.forEach((item: any) => revByHour.set(item._id, item.revenue));
+      const expByHour = new Map<number, number>();
+      todayHourlyExp.forEach((item: any) => expByHour.set(item._id, item.expense));
 
-      for (let h = 9; h <= 21; h++) {
-        const hourStr = `${h.toString().padStart(2, "0")}:00`;
+      for (let h = 10; h <= 21; h++) {
+        const rev = revByHour.get(h) || 0;
+        const exp = expByHour.get(h) || 0;
+        const hourStr = `${h}:00`;
         const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
-        const rev = todayHourlyMap.get(hourStr) || 0;
-        const exp = todayHourlyExpMap.get(hourStr) || 0;
         timeline.push({
           date: hourStr,
           label,
@@ -666,7 +1110,7 @@ export async function GET(request: Request) {
         });
       }
     } else {
-      currentRollups.forEach((r) => {
+      currentRollups.forEach((r: any) => {
         const rev = r.metrics?.revenue?.total || 0;
         const exp = r.metrics?.expenses?.total || 0;
         timeline.push({
@@ -679,234 +1123,122 @@ export async function GET(request: Request) {
       });
     }
 
-    // 5. Revenue Mix from Rollup Summaries & Facet Unit Counts
-    const totalServiceRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.service || 0), 0);
-    const totalProductRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.product || 0), 0);
-    const totalPackageRev = currentRollups.reduce((acc, r) => acc + (r.metrics?.revenue?.package || 0), 0);
+    // Revenue Mix
+    const totalServiceRev = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.revenue?.service || 0),
+      0
+    );
+    const totalProductRev = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.revenue?.product || 0),
+      0
+    );
+    const totalPackageRev = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.revenue?.package || 0),
+      0
+    );
     const totalMixRevenue = totalServiceRev + totalProductRev + totalPackageRev || currentRev;
 
-    const totalServiceUnits = lineItemsFacetAgg[0]?.serviceTotalUnits[0]?.count ?? 0;
-    const totalProductUnits = lineItemsFacetAgg[0]?.productTotalUnits[0]?.count ?? 0;
-    const totalPackageUnits = lineItemsFacetAgg[0]?.packageTotalUnits[0]?.count ?? 0;
+    let serviceUnits = 0;
+    let productUnits = 0;
+    let packageUnits = 0;
+    (lineItemsUnitsAgg || []).forEach((item: any) => {
+      if (item._id === "service") serviceUnits = item.totalUnits;
+      else if (item._id === "product") productUnits = item.totalUnits;
+      else if (item._id === "package") packageUnits = item.totalUnits;
+    });
 
-    const revenueMix: AnalyticsResponseData["cashflow"]["revenueMix"] = {
+    const revenueMix = {
       services: {
         amount: totalServiceRev,
-        percent: totalMixRevenue > 0 ? Math.round((totalServiceRev / totalMixRevenue) * 100) : 0,
-        count: totalServiceUnits,
+        percent:
+          totalMixRevenue > 0
+            ? Math.round((totalServiceRev / totalMixRevenue) * 100)
+            : 0,
+        count: serviceUnits,
       },
       products: {
         amount: totalProductRev,
-        percent: totalMixRevenue > 0 ? Math.round((totalProductRev / totalMixRevenue) * 100) : 0,
-        count: totalProductUnits,
+        percent:
+          totalMixRevenue > 0
+            ? Math.round((totalProductRev / totalMixRevenue) * 100)
+            : 0,
+        count: productUnits,
       },
       packages: {
         amount: totalPackageRev,
-        percent: totalMixRevenue > 0 ? Math.round((totalPackageRev / totalMixRevenue) * 100) : 0,
-        count: totalPackageUnits,
+        percent:
+          totalMixRevenue > 0
+            ? Math.round((totalPackageRev / totalMixRevenue) * 100)
+            : 0,
+        count: packageUnits,
       },
       total: totalMixRevenue,
     };
 
-    // 6. Tender Split from Rollup Summaries
-    const cashTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.cash || 0), 0);
-    const upiTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.upi || 0), 0);
-    const cardTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.card || 0), 0);
-    const splitTotal = currentRollups.reduce((acc, r) => acc + (r.metrics?.paymentModes?.split || 0), 0);
+    // Tender Split
+    const cashTotal = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.paymentModes?.cash || 0),
+      0
+    );
+    const upiTotal = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.paymentModes?.upi || 0),
+      0
+    );
+    const cardTotal = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.paymentModes?.card || 0),
+      0
+    );
+    const splitTotal = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.paymentModes?.split || 0),
+      0
+    );
     const totalTender = cashTotal + upiTotal + cardTotal + splitTotal || currentRev;
 
-    const tenderSplit: AnalyticsResponseData["cashflow"]["tenderSplit"] = [
+    const tenderCounts: Record<string, number> = {};
+    (tenderCountsAgg || []).forEach((item: any) => {
+      if (item._id) tenderCounts[String(item._id).toLowerCase()] = item.count || 0;
+    });
+
+    const tenderSplit: TenderSplitItem[] = [
       {
         mode: "upi",
         label: "UPI / QR",
         amount: upiTotal,
         percent: totalTender > 0 ? Math.round((upiTotal / totalTender) * 100) : 0,
-        count: 0,
+        count: tenderCounts["upi"] || 0,
       },
       {
-        mode: "cash",
+        mode: "cash" as const,
         label: "Cash",
         amount: cashTotal,
         percent: totalTender > 0 ? Math.round((cashTotal / totalTender) * 100) : 0,
-        count: 0,
+        count: tenderCounts["cash"] || 0,
       },
       {
-        mode: "card",
+        mode: "card" as const,
         label: "Card / POS",
         amount: cardTotal,
         percent: totalTender > 0 ? Math.round((cardTotal / totalTender) * 100) : 0,
-        count: 0,
+        count: tenderCounts["card"] || 0,
       },
     ];
-    if (splitTotal > 0) {
+    if (splitTotal > 0 || (tenderCounts["split"] && tenderCounts["split"] > 0)) {
       tenderSplit.push({
-        mode: "split",
+        mode: "split" as const,
         label: "Split / Other",
         amount: splitTotal,
         percent: totalTender > 0 ? Math.round((splitTotal / totalTender) * 100) : 0,
-        count: 0,
+        count: tenderCounts["split"] || 0,
       });
     }
 
-    // 7. Top Services & Top Products
-    const topServices: AnalyticsResponseData["services"]["topServices"] = (
-      lineItemsFacetAgg[0]?.topServices || []
-    ).map(
-      (s: {
-        _id: { itemId: Types.ObjectId; name: string };
-        revenue: number;
-        bookingsCount: number;
-      }) => ({
-        id: s._id?.itemId?.toString() || "",
-        name: s._id?.name || "Service",
-        category: "Treatment",
-        revenue: s.revenue || 0,
-        bookingsCount: s.bookingsCount || 0,
-        avgPrice: s.bookingsCount > 0 ? Math.round(s.revenue / s.bookingsCount) : 0,
-      })
-    );
-
-    const soldProductIds = new Set<string>();
-    const topRetailProducts: AnalyticsResponseData["inventory"]["topRetailProducts"] = (
-      lineItemsFacetAgg[0]?.topRetailProducts || []
-    ).map(
-      (p: {
-        _id: { itemId: Types.ObjectId; name: string };
-        grossRevenue: number;
-        unitsSold: number;
-      }) => {
-        const prodId = p._id?.itemId?.toString() || "";
-        soldProductIds.add(prodId);
-        const matchingProduct = (allActiveProducts || []).find(
-          (ap: any) => ap._id.toString() === prodId
-        );
-        return {
-          id: prodId,
-          name: p._id?.name || "Product",
-          category: matchingProduct?.category || "Retail",
-          unitsSold: p.unitsSold || 0,
-          grossRevenue: p.grossRevenue || 0,
-          currentStock: matchingProduct?.sellStock || 0,
-        };
-      }
-    );
-
-    // 8. Category Contribution from actual data
-    const rawCategories = lineItemsFacetAgg[0]?.serviceCategories || [];
-    const totalCatRevenue =
-      rawCategories.reduce((sum: number, c: any) => sum + (c.revenue || 0), 0) ||
-      totalServiceRev ||
-      1;
-    const categoryContribution: AnalyticsResponseData["services"]["categoryContribution"] =
-      rawCategories.map((c: any) => ({
-        category: c._id || "General",
-        revenue: c.revenue || 0,
-        percent: Math.round(((c.revenue || 0) / totalCatRevenue) * 100),
-        bookingsCount: c.bookingsCount || 0,
-      }));
-
-    // 9. Heatmap: Hourly & Weekday
-    const hourlyMap = new Map<number, { count: number; revenue: number }>();
-    (hourlyDayDistributionAgg || []).forEach(
-      (item: { _id: { hour: number; dayOfWeek: number }; count: number; revenue: number }) => {
-        const h = item._id.hour;
-        const cur = hourlyMap.get(h) || { count: 0, revenue: 0 };
-        hourlyMap.set(h, {
-          count: cur.count + item.count,
-          revenue: cur.revenue + item.revenue,
-        });
-      }
-    );
-
-    const hourlyDistribution: AnalyticsResponseData["services"]["hourlyDistribution"] = [];
-    for (let h = 10; h <= 21; h++) {
-      const data = hourlyMap.get(h) || { count: 0, revenue: 0 };
-      const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
-      hourlyDistribution.push({
-        hour: h,
-        label,
-        count: data.count,
-        revenue: data.revenue,
-      });
-    }
-
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weekdayMap = new Map<number, { count: number; revenue: number }>();
-    (hourlyDayDistributionAgg || []).forEach(
-      (item: { _id: { hour: number; dayOfWeek: number }; count: number; revenue: number }) => {
-        const dow = item._id.dayOfWeek - 1;
-        const cur = weekdayMap.get(dow) || { count: 0, revenue: 0 };
-        weekdayMap.set(dow, {
-          count: cur.count + item.count,
-          revenue: cur.revenue + item.revenue,
-        });
-      }
-    );
-
-    const weekdayDistribution: AnalyticsResponseData["services"]["weekdayDistribution"] = [
-      1, 2, 3, 4, 5, 6, 0,
-    ].map((dIndex) => {
-      const data = weekdayMap.get(dIndex) || { count: 0, revenue: 0 };
-      return {
-        day: dayNames[dIndex],
-        dayIndex: dIndex,
-        count: data.count,
-        revenue: data.revenue,
-      };
-    });
-
-    // 10. High Margin Products & Slow Moving Stock
-    const highestMarginProducts: AnalyticsResponseData["inventory"]["highestMarginProducts"] = (
-      allActiveProducts || []
-    )
-      .map((p: any) => {
-        const sellPrice = p.expectedSellPrice || 0;
-        const cost = p.purchaseCost || 0;
-        const marginRupees = sellPrice - cost;
-        const marginPercent = sellPrice > 0 ? Math.round((marginRupees / sellPrice) * 100) : 0;
-        return {
-          id: p._id.toString(),
-          name: p.name,
-          category: p.category || "General",
-          sellPrice,
-          purchaseCost: cost,
-          marginRupees,
-          marginPercent,
-          sellStock: p.sellStock || 0,
-        };
-      })
-      .filter((p: any) => p.marginRupees > 0 && p.sellStock > 0)
-      .sort((a: any, b: any) => b.marginPercent - a.marginPercent)
-      .slice(0, 5);
-
-    const slowMovingStock: AnalyticsResponseData["inventory"]["slowMovingStock"] = (
-      allActiveProducts || []
-    )
-      .filter(
-        (p: any) =>
-          p.sellStock > 0 &&
-          !soldProductIds.has(p._id.toString()) &&
-          p.purchaseCost > 0
-      )
-      .map((p: any) => ({
-        id: p._id.toString(),
-        name: p.name,
-        category: p.category || "General",
-        sellStock: p.sellStock || 0,
-        purchaseCost: p.purchaseCost || 0,
-        lockedCapital: (p.sellStock || 0) * (p.purchaseCost || 0),
-      }))
-      .sort((a: any, b: any) => b.lockedCapital - a.lockedCapital)
-      .slice(0, 5);
-
-    // 11. Client Retention: Evaluated from clients actually served in this window
+    // Client Retention
     const clientRetentionFacet = (clientsServedAgg as any)?.[0] || {};
     const registeredList = clientRetentionFacet.registeredClients || [];
     const guestCount = clientRetentionFacet.guestOrders?.[0]?.count || 0;
 
     let returningClientsCount = 0;
     let newClientsCount = guestCount;
-
     for (const c of registeredList) {
       if (c.hasPriorOrders) {
         returningClientsCount++;
@@ -914,17 +1246,13 @@ export async function GET(request: Request) {
         newClientsCount++;
       }
     }
-
     const totalClientsServed = newClientsCount + returningClientsCount;
     const repeatRatePercent =
       totalClientsServed > 0
         ? Math.round((returningClientsCount / totalClientsServed) * 100)
         : 0;
 
-    // 12. VIP Clients
-    const vipClients: AnalyticsResponseData["clients"]["vipClients"] = (
-      vipClientsAgg || []
-    ).map((c: any) => ({
+    const vipClients = (vipClientsAgg || []).map((c: any) => ({
       id: c._id.toString(),
       name: c.name,
       phone: c.phone || "",
@@ -936,51 +1264,93 @@ export async function GET(request: Request) {
         : undefined,
     }));
 
-    // 13. Procurement & Internal Consumables
-    const internalStockCost = currentRollups.reduce(
-      (acc, r) => acc + (r.metrics?.expenses?.internalStockConsumables || 0),
-      0
-    );
-
+    // Procurement Balances
     const poSpend = procurementAgg[0]?.totalSpend || 0;
     const poCount = procurementAgg[0]?.count || 0;
     const pendingDealerDues = supplierBalancesAgg[0]?.pendingDues || 0;
     const supplierCredits = Math.abs(supplierBalancesAgg[0]?.credits || 0);
 
+    const procurement = {
+      totalPOSpend: poSpend,
+      purchaseOrdersCount: poCount,
+      totalPendingDealerDues: pendingDealerDues,
+      totalSupplierCredits: supplierCredits,
+      netDealerBalance: pendingDealerDues - supplierCredits,
+    };
+
+    const internalStockCost = currentRollups.reduce(
+      (acc: number, r: any) => acc + (r.metrics?.expenses?.internalStockConsumables || 0),
+      0
+    );
+
+    const internalConsumption = {
+      totalCost: internalConsumptionAgg[0]?.totalCost || internalStockCost || 0,
+      transfersCount: internalConsumptionAgg[0]?.transfersCount || 0,
+    };
+
+    const executive = {
+      netRevenue: calculateMetricDelta(currentRev, prevRev),
+      totalExpenses: calculateMetricDelta(currentExp, prevExp),
+      netProfit: calculateMetricDelta(currentProfit, prevProfit),
+      profitMarginPercent: calculateMetricDelta(currentMarginPct, prevMarginPct),
+      averageTicketValue: calculateMetricDelta(currentAtv, prevAtv),
+      totalFootfall: calculateMetricDelta(currentOrdersCount, prevOrdersCount),
+      uncollectedDues,
+    };
+
+    if (section === "main") {
+      const mainData: MainAnalyticsData = {
+        range: rangeParam,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        previousStartDate: previousStartDate.toISOString(),
+        previousEndDate: previousEndDate.toISOString(),
+        executive,
+        procurement,
+        cashflow: {
+          timeline,
+          revenueMix,
+          tenderSplit,
+        },
+        internalConsumption,
+        clients: {
+          retention: {
+            newClientsCount,
+            returningClientsCount,
+            totalClientsServed,
+            repeatRatePercent,
+            dormantClientsCount: dormantClientsCount || 0,
+          },
+          vipClients,
+        },
+      };
+
+      return NextResponse.json({ success: true, data: mainData });
+    }
+
+    // Default: Return all (for backward-compatibility, omitting highestMarginProducts)
     const responsePayload: AnalyticsResponseData = {
       range: rangeParam,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       previousStartDate: previousStartDate.toISOString(),
       previousEndDate: previousEndDate.toISOString(),
-      executive: {
-        netRevenue: calculateMetricDelta(currentRev, prevRev),
-        totalExpenses: calculateMetricDelta(currentExp, prevExp),
-        netProfit: calculateMetricDelta(currentProfit, prevProfit),
-        profitMarginPercent: calculateMetricDelta(currentMarginPct, prevMarginPct),
-        averageTicketValue: calculateMetricDelta(currentAtv, prevAtv),
-        totalFootfall: calculateMetricDelta(currentOrdersCount, prevOrdersCount),
-        uncollectedDues,
-      },
+      executive,
       cashflow: {
         timeline,
         revenueMix,
         tenderSplit,
       },
       services: {
-        topServices,
-        categoryContribution,
-        hourlyDistribution,
-        weekdayDistribution,
+        topServices: [],
+        categoryContribution: [],
+        hourlyDistribution: [],
+        weekdayDistribution: [],
       },
       inventory: {
-        topRetailProducts,
-        highestMarginProducts,
-        internalConsumption: {
-          totalCost: internalConsumptionAgg[0]?.totalCost || internalStockCost || 0,
-          transfersCount: internalConsumptionAgg[0]?.transfersCount || 0,
-        },
-        slowMovingStock,
+        topRetailProducts: [],
+        internalConsumption,
+        slowMovingStock: [],
       },
       clients: {
         retention: {
@@ -992,19 +1362,10 @@ export async function GET(request: Request) {
         },
         vipClients,
       },
-      procurement: {
-        totalPOSpend: poSpend,
-        purchaseOrdersCount: poCount,
-        totalPendingDealerDues: pendingDealerDues,
-        totalSupplierCredits: supplierCredits,
-        netDealerBalance: pendingDealerDues - supplierCredits,
-      },
+      procurement,
     };
 
-    return NextResponse.json({
-      success: true,
-      data: responsePayload,
-    });
+    return NextResponse.json({ success: true, data: responsePayload });
   } catch (error: any) {
     console.error("[Analytics API Error]:", error);
     return NextResponse.json(

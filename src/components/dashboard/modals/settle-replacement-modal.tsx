@@ -76,7 +76,11 @@ export function SettleReplacementModal({
             setPos(res.pos);
             if (res.pos.length === 1) {
               setSelectedPOId(res.pos[0].id);
+            } else if (res.pos.length === 0) {
+              setSelectedPOId("no_bill");
             }
+          } else {
+            setSelectedPOId("no_bill");
           }
         })
         .finally(() => {
@@ -96,13 +100,14 @@ export function SettleReplacementModal({
       ? Math.max(0, Number(customReturnValue))
       : estimatedCost;
 
-  const selectedPO = pos.find((p) => String(p.id) === String(selectedPOId));
+  const isNoBill = selectedPOId === "no_bill";
+  const selectedPO = isNoBill ? null : pos.find((p) => String(p.id) === String(selectedPOId));
   const pendingDue = Math.max(0, selectedPO?.amountPending || 0);
   const hasDue = Boolean(selectedPO && pendingDue > 0);
   const effectiveDeductFromDue = hasDue && deductFromDue;
   const dueDeduction = effectiveDeductFromDue ? Math.min(pendingDue, effectiveTotalReturnValue) : 0;
   const remainingDueAfterReturn = hasDue ? Math.max(0, pendingDue - dueDeduction) : 0;
-  const cashRefund = Math.max(0, effectiveTotalReturnValue - dueDeduction);
+  const cashRefund = isNoBill ? 0 : Math.max(0, effectiveTotalReturnValue - dueDeduction);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,28 +292,32 @@ export function SettleReplacementModal({
               <div className="p-3 border border-galla-line rounded-[6px] bg-galla-paper/30 flex items-center justify-center">
                 <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
               </div>
-            ) : pos.length === 0 ? (
-              <div className="p-3 border border-dashed border-rose-300 rounded-[6px] text-[12px] font-sans text-rose-700 bg-rose-50/50 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
-                <span>No purchase bills found for &ldquo;{product.name}&rdquo;. A linked supplier bill is required to adjust dues or track settlement history.</span>
-              </div>
             ) : (
-              <select
-                value={selectedPOId}
-                onChange={(e) => {
-                  setSelectedPOId(e.target.value);
-                  setErrorMsg(null);
-                }}
-                required
-                className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors cursor-pointer shadow-2xs"
-              >
-                <option value="">-- Select Original Supplier Bill * --</option>
-                {pos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {formatDisplayNumber(p.purchaseOrderNumber)} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })})
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-1.5">
+                <select
+                  value={selectedPOId}
+                  onChange={(e) => {
+                    setSelectedPOId(e.target.value);
+                    setErrorMsg(null);
+                  }}
+                  required
+                  className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-colors cursor-pointer shadow-2xs"
+                >
+                  <option value="">-- Select Original Supplier Bill * --</option>
+                  {pos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {formatDisplayNumber(p.purchaseOrderNumber)} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })})
+                    </option>
+                  ))}
+                  <option value="no_bill">No Bill (Direct Write-off to Expense)</option>
+                </select>
+                {pos.length === 0 && (
+                  <p className="text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded-[5px] flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                    <span>No purchase bills found for &ldquo;{product.name}&rdquo;. Select &ldquo;No Bill&rdquo; to write off directly to expenses.</span>
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -322,8 +331,8 @@ export function SettleReplacementModal({
                 type="button"
                 onClick={() => setResolutionType("credit_refund")}
                 className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${resolutionType === "credit_refund"
-                    ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
-                    : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
+                  ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
+                  : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
                   }`}
               >
                 <div className="flex items-center gap-2 font-bold text-[13.5px]">
@@ -339,8 +348,8 @@ export function SettleReplacementModal({
                 type="button"
                 onClick={() => setResolutionType("replace_stock")}
                 className={`p-3.5 rounded-[8px] border text-left transition-all cursor-pointer ${resolutionType === "replace_stock"
-                    ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
-                    : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
+                  ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
+                  : "bg-white border-galla-line text-galla-ink hover:border-galla-teal/40 hover:bg-galla-paper/30"
                   }`}
               >
                 <div className="flex items-center gap-2 font-bold text-[13.5px]">
@@ -364,8 +373,8 @@ export function SettleReplacementModal({
                     type="button"
                     onClick={() => setTargetStock("sellStock")}
                     className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${targetStock === "sellStock"
-                        ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
-                        : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
+                      ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
+                      : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
                       }`}
                   >
                     <div className="flex items-center justify-between">
@@ -384,8 +393,8 @@ export function SettleReplacementModal({
                     type="button"
                     onClick={() => setTargetStock("useStock")}
                     className={`p-3 rounded-[6px] border text-left transition-all cursor-pointer ${targetStock === "useStock"
-                        ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
-                        : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
+                      ? "bg-white border-galla-teal ring-2 ring-galla-teal/20 text-galla-ink shadow-xs"
+                      : "bg-white border-galla-line text-galla-ink-soft hover:bg-galla-paper/30"
                       }`}
                   >
                     <div className="flex items-center justify-between">
@@ -399,6 +408,73 @@ export function SettleReplacementModal({
                       Currently: <span className="tabular-nums font-medium text-galla-ink">{product.use}</span> pcs &rarr; <strong className="tabular-nums text-emerald-700 font-bold">{product.use + (isValidQty ? numQty : 0)} pcs</strong>
                     </div>
                   </button>
+                </div>
+              </div>
+            ) : isNoBill ? (
+              <div className="space-y-3 pt-3 border-t border-galla-line/60">
+                <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-[8px] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[12.5px] font-bold text-amber-950">
+                      Direct Expense Write-off
+                    </label>
+                    <span className="font-sans text-[11px] text-amber-900 font-semibold px-2 py-0.5 rounded bg-amber-100/80 border border-amber-300">
+                      No Bill Linked
+                    </span>
+                  </div>
+                  <p className="font-sans text-[11.5px] text-amber-900 leading-relaxed">
+                    Since no supplier purchase bill is linked, this will remove <strong className="text-amber-950">{isValidQty ? numQty : 0} defective pcs</strong> from defective stock and record the purchase cost directly into salon expenses.
+                  </p>
+
+                  <div className="space-y-2 text-[12.5px] font-sans bg-white p-3 rounded-[6px] border border-amber-200 shadow-2xs">
+                    <div className="flex justify-between items-center text-galla-ink">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-galla-ink">Write-off Value:</span>
+                        {customReturnValue.trim() !== "" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomReturnValue("");
+                              setIsEditingPrice(false);
+                            }}
+                            className="text-[10.5px] text-galla-ink-soft hover:text-rose-600 underline cursor-pointer"
+                            title="Reset to default estimated cost"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative flex items-center w-36">
+                        <span className="absolute left-2.5 text-[14px] font-bold text-amber-700 select-none pointer-events-none">
+                          ₹
+                        </span>
+                        <input
+                          type="text"
+                          value={isEditingPrice ? customReturnValue : (customReturnValue !== "" ? customReturnValue : (effectiveTotalReturnValue > 0 ? String(effectiveTotalReturnValue) : "0"))}
+                          onFocus={() => {
+                            setIsEditingPrice(true);
+                            if (customReturnValue === "") {
+                              setCustomReturnValue(String(effectiveTotalReturnValue));
+                            }
+                          }}
+                          onChange={(e) => {
+                            setCustomReturnValue(e.target.value.replace(/\D/g, ""));
+                          }}
+                          onBlur={() => {
+                            setIsEditingPrice(false);
+                            if (customReturnValue !== "" && Number(customReturnValue) === estimatedCost) {
+                              setCustomReturnValue("");
+                            }
+                          }}
+                          placeholder={String(estimatedCost)}
+                          className="w-full pl-6 pr-2.5 py-1 text-right text-[14.5px] font-bold tabular-nums rounded-[5px] border border-amber-300 bg-white text-galla-ink focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-all shadow-2xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-amber-100 text-[11.5px] text-amber-900">
+                      <span>Defective units cleared:</span>
+                      <span className="font-semibold tabular-nums">{isValidQty ? numQty : 0} pcs</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -585,6 +661,10 @@ export function SettleReplacementModal({
                 <span className="text-emerald-800 font-bold">
                   +{isValidQty ? numQty : 0} pcs &rarr; {targetStock === "sellStock" ? "Retail Stock" : "Salon Use"}
                 </span>
+              ) : isNoBill ? (
+                <span className="text-amber-900 font-bold">
+                  Direct Expense: {formatRupee(effectiveTotalReturnValue)}
+                </span>
               ) : (
                 <span className="text-rose-800 font-bold">
                   {effectiveDeductFromDue && dueDeduction > 0
@@ -626,7 +706,13 @@ export function SettleReplacementModal({
                   <span>Settling Replacement...</span>
                 </>
               ) : (
-                <span>Confirm Replacement Settlement</span>
+                <span>
+                  {isNoBill
+                    ? resolutionType === "replace_stock"
+                      ? "Confirm Replacement Stock"
+                      : `Confirm Write-off to Expense (${formatRupee(effectiveTotalReturnValue)})`
+                    : "Confirm Replacement Settlement"}
+                </span>
               )}
             </button>
           </div>

@@ -107,6 +107,12 @@ export function ReturnCustomerOrderItemModal({
     lineItem.finalPrice > 0 && lineItem.quantity > 0
       ? Math.floor(lineItem.finalPrice / lineItem.quantity)
       : Math.floor(lineItem.unitPrice || 0);
+
+  // Original catalog selling price / MRP of the item at purchase time (before line-item discount)
+  const catalogUnitPrice =
+    typeof lineItem.unitPrice === "number" && lineItem.unitPrice > 0
+      ? Math.floor(lineItem.unitPrice)
+      : Math.floor(matchedProduct?.price || unitPrice);
   const totalDueDeduction = (order.returns || []).reduce((sum, r) => {
     if (typeof r.dueDeduction === "number") return sum + r.dueDeduction;
     return sum + (r.refundMode === "reduce_due" ? (r.refundAmount || 0) : 0);
@@ -182,21 +188,32 @@ export function ReturnCustomerOrderItemModal({
     return list;
   }, [matchedProduct, availableBatches]);
 
-  // Batch having exact same price as customer paid in this order
+  // Batch having exact same catalog selling price / MRP as purchased product
   const samePriceBatch = useMemo(() => {
-    return inStockProducts.find((p) => p.price === unitPrice) || null;
-  }, [inStockProducts, unitPrice]);
+    // 1. Direct match: matchedProduct if in stock and price matches original catalog price
+    if (
+      matchedProduct &&
+      matchedProduct.sell > 0 &&
+      (matchedProduct.price === catalogUnitPrice || String(matchedProduct.id) === String(lineItem.itemId))
+    ) {
+      if (matchedProduct.price === catalogUnitPrice) {
+        return matchedProduct;
+      }
+    }
+    // 2. Otherwise find any in-stock sibling batch with the exact same catalog price
+    return inStockProducts.find((p) => p.price === catalogUnitPrice) || null;
+  }, [inStockProducts, matchedProduct, catalogUnitPrice, lineItem.itemId]);
 
   const samePriceStock = samePriceBatch ? samePriceBatch.sell : 0;
 
   // Batches available at a different price / new MRP
   const newMRPProducts = useMemo(() => {
     return inStockProducts
-      .filter((p) => p.price !== unitPrice)
+      .filter((p) => p.price !== catalogUnitPrice)
       .sort((a, b) =>
         (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
       );
-  }, [inStockProducts, unitPrice]);
+  }, [inStockProducts, catalogUnitPrice]);
 
   // Has new MRP available when old price stock is not enough (or 0)
   const hasNewMRPAvailable = samePriceStock < parsedQty && newMRPProducts.length > 0;
@@ -224,7 +241,7 @@ export function ReturnCustomerOrderItemModal({
       ? parsedCustomNewPrice
       : selectedNewMRPProduct
         ? selectedNewMRPProduct.price
-        : unitPrice;
+        : catalogUnitPrice;
 
   const targetReplacementProduct = useMemo(() => {
     if (hasNewMRPAvailable && replacementResolutionType === "upgrade_available") {
@@ -240,9 +257,9 @@ export function ReturnCustomerOrderItemModal({
         ? samePriceBatch.price
         : matchedProduct
           ? matchedProduct.price
-          : unitPrice;
+          : catalogUnitPrice;
 
-  const unitPriceDiff = Math.round(targetPrice - unitPrice);
+  const unitPriceDiff = Math.round(targetPrice - catalogUnitPrice);
   const totalPriceDiff = unitPriceDiff * parsedQty;
 
   const isUpgradingToNewMRP =
@@ -568,10 +585,17 @@ export function ReturnCustomerOrderItemModal({
               </div>
             </div>
             <div className="sm:text-right shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-galla-line/60">
-              <div className="text-[11px] text-galla-ink-soft uppercase tracking-wider font-semibold">Billed Unit Price</div>
+              <div className="text-[11px] text-galla-ink-soft uppercase tracking-wider font-semibold">
+                {Boolean(lineItem.discount && lineItem.discount > 0) ? "Paid Unit Price" : "Billed Unit Price"}
+              </div>
               <div className="tabular-nums text-[16px] font-bold text-galla-ink">
                 {formatRupee(unitPrice)} <span className="font-sans text-[11px] text-galla-ink-soft font-normal">/pc</span>
               </div>
+              {Boolean(lineItem.discount && lineItem.discount > 0) && (
+                <div className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                  MRP: {formatRupee(catalogUnitPrice)} ({formatRupee(Math.floor((lineItem.discount || 0) / (lineItem.quantity || 1)))} off)
+                </div>
+              )}
             </div>
           </div>
 
@@ -878,7 +902,7 @@ export function ReturnCustomerOrderItemModal({
                           <div className="p-3.5 rounded-[8px] bg-emerald-50/80 border border-emerald-300 text-emerald-950 text-[12.5px] font-sans space-y-1 shadow-2xs">
                             <div className="flex items-center gap-2 font-bold text-emerald-900 text-[13.5px]">
                               <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                              <span>Replacement Available in Stock ({samePriceStock} pcs ready @ {formatRupee(unitPrice)})</span>
+                              <span>Replacement Available in Stock ({samePriceStock} pcs ready @ {formatRupee(catalogUnitPrice)})</span>
                             </div>
                             <p className="text-[12px] text-emerald-800 pl-7 leading-relaxed">
                               Hand over <strong className="font-semibold text-emerald-950">{parsedQty} replacement unit{parsedQty > 1 ? "s" : ""}</strong> to the client immediately. The defective unit will be moved to dealer claim stock.
@@ -899,7 +923,7 @@ export function ReturnCustomerOrderItemModal({
 
                             <div className="text-[12px] text-amber-900 leading-relaxed space-y-1">
                               <p>
-                                The product at the original purchase price (<strong>{formatRupee(unitPrice)}</strong>) is no longer available in stock.
+                                The product at the original catalog price (<strong>{formatRupee(catalogUnitPrice)}</strong>) is no longer available in stock.
                               </p>
                               <p className="font-semibold text-amber-950">
                                 Would you like to provide the new MRP batch by settling the price difference?
@@ -934,8 +958,11 @@ export function ReturnCustomerOrderItemModal({
 
                               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-galla-line/60 items-center">
                                 <div>
-                                  <span className="text-[11.5px] text-galla-ink-soft block font-medium">Old Purchase Price:</span>
-                                  <span className="tabular-nums font-bold text-galla-ink text-[14px]">{formatRupee(unitPrice)}</span>
+                                  <span className="text-[11.5px] text-galla-ink-soft block font-medium">Original Catalog Price:</span>
+                                  <span className="tabular-nums font-bold text-galla-ink text-[14px]">{formatRupee(catalogUnitPrice)}</span>
+                                  {catalogUnitPrice !== unitPrice && (
+                                    <span className="text-[10.5px] text-galla-ink-soft block font-normal">(Paid {formatRupee(unitPrice)} after discount)</span>
+                                  )}
                                 </div>
                                 <div className="text-right">
                                   <div className="flex items-center justify-end gap-1.5">

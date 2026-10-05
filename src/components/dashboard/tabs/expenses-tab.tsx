@@ -312,7 +312,7 @@ export function ExpensesTab({
     const orderNumInNotes = expense.notes?.match(/Order\s*#?(\d+)/i)?.[1];
     const orderNumber = orderNumInDesc || orderNumInNotes;
 
-    if (isRefundCategory || hasOrderLink || orderNumber) {
+    if (isRefundCategory && (hasOrderLink || orderNumber)) {
       // Check in-memory orders
       let foundOrder: DashboardOrder | undefined;
       if (orders && orders.length > 0) {

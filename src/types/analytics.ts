@@ -90,17 +90,6 @@ export interface TopRetailProductItem {
   currentStock: number;
 }
 
-export interface HighMarginProductItem {
-  id: string;
-  name: string;
-  category: string;
-  sellPrice: number;
-  purchaseCost: number;
-  marginRupees: number;
-  marginPercent: number;
-  sellStock: number;
-}
-
 export interface SlowMovingStockItem {
   id: string;
   name: string;
@@ -113,6 +102,19 @@ export interface SlowMovingStockItem {
 export interface InternalConsumptionData {
   totalCost: number;
   transfersCount: number;
+}
+
+export interface InternalConsumptionMovementItem {
+  id: string;
+  productName: string;
+  productId?: string;
+  dateTime: string; // ISO string
+  quantity: number;
+  unitPrice: number;
+  totalCost: number;
+  notes?: string;
+  recordedBy: "owner" | "staff";
+  reason?: string;
 }
 
 export interface ClientRetentionData {
@@ -141,6 +143,74 @@ export interface ProcurementHealthData {
   netDealerBalance: number;
 }
 
+export type MonthlyRangePreset =
+  | "this_month"
+  | "30d"
+  | "custom_month"
+  | "yearly"
+  | "all_time";
+
+export type TrafficRangePreset = "today" | "yesterday";
+export type WeekdayRangePreset = "this_week" | "last_week";
+
+export interface MainAnalyticsData {
+  range: AnalyticsRangePreset;
+  startDate: string;
+  endDate: string;
+  previousStartDate: string;
+  previousEndDate: string;
+  executive: ExecutiveMetricsData;
+  procurement: ProcurementHealthData;
+  cashflow: {
+    timeline: CashflowTimelinePoint[];
+    revenueMix: RevenueMixData;
+    tenderSplit: TenderSplitItem[];
+  };
+  internalConsumption: InternalConsumptionData;
+  clients?: {
+    retention: ClientRetentionData;
+    vipClients: TopVipClientItem[];
+  };
+}
+
+export interface PerformanceAnalyticsData {
+  monthlyRange: MonthlyRangePreset;
+  startDate?: string;
+  endDate?: string;
+  label: string;
+  services: {
+    topServices: TopServiceItem[];
+    categoryContribution: ServiceCategoryContribution[];
+  };
+  inventory: {
+    topRetailProducts: TopRetailProductItem[];
+    slowMovingStock: SlowMovingStockItem[];
+  };
+}
+
+export interface TrafficAnalyticsData {
+  preset: TrafficRangePreset;
+  date: string;
+  label: string;
+  hourly: HourlyDistributionItem[];
+}
+
+export interface WeekdayAnalyticsData {
+  preset: WeekdayRangePreset;
+  startDate: string;
+  endDate: string;
+  label: string;
+  weekday: WeekdayDistributionItem[];
+}
+
+export interface ConsumptionDetailsData {
+  startDate: string;
+  endDate: string;
+  totalCost: number;
+  totalItems: number;
+  items: InternalConsumptionMovementItem[];
+}
+
 export interface AnalyticsResponseData {
   range: AnalyticsRangePreset;
   startDate: string;
@@ -161,7 +231,6 @@ export interface AnalyticsResponseData {
   };
   inventory: {
     topRetailProducts: TopRetailProductItem[];
-    highestMarginProducts: HighMarginProductItem[];
     internalConsumption: InternalConsumptionData;
     slowMovingStock: SlowMovingStockItem[];
   };
@@ -171,3 +240,4 @@ export interface AnalyticsResponseData {
   };
   procurement: ProcurementHealthData;
 }
+

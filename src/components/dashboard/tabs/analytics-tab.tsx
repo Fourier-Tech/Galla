@@ -1,18 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { AnalyticsRangePreset, AnalyticsResponseData } from "@/types/analytics";
+import { AnalyticsRangePreset, MainAnalyticsData } from "@/types/analytics";
 import { DashboardOrder, DashboardExpense } from "@/types/dashboard";
 import { AnalyticsHeader } from "@/components/dashboard/analytics/analytics-header";
 import { ExecutiveMetricsGrid } from "@/components/dashboard/analytics/executive-metrics-grid";
 import { CashflowTrendsCard } from "@/components/dashboard/analytics/cashflow-trends-card";
 import { RevenueMixCard } from "@/components/dashboard/analytics/revenue-mix-card";
 import { TenderSplitCard } from "@/components/dashboard/analytics/tender-split-card";
-import { ServiceIntelligenceCard } from "@/components/dashboard/analytics/service-intelligence-card";
+import { InternalConsumptionCard } from "@/components/dashboard/analytics/internal-consumption-card";
+import { PerformanceAnalyticsSection } from "@/components/dashboard/analytics/performance-analytics-section";
 import { ParlourHeatmapCard } from "@/components/dashboard/analytics/parlour-heatmap-card";
-import { InventoryIntelligenceCard } from "@/components/dashboard/analytics/inventory-intelligence-card";
 import { ClientRetentionCard } from "@/components/dashboard/analytics/client-retention-card";
-import { ProcurementHealthCard } from "@/components/dashboard/analytics/procurement-health-card";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface AnalyticsTabProps {
@@ -22,16 +21,17 @@ interface AnalyticsTabProps {
 }
 
 export function AnalyticsTab({}: AnalyticsTabProps) {
+  // Main Global Filter State (Controls Top Executive/Procurement metrics, Cashflow, Revenue Mix, Tender Split, Internal Consumption, and Retention)
   const [range, setRange] = useState<AnalyticsRangePreset>("today");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
-  const [data, setData] = useState<AnalyticsResponseData | null>(null);
+  const [data, setData] = useState<MainAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchAnalytics = useCallback(async () => {
+  const fetchMainAnalytics = useCallback(async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -42,7 +42,10 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
     setError(null);
 
     try {
-      const params = new URLSearchParams({ range });
+      const params = new URLSearchParams({
+        section: "main",
+        range,
+      });
       if (range === "custom" && customStart && customEnd) {
         params.set("startDate", customStart);
         params.set("endDate", customEnd);
@@ -73,13 +76,13 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
   }, [range, customStart, customEnd]);
 
   useEffect(() => {
-    fetchAnalytics();
+    fetchMainAnalytics();
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchAnalytics]);
+  }, [fetchMainAnalytics]);
 
   const rangeLabels: Record<AnalyticsRangePreset, string> = {
     today: "Today",
@@ -91,7 +94,7 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
 
   return (
     <div className="space-y-6 w-full pb-12">
-      {/* 1. Header & Range Controls */}
+      {/* 1. Main Filter Header (Controls Executive, Procurement Balances, Cashflow & Consumption) */}
       <AnalyticsHeader
         range={range}
         onRangeChange={(newRange) => {
@@ -110,7 +113,7 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
           setCustomStart(start);
           setCustomEnd(end);
         }}
-        onRefresh={fetchAnalytics}
+        onRefresh={fetchMainAnalytics}
         isLoading={isLoading}
       />
 
@@ -123,7 +126,7 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
           </div>
           <button
             type="button"
-            onClick={fetchAnalytics}
+            onClick={fetchMainAnalytics}
             className="flex items-center gap-1.5 px-3 py-1 rounded-[4px] bg-white border border-red-200 text-red-800 text-[12px] font-sans font-medium hover:bg-red-100 transition-colors"
           >
             <RefreshCw className="w-3 h-3" />
@@ -150,18 +153,19 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
         </div>
       )}
 
-      {/* Content View */}
+      {/* Main Filter Controlled Content */}
       {data && (
         <div className="space-y-6">
-          {/* Section 1: Executive Metric Cards */}
+          {/* Section 1: Top Summary Numbers (Operating Metrics + Procurement Cash Flow & Dealer Balances) */}
           <section>
             <ExecutiveMetricsGrid
               metrics={data.executive}
+              procurement={data.procurement}
               rangeLabel={rangeLabels[range]}
             />
           </section>
 
-          {/* Section 2: Cashflow Trends & Revenue Mix (Golden Ratio Split: 1.618fr vs 1fr) */}
+          {/* Section 2: Cashflow Trends & Revenue Mix */}
           <section className="grid grid-cols-1 lg:grid-cols-[1.618fr_1fr] gap-[21px]">
             <CashflowTrendsCard
               timeline={data.cashflow.timeline}
@@ -170,52 +174,41 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
             <RevenueMixCard mix={data.cashflow.revenueMix} />
           </section>
 
-          {/* Tender / Payment Mode Split */}
+          {/* Section 3: Tender & Payment Mode Split */}
           <section>
             <TenderSplitCard split={data.cashflow.tenderSplit} />
           </section>
 
-          {/* Section 3: Service & Treatment Intelligence */}
+          {/* Section 4: Internal Salon Consumption Cost (with Drill-Down Modal) */}
           <section>
-            <ServiceIntelligenceCard
-              topServices={data.services.topServices}
-              categoryContribution={data.services.categoryContribution}
-            />
-          </section>
-
-          {/* Parlour Traffic & Peak Hours Heatmap */}
-          <section>
-            <ParlourHeatmapCard
-              hourly={data.services.hourlyDistribution}
-              weekday={data.services.weekdayDistribution}
-            />
-          </section>
-
-          {/* Section 4: Inventory & Retail Product Intelligence */}
-          <section>
-            <InventoryIntelligenceCard
-              topRetail={data.inventory.topRetailProducts}
-              highMargin={data.inventory.highestMarginProducts}
-              internalConsumption={data.inventory.internalConsumption}
-              slowMoving={data.inventory.slowMovingStock}
-            />
-          </section>
-
-          {/* Section 5: Client Retention & Visit Intelligence */}
-          <section>
-            <ClientRetentionCard
-              retention={data.clients.retention}
-              vipClients={data.clients.vipClients}
-            />
-          </section>
-
-          {/* Section 6: Procurement & Supplier Health */}
-          <section>
-            <ProcurementHealthCard
-              procurement={data.procurement}
+            <InternalConsumptionCard
+              internalConsumption={data.internalConsumption}
+              range={range}
               rangeLabel={rangeLabels[range]}
+              customStart={customStart}
+              customEnd={customEnd}
             />
           </section>
+
+          {/* Section 5: Monthly-Only Performance Group (Top Services, Department Contribution, Top Retail, Slow-Moving Stock) */}
+          <section>
+            <PerformanceAnalyticsSection />
+          </section>
+
+          {/* Section 6: Fixed-Scope Traffic & Capacity Curves (Hourly: Today/Yesterday | Weekday: This Week/Last Week) */}
+          <section>
+            <ParlourHeatmapCard />
+          </section>
+
+          {/* Section 7: Client Retention & Visit Intelligence */}
+          {data.clients && (
+            <section>
+              <ClientRetentionCard
+                retention={data.clients.retention}
+                vipClients={data.clients.vipClients}
+              />
+            </section>
+          )}
         </div>
       )}
     </div>

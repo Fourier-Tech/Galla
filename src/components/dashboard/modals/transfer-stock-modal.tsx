@@ -122,7 +122,11 @@ function TransferStockModalContent({
           setPos(res.pos);
           if (res.pos.length > 0) {
             setSelectedPOId((prev) => prev || res.pos[0].id);
+          } else {
+            setSelectedPOId("no_bill");
           }
+        } else {
+          setSelectedPOId("no_bill");
         }
         setIsLoadingPOs(false);
       });
@@ -143,18 +147,21 @@ function TransferStockModalContent({
 
   const numQty = Number(quantity);
 
-  const selectedPO = pos.find((p) => p.id === selectedPOId);
+  const isNoBill = selectedPOId === "no_bill";
+  const selectedPO = isNoBill ? null : pos.find((p) => p.id === selectedPOId);
   const selectedItem = selectedPO?.items?.find(
     (i: any) =>
       (product.id && (i.productId === String(product.id) || i.productId === product.id)) ||
       (product.name && i.productName && i.productName.trim().toLowerCase() === product.name.trim().toLowerCase())
   );
-  const maxReturnableFromBill = selectedItem
-    ? Math.max(0, (selectedItem.quantityForSell || 0) + (selectedItem.quantityForUse || 0) - ((selectedItem.returnedQuantity || 0) + (selectedItem.replacedQuantity || 0)))
-    : 0;
+  const maxReturnableFromBill = isNoBill
+    ? 999999
+    : selectedItem
+      ? Math.max(0, (selectedItem.quantityForSell || 0) + (selectedItem.quantityForUse || 0) - ((selectedItem.returnedQuantity || 0) + (selectedItem.replacedQuantity || 0)))
+      : 0;
 
   const totalPhysicalStock = product.sell + product.use + (product.defectiveStock || 0);
-  const maxAutoAll = selectedPOId && maxReturnableFromBill > 0
+  const maxAutoAll = selectedPOId && !isNoBill && maxReturnableFromBill > 0
     ? Math.min(totalPhysicalStock, maxReturnableFromBill)
     : totalPhysicalStock;
 
@@ -183,18 +190,18 @@ function TransferStockModalContent({
     mode === "consume"
       ? product.use
       : direction === "sell_to_use"
-      ? product.sell
-      : product.use;
+        ? product.sell
+        : product.use;
 
   const maxAvailable = physicalStockAvailable;
 
   const isValidQty =
     mode === "return_supplier"
       ? totalReturnSupplierQty > 0 &&
-        parsedReturnSell <= product.sell &&
-        parsedReturnUse <= product.use &&
-        parsedReturnDef <= (product.defectiveStock || 0) &&
-        (!selectedPOId || maxReturnableFromBill <= 0 || totalReturnSupplierQty <= maxReturnableFromBill)
+      parsedReturnSell <= product.sell &&
+      parsedReturnUse <= product.use &&
+      parsedReturnDef <= (product.defectiveStock || 0) &&
+      (!selectedPOId || maxReturnableFromBill <= 0 || totalReturnSupplierQty <= maxReturnableFromBill)
       : !isNaN(numQty) && Number.isInteger(numQty) && numQty > 0 && numQty <= maxAvailable;
 
   const estUnitCost =
@@ -207,16 +214,16 @@ function TransferStockModalContent({
     mode === "return_supplier"
       ? totalReturnSupplierQty * returnUnitCost
       : isValidQty
-      ? numQty * returnUnitCost
-      : 0;
+        ? numQty * returnUnitCost
+        : 0;
 
   // Return to Supplier settlement breakdown calculations
   const pendingDue = Math.max(0, selectedPO?.amountPending || 0);
-  const hasDue = pendingDue > 0;
+  const hasDue = Boolean(selectedPO && pendingDue > 0);
   const effectiveDeductFromDue = hasDue && deductFromDue;
   const dueDeduction = effectiveDeductFromDue ? Math.min(pendingDue, estReturnCost) : 0;
-  const cashRefund = Math.max(0, estReturnCost - dueDeduction);
-  const remainingDueAfterReturn = Math.max(0, pendingDue - dueDeduction);
+  const cashRefund = isNoBill ? 0 : Math.max(0, estReturnCost - dueDeduction);
+  const remainingDueAfterReturn = hasDue ? Math.max(0, pendingDue - dueDeduction) : 0;
 
   // Auto-adjust default due deduction when switching selected purchase bill
   useEffect(() => {
@@ -236,10 +243,10 @@ function TransferStockModalContent({
   const baseName = product.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase();
   const siblingBatches = allProducts
     ? allProducts.filter(
-        (p) =>
-          String(p.id) !== String(product.id) &&
-          p.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase() === baseName
-      )
+      (p) =>
+        String(p.id) !== String(product.id) &&
+        p.name.replace(/\s*\((Old|New|Batch[^\)]*)\)$/i, "").trim().toLowerCase() === baseName
+    )
     : [];
 
   const currentProfit = Math.max(0, product.price - estUnitCost);
@@ -274,7 +281,7 @@ function TransferStockModalContent({
         setErrorMsg(`Defective quantity (${parsedReturnDef} pcs) exceeds available defective stock (${product.defectiveStock || 0} pcs)`);
         return;
       }
-      if (maxReturnableFromBill > 0 && totalReturnSupplierQty > maxReturnableFromBill) {
+      if (!isNoBill && maxReturnableFromBill > 0 && totalReturnSupplierQty > maxReturnableFromBill) {
         setErrorMsg(`Total return quantity (${totalReturnSupplierQty} pcs) exceeds remaining quantity on this bill (${maxReturnableFromBill} pcs)`);
         return;
       }
@@ -283,8 +290,8 @@ function TransferStockModalContent({
         mode === "consume"
           ? "No salon internal stock available to consume"
           : direction === "sell_to_use"
-          ? "No retail stock available to move to salon use"
-          : "No salon internal stock available to move to retail"
+            ? "No retail stock available to move to salon use"
+            : "No salon internal stock available to move to retail"
       );
       return;
     }
@@ -313,10 +320,10 @@ function TransferStockModalContent({
           parsedReturnSell > 0 && parsedReturnUse === 0 && parsedReturnDef === 0
             ? "sellStock"
             : parsedReturnUse > 0 && parsedReturnSell === 0 && parsedReturnDef === 0
-            ? "useStock"
-            : parsedReturnDef > 0 && parsedReturnSell === 0 && parsedReturnUse === 0
-            ? "defectiveStock"
-            : "mixed";
+              ? "useStock"
+              : parsedReturnDef > 0 && parsedReturnSell === 0 && parsedReturnUse === 0
+                ? "defectiveStock"
+                : "mixed";
 
         const isReplacement = supplierResolution === "replacement";
 
@@ -347,10 +354,10 @@ function TransferStockModalContent({
             defectiveStock: Math.max(
               0,
               (product.defectiveStock || 0) -
-                parsedReturnDef +
-                (isReplacement
-                  ? parsedReturnSell + parsedReturnUse
-                  : 0)
+              parsedReturnDef +
+              (isReplacement
+                ? parsedReturnSell + parsedReturnUse
+                : 0)
             ),
           };
           onTransferSuccess(
@@ -419,13 +426,12 @@ function TransferStockModalContent({
           </button>
           <div className="flex items-center gap-2.5">
             <div
-              className={`p-1.5 rounded-[5px] border ${
-                mode === "consume"
-                  ? "bg-amber-100 text-amber-800 border-amber-200"
-                  : mode === "return_supplier"
+              className={`p-1.5 rounded-[5px] border ${mode === "consume"
+                ? "bg-amber-100 text-amber-800 border-amber-200"
+                : mode === "return_supplier"
                   ? "bg-rose-100 text-rose-800 border-rose-200"
                   : "bg-galla-teal-soft text-galla-teal border-galla-teal/30"
-              }`}
+                }`}
             >
               {mode === "consume" ? (
                 <PackageMinus className="h-4 w-4" />
@@ -440,15 +446,15 @@ function TransferStockModalContent({
                 {mode === "consume"
                   ? "Log Used / Consumed Stock"
                   : mode === "return_supplier"
-                  ? "Return Product to Supplier"
-                  : "Transfer Stock"}
+                    ? "Return Product to Supplier"
+                    : "Transfer Stock"}
               </h1>
               <p className="text-[11.5px] text-galla-ink-soft hidden sm:block">
                 {mode === "consume"
                   ? "Deduct opened or consumed items from salon internal stock and auto-log expense"
                   : mode === "return_supplier"
-                  ? "Return defective or excess stock against original purchase bill"
-                  : "Move units between retail shelf and salon treatment stations seamlessly"}
+                    ? "Return defective or excess stock against original purchase bill"
+                    : "Move units between retail shelf and salon treatment stations seamlessly"}
               </p>
             </div>
           </div>
@@ -511,11 +517,10 @@ function TransferStockModalContent({
                   setMode("transfer");
                   setErrorMsg(null);
                 }}
-                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
-                  mode === "transfer"
-                    ? "bg-galla-teal-soft/40 border-galla-teal text-galla-teal shadow-xs ring-1 ring-galla-teal/30"
-                    : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
-                }`}
+                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${mode === "transfer"
+                  ? "bg-galla-teal-soft/40 border-galla-teal text-galla-teal shadow-xs ring-1 ring-galla-teal/30"
+                  : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className={`p-2 rounded-[5px] ${mode === "transfer" ? "bg-galla-teal text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
@@ -535,11 +540,10 @@ function TransferStockModalContent({
                   setMode("consume");
                   setErrorMsg(null);
                 }}
-                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
-                  mode === "consume"
-                    ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-300"
-                    : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
-                }`}
+                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${mode === "consume"
+                  ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-300"
+                  : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className={`p-2 rounded-[5px] ${mode === "consume" ? "bg-amber-600 text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
@@ -559,11 +563,10 @@ function TransferStockModalContent({
                   setMode("return_supplier");
                   setErrorMsg(null);
                 }}
-                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
-                  mode === "return_supplier"
-                    ? "bg-rose-50 border-rose-400 text-rose-900 shadow-xs ring-1 ring-rose-300"
-                    : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
-                }`}
+                className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${mode === "return_supplier"
+                  ? "bg-rose-50 border-rose-400 text-rose-900 shadow-xs ring-1 ring-rose-300"
+                  : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className={`p-2 rounded-[5px] ${mode === "return_supplier" ? "bg-rose-600 text-white" : "bg-galla-paper text-galla-ink-soft"}`}>
@@ -603,11 +606,10 @@ function TransferStockModalContent({
                       setDirection("sell_to_use");
                       setErrorMsg(null);
                     }}
-                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                      direction === "sell_to_use"
-                        ? "border-galla-teal bg-galla-teal-soft/60 ring-1 ring-galla-teal text-galla-teal shadow-xs"
-                        : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
-                    }`}
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${direction === "sell_to_use"
+                      ? "border-galla-teal bg-galla-teal-soft/60 ring-1 ring-galla-teal text-galla-teal shadow-xs"
+                      : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
+                      }`}
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="font-sans text-[13.5px] font-bold text-galla-ink flex items-center gap-2">
@@ -639,11 +641,10 @@ function TransferStockModalContent({
                       setDirection("use_to_sell");
                       setErrorMsg(null);
                     }}
-                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                      direction === "use_to_sell"
-                        ? "border-galla-teal bg-galla-teal-soft/60 ring-1 ring-galla-teal text-galla-teal shadow-xs"
-                        : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
-                    }`}
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${direction === "use_to_sell"
+                      ? "border-galla-teal bg-galla-teal-soft/60 ring-1 ring-galla-teal text-galla-teal shadow-xs"
+                      : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
+                      }`}
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="font-sans text-[13.5px] font-bold text-galla-ink flex items-center gap-2">
@@ -706,11 +707,10 @@ function TransferStockModalContent({
                       type="button"
                       disabled={q > maxAvailable}
                       onClick={() => setQuantity(String(q))}
-                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-[5px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                        quantity === String(q)
-                          ? "bg-galla-teal-soft text-galla-teal border-galla-teal/30 font-semibold"
-                          : "border-galla-line bg-galla-paper/40 text-galla-ink-soft hover:bg-galla-paper hover:text-galla-ink"
-                      }`}
+                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-[5px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quantity === String(q)
+                        ? "bg-galla-teal-soft text-galla-teal border-galla-teal/30 font-semibold"
+                        : "border-galla-line bg-galla-paper/40 text-galla-ink-soft hover:bg-galla-paper hover:text-galla-ink"
+                        }`}
                     >
                       +{q}
                     </button>
@@ -785,11 +785,10 @@ function TransferStockModalContent({
                       key={r.id}
                       type="button"
                       onClick={() => setConsumeReason(r.id as ConsumeReason)}
-                      className={`p-3 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        consumeReason === r.id
-                          ? "bg-amber-100/80 text-amber-950 border-amber-300 ring-1 ring-amber-300 shadow-xs"
-                          : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
-                      }`}
+                      className={`p-3 rounded-[5px] border text-left transition-all cursor-pointer ${consumeReason === r.id
+                        ? "bg-amber-100/80 text-amber-950 border-amber-300 ring-1 ring-amber-300 shadow-xs"
+                        : "bg-galla-surface text-galla-ink-soft border-galla-line hover:bg-galla-paper hover:text-galla-ink"
+                        }`}
                     >
                       <div className="font-sans text-[13px] font-bold text-galla-ink">
                         {r.label}
@@ -849,11 +848,10 @@ function TransferStockModalContent({
                       type="button"
                       disabled={q > maxAvailable}
                       onClick={() => setQuantity(String(q))}
-                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-[5px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                        quantity === String(q)
-                          ? "bg-amber-100 text-amber-900 border-amber-300 font-semibold"
-                          : "border-galla-line bg-galla-paper/40 text-galla-ink-soft hover:bg-galla-paper hover:text-galla-ink"
-                      }`}
+                      className={`px-3 py-1.5 text-xs font-sans font-medium rounded-[5px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quantity === String(q)
+                        ? "bg-amber-100 text-amber-900 border-amber-300 font-semibold"
+                        : "border-galla-line bg-galla-paper/40 text-galla-ink-soft hover:bg-galla-paper hover:text-galla-ink"
+                        }`}
                     >
                       +{q}
                     </button>
@@ -911,11 +909,10 @@ function TransferStockModalContent({
                       setSupplierResolution("return");
                       setErrorMsg(null);
                     }}
-                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${
-                      supplierResolution === "return"
-                        ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
-                        : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
-                    }`}
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${supplierResolution === "return"
+                      ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
+                      : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
+                      }`}
                   >
                     <div className={`p-2 rounded-[5px] mt-0.5 ${supplierResolution === "return" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
                       <RotateCcw className="h-4 w-4" />
@@ -937,11 +934,10 @@ function TransferStockModalContent({
                       setSupplierResolution("replacement");
                       setErrorMsg(null);
                     }}
-                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${
-                      supplierResolution === "replacement"
-                        ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
-                        : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
-                    }`}
+                    className={`p-3.5 rounded-[6px] border text-left transition-all cursor-pointer flex items-start gap-3 ${supplierResolution === "replacement"
+                      ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-rose-950 shadow-xs"
+                      : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
+                      }`}
                   >
                     <div className={`p-2 rounded-[5px] mt-0.5 ${supplierResolution === "replacement" ? "bg-rose-100 text-rose-700" : "bg-galla-paper text-galla-ink-soft"}`}>
                       <RefreshCw className="h-4 w-4" />
@@ -963,98 +959,51 @@ function TransferStockModalContent({
               <div className="space-y-2 pt-3 border-t border-galla-line/60">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-galla-ink block uppercase tracking-wider">
-                    Original Supplier Purchase Bill <span className="text-red-600">*</span>
+                    Link to Original Purchase Bill <span className="text-red-600">*</span>
                   </label>
-                  <span className="font-sans text-xs text-galla-ink-soft">
+                  <span className="font-sans text-xs text-galla-ink-soft font-medium">
                     {isLoadingPOs ? (
                       <span className="inline-flex items-center gap-1.5 text-galla-teal font-medium">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Fetching bills...
                       </span>
                     ) : (
-                      `${pos.length} bill${pos.length === 1 ? "" : "s"} found`
+                      <span className="px-2 py-0.5 rounded bg-galla-paper border border-galla-line text-galla-ink">
+                        {pos.length} bill{pos.length === 1 ? "" : "s"} found
+                      </span>
                     )}
                   </span>
                 </div>
 
                 {isLoadingPOs ? (
-                  <div className="p-6 border border-galla-line rounded-[6px] bg-galla-paper/30 flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-galla-teal" />
-                  </div>
-                ) : pos.length === 0 ? (
-                  <div className="p-5 border border-dashed border-galla-line rounded-[6px] text-xs font-sans text-galla-ink-soft text-center bg-galla-paper/20">
-                    No supplier purchase bills found for &ldquo;{product.name}&rdquo;.
+                  <div className="p-3 border border-galla-line rounded-[6px] bg-galla-paper/30 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                    {pos.map((po) => {
-                      const item = (po.items || []).find(
-                        (i: any) =>
-                          (product.id && (i.productId === String(product.id) || i.productId === product.id)) ||
-                          (product.name && i.productName && i.productName.trim().toLowerCase() === product.name.trim().toLowerCase())
-                      );
-                      if (!item) return null;
-                      const maxRet = Math.max(
-                        0,
-                        (item.quantityForSell || 0) + (item.quantityForUse || 0) - ((item.returnedQuantity || 0) + (item.replacedQuantity || 0))
-                      );
-                      const isSelected = selectedPOId === po.id;
-                      const isNoStockOnBill = maxRet <= 0;
+                  <div className="space-y-2">
+                    <select
+                      value={selectedPOId || ""}
+                      onChange={(e) => {
+                        setSelectedPOId(e.target.value);
+                        setErrorMsg(null);
+                      }}
+                      required
+                      className="w-full h-10 px-3 bg-white border border-galla-line rounded-[6px] font-sans text-[13.5px] font-medium text-galla-ink focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <option value="">-- Select Original Supplier Bill * --</option>
+                      {pos.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {formatDisplayNumber(p.purchaseOrderNumber)} &bull; {p.supplierName} ({new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })})
+                        </option>
+                      ))}
+                      <option value="no_bill">No Bill (Direct Write-off to Expense)</option>
+                    </select>
 
-                      return (
-                        <button
-                          key={po.id}
-                          type="button"
-                          disabled={isNoStockOnBill}
-                          onClick={() => {
-                            setSelectedPOId(po.id);
-                            setErrorMsg(null);
-                          }}
-                          className={`w-full text-left p-3 px-3.5 rounded-[6px] border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                            isSelected
-                              ? "border-rose-500 bg-rose-50/70 ring-1 ring-rose-500 text-galla-ink shadow-xs"
-                              : isNoStockOnBill
-                              ? "border-galla-line/60 bg-galla-paper/50 opacity-50 cursor-not-allowed text-galla-ink-soft"
-                              : "border-galla-line bg-galla-surface hover:bg-galla-paper text-galla-ink"
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-sans font-bold text-[13.5px] truncate">
-                                {po.supplierName}
-                              </span>
-                              <span className="tabular-nums text-xs font-medium text-galla-ink-soft bg-galla-paper px-2 py-0.5 rounded-[4px] border border-galla-line/60">
-                                {formatDisplayNumber(po.purchaseOrderNumber)}
-                              </span>
-                            </div>
-                            <div className="text-xs text-galla-ink-soft mt-1 flex items-center gap-2 flex-wrap">
-                              <span>Unit Cost: <strong className="tabular-nums text-galla-ink font-semibold">{formatRupee(item.purchaseCost)}</strong></span>
-                              <span>&bull;</span>
-                              <span>{new Date(po.createdAt).toLocaleDateString()}</span>
-                              <span>&bull;</span>
-                              {po.amountPending && po.amountPending > 0 ? (
-                                <span className="text-amber-800 font-semibold">Pending Due: {formatRupee(po.amountPending)}</span>
-                              ) : (
-                                <span className="text-emerald-700 font-medium">Fully Paid</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span
-                              className={`inline-block font-sans text-xs font-semibold px-2.5 py-1 rounded-[4px] ${
-                                maxRet > 0
-                                  ? isSelected
-                                    ? "bg-rose-100 text-rose-800 font-bold"
-                                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-galla-paper text-galla-ink-soft"
-                              }`}
-                            >
-                              Returnable: {maxRet} pcs
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {pos.length === 0 && (
+                      <p className="text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded-[5px] flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                        <span>No purchase bills found for &ldquo;{product.name}&rdquo;. Select &ldquo;No Bill&rdquo; to write off directly to expenses.</span>
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1274,115 +1223,132 @@ function TransferStockModalContent({
 
               {/* Settlement & Refund Section for Return Product */}
               {supplierResolution === "return" ? (
-                <div className="space-y-3 pt-3 border-t border-galla-line/60">
-                  <div className="p-3.5 bg-galla-paper/50 border border-galla-line/80 rounded-[8px] space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[12.5px] font-bold text-galla-ink">
-                        Settlement Breakdown
-                      </label>
-                      {selectedPO ? (
-                        hasDue ? (
-                          <span className="font-sans text-[11px] text-amber-900 font-semibold px-2 py-0.5 rounded bg-amber-50 border border-amber-200">
-                            Pending Bill Due: {formatRupee(pendingDue)}
-                          </span>
-                        ) : (
-                          <span className="font-sans text-[11px] text-emerald-800 font-semibold px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
-                            Bill Fully Paid
-                          </span>
-                        )
-                      ) : null}
-                    </div>
-
-                    {/* Checkbox: ONLY shown if there is pending due */}
-                    {hasDue && (
-                      <label className="flex items-center gap-2.5 p-2.5 rounded-[6px] bg-white border border-galla-line/80 cursor-pointer hover:bg-galla-paper/40 transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={deductFromDue}
-                          onChange={(e) => setDeductFromDue(e.target.checked)}
-                          className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500 border-galla-line cursor-pointer"
-                        />
-                        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                          <span className="text-[12.5px] font-semibold text-galla-ink">
-                            Deduct from supplier pending due
-                          </span>
-                          <span className="text-[11.5px] font-medium text-galla-ink-soft">
-                            Max: {formatRupee(Math.min(pendingDue, estReturnCost))}
-                          </span>
-                        </div>
-                      </label>
-                    )}
-
-                    <div className="space-y-2 text-[12.5px] font-sans bg-white p-3 rounded-[6px] border border-galla-line/70 shadow-2xs">
-                      <div className="flex justify-between items-center text-galla-ink">
-                        <span className="text-galla-ink-soft">Total Return Value:</span>
-                        <span className="font-semibold tabular-nums">{formatRupee(estReturnCost)}</span>
-                      </div>
-
-                      {effectiveDeductFromDue && dueDeduction > 0 && (
-                        <div className="flex justify-between items-center text-emerald-800">
-                          <span>Deducted from Bill Due:</span>
-                          <span className="font-semibold tabular-nums">-{formatRupee(dueDeduction)}</span>
-                        </div>
-                      )}
-
-                      {hasDue && (
-                        <div className="flex justify-between items-center text-galla-ink-soft text-[11.5px]">
-                          <span>Remaining Bill Due (Retailer owes):</span>
-                          <span className="font-semibold tabular-nums text-galla-ink">
-                            {formatRupee(remainingDueAfterReturn)}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex justify-between items-center pt-2 border-t border-galla-line/60">
-                        <span className="font-bold text-galla-ink">Net Money to Receive from Supplier:</span>
-                        <span
-                          className={`font-bold tabular-nums text-[14px] ${
-                            cashRefund > 0 ? "text-emerald-700" : "text-galla-ink-soft"
-                          }`}
-                        >
-                          {formatRupee(cashRefund)}
+                isNoBill ? (
+                  <div className="space-y-3 pt-3 border-t border-galla-line/60">
+                    <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-[8px] space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[12.5px] font-bold text-amber-950">
+                          Direct Expense Write-off
+                        </label>
+                        <span className="font-sans text-[11px] text-amber-900 font-semibold px-2 py-0.5 rounded bg-amber-100/80 border border-amber-300">
+                          No Bill Linked
                         </span>
                       </div>
+                      <p className="font-sans text-[11.5px] text-amber-900 leading-relaxed">
+                        Since no supplier purchase bill is linked, this will remove <strong className="text-amber-950">{totalReturnSupplierQty} pcs</strong> from inventory and record the purchase valuation (<strong className="text-amber-950">{formatRupee(estReturnCost)}</strong>) directly into salon expenses under category &ldquo;other&rdquo;.
+                      </p>
                     </div>
-
-                    {cashRefund > 0 ? (
-                      <div className="pt-1">
-                        <PaymentModeSelect
-                          label={effectiveDeductFromDue ? "Receive Remaining Refund Via" : "Receive Refund Via"}
-                          badge={
-                            <span className="text-[11.5px] font-semibold tabular-nums text-emerald-700">
-                              To Receive: {formatRupee(cashRefund)}
-                            </span>
-                          }
-                          value={supplierPaymentMode}
-                          onChange={setSupplierPaymentMode}
-                          allowedModes={[
-                            "cash",
-                            "upi",
-                            "card",
-                            "bank_transfer",
-                            {
-                              value: "credit",
-                              label: "Supplier Credit",
-                              sublabel: "Credit balance with supplier for next purchase",
-                              icon: Receipt,
-                              tone: "rose",
-                            },
-                          ]}
-                        />
-                      </div>
-                    ) : (
-                      <div className="p-2.5 rounded-[6px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[12px] font-sans flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>
-                          {formatRupee(dueDeduction)} applied to reduce pending due. Remaining due: {formatRupee(remainingDueAfterReturn)}. No money to receive.
-                        </span>
-                      </div>
-                    )}
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-3 pt-3 border-t border-galla-line/60">
+                    <div className="p-3.5 bg-galla-paper/50 border border-galla-line/80 rounded-[8px] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[12.5px] font-bold text-galla-ink">
+                          Settlement Breakdown
+                        </label>
+                        {selectedPO ? (
+                          hasDue ? (
+                            <span className="font-sans text-[11px] text-amber-900 font-semibold px-2 py-0.5 rounded bg-amber-50 border border-amber-200">
+                              Pending Bill Due: {formatRupee(pendingDue)}
+                            </span>
+                          ) : (
+                            <span className="font-sans text-[11px] text-emerald-800 font-semibold px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                              Bill Fully Paid
+                            </span>
+                          )
+                        ) : null}
+                      </div>
+
+                      {/* Checkbox: ONLY shown if there is pending due */}
+                      {hasDue && (
+                        <label className="flex items-center gap-2.5 p-2.5 rounded-[6px] bg-white border border-galla-line/80 cursor-pointer hover:bg-galla-paper/40 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={deductFromDue}
+                            onChange={(e) => setDeductFromDue(e.target.checked)}
+                            className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500 border-galla-line cursor-pointer"
+                          />
+                          <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                            <span className="text-[12.5px] font-semibold text-galla-ink">
+                              Deduct from supplier pending due
+                            </span>
+                            <span className="text-[11.5px] font-medium text-galla-ink-soft">
+                              Max: {formatRupee(Math.min(pendingDue, estReturnCost))}
+                            </span>
+                          </div>
+                        </label>
+                      )}
+
+                      <div className="space-y-2 text-[12.5px] font-sans bg-white p-3 rounded-[6px] border border-galla-line/70 shadow-2xs">
+                        <div className="flex justify-between items-center text-galla-ink">
+                          <span className="text-galla-ink-soft">Total Return Value:</span>
+                          <span className="font-semibold tabular-nums">{formatRupee(estReturnCost)}</span>
+                        </div>
+
+                        {effectiveDeductFromDue && dueDeduction > 0 && (
+                          <div className="flex justify-between items-center text-emerald-800">
+                            <span>Deducted from Bill Due:</span>
+                            <span className="font-semibold tabular-nums">-{formatRupee(dueDeduction)}</span>
+                          </div>
+                        )}
+
+                        {hasDue && (
+                          <div className="flex justify-between items-center text-galla-ink-soft text-[11.5px]">
+                            <span>Remaining Bill Due (Retailer owes):</span>
+                            <span className="font-semibold tabular-nums text-galla-ink">
+                              {formatRupee(remainingDueAfterReturn)}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center pt-2 border-t border-galla-line/60">
+                          <span className="font-bold text-galla-ink">Net Money to Receive from Supplier:</span>
+                          <span
+                            className={`font-bold tabular-nums text-[14px] ${cashRefund > 0 ? "text-emerald-700" : "text-galla-ink-soft"
+                              }`}
+                          >
+                            {formatRupee(cashRefund)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {cashRefund > 0 ? (
+                        <div className="pt-1">
+                          <PaymentModeSelect
+                            label={effectiveDeductFromDue ? "Receive Remaining Refund Via" : "Receive Refund Via"}
+                            badge={
+                              <span className="text-[11.5px] font-semibold tabular-nums text-emerald-700">
+                                To Receive: {formatRupee(cashRefund)}
+                              </span>
+                            }
+                            value={supplierPaymentMode}
+                            onChange={setSupplierPaymentMode}
+                            allowedModes={[
+                              "cash",
+                              "upi",
+                              "card",
+                              "bank_transfer",
+                              {
+                                value: "credit",
+                                label: "Supplier Credit",
+                                sublabel: "Credit balance with supplier for next purchase",
+                                icon: Receipt,
+                                tone: "rose",
+                              },
+                            ]}
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-2.5 rounded-[6px] bg-emerald-50 border border-emerald-200 text-emerald-950 text-[12px] font-sans flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span>
+                            {formatRupee(dueDeduction)} applied to reduce pending due. Remaining due: {formatRupee(remainingDueAfterReturn)}. No money to receive.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
               ) : (
                 /* Replacement Stock Info */
                 <div className="space-y-3 pt-3 border-t border-galla-line/60">
@@ -1429,13 +1395,12 @@ function TransferStockModalContent({
           <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0 bg-galla-paper/30">
             <h2 className="text-[14px] font-bold text-galla-ink">Product &amp; Action Summary</h2>
             <span
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] ${
-                mode === "consume"
-                  ? "bg-amber-100 text-amber-800"
-                  : mode === "return_supplier"
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-[4px] ${mode === "consume"
+                ? "bg-amber-100 text-amber-800"
+                : mode === "return_supplier"
                   ? "bg-rose-100 text-rose-800"
                   : "bg-galla-teal-soft text-galla-teal"
-              }`}
+                }`}
             >
               {mode === "consume" ? "Consumption" : mode === "return_supplier" ? "Supplier Return" : "Transfer"}
             </span>
@@ -1455,30 +1420,6 @@ function TransferStockModalContent({
                   <span className="text-[10.5px] tabular-nums font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-[4px] shrink-0">
                     +{formatRupee(unitProfit)} ({marginPct}%)
                   </span>
-                </div>
-              </div>
-
-              {/* 4 Stock Metric Cards */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
-                  <span className="block text-[10.5px] font-medium text-galla-ink-soft uppercase tracking-wider">Retail Shelf</span>
-                  <span className="text-base font-bold tabular-nums text-galla-ink">{product.sell}</span>
-                  <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
-                </div>
-                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
-                  <span className="block text-[10.5px] font-medium text-galla-teal uppercase tracking-wider">Salon Use</span>
-                  <span className="text-base font-bold tabular-nums text-galla-teal">{product.use}</span>
-                  <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
-                </div>
-                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
-                  <span className="block text-[10.5px] font-medium text-rose-700 uppercase tracking-wider">Defective</span>
-                  <span className="text-base font-bold tabular-nums text-rose-700">{product.defectiveStock || 0}</span>
-                  <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
-                </div>
-                <div className="p-2.5 rounded-[6px] bg-galla-paper/50 border border-galla-line/70 text-center">
-                  <span className="block text-[10.5px] font-medium text-galla-ink uppercase tracking-wider">Total Stock</span>
-                  <span className="text-base font-bold tabular-nums text-galla-ink">{totalPhysicalStock}</span>
-                  <span className="text-[11px] text-galla-ink-soft ml-0.5">pcs</span>
                 </div>
               </div>
 
@@ -1547,28 +1488,42 @@ function TransferStockModalContent({
                         <span className="tabular-nums font-bold text-base text-rose-900">{formatRupee(estReturnCost)}</span>
                       </div>
 
-                      {effectiveDeductFromDue && dueDeduction > 0 && (
-                        <div className="flex justify-between items-center text-emerald-800 font-medium">
-                          <span>Deducted from Bill Due:</span>
-                          <span className="tabular-nums font-semibold">-{formatRupee(dueDeduction)}</span>
-                        </div>
-                      )}
+                      {isNoBill ? (
+                        <>
+                          <div className="flex justify-between items-center text-amber-950 font-semibold border-t border-rose-200/60 pt-1.5">
+                            <span>Direct Salon Expense:</span>
+                            <span className="tabular-nums font-bold text-amber-900">{formatRupee(estReturnCost)}</span>
+                          </div>
+                          <p className="text-[11px] text-amber-900/90 leading-relaxed border-t border-rose-200/60 pt-1.5">
+                            No supplier bill linked. Valuation will be logged directly into salon expenses under category &ldquo;other&rdquo;.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          {effectiveDeductFromDue && dueDeduction > 0 && (
+                            <div className="flex justify-between items-center text-emerald-800 font-medium">
+                              <span>Deducted from Bill Due:</span>
+                              <span className="tabular-nums font-semibold">-{formatRupee(dueDeduction)}</span>
+                            </div>
+                          )}
 
-                      {cashRefund > 0 && (
-                        <div className="flex justify-between items-center text-emerald-800 font-semibold">
-                          <span>To Receive ({supplierPaymentMode === "credit" ? "Credit" : supplierPaymentMode.toUpperCase()}):</span>
-                          <span className="tabular-nums font-bold">{formatRupee(cashRefund)}</span>
-                        </div>
-                      )}
+                          {cashRefund > 0 && (
+                            <div className="flex justify-between items-center text-emerald-800 font-semibold">
+                              <span>To Receive ({supplierPaymentMode === "credit" ? "Credit" : supplierPaymentMode.toUpperCase()}):</span>
+                              <span className="tabular-nums font-bold">{formatRupee(cashRefund)}</span>
+                            </div>
+                          )}
 
-                      {selectedPO && (
-                        <p className="text-[11px] text-rose-900/90 leading-relaxed border-t border-rose-200/60 pt-1.5">
-                          {effectiveDeductFromDue
-                            ? cashRefund > 0
-                              ? `Clears pending due of ${formatRupee(dueDeduction)} on this bill + ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}.`
-                              : `Reduces ${formatRupee(dueDeduction)} from pending due on this bill. Remaining due: ${formatRupee(remainingDueAfterReturn)}.`
-                            : `Full return value of ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}. Bill due remains ${formatRupee(pendingDue)}.`}
-                        </p>
+                          {selectedPO && (
+                            <p className="text-[11px] text-rose-900/90 leading-relaxed border-t border-rose-200/60 pt-1.5">
+                              {effectiveDeductFromDue
+                                ? cashRefund > 0
+                                  ? `Clears pending due of ${formatRupee(dueDeduction)} on this bill + ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}.`
+                                  : `Reduces ${formatRupee(dueDeduction)} from pending due on this bill. Remaining due: ${formatRupee(remainingDueAfterReturn)}.`
+                                : `Full return value of ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}. Bill due remains ${formatRupee(pendingDue)}.`}
+                            </p>
+                          )}
+                        </>
                       )}
                     </>
                   ) : (
@@ -1595,27 +1550,32 @@ function TransferStockModalContent({
                   !isValidQty ||
                   (mode === "return_supplier" ? totalReturnSupplierQty <= 0 || !selectedPOId : maxAvailable <= 0)
                 }
-                className={`w-full py-3 px-4 rounded-[5px] text-white font-sans text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  mode === "consume"
-                    ? "bg-amber-800 hover:bg-amber-900"
-                    : mode === "return_supplier"
-                    ? "bg-rose-600 hover:bg-rose-700"
+                className={`w-full py-3 px-4 rounded-[5px] text-white font-sans text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${mode === "consume"
+                  ? "bg-amber-800 hover:bg-amber-900"
+                  : mode === "return_supplier"
+                    ? isNoBill
+                      ? "bg-amber-700 hover:bg-amber-800"
+                      : "bg-rose-600 hover:bg-rose-700"
                     : "bg-galla-teal hover:opacity-95"
-                }`}
+                  }`}
               >
                 {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 <span>
                   {isSubmitting
                     ? "Processing..."
                     : mode === "consume"
-                    ? `Deduct ${numQty || 1} pcs`
-                    : mode === "return_supplier"
-                    ? supplierResolution === "replacement"
-                      ? `Replace ${totalReturnSupplierQty || 1} pcs with Supplier`
-                      : `Return ${totalReturnSupplierQty || 1} pcs to Supplier`
-                    : direction === "sell_to_use"
-                    ? `Move ${numQty || 1} pcs to Use`
-                    : `Move ${numQty || 1} pcs to Retail`}
+                      ? `Deduct ${numQty || 1} pcs`
+                      : mode === "return_supplier"
+                        ? isNoBill
+                          ? supplierResolution === "replacement"
+                            ? `Replace ${totalReturnSupplierQty || 1} pcs Stock`
+                            : `Write-off ${totalReturnSupplierQty || 1} pcs to Expense (${formatRupee(estReturnCost)})`
+                          : supplierResolution === "replacement"
+                            ? `Replace ${totalReturnSupplierQty || 1} pcs with Supplier`
+                            : `Return ${totalReturnSupplierQty || 1} pcs to Supplier`
+                        : direction === "sell_to_use"
+                          ? `Move ${numQty || 1} pcs to Use`
+                          : `Move ${numQty || 1} pcs to Retail`}
                 </span>
               </button>
 
@@ -1638,8 +1598,12 @@ function TransferStockModalContent({
           mode === "consume"
             ? "Confirm Stock Deduction"
             : mode === "return_supplier"
-            ? "Confirm Supplier Return"
-            : "Confirm Stock Move"
+              ? isNoBill
+                ? supplierResolution === "replacement"
+                  ? "Confirm Stock Replacement"
+                  : "Confirm Expense Write-off"
+                : "Confirm Supplier Return"
+              : "Confirm Stock Move"
         }
         description={
           <span>
@@ -1659,27 +1623,53 @@ function TransferStockModalContent({
               </>
             ) : mode === "return_supplier" ? (
               <>
-                Are you sure you want to return{" "}
-                <strong className="font-semibold text-galla-ink">{totalReturnSupplierQty} pcs</strong> of{" "}
-                <strong className="font-semibold text-galla-ink">&ldquo;{product.name}&rdquo;</strong> to{" "}
-                <strong className="font-semibold text-galla-ink">{selectedPO?.supplierName || "supplier"}</strong>?
-                <span className="block mt-1 text-[12px] text-galla-ink-soft">
-                  Allocation: <strong>{[
-                    parsedReturnSell > 0 ? `${parsedReturnSell}x Retail Shelf` : null,
-                    parsedReturnUse > 0 ? `${parsedReturnUse}x Salon Use` : null,
-                    parsedReturnDef > 0 ? `${parsedReturnDef}x Defective` : null,
-                  ].filter(Boolean).join(" + ") || "None"}</strong> &bull; Total Value: <strong className="tabular-nums text-galla-ink">{formatRupee(estReturnCost)}</strong>
-                </span>
-                <span className="block mt-1 text-[12px] text-rose-800 font-medium">
-                  Settlement:{" "}
-                  {supplierResolution === "replacement"
-                    ? "Wait for replacement stock from supplier (no monetary transaction)"
-                    : effectiveDeductFromDue
-                    ? cashRefund > 0
-                      ? `Deducts ${formatRupee(dueDeduction)} from bill due + receives ${formatRupee(cashRefund)} via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}`
-                      : `Deducts full return value of ${formatRupee(dueDeduction)} from bill due (Remaining due: ${formatRupee(remainingDueAfterReturn)})`
-                    : `Full return value of ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}`}
-                </span>
+                {isNoBill ? (
+                  <>
+                    Are you sure you want to {supplierResolution === "replacement" ? "replace" : "write off"}{" "}
+                    <strong className="font-semibold text-galla-ink">{totalReturnSupplierQty} pcs</strong> of{" "}
+                    <strong className="font-semibold text-galla-ink">&ldquo;{product.name}&rdquo;</strong>{supplierResolution === "replacement" ? " without linking a bill" : " directly to salon expenses"}?
+                    <span className="block mt-1 text-[12px] text-galla-ink-soft">
+                      Allocation: <strong>{[
+                        parsedReturnSell > 0 ? `${parsedReturnSell}x Retail Shelf` : null,
+                        parsedReturnUse > 0 ? `${parsedReturnUse}x Salon Use` : null,
+                        parsedReturnDef > 0 ? `${parsedReturnDef}x Defective` : null,
+                      ].filter(Boolean).join(" + ") || "None"}</strong> &bull; Total Value: <strong className="tabular-nums text-galla-ink">{formatRupee(estReturnCost)}</strong>
+                    </span>
+                    {supplierResolution === "return" ? (
+                      <span className="block mt-1 text-[12px] text-amber-800 font-medium">
+                        Direct expense write-off: {formatRupee(estReturnCost)} will be booked into salon expenses under category &ldquo;other&rdquo;.
+                      </span>
+                    ) : (
+                      <span className="block mt-1 text-[12px] text-rose-800 font-medium">
+                        Direct replacement: Units removed from active inventory to await replacement stock.
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to return{" "}
+                    <strong className="font-semibold text-galla-ink">{totalReturnSupplierQty} pcs</strong> of{" "}
+                    <strong className="font-semibold text-galla-ink">&ldquo;{product.name}&rdquo;</strong> to{" "}
+                    <strong className="font-semibold text-galla-ink">{selectedPO?.supplierName || "supplier"}</strong>?
+                    <span className="block mt-1 text-[12px] text-galla-ink-soft">
+                      Allocation: <strong>{[
+                        parsedReturnSell > 0 ? `${parsedReturnSell}x Retail Shelf` : null,
+                        parsedReturnUse > 0 ? `${parsedReturnUse}x Salon Use` : null,
+                        parsedReturnDef > 0 ? `${parsedReturnDef}x Defective` : null,
+                      ].filter(Boolean).join(" + ") || "None"}</strong> &bull; Total Value: <strong className="tabular-nums text-galla-ink">{formatRupee(estReturnCost)}</strong>
+                    </span>
+                    <span className="block mt-1 text-[12px] text-rose-800 font-medium">
+                      Settlement:{" "}
+                      {supplierResolution === "replacement"
+                        ? "Wait for replacement stock from supplier (no monetary transaction)"
+                        : effectiveDeductFromDue
+                          ? cashRefund > 0
+                            ? `Deducts ${formatRupee(dueDeduction)} from bill due + receives ${formatRupee(cashRefund)} via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}`
+                            : `Deducts full return value of ${formatRupee(dueDeduction)} from bill due (Remaining due: ${formatRupee(remainingDueAfterReturn)})`
+                          : `Full return value of ${formatRupee(cashRefund)} received via ${supplierPaymentMode === "credit" ? "Supplier Credit" : supplierPaymentMode.toUpperCase()}`}
+                    </span>
+                  </>
+                )}
               </>
             ) : direction === "sell_to_use" ? (
               <>
@@ -1700,10 +1690,14 @@ function TransferStockModalContent({
           mode === "consume"
             ? "Yes, Deduct Stock"
             : mode === "return_supplier"
-            ? supplierResolution === "replacement"
-              ? "Yes, Send for Replacement"
-              : "Yes, Return to Supplier"
-            : "Yes, Move Stock"
+              ? isNoBill
+                ? supplierResolution === "replacement"
+                  ? "Yes, Replace Stock"
+                  : "Yes, Write-off to Expense"
+                : supplierResolution === "replacement"
+                  ? "Yes, Send for Replacement"
+                  : "Yes, Return to Supplier"
+              : "Yes, Move Stock"
         }
         cancelLabel="Cancel"
         isLoading={isSubmitting}

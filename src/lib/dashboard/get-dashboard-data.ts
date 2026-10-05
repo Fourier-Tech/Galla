@@ -203,7 +203,7 @@ export async function getDashboardInitialData(
     Customer.find({ tenantId: tenantObjectId, isActive: true })
       .sort({ "stats.lastVisitAt": -1, updatedAt: -1 })
       .lean(),
-    Expense.find({ tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } })
+    Expense.find({ tenantId: tenantObjectId })
       .sort({ expenseDate: -1, createdAt: -1 })
       .limit(20)
       .lean(),
@@ -214,13 +214,13 @@ export async function getDashboardInitialData(
       { $match: { tenantId: tenantObjectId } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]),
-    Expense.countDocuments({ tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } }),
+    Expense.countDocuments({ tenantId: tenantObjectId }),
     Expense.aggregate([
-      { $match: { tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } } },
+      { $match: { tenantId: tenantObjectId } },
       { $group: { _id: "$category", count: { $sum: 1 } } },
     ]),
     Expense.aggregate([
-      { $match: { tenantId: tenantObjectId, category: { $ne: "stock_transfer_internal" } } },
+      { $match: { tenantId: tenantObjectId } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]),
     Supplier.find({

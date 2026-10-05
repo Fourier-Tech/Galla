@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Package, IndianRupee, AlertCircle, Loader2, Layers, Tag, AlignLeft, Calendar } from "lucide-react";
+import { X, Package, IndianRupee, AlertCircle, Loader2, Layers, Tag, AlignLeft } from "lucide-react";
 import { DashboardProduct } from "@/types/dashboard";
 import { createProductAction, updateProductAction } from "@/app/dashboard/actions";
 import { formatRupee } from "@/lib/utils";
@@ -42,7 +42,6 @@ export function ProductModal({
   const [useStock, setUseStock] = useState("0");
   const [lowStockThreshold, setLowStockThreshold] = useState("0");
   const [description, setDescription] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = React.useRef(false);
@@ -74,7 +73,6 @@ export function ProductModal({
           : "0"
       );
       setDescription(productToEdit.description || "");
-      setExpiryDate(productToEdit.expiryDate ? productToEdit.expiryDate.split("T")[0] : "");
     } else {
       setName("");
       if (dbCategories.length > 0) {
@@ -90,7 +88,6 @@ export function ProductModal({
       setUseStock("0");
       setLowStockThreshold("0");
       setDescription("");
-      setExpiryDate("");
     }
     setErrorMsg(null);
   }, [isOpen, productToEdit, dbCategories]);
@@ -185,7 +182,6 @@ export function ProductModal({
           purchaseCost: parsedCost,
           lowStockThreshold: parsedThreshold,
           description: description.trim(),
-          expiryDate: expiryDate ? expiryDate : null,
         });
 
         if (res.success && res.product) {
@@ -207,7 +203,6 @@ export function ProductModal({
           useStock: parsedUseStock,
           lowStockThreshold: parsedThreshold,
           description: description.trim() || undefined,
-          expiryDate: expiryDate ? expiryDate : null,
         });
 
         if (res.success && res.product) {
@@ -515,25 +510,6 @@ export function ProductModal({
                 className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all resize-none"
               />
             </div>
-          </div>
-
-          {/* Expiration Date (Optional) */}
-          <div className="pt-2">
-            <label className="block text-[12px] font-medium text-galla-ink mb-1.5">
-              Expiration Date (Optional)
-            </label>
-            <div className="relative">
-              <Calendar className="h-4 w-4 text-galla-ink-soft/60 absolute left-3 top-2.5 pointer-events-none" />
-              <input
-                type="date"
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
-                className="w-full bg-galla-paper/50 border border-galla-line rounded-[5px] pl-9 pr-3 py-[8px] text-[13px] text-galla-ink focus:outline-none focus:border-galla-teal focus:ring-1 focus:ring-galla-teal transition-all cursor-pointer"
-              />
-            </div>
-            <p className="font-sans text-[11px] text-galla-ink-soft mt-1">
-              Automated expiry reminder digest email will be sent before this date
-            </p>
           </div>
 
           {/* Form Actions */}

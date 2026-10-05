@@ -225,7 +225,7 @@ export function DashboardClient({
         const bc = new BroadcastChannel("galla_role_channel");
         bc.postMessage({ type: "ROLE_LOCK" });
         bc.close();
-      } catch {}
+      } catch { }
     }
     await lockRoleSessionAction();
     setIsRoleLocked(true);
@@ -579,7 +579,7 @@ export function DashboardClient({
           const bc = new BroadcastChannel("galla_role_channel");
           bc.postMessage({ type: "PASSWORD_CHANGED" });
           bc.close();
-        } catch {}
+        } catch { }
         window.location.href = "/login?password_changed=1";
       }
     },
@@ -598,7 +598,7 @@ export function DashboardClient({
           const bc = new BroadcastChannel("galla_role_channel");
           bc.postMessage({ type: "TENANT_SUSPENDED" });
           bc.close();
-        } catch {}
+        } catch { }
         window.location.href = "/login?suspended=1";
       }
     },
@@ -1225,11 +1225,10 @@ export function DashboardClient({
 
       {/* Main Tab Canvas (Full screen on mobile, table scrollable on overview, full scroll on other tabs) */}
       <main
-        className={`flex-1 min-w-0 min-h-screen md:h-screen px-3 sm:px-6 md:px-8 lg:px-12 py-3 sm:py-5 lg:py-6 ${
-          activeTab === "overview"
+        className={`flex-1 min-w-0 min-h-screen md:h-screen px-3 sm:px-6 md:px-8 lg:px-12 py-3 sm:py-5 lg:py-6 ${activeTab === "overview"
             ? "overflow-y-auto md:overflow-hidden flex flex-col"
             : "overflow-y-auto"
-        }`}
+          }`}
       >
         {/* Mobile Header Bar (burger button to toggle left panel, shop name, active tab & role) */}
         <div className="md:hidden flex items-center justify-between bg-galla-surface border border-galla-line rounded-[8px] px-3.5 py-2.5 mb-3 shadow-2xs">
@@ -1254,13 +1253,12 @@ export function DashboardClient({
 
           <div className="flex items-center gap-2 shrink-0">
             <span
-              className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-[4px] ${
-                role === "admin"
+              className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-[4px] ${role === "admin"
                   ? "bg-purple-100 text-purple-800 border border-purple-300 font-bold"
                   : role === "owner"
-                  ? "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
-                  : "bg-galla-brass-soft text-galla-brass border border-galla-brass/20"
-              }`}
+                    ? "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
+                    : "bg-galla-brass-soft text-galla-brass border border-galla-brass/20"
+                }`}
             >
               {role === "admin" ? "Admin" : role === "owner" ? "Owner" : "Staff"}
             </span>
@@ -1318,9 +1316,8 @@ export function DashboardClient({
         )}
 
         <div
-          className={`w-full max-w-7xl mx-auto ${
-            activeTab === "overview" ? "h-full flex flex-col min-h-0" : "space-y-6"
-          }`}
+          className={`w-full max-w-7xl mx-auto ${activeTab === "overview" ? "h-full flex flex-col min-h-0" : "space-y-6"
+            }`}
         >
           {activeTab === "overview" && (
             <OverviewTab

@@ -1037,14 +1037,14 @@ export async function createOrderAction(rawInput: unknown): Promise<{
         for (const prevOrder of previousOrders) {
           const priorDueDeductions = prevOrder.returns
             ? prevOrder.returns.reduce(
-                (sum: number, r: any) =>
-                  sum +
-                  (r.dueDeduction ||
-                    (r.refundMode === "reduce_due"
-                      ? r.refundAmount || 0
-                      : 0)),
-                0,
-              )
+              (sum: number, r: any) =>
+                sum +
+                (r.dueDeduction ||
+                  (r.refundMode === "reduce_due"
+                    ? r.refundAmount || 0
+                    : 0)),
+              0,
+            )
             : 0;
           const remainingToSettle = Math.max(
             0,
@@ -2946,6 +2946,48 @@ export async function returnInventoryToSupplierAction(
 
       const combinedNote = [breakdownNotes, notes?.trim()].filter(Boolean).join(" - ");
 
+      if (poId === "no_bill") {
+        await product.save({ session: dbSession });
+        await cleanupProductBatchNames(tenantId, product.name, dbSession);
+        const unitCost = product.purchaseCost || 0;
+        const totalAmount = unitCost * effectiveQty;
+
+        if (!isReplacement && totalAmount > 0) {
+          const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+            tenantId: new Types.ObjectId(tenantId),
+            type: "expense",
+            session: dbSession,
+          });
+
+          await Expense.create(
+            [
+              {
+                tenantId: new Types.ObjectId(tenantId),
+                expenseNumber,
+                title: `Stock Return / Write-off: ${effectiveQty}x ${product.name}`,
+                category: "other",
+                amount: totalAmount,
+                paymentMode:
+                  options?.paymentMode === "credit"
+                    ? "cash"
+                    : options?.paymentMode || "cash",
+                notes: `Direct write-off of returned stock without supplier bill. ${combinedNote || ""}`.trim(),
+                recordedBy: userRole === "staff" ? "staff" : "owner",
+                expenseDate: new Date(),
+              },
+            ],
+            { session: dbSession }
+          );
+        }
+
+        return {
+          success: true,
+          updatedSupplier: undefined,
+          updatedPO: undefined,
+          refundAmount: !isReplacement ? totalAmount : 0,
+        };
+      }
+
       const returnResult = await processSupplierReturn(
         tenantId,
         poId,
@@ -3733,32 +3775,32 @@ export async function createPurchaseOrderAction(rawInput: unknown): Promise<{
             payments: [
               ...(creditUsed > 0
                 ? [
-                    {
-                      amount: creditUsed,
-                      paymentMode: "credit" as any,
-                      notes: `[Supplier Credit Applied] ₹${creditUsed} used from supplier credit balance`,
-                      recordedBy: (userRole === "staff" ? "staff" : "owner") as "owner" | "staff",
-                      type: "supplier_credit_applied",
-                    },
-                  ]
+                  {
+                    amount: creditUsed,
+                    paymentMode: "credit" as any,
+                    notes: `[Supplier Credit Applied] ₹${creditUsed} used from supplier credit balance`,
+                    recordedBy: (userRole === "staff" ? "staff" : "owner") as "owner" | "staff",
+                    type: "supplier_credit_applied",
+                  },
+                ]
                 : []),
               ...(finalAmountPaid > 0
                 ? [
-                    {
-                      amount: finalAmountPaid,
-                      paymentMode:
-                        effectivePaymentMode === "credit"
-                          ? "cash"
-                          : effectivePaymentMode,
-                      notes: input.notes || undefined,
-                      recordedBy:
-                        (userRole === "staff" ? "staff" : "owner") as "owner" | "staff",
-                      type:
-                        finalAmountPaid + creditUsed >= totalAmount
-                          ? "full_payment"
-                          : "initial",
-                    },
-                  ]
+                  {
+                    amount: finalAmountPaid,
+                    paymentMode:
+                      effectivePaymentMode === "credit"
+                        ? "cash"
+                        : effectivePaymentMode,
+                    notes: input.notes || undefined,
+                    recordedBy:
+                      (userRole === "staff" ? "staff" : "owner") as "owner" | "staff",
+                    type:
+                      finalAmountPaid + creditUsed >= totalAmount
+                        ? "full_payment"
+                        : "initial",
+                  },
+                ]
                 : []),
             ],
             totalAmount,
@@ -6591,8 +6633,8 @@ async function processSupplierReturn(
   const returnRefundMode = isReplacement
     ? "replacement_pending"
     : amountDeductedFromDue > 0 && cashRefundReceived === 0 && creditAmount === 0
-    ? "reduce_due"
-    : chosenMode;
+      ? "reduce_due"
+      : chosenMode;
 
   po.returns.push({
     returnNumber: `RET-${Date.now()}`,
@@ -7558,7 +7600,99 @@ export async function settleSupplierReplacementAction(
 
       product.defectiveStock -= quantity;
 
-      // Find linked purchase order (mandatory)
+      if (options.poId === "no_bill") {
+        const unitCost = product.purchaseCost || 0;
+        const totalWriteoffAmount =
+          typeof options?.customReturnValue === "number" && options.customReturnValue >= 0
+            ? options.customReturnValue
+            : quantity * unitCost;
+
+        if (resolutionType === "replace_stock") {
+          const target = options?.targetStock || "sellStock";
+          if (target === "sellStock") {
+            product.sellStock += quantity;
+          } else {
+            product.useStock += quantity;
+          }
+        } else {
+          // credit_refund: write-off to salon expenses
+          if (totalWriteoffAmount > 0) {
+            const expenseDate = new Date();
+            const { fullNumber: expenseNumber } = await Counter.getNextSequence({
+              tenantId: new Types.ObjectId(tenantId),
+              type: "expense",
+              session: dbSession,
+            });
+
+            await Expense.create(
+              [
+                {
+                  tenantId: new Types.ObjectId(tenantId),
+                  expenseNumber,
+                  title: `Defective Stock Write-off: ${quantity}x ${product.name}`,
+                  category: "other",
+                  amount: totalWriteoffAmount,
+                  paymentMode:
+                    options?.paymentMode === "credit"
+                      ? "cash"
+                      : options?.paymentMode || "cash",
+                  notes: `Defective stock write-off without supplier bill. ${options?.notes || ""}`.trim(),
+                  recordedBy: userRole === "staff" ? "staff" : "owner",
+                  expenseDate,
+                },
+              ],
+              { session: dbSession }
+            );
+          }
+        }
+
+        await product.save({ session: dbSession });
+        await cleanupProductBatchNames(tenantId, product.name, dbSession);
+
+        // Transition matching CustomerReplacements in pending_dealer to arrived_call_client if replace_stock
+        if (resolutionType === "replace_stock") {
+          const pendingCustomerReplacements = await CustomerReplacement.find({
+            tenantId,
+            productId: product._id,
+            status: "pending_dealer",
+          }).session(dbSession);
+
+          let remStock = quantity;
+          for (const cr of pendingCustomerReplacements) {
+            if (remStock <= 0) break;
+            cr.status = "arrived_call_client";
+            const noteMsg = `[Dealer Replaced] Stock received on ${new Date().toLocaleDateString("en-IN")}. Call client to collect.`;
+            cr.notes = cr.notes ? `${cr.notes}\n${noteMsg}` : noteMsg;
+            await cr.save({ session: dbSession });
+            remStock -= cr.pendingQuantity;
+          }
+        }
+
+        const updatedProduct: DashboardProduct = {
+          id: product._id.toString(),
+          name: product.name,
+          category: product.category,
+          sell: product.sellStock,
+          use: product.useStock,
+          defectiveStock: product.defectiveStock,
+          price: product.expectedSellPrice,
+          purchaseCost: product.purchaseCost,
+          lowStockThreshold: product.lowStockThreshold,
+          description: product.description,
+          barcode: product.barcode,
+          isActive: product.isActive,
+        };
+
+        return {
+          success: true,
+          updatedProduct,
+          updatedSupplier: undefined,
+          updatedPO: undefined,
+          refundAmount: resolutionType === "credit_refund" ? totalWriteoffAmount : 0,
+        };
+      }
+
+      // Find linked purchase order (mandatory when bill linked)
       const po = await PurchaseOrder.findOne({
         tenantId,
         $or: [
@@ -7671,8 +7805,8 @@ export async function settleSupplierReplacementAction(
           options?.deductFromDue !== undefined
             ? Boolean(options.deductFromDue)
             : options?.refundMode === "reduce_due"
-            ? true
-            : currentDue > 0;
+              ? true
+              : currentDue > 0;
 
         let amountDeductedFromDue = 0;
         if (shouldDeduct && currentDue > 0) {
@@ -7857,7 +7991,7 @@ export async function settleSupplierReplacementAction(
           totalCredit: updatedSupplierDoc.totalCredit ?? 0,
           isActive: updatedSupplierDoc.isActive !== false,
         }
-      : undefined;
+        : undefined;
 
       let updatedPO: DashboardPurchaseOrder | undefined = undefined;
       if (po) {

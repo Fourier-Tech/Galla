@@ -161,7 +161,7 @@ export function ExpenseDetailsModal({
               <span>Payment Mode:</span>
             </span>
             <span className="font-medium text-galla-ink capitalize">
-              {expense.paymentMode || "Cash"}
+              {expense.paymentMode ? expense.paymentMode.replace(/_/g, " ") : "Cash"}
             </span>
           </div>
 

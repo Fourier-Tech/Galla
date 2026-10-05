@@ -14,7 +14,6 @@ import {
   ChevronRight,
   ArrowRightLeft,
   TrendingUp,
-  Send,
   Calendar,
 } from "lucide-react";
 import { DashboardProduct, DashboardExpense, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
@@ -24,7 +23,7 @@ import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
 import { ProductModal } from "@/components/dashboard/modals/product-modal";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { SettleReplacementModal } from "@/components/dashboard/modals/settle-replacement-modal";
-import { deleteProductAction, sendShopExpiryDigestAction } from "@/app/dashboard/actions";
+import { deleteProductAction } from "@/app/dashboard/actions";
 
 interface InventoryTabProps {
   products: DashboardProduct[];
@@ -87,27 +86,6 @@ export function InventoryTab({
   const [productToEdit, setProductToEdit] = useState<DashboardProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<DashboardProduct | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSendingExpiryDigest, setIsSendingExpiryDigest] = useState(false);
-  const [digestToast, setDigestToast] = useState<string | null>(null);
-
-  const handleSendExpiryDigest = async () => {
-    setIsSendingExpiryDigest(true);
-    setDigestToast(null);
-    try {
-      const res = await sendShopExpiryDigestAction({ force: true });
-      if (res.emailSent) {
-        setDigestToast(`Expiry digest sent to ${res.recipientEmail || "shop email"} (${res.itemsFound} items).`);
-      } else if (res.itemsFound === 0) {
-        setDigestToast("No products are nearing expiration within 30 days.");
-      } else if (res.error) {
-        setDigestToast(`Notice: ${res.error}`);
-      }
-    } catch {
-      setDigestToast("Failed to send expiry digest.");
-    } finally {
-      setIsSendingExpiryDigest(false);
-    }
-  };
 
   // Lock background scrolling when any inventory modal is open
   const isAnyModalOpen = Boolean(
@@ -471,16 +449,6 @@ export function InventoryTab({
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
           <button
             type="button"
-            onClick={handleSendExpiryDigest}
-            disabled={isSendingExpiryDigest}
-            title="Send an email digest of products nearing expiration to the shop email"
-            className="inline-flex items-center gap-1.5 bg-galla-surface border border-galla-line hover:bg-galla-paper text-galla-ink font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-          >
-            <Send className={`h-4 w-4 text-galla-teal ${isSendingExpiryDigest ? "animate-spin" : ""}`} />
-            <span>{isSendingExpiryDigest ? "Sending..." : "Expiry Alert"}</span>
-          </button>
-          <button
-            type="button"
             onClick={handleOpenCreate}
             className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer"
           >
@@ -497,20 +465,6 @@ export function InventoryTab({
           </button>
         </div>
       </div>
-
-      {/* Expiry Digest Alert Toast */}
-      {digestToast && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 px-4 py-2.5 rounded-[6px] text-[13px] flex items-center justify-between shadow-2xs animate-fadeIn">
-          <span>{digestToast}</span>
-          <button
-            type="button"
-            onClick={() => setDigestToast(null)}
-            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 ml-4 cursor-pointer"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
 
       {/* 1. Search Bar (First Row, matching Orders & Expenses tab) */}
@@ -558,11 +512,10 @@ export function InventoryTab({
           <button
             type="button"
             onClick={() => handleFilterClick("all")}
-            className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
-              selectedCategory === "all"
+            className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${selectedCategory === "all"
                 ? "bg-galla-teal text-white border-galla-teal shadow-xs"
                 : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
-            }`}
+              }`}
           >
             All Categories ({products.filter((p) => p.isActive !== false).length})
           </button>
@@ -576,11 +529,10 @@ export function InventoryTab({
                 type="button"
                 key={cat}
                 onClick={() => handleFilterClick(cat)}
-                className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
-                  isSelected
+                className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${isSelected
                     ? "bg-galla-teal text-white border-galla-teal shadow-xs"
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
-                }`}
+                  }`}
               >
                 {cat} ({count})
               </button>
@@ -636,9 +588,8 @@ export function InventoryTab({
                   return (
                     <tr
                       key={product.id}
-                      className={`hover:bg-galla-paper/40 transition-colors ${
-                        isInactive ? "opacity-60 bg-gray-50/50" : ""
-                      }`}
+                      className={`hover:bg-galla-paper/40 transition-colors ${isInactive ? "opacity-60 bg-gray-50/50" : ""
+                        }`}
                     >
                       {/* Product Name */}
                       <td className="py-3.5 pl-6 pr-4 align-middle">
@@ -706,8 +657,8 @@ export function InventoryTab({
                             +{formatRupee(Math.max(0, product.price - (product.purchaseCost || 0)))} (
                             {product.price > 0
                               ? Math.round(
-                                  ((product.price - (product.purchaseCost || 0)) / product.price) * 100
-                                )
+                                ((product.price - (product.purchaseCost || 0)) / product.price) * 100
+                              )
                               : 0}
                             % margin)
                           </div>
@@ -719,9 +670,8 @@ export function InventoryTab({
                         <div className="flex flex-col items-center justify-center gap-1.5">
                           <div className="inline-flex items-center justify-center gap-2">
                             <span
-                              className={`font-sans text-[13.5px] tabular-nums ${
-                                isLowStock ? "text-red-700 font-bold" : "text-galla-ink font-medium"
-                              }`}
+                              className={`font-sans text-[13.5px] tabular-nums ${isLowStock ? "text-red-700 font-bold" : "text-galla-ink font-medium"
+                                }`}
                             >
                               {product.sell} pcs
                             </span>

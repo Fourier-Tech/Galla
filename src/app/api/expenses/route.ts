@@ -41,6 +41,7 @@ function getMongoCategoryFilter(categoryParam: string) {
           "maintenance",
           "marketing",
           "other",
+          "stock_transfer_internal",
         ],
       };
     default:
@@ -94,7 +95,6 @@ export async function GET(request: Request) {
 
     const query: Record<string, unknown> = {
       tenantId,
-      category: { $ne: "stock_transfer_internal" },
     };
 
     // Category filter

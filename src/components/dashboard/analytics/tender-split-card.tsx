@@ -50,7 +50,7 @@ export function TenderSplitCard({ split }: TenderSplitCardProps) {
                   </span>
                   <span className="font-medium text-galla-ink">{t.label}</span>
                   <span className="text-[11px] text-galla-ink-soft tabular-nums">
-                    ({t.count} payments)
+                    ({t.count} {t.count === 1 ? "payment" : "payments"})
                   </span>
                 </div>
                 <div className="text-right">

@@ -313,7 +313,6 @@ export async function syncRollupForPeriod(
           $match: {
             tenantId,
             expenseDate: { $gte: startDate, $lte: endDate },
-            category: { $ne: "stock_transfer_internal" },
             // ponytail: Same-day customer refunds directly reduce totalRevenue at source; isSameDay: true expenses are excluded from totalExpense to avoid double deduction. Upgrade path: configurable tenant policy if gross accrual accounting is requested.
             isSameDay: { $ne: true },
           },
@@ -340,7 +339,17 @@ export async function syncRollupForPeriod(
               $sum: {
                 $cond: [
                   {
-                    $in: ["$category", ["refreshments", "utilities", "maintenance", "marketing", "other"]],
+                    $in: [
+                      "$category",
+                      [
+                        "refreshments",
+                        "utilities",
+                        "maintenance",
+                        "marketing",
+                        "other",
+                        "stock_transfer_internal",
+                      ],
+                    ],
                   },
                   "$amount",
                   0,
