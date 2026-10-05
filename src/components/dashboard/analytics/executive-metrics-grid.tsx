@@ -79,7 +79,6 @@ export function ExecutiveMetricsGrid({ metrics, rangeLabel }: ExecutiveMetricsGr
                   : "bg-galla-brick-soft text-galla-brick"
               }`}
             >
-              {metrics.profitMarginPercent.current}% margin
             </span>
           </div>
           <div
