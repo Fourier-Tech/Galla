@@ -164,6 +164,7 @@ export const createProductSchema = z.object({
   lowStockThreshold: z.number().int().min(0).default(0),
   barcode: z.string().optional(),
   description: z.string().optional(),
+  expiryDate: z.string().optional().nullable(),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
@@ -177,6 +178,7 @@ export const updateProductSchema = z.object({
   lowStockThreshold: z.number().int().min(0).default(0),
   barcode: z.string().optional(),
   description: z.string().optional(),
+  expiryDate: z.string().optional().nullable(),
 });
 
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;

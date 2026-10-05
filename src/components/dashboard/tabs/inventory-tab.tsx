@@ -14,6 +14,8 @@ import {
   ChevronRight,
   ArrowRightLeft,
   TrendingUp,
+  Send,
+  Calendar,
 } from "lucide-react";
 import { DashboardProduct, DashboardExpense, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
@@ -22,7 +24,7 @@ import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
 import { ProductModal } from "@/components/dashboard/modals/product-modal";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { SettleReplacementModal } from "@/components/dashboard/modals/settle-replacement-modal";
-import { deleteProductAction } from "@/app/dashboard/actions";
+import { deleteProductAction, sendShopExpiryDigestAction } from "@/app/dashboard/actions";
 
 interface InventoryTabProps {
   products: DashboardProduct[];
@@ -85,6 +87,27 @@ export function InventoryTab({
   const [productToEdit, setProductToEdit] = useState<DashboardProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<DashboardProduct | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSendingExpiryDigest, setIsSendingExpiryDigest] = useState(false);
+  const [digestToast, setDigestToast] = useState<string | null>(null);
+
+  const handleSendExpiryDigest = async () => {
+    setIsSendingExpiryDigest(true);
+    setDigestToast(null);
+    try {
+      const res = await sendShopExpiryDigestAction({ force: true });
+      if (res.emailSent) {
+        setDigestToast(`Expiry digest sent to ${res.recipientEmail || "shop email"} (${res.itemsFound} items).`);
+      } else if (res.itemsFound === 0) {
+        setDigestToast("No products are nearing expiration within 30 days.");
+      } else if (res.error) {
+        setDigestToast(`Notice: ${res.error}`);
+      }
+    } catch {
+      setDigestToast("Failed to send expiry digest.");
+    } finally {
+      setIsSendingExpiryDigest(false);
+    }
+  };
 
   // Lock background scrolling when any inventory modal is open
   const isAnyModalOpen = Boolean(
@@ -448,6 +471,16 @@ export function InventoryTab({
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
           <button
             type="button"
+            onClick={handleSendExpiryDigest}
+            disabled={isSendingExpiryDigest}
+            title="Send an email digest of products nearing expiration to the shop email"
+            className="inline-flex items-center gap-1.5 bg-galla-surface border border-galla-line hover:bg-galla-paper text-galla-ink font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Send className={`h-4 w-4 text-galla-teal ${isSendingExpiryDigest ? "animate-spin" : ""}`} />
+            <span>{isSendingExpiryDigest ? "Sending..." : "Expiry Alert"}</span>
+          </button>
+          <button
+            type="button"
             onClick={handleOpenCreate}
             className="inline-flex items-center gap-1.5 bg-galla-teal hover:opacity-95 text-white font-sans text-[13px] font-medium px-[13px] py-[8px] rounded-[5px] shadow-sm transition-all cursor-pointer"
           >
@@ -464,6 +497,20 @@ export function InventoryTab({
           </button>
         </div>
       </div>
+
+      {/* Expiry Digest Alert Toast */}
+      {digestToast && (
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 px-4 py-2.5 rounded-[6px] text-[13px] flex items-center justify-between shadow-2xs animate-fadeIn">
+          <span>{digestToast}</span>
+          <button
+            type="button"
+            onClick={() => setDigestToast(null)}
+            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 ml-4 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
 
       {/* 1. Search Bar (First Row, matching Orders & Expenses tab) */}
@@ -622,6 +669,16 @@ export function InventoryTab({
                         {product.description && (
                           <div className="font-sans text-[12px] text-galla-ink-soft truncate max-w-xs mt-0.5" title={product.description}>
                             {product.description}
+                          </div>
+                        )}
+                        {product.expiryDate && (
+                          <div className="mt-1 flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-sans text-amber-800 bg-amber-50/90 border border-amber-200/80 px-1.5 py-0.5 rounded-[3px]">
+                              <Calendar className="h-3 w-3 text-amber-600 shrink-0" />
+                              <span>
+                                Exp: {new Date(product.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                            </span>
                           </div>
                         )}
                       </td>

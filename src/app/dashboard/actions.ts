@@ -2668,6 +2668,11 @@ export async function createProductAction(rawInput: unknown): Promise<{
       inactiveExisting.lowStockThreshold = input.lowStockThreshold;
       inactiveExisting.barcode = input.barcode?.trim() || undefined;
       inactiveExisting.description = input.description?.trim() || undefined;
+      if (input.expiryDate) {
+        inactiveExisting.expiryDate = new Date(input.expiryDate);
+      } else if (input.expiryDate === null) {
+        inactiveExisting.expiryDate = null;
+      }
       inactiveExisting.isActive = true;
       await inactiveExisting.save();
       newDoc = inactiveExisting;
@@ -2684,6 +2689,7 @@ export async function createProductAction(rawInput: unknown): Promise<{
         lowStockThreshold: input.lowStockThreshold,
         barcode: input.barcode?.trim() || undefined,
         description: input.description?.trim() || undefined,
+        expiryDate: input.expiryDate ? new Date(input.expiryDate) : undefined,
         isActive: true,
       });
     }
@@ -2705,6 +2711,8 @@ export async function createProductAction(rawInput: unknown): Promise<{
         lowStockThreshold: newDoc.lowStockThreshold,
         description: newDoc.description,
         barcode: newDoc.barcode,
+        expiryDate: newDoc.expiryDate ? new Date(newDoc.expiryDate).toISOString() : undefined,
+        expiryNotifiedAt: newDoc.expiryNotifiedAt ? new Date(newDoc.expiryNotifiedAt).toISOString() : undefined,
         isActive: newDoc.isActive,
       },
     };
@@ -2794,6 +2802,16 @@ export async function updateProductAction(rawInput: unknown): Promise<{
       }
     }
 
+    if (input.expiryDate !== undefined) {
+      if (input.expiryDate) {
+        product.expiryDate = new Date(input.expiryDate);
+        product.expiryNotifiedAt = null; // Reset notified state when expiry date changes
+      } else {
+        product.expiryDate = null;
+        product.expiryNotifiedAt = null;
+      }
+    }
+
     await product.save();
 
     revalidatePath("/dashboard");
@@ -2813,6 +2831,8 @@ export async function updateProductAction(rawInput: unknown): Promise<{
         lowStockThreshold: product.lowStockThreshold,
         description: product.description,
         barcode: product.barcode,
+        expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString() : undefined,
+        expiryNotifiedAt: product.expiryNotifiedAt ? new Date(product.expiryNotifiedAt).toISOString() : undefined,
         isActive: product.isActive,
       },
     };
@@ -8197,6 +8217,8 @@ export async function getProductByIdAction(productId: string): Promise<{
         lowStockThreshold: p.lowStockThreshold,
         description: p.description,
         barcode: p.barcode,
+        expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString() : undefined,
+        expiryNotifiedAt: p.expiryNotifiedAt ? new Date(p.expiryNotifiedAt).toISOString() : undefined,
         isActive: p.isActive,
       },
     };
@@ -8294,5 +8316,48 @@ export async function getProductBatchesForReturnAction(
     return { success: false, error: err.message, batches: [] };
   }
 }
+
+/**
+ * Triggers an immediate expiry reminder digest email for the authenticated shop.
+ * Reuses the exact same shared logic used by the daily cron job.
+ */
+export async function sendShopExpiryDigestAction(options?: {
+  force?: boolean;
+}): Promise<{
+  success: boolean;
+  itemsFound: number;
+  emailSent: boolean;
+  recipientEmail?: string;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, itemsFound: 0, emailSent: false, error: "Unauthorized session" };
+    }
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, itemsFound: 0, emailSent: false, error: "Tenant not found for session" };
+    }
+
+    const { sendExpiryDigest } = await import("@/lib/services/expiry-reminder-service");
+    const result = await sendExpiryDigest(tenantId, {
+      force: options?.force ?? true, // Manual button click forces email even if previously notified
+    });
+
+    revalidatePath("/dashboard");
+    return result;
+  } catch (err: any) {
+    console.error("Failed to execute shop expiry digest action:", err);
+    return {
+      success: false,
+      itemsFound: 0,
+      emailSent: false,
+      error: err.message || "Failed to dispatch expiry digest",
+    };
+  }
+}
+
 
 

@@ -125,6 +125,8 @@ export interface DashboardProduct {
   lowStockThreshold?: number;
   description?: string;
   barcode?: string;
+  expiryDate?: string;
+  expiryNotifiedAt?: string;
   isActive?: boolean;
 }
 

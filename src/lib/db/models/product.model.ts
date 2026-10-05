@@ -13,6 +13,8 @@ export interface IProduct extends Document {
   lowStockThreshold: number;
   barcode?: string;
   description?: string;
+  expiryDate?: Date | null;
+  expiryNotifiedAt?: Date | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -100,6 +102,15 @@ const ProductSchema = new Schema<IProduct>(
       type: String,
       trim: true,
     },
+    expiryDate: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    expiryNotifiedAt: {
+      type: Date,
+      default: null,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -122,6 +133,7 @@ ProductSchema.index(
 );
 ProductSchema.index({ tenantId: 1, category: 1 });
 ProductSchema.index({ tenantId: 1, isActive: 1, sellStock: 1 });
+ProductSchema.index({ tenantId: 1, isActive: 1, expiryDate: 1 });
 
 export const Product: Model<IProduct> =
   mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema);

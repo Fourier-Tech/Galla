@@ -125,6 +125,8 @@ export async function GET(request: Request) {
       lowStockThreshold: p.lowStockThreshold,
       description: p.description,
       barcode: p.barcode,
+      expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString() : undefined,
+      expiryNotifiedAt: p.expiryNotifiedAt ? new Date(p.expiryNotifiedAt).toISOString() : undefined,
       isActive: p.isActive !== false,
     }));
 
