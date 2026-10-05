@@ -18,7 +18,7 @@ import {
   OrderStatus,
 } from "@/types/dashboard";
 import { Sidebar } from "@/components/dashboard/sidebar";
-import { Menu } from "lucide-react";
+import { Menu, Clock, AlertTriangle } from "lucide-react";
 import { OverviewTab } from "@/components/dashboard/tabs/overview-tab";
 import { OrdersTab } from "@/components/dashboard/tabs/orders-tab";
 import { InventoryTab } from "@/components/dashboard/tabs/inventory-tab";
@@ -68,6 +68,10 @@ interface DashboardClientProps {
   initialTodayAdvance?: number;
   initialTodayNetProfit?: number;
   initialCustomerDues?: number;
+  planType?: "trial" | "active" | "lifetime";
+  planExpiresAt?: string | null;
+  isGracePeriodActive?: boolean;
+  gracePeriodRemainingMs?: number;
 }
 
 function resolveTabFromPathname(pathname: string): TabId {
@@ -110,6 +114,10 @@ export function DashboardClient({
   initialTodayExpense = 0,
   initialTodayAdvance = 0,
   initialCustomerDues = 0,
+  planType = "trial",
+  planExpiresAt,
+  isGracePeriodActive: initialIsGracePeriodActive = false,
+  gracePeriodRemainingMs: initialGracePeriodRemainingMs = 0,
 }: DashboardClientProps) {
   const router = useRouter();
 
@@ -577,6 +585,25 @@ export function DashboardClient({
     },
   });
 
+  // Real-time salon suspension: instantly log out all active non-admin sessions
+  useTenantSubscription<{ reason?: string; message?: string }>({
+    tenantId,
+    event: "tenant_suspended",
+    onEvent: () => {
+      if (roleRef.current === "admin") return;
+      console.warn("[Realtime] Salon account suspended. Logging out active session.");
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("galla_role_session");
+        try {
+          const bc = new BroadcastChannel("galla_role_channel");
+          bc.postMessage({ type: "TENANT_SUSPENDED" });
+          bc.close();
+        } catch {}
+        window.location.href = "/login?suspended=1";
+      }
+    },
+  });
+
   // Same-browser cross-tab listener for instant multi-tab displacement
   useEffect(() => {
     if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
@@ -585,6 +612,14 @@ export function DashboardClient({
       // HQ Admin impersonation sessions are immune to counter cross-tab locks
       if (roleRef.current === "admin") return;
       const data = event.data;
+
+      if (data?.type === "TENANT_SUSPENDED") {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("galla_role_session");
+          window.location.href = "/login?suspended=1";
+        }
+        return;
+      }
 
       if (data?.type === "PASSWORD_CHANGED") {
         if (typeof window !== "undefined") {
@@ -1140,6 +1175,39 @@ export function DashboardClient({
     );
   };
 
+  // Calculate expiry warning state & 5-hour grace period live countdown
+  const expiryBannerData = React.useMemo(() => {
+    if (!planExpiresAt || planType === "lifetime") return null;
+    const now = Date.now();
+    const expiresAtMs = new Date(planExpiresAt).getTime();
+    const diffMs = expiresAtMs - now;
+    const GRACE_PERIOD_MS = 5 * 60 * 60 * 1000;
+
+    // In 5-hour grace period (expired but within 5 hours)
+    if (diffMs <= 0 && diffMs >= -GRACE_PERIOD_MS) {
+      const remainingGraceMs = GRACE_PERIOD_MS + diffMs;
+      const hoursLeft = Math.floor(remainingGraceMs / (1000 * 60 * 60));
+      const minsLeft = Math.floor((remainingGraceMs % (1000 * 60 * 60)) / (1000 * 60));
+      return {
+        type: "grace_period" as const,
+        hoursLeft,
+        minsLeft,
+        formattedTime: `${hoursLeft}h ${minsLeft}m`,
+      };
+    }
+
+    // Near expiry (10 days or fewer)
+    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (daysLeft <= 10 && daysLeft > 0) {
+      return {
+        type: "near_expiry" as const,
+        daysLeft,
+      };
+    }
+
+    return null;
+  }, [planExpiresAt, planType]);
+
   return (
     <div className="flex w-full min-h-screen bg-galla-paper text-galla-ink">
       {/* Sidebar Navigation */}
@@ -1215,6 +1283,37 @@ export function DashboardClient({
             >
               Return to HQ
             </a>
+          </div>
+        )}
+
+        {/* 5-Hour Grace Period Alert Banner */}
+        {expiryBannerData?.type === "grace_period" && (
+          <div className="mb-4 bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white px-4 py-3 rounded-[8px] flex items-center justify-between shadow-md border border-red-700 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <Clock className="h-4 w-4 text-white animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13.5px] font-bold tracking-tight">
+                  🚨 Urgent Notice: {planType === "trial" ? "Trial Expired" : "Plan Expired"} — 5-Hour Grace Period Active ({expiryBannerData.formattedTime} remaining)
+                </p>
+                <p className="text-[12px] text-red-100 mt-0.5">
+                  Your salon operations are temporarily active under a 5-hour grace period. Please activate your plan immediately to prevent service suspension. All your data is safely preserved.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Near Expiry Warning Banner (<= 10 days) */}
+        {expiryBannerData?.type === "near_expiry" && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 rounded-[8px] flex items-center justify-between shadow-2xs shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Clock className="h-4 w-4 text-amber-700 shrink-0" />
+              <span className="text-[13px]">
+                <strong>Plan Notice:</strong> Your {planType === "trial" ? "free trial" : "subscription plan"} expires in <strong>{expiryBannerData.daysLeft} {expiryBannerData.daysLeft === 1 ? "day" : "days"}</strong>. Please coordinate renewal to avoid counter service interruption.
+              </span>
+            </div>
           </div>
         )}
 

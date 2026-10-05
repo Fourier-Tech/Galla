@@ -264,6 +264,7 @@ export async function getSalonsAction() {
       address: salon.address || "",
       ownerEmail: userMap.get(salon._id.toString()) || "",
       status: salon.status,
+      suspendedReason: salon.suspendedReason || null,
       planType: salon.planType || "trial",
       planExpiresAt: salon.planExpiresAt ? salon.planExpiresAt.toISOString() : null,
       currency: salon.settings?.currency || "INR",
@@ -325,6 +326,14 @@ export async function updateTenantAction(
 
     if (planExpiresAt !== undefined) {
       setFields.planExpiresAt = planExpiresAt;
+      // Reset notification stages so reminders are dispatched for the new expiration date
+      setFields.expiryNotificationStages = [];
+    }
+
+    if (data.status === "suspended") {
+      setFields.suspendedReason = "admin_manual";
+    } else if (data.status) {
+      setFields.suspendedReason = null;
     }
 
     // Optional PIN reset
@@ -356,8 +365,31 @@ export async function updateTenantAction(
       userUpdates.staffPinHash = setFields.staffPinHash;
     }
 
+    // If tenant suspended, wipe active session tokens on User
+    if (data.status === "suspended") {
+      userUpdates.ownerActiveSessionId = null;
+      userUpdates.staffActiveSessionId = null;
+    }
+
     if (Object.keys(userUpdates).length > 0) {
       await User.updateOne({ tenantId }, { $set: userUpdates });
+    }
+
+    // If salon was suspended, broadcast realtime event to kick out any active counter sessions
+    if (data.status === "suspended") {
+      try {
+        const { triggerTenantEvent } = await import("@/lib/realtime/pusher-server");
+        await triggerTenantEvent({
+          tenantId: tenantId.toString(),
+          event: "tenant_suspended",
+          data: {
+            reason: "admin_manual",
+            message: "Salon counter account has been suspended by Administrator.",
+          },
+        });
+      } catch (err) {
+        console.error("Failed to broadcast tenant_suspended event:", err);
+      }
     }
 
     if (passwordChanged) {
@@ -397,12 +429,56 @@ export async function toggleTenantStatusAction(tenantId: string, suspend: boolea
     if (!tenant) return { success: false, error: "Salon not found." };
 
     tenant.status = suspend ? "suspended" : (tenant.planType === "trial" ? "trial" : "active");
+    tenant.suspendedReason = suspend ? "admin_manual" : null;
     await tenant.save();
 
+    if (suspend) {
+      // Invalidate active session tokens on User
+      await User.updateOne(
+        { tenantId: tenant._id },
+        { $set: { ownerActiveSessionId: null, staffActiveSessionId: null } }
+      );
+
+      // Broadcast instant eviction to all connected client devices
+      try {
+        const { triggerTenantEvent } = await import("@/lib/realtime/pusher-server");
+        await triggerTenantEvent({
+          tenantId: tenant._id.toString(),
+          event: "tenant_suspended",
+          data: {
+            reason: "admin_manual",
+            message: "Salon counter account has been suspended by Administrator.",
+          },
+        });
+      } catch (err) {
+        console.error("Failed to broadcast tenant_suspended event:", err);
+      }
+    }
+
     revalidatePath("/hq/salons");
+    revalidatePath("/hq");
     return { success: true };
   } catch {
     return { success: false, error: "Failed to update salon status." };
+  }
+}
+
+export async function runPlanExpiryCheckAction() {
+  try {
+    const session = await getHqSession();
+    if (!session || session.role !== "superadmin") {
+      return { success: false, error: "Unauthorized." };
+    }
+
+    const { processPlanExpirations } = await import("@/lib/services/plan-expiry-service");
+    const result = await processPlanExpirations();
+
+    revalidatePath("/hq/salons");
+    revalidatePath("/hq");
+    return { success: true, result };
+  } catch (err: any) {
+    console.error("Failed to run plan expiry check:", err);
+    return { success: false, error: err.message || "Failed to run check." };
   }
 }
 

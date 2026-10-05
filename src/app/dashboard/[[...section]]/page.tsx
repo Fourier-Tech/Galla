@@ -66,6 +66,11 @@ export default async function DashboardPage({
     redirect("/login?error=AccessDenied");
   }
 
+  // Non-admin users are strictly blocked if salon account is suspended
+  if (data.tenantStatus === "suspended" && initialRole !== "admin") {
+    redirect("/login?suspended=1");
+  }
+
   return (
     <DashboardClient
       tenantId={data.resolvedTenantId}
@@ -96,6 +101,10 @@ export default async function DashboardPage({
       initialTodayAdvance={data.initialTodayAdvance}
       initialTodayNetProfit={data.initialTodayNetProfit}
       initialCustomerDues={data.initialCustomerDues}
+      planType={data.planType}
+      planExpiresAt={data.planExpiresAt}
+      isGracePeriodActive={data.isGracePeriodActive}
+      gracePeriodRemainingMs={data.gracePeriodRemainingMs}
     />
   );
 }

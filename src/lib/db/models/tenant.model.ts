@@ -14,6 +14,8 @@ export interface ITenant extends Document {
   status: "active" | "suspended" | "trial";
   planType: "trial" | "active" | "lifetime";
   planExpiresAt?: Date | null;
+  expiryNotificationStages?: string[];
+  suspendedReason?: string | null;
   ownerPinHash?: string | null;
   staffPinHash?: string | null;
   phone?: string | null;
@@ -61,6 +63,14 @@ const TenantSchema = new Schema<ITenant>(
     },
     planExpiresAt: {
       type: Date,
+      default: null,
+    },
+    expiryNotificationStages: {
+      type: [String],
+      default: [],
+    },
+    suspendedReason: {
+      type: String,
       default: null,
     },
     ownerPinHash: {

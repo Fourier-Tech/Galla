@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { User } from "@/lib/db/models/user.model";
+import { Tenant } from "@/lib/db/models/tenant.model";
 import { loginCredentialsSchema } from "@/lib/validations/auth";
 import {
   checkEmailLoginRateLimit,
@@ -13,6 +14,10 @@ import {
 
 export class RateLimitedError extends CredentialsSignin {
   code = "rate_limited";
+}
+
+export class SuspendedAccountError extends CredentialsSignin {
+  code = "account_suspended";
 }
 
 // In production / Vercel, ensure NEXTAUTH_URL and AUTH_URL do not point to localhost
@@ -96,6 +101,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           // Successful authentication -> reset rate limiter
           resetEmailLoginRateLimit(rawIp);
 
+          // Check if salon tenant account is suspended
+          const tenantDoc = await Tenant.collection.findOne(
+            { _id: rawUser.tenantId },
+            { projection: { status: 1 } }
+          );
+
+          if (tenantDoc?.status === "suspended") {
+            console.warn(`[Auth] Login blocked: Salon tenant ${rawUser.tenantId} is suspended.`);
+            throw new SuspendedAccountError();
+          }
+
           console.log(`[Auth] Shop authenticated successfully: ${email}`);
 
           return {
@@ -156,6 +172,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
         } catch (e) {
           console.error("[Auth] Error validating passwordChangedAt in jwt callback:", e);
+        }
+      }
+
+      // Invalidate session if salon tenant is suspended (unless it's an admin session)
+      if (token.tenantId) {
+        try {
+          await connectToDatabase();
+          const tenantDoc = await Tenant.collection.findOne(
+            { _id: new Types.ObjectId(token.tenantId as string) },
+            { projection: { status: 1 } }
+          );
+          if (tenantDoc?.status === "suspended") {
+            const { getRoleSession } = await import("@/lib/auth/role-session");
+            const roleSession = await getRoleSession().catch(() => null);
+            if (roleSession?.role !== "admin") {
+              console.warn(
+                `[Auth] Session invalidated: Salon tenant ${token.tenantId} is suspended.`
+              );
+              return null;
+            }
+          }
+        } catch (e) {
+          console.error("[Auth] Error validating tenant status in jwt callback:", e);
         }
       }
 

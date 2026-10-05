@@ -101,22 +101,37 @@ async function broadcastUpdate(
 async function resolveTenantId(
   session: SessionLike,
 ): Promise<Types.ObjectId | null> {
+  let resolvedId: Types.ObjectId | null = null;
   const tenantIdStr = session?.user?.tenantId;
   if (tenantIdStr && Types.ObjectId.isValid(tenantIdStr)) {
     const exists = await Tenant.exists({
       _id: new Types.ObjectId(tenantIdStr),
     });
-    if (exists) return new Types.ObjectId(tenantIdStr);
+    if (exists) resolvedId = new Types.ObjectId(tenantIdStr);
   }
 
-  if (session?.user?.id && Types.ObjectId.isValid(session.user.id)) {
+  if (!resolvedId && session?.user?.id && Types.ObjectId.isValid(session.user.id)) {
     const dbUser = await User.findById(new Types.ObjectId(session.user.id));
     if (dbUser && dbUser.tenantId) {
-      return dbUser.tenantId;
+      resolvedId = dbUser.tenantId;
     }
   }
 
-  return null;
+  if (!resolvedId) return null;
+
+  // Block all counter operations if salon account is suspended (HQ Admin impersonation is exempt)
+  const tenant = await Tenant.findById(resolvedId).select("status").lean();
+  if (!tenant) return null;
+
+  if (tenant.status === "suspended") {
+    const roleSession = await getRoleSession().catch(() => null);
+    if (roleSession?.role !== "admin") {
+      console.warn(`[Actions] Operation rejected: Tenant ${resolvedId} is suspended.`);
+      return null;
+    }
+  }
+
+  return resolvedId;
 }
 
 /**

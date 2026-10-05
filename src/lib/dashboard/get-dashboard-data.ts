@@ -62,6 +62,11 @@ export interface DashboardInitialData {
   initialTodayAdvance: number;
   initialTodayNetProfit: number;
   initialCustomerDues: number;
+  tenantStatus: "active" | "suspended" | "trial";
+  planType: "trial" | "active" | "lifetime";
+  planExpiresAt?: string | null;
+  isGracePeriodActive: boolean;
+  gracePeriodRemainingMs: number;
 }
 
 function formatCustomerVisit(date: Date | string | undefined): string {
@@ -138,6 +143,41 @@ export async function getDashboardInitialData(
   const resolvedTenantId = tenantId;
   const salonName = tenant.name;
   const tenantObjectId = new Types.ObjectId(tenantId);
+
+  // Check plan expiry and 5-hour grace period
+  const now = Date.now();
+  const GRACE_PERIOD_MS = 5 * 60 * 60 * 1000;
+  let tenantStatus = tenant.status || "active";
+  let isGracePeriodActive = false;
+  let gracePeriodRemainingMs = 0;
+
+  if (tenant.planExpiresAt && tenant.planType !== "lifetime") {
+    const expiresAtMs = new Date(tenant.planExpiresAt).getTime();
+    const msPastExpiry = now - expiresAtMs;
+
+    if (msPastExpiry > GRACE_PERIOD_MS) {
+      // Past 5-hour grace period -> auto-suspend
+      if (tenant.status !== "suspended") {
+        await Tenant.updateOne(
+          { _id: tenant._id },
+          { $set: { status: "suspended", suspendedReason: "plan_expired" } }
+        );
+        try {
+          const { triggerTenantEvent } = await import("@/lib/realtime/pusher-server");
+          await triggerTenantEvent({
+            tenantId: tenant._id.toString(),
+            event: "tenant_suspended",
+            data: { reason: "plan_expired" },
+          });
+        } catch {}
+      }
+      tenantStatus = "suspended";
+    } else if (msPastExpiry > 0 && msPastExpiry <= GRACE_PERIOD_MS) {
+      // Within 5-hour grace period
+      isGracePeriodActive = true;
+      gracePeriodRemainingMs = GRACE_PERIOD_MS - msPastExpiry;
+    }
+  }
 
   const [
     rawOrders,
@@ -653,5 +693,10 @@ export async function getDashboardInitialData(
     initialTodayAdvance,
     initialTodayNetProfit,
     initialCustomerDues,
+    tenantStatus,
+    planType: tenant.planType || "trial",
+    planExpiresAt: tenant.planExpiresAt ? new Date(tenant.planExpiresAt).toISOString() : null,
+    isGracePeriodActive,
+    gracePeriodRemainingMs,
   };
 }

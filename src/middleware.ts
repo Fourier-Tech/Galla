@@ -74,7 +74,8 @@ export function middleware(request: NextRequest) {
     if (
       request.nextUrl.searchParams.has("error") ||
       request.nextUrl.searchParams.has("expired") ||
-      request.nextUrl.searchParams.has("password_changed")
+      request.nextUrl.searchParams.has("password_changed") ||
+      request.nextUrl.searchParams.has("suspended")
     ) {
       const response = NextResponse.next();
       response.cookies.delete("authjs.session-token");

@@ -43,6 +43,9 @@ function LoginFormContent() {
     if (urlCode === "rate_limited" || urlError === "rate_limited") {
       return "Too many failed attempts. For your salon's security, login is temporarily locked for 15 minutes.";
     }
+    if (searchParams.get("suspended") === "1" || urlCode === "account_suspended" || urlError === "account_suspended") {
+      return "This shop account has been suspended. Please contact Galla Support or your administrator to reactivate your services.";
+    }
     if (searchParams.get("password_changed") === "1" || urlError === "password_changed") {
       return "The shop password was changed. All active sessions have been signed out. Please sign in with the new password.";
     }
@@ -107,6 +110,10 @@ function LoginFormContent() {
         if (res.code === "rate_limited" || res.error === "rate_limited") {
           setError(
             "Too many failed attempts. For your salon's security, login is temporarily locked for 15 minutes."
+          );
+        } else if (res.code === "account_suspended" || res.error === "account_suspended") {
+          setError(
+            "This shop account has been suspended. Please contact Galla Support or your administrator to reactivate your services."
           );
         } else {
           setError(

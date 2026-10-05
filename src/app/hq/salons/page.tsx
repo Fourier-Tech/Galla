@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   RefreshCw,
@@ -16,11 +17,14 @@ import {
   CreditCard,
   Building,
   ExternalLink,
+  AlertTriangle,
+  Send,
 } from "lucide-react";
 import {
   getSalonsAction,
   toggleTenantStatusAction,
   createSalonImpersonationUrlAction,
+  runPlanExpiryCheckAction,
 } from "@/app/hq/actions";
 import { ProvisionSalonModal } from "@/components/hq/modals/provision-salon-modal";
 import { ManagePlanModal } from "@/components/hq/modals/manage-plan-modal";
@@ -34,17 +38,28 @@ type Salon = {
   address?: string;
   ownerEmail?: string;
   status: "active" | "trial" | "suspended";
+  suspendedReason?: string | null;
   planType: "trial" | "active" | "lifetime";
   planExpiresAt?: string | null;
   currency?: string;
   createdAt: string;
 };
 
-function StatusBadge({ status }: { status: Salon["status"] }) {
+function StatusBadge({
+  status,
+  suspendedReason,
+}: {
+  status: Salon["status"];
+  suspendedReason?: string | null;
+}) {
   const map = {
     active: { label: "Active", icon: CheckCircle, cls: "bg-galla-sage-soft text-galla-sage" },
     trial: { label: "Trial", icon: Clock, cls: "bg-galla-brass-soft text-galla-brass" },
-    suspended: { label: "Suspended", icon: XCircle, cls: "bg-galla-brick-soft text-galla-brick" },
+    suspended: {
+      label: suspendedReason === "plan_expired" ? "Suspended (Expired)" : "Suspended",
+      icon: XCircle,
+      cls: "bg-galla-brick-soft text-galla-brick",
+    },
   };
   const badge = map[status] || map.active;
   const Icon = badge.icon;
@@ -70,7 +85,10 @@ function PlanBadge({ plan }: { plan: Salon["planType"] }) {
   );
 }
 
-export default function HqSalonsPage() {
+function HqSalonsContent() {
+  const searchParams = useSearchParams();
+  const initialFilter = (searchParams.get("filter") as any) || "all";
+
   const [salons, setSalons] = useState<Salon[]>([]);
   const [loading, setLoading] = useState(true);
   const [provisionOpen, setProvisionOpen] = useState(false);
@@ -78,6 +96,11 @@ export default function HqSalonsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "near_expiry" | "active" | "trial" | "suspended">(
+    initialFilter === "near_expiry" ? "near_expiry" : "all"
+  );
+  const [checkingExpirations, setCheckingExpirations] = useState(false);
+  const [checkResultToast, setCheckResultToast] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -130,6 +153,26 @@ export default function HqSalonsPage() {
     }
   };
 
+  const handleRunExpiryCheck = async () => {
+    setCheckingExpirations(true);
+    setCheckResultToast(null);
+    try {
+      const res = await runPlanExpiryCheckAction();
+      if (res.success && res.result) {
+        setCheckResultToast(
+          `Expiry check completed: ${res.result.emailsSent} email(s) sent, ${res.result.autoSuspended} auto-suspended.`
+        );
+        await refresh();
+      } else {
+        alert(res.error || "Failed to run expiry check.");
+      }
+    } catch {
+      alert("Network error executing expiry check.");
+    } finally {
+      setCheckingExpirations(false);
+    }
+  };
+
   const formatDate = (d?: string | null) => {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("en-IN", {
@@ -139,23 +182,146 @@ export default function HqSalonsPage() {
     });
   };
 
-  const daysLeft = (d?: string | null) => {
-    if (!d) return null;
-    const diff = Math.ceil((new Date(d).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return diff;
-  };
+  const getExpiryInfo = useCallback((salon: Salon) => {
+    if (salon.planType === "lifetime") {
+      return {
+        type: "lifetime",
+        label: "Lifetime Access",
+        isNearExpiry: false,
+        isGracePeriod: false,
+        isExpired: false,
+        badgeCls: "bg-galla-paper text-galla-ink-soft",
+      };
+    }
+
+    if (!salon.planExpiresAt) {
+      return {
+        type: "none",
+        label: "No Expiry",
+        isNearExpiry: false,
+        isGracePeriod: false,
+        isExpired: false,
+        badgeCls: "bg-galla-paper text-galla-ink-soft",
+      };
+    }
+
+    const msUntilExpiry = new Date(salon.planExpiresAt).getTime() - Date.now();
+    const hoursUntilExpiry = msUntilExpiry / (1000 * 60 * 60);
+    const daysUntilExpiry = Math.ceil(msUntilExpiry / (1000 * 60 * 60 * 24));
+    const GRACE_PERIOD_MS = 5 * 60 * 60 * 1000;
+
+    // Grace Period: 0 to -5 hours
+    if (msUntilExpiry <= 0 && msUntilExpiry >= -GRACE_PERIOD_MS) {
+      const remainingGraceHours = Math.max(0, Math.ceil((GRACE_PERIOD_MS + msUntilExpiry) / (1000 * 60 * 60)));
+      return {
+        type: "grace_period",
+        label: `⚠️ In Grace Period (${remainingGraceHours}h left)`,
+        isNearExpiry: true,
+        isGracePeriod: true,
+        isExpired: false,
+        badgeCls: "bg-red-600 text-white font-bold animate-pulse shadow-xs",
+      };
+    }
+
+    // Past 5-hour grace period
+    if (msUntilExpiry < -GRACE_PERIOD_MS) {
+      const isSuspended = salon.status === "suspended";
+      return {
+        type: "expired",
+        label: isSuspended ? (salon.suspendedReason === "plan_expired" ? "Suspended (Plan Expired)" : "Suspended") : "Expired",
+        isNearExpiry: false,
+        isGracePeriod: false,
+        isExpired: true,
+        badgeCls: "bg-galla-brick-soft text-galla-brick font-bold",
+      };
+    }
+
+    // Today (<= 24 hours)
+    if (daysUntilExpiry <= 1) {
+      return {
+        type: "today",
+        label: `⚠️ Expires Today (${Math.max(1, Math.round(hoursUntilExpiry))}h)`,
+        isNearExpiry: true,
+        isGracePeriod: false,
+        isExpired: false,
+        badgeCls: "bg-red-100 text-red-800 border border-red-300 font-bold",
+      };
+    }
+
+    // <= 3 days
+    if (daysUntilExpiry <= 3) {
+      return {
+        type: "3_days",
+        label: `Expires in ${daysUntilExpiry} days`,
+        isNearExpiry: true,
+        isGracePeriod: false,
+        isExpired: false,
+        badgeCls: "bg-orange-100 text-orange-800 border border-orange-300 font-semibold",
+      };
+    }
+
+    // <= 10 days
+    if (daysUntilExpiry <= 10) {
+      return {
+        type: "10_days",
+        label: `Expires in ${daysUntilExpiry} days`,
+        isNearExpiry: true,
+        isGracePeriod: false,
+        isExpired: false,
+        badgeCls: "bg-amber-100 text-amber-800 border border-amber-300 font-medium",
+      };
+    }
+
+    return {
+      type: "normal",
+      label: `${daysUntilExpiry} days left`,
+      isNearExpiry: false,
+      isGracePeriod: false,
+      isExpired: false,
+      badgeCls: "bg-galla-paper text-galla-ink-soft",
+    };
+  }, []);
+
+  const nearExpirySalons = useMemo(() => salons.filter((s) => getExpiryInfo(s).isNearExpiry), [salons, getExpiryInfo]);
+  const activeSalons = useMemo(() => salons.filter((s) => s.status === "active"), [salons]);
+  const trialSalons = useMemo(() => salons.filter((s) => s.status === "trial"), [salons]);
+  const suspendedSalons = useMemo(() => salons.filter((s) => s.status === "suspended"), [salons]);
+
+  const visibleSalons = useMemo(() => {
+    switch (filterStatus) {
+      case "near_expiry":
+        return nearExpirySalons;
+      case "active":
+        return activeSalons;
+      case "trial":
+        return trialSalons;
+      case "suspended":
+        return suspendedSalons;
+      default:
+        return salons;
+    }
+  }, [filterStatus, salons, nearExpirySalons, activeSalons, trialSalons, suspendedSalons]);
 
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-[24px] font-bold text-galla-ink">Manage Salons</h1>
           <p className="text-[13px] text-galla-ink-soft mt-0.5">
             {salons.length} salon{salons.length !== 1 ? "s" : ""} registered on Galla
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleRunExpiryCheck}
+            disabled={checkingExpirations}
+            className="flex items-center gap-1.5 px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-[6px] text-[12px] font-semibold text-amber-900 transition-colors cursor-pointer disabled:opacity-40 shadow-2xs"
+            title="Check all salon expirations, dispatch automated emails (10d, 3d, 1d, 0d), and enforce 5h grace period"
+          >
+            <Send className={`h-3.5 w-3.5 ${checkingExpirations ? "animate-spin" : ""}`} />
+            <span>{checkingExpirations ? "Running Check…" : "Run Expiry Automation"}</span>
+          </button>
           <button
             onClick={refresh}
             disabled={loading}
@@ -174,7 +340,112 @@ export default function HqSalonsPage() {
         </div>
       </div>
 
-      {/* Salons Table Container - Overflow visible to prevent clipping dropdown menus */}
+      {/* Expiry Automation Toast Notice */}
+      {checkResultToast && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-300 text-emerald-900 px-4 py-2.5 rounded-[8px] text-[13px] flex items-center justify-between shadow-2xs animate-fadeIn">
+          <span>{checkResultToast}</span>
+          <button
+            onClick={() => setCheckResultToast(null)}
+            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 ml-4 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Near Expiry / Grace Period Alert Banner */}
+      {nearExpirySalons.length > 0 && filterStatus !== "near_expiry" && (
+        <div className="mb-5 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-300 rounded-[10px] p-4 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-[14px] font-bold text-amber-950">
+                Action Needed: {nearExpirySalons.length} Salon Plan{nearExpirySalons.length !== 1 ? "s" : ""} Near Expiration or in Grace Period
+              </h3>
+              <p className="text-[12.5px] text-amber-800 mt-0.5">
+                Automated email reminders are running for 10-day, 3-day, 1-day, and expiration intervals with a 5-hour grace period before auto-suspension.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFilterStatus("near_expiry")}
+            className="px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-[12px] font-bold rounded-[6px] transition-colors shrink-0 shadow-xs cursor-pointer ml-3"
+          >
+            Filter Near Expiry ({nearExpirySalons.length})
+          </button>
+        </div>
+      )}
+
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1.5 mb-4 overflow-x-auto pb-1">
+        <button
+          onClick={() => setFilterStatus("all")}
+          className={`px-3 py-1.5 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer ${
+            filterStatus === "all"
+              ? "bg-galla-ink text-white font-semibold shadow-xs"
+              : "bg-white text-galla-ink-soft hover:bg-galla-paper border border-galla-line"
+          }`}
+        >
+          All ({salons.length})
+        </button>
+        <button
+          onClick={() => setFilterStatus("near_expiry")}
+          className={`px-3 py-1.5 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+            filterStatus === "near_expiry"
+              ? "bg-amber-700 text-white font-bold shadow-xs"
+              : nearExpirySalons.length > 0
+              ? "bg-amber-50 text-amber-900 border border-amber-300 font-semibold"
+              : "bg-white text-galla-ink-soft hover:bg-galla-paper border border-galla-line"
+          }`}
+        >
+          <span>Near Expiry</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10.5px] font-bold ${
+              filterStatus === "near_expiry"
+                ? "bg-white/20 text-white"
+                : nearExpirySalons.length > 0
+                ? "bg-amber-200 text-amber-900"
+                : "bg-galla-paper text-galla-ink-soft"
+            }`}
+          >
+            {nearExpirySalons.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setFilterStatus("active")}
+          className={`px-3 py-1.5 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer ${
+            filterStatus === "active"
+              ? "bg-galla-ink text-white font-semibold shadow-xs"
+              : "bg-white text-galla-ink-soft hover:bg-galla-paper border border-galla-line"
+          }`}
+        >
+          Active ({activeSalons.length})
+        </button>
+        <button
+          onClick={() => setFilterStatus("trial")}
+          className={`px-3 py-1.5 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer ${
+            filterStatus === "trial"
+              ? "bg-galla-ink text-white font-semibold shadow-xs"
+              : "bg-white text-galla-ink-soft hover:bg-galla-paper border border-galla-line"
+          }`}
+        >
+          Trial ({trialSalons.length})
+        </button>
+        <button
+          onClick={() => setFilterStatus("suspended")}
+          className={`px-3 py-1.5 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer ${
+            filterStatus === "suspended"
+              ? "bg-galla-ink text-white font-semibold shadow-xs"
+              : "bg-white text-galla-ink-soft hover:bg-galla-paper border border-galla-line"
+          }`}
+        >
+          Suspended ({suspendedSalons.length})
+        </button>
+      </div>
+
+      {/* Salons Table Container */}
       <div className="bg-white border border-galla-line rounded-[10px] min-h-[300px] shadow-sm relative">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -183,7 +454,7 @@ export default function HqSalonsPage() {
               <th className="px-5 py-3.5">Owner / Contact</th>
               <th className="px-5 py-3.5">Status</th>
               <th className="px-5 py-3.5">Plan</th>
-              <th className="px-5 py-3.5">Expiry</th>
+              <th className="px-5 py-3.5">Expiry / Grace</th>
               <th className="px-5 py-3.5 text-right">Actions</th>
             </tr>
           </thead>
@@ -197,21 +468,32 @@ export default function HqSalonsPage() {
                   </div>
                 </td>
               </tr>
-            ) : salons.length === 0 ? (
+            ) : visibleSalons.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-5 py-12 text-center text-galla-ink-soft text-[13px]">
-                  No salons provisioned yet. Click &quot;Provision Salon&quot; above to create your first tenant.
+                  {filterStatus === "near_expiry"
+                    ? "No salons currently near expiry or in grace period."
+                    : filterStatus === "suspended"
+                    ? "No suspended salons."
+                    : "No salons provisioned yet. Click \"Provision Salon\" above to create your first tenant."}
                 </td>
               </tr>
             ) : (
-              salons.map((salon, index) => {
-                const days = daysLeft(salon.planExpiresAt);
-                const isExpiringSoon = days !== null && days <= 7 && days >= 0;
-                const isExpired = days !== null && days < 0;
-                const isNearBottom = index >= salons.length - 2 || salons.length <= 2;
+              visibleSalons.map((salon, index) => {
+                const expiryInfo = getExpiryInfo(salon);
+                const isNearBottom = index >= visibleSalons.length - 2 || visibleSalons.length <= 2;
 
                 return (
-                  <tr key={salon._id} className="hover:bg-galla-paper/40 transition-colors">
+                  <tr
+                    key={salon._id}
+                    className={`transition-colors ${
+                      expiryInfo.isGracePeriod
+                        ? "bg-red-50/50 hover:bg-red-50/80"
+                        : expiryInfo.isNearExpiry
+                        ? "bg-amber-50/30 hover:bg-amber-50/60"
+                        : "hover:bg-galla-paper/40"
+                    }`}
+                  >
                     {/* Salon Profile */}
                     <td className="px-5 py-4">
                       <div className="flex items-start gap-2.5">
@@ -257,7 +539,7 @@ export default function HqSalonsPage() {
 
                     {/* Status */}
                     <td className="px-5 py-4">
-                      <StatusBadge status={salon.status} />
+                      <StatusBadge status={salon.status} suspendedReason={salon.suspendedReason} />
                     </td>
 
                     {/* Plan */}
@@ -265,7 +547,7 @@ export default function HqSalonsPage() {
                       <PlanBadge plan={salon.planType} />
                     </td>
 
-                    {/* Expiry */}
+                    {/* Expiry / Grace */}
                     <td className="px-5 py-4">
                       {salon.planType === "lifetime" ? (
                         <span className="text-galla-ink-soft text-[12px] font-medium">Lifetime Access</span>
@@ -273,28 +555,20 @@ export default function HqSalonsPage() {
                         <div>
                           <p
                             className={`font-medium ${
-                              isExpired
+                              expiryInfo.isExpired
                                 ? "text-galla-brick font-semibold"
-                                : isExpiringSoon
-                                ? "text-galla-brick"
+                                : expiryInfo.isNearExpiry
+                                ? "text-amber-800 font-semibold"
                                 : "text-galla-ink"
                             }`}
                           >
                             {formatDate(salon.planExpiresAt)}
                           </p>
-                          {days !== null && (
-                            <span
-                              className={`inline-block mt-0.5 text-[11px] px-1.5 py-0.2 rounded font-medium ${
-                                isExpired
-                                  ? "bg-galla-brick-soft text-galla-brick font-bold"
-                                  : isExpiringSoon
-                                  ? "bg-galla-brick-soft text-galla-brick font-semibold"
-                                  : "bg-galla-paper text-galla-ink-soft"
-                              }`}
-                            >
-                              {isExpired ? "Expired" : `${days} days left`}
+                          <div className="mt-1">
+                            <span className={`inline-block text-[11px] px-2 py-0.5 rounded-[4px] ${expiryInfo.badgeCls}`}>
+                              {expiryInfo.label}
                             </span>
-                          )}
+                          </div>
                         </div>
                       )}
                     </td>
@@ -432,5 +706,19 @@ export default function HqSalonsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function HqSalonsPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="p-8 flex items-center justify-center min-h-[300px]">
+          <RefreshCw className="h-6 w-6 animate-spin text-galla-teal" />
+        </div>
+      }
+    >
+      <HqSalonsContent />
+    </React.Suspense>
   );
 }
