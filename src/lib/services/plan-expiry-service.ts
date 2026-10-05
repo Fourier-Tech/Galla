@@ -133,64 +133,70 @@ export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOp
   <title>${heading}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 24px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <div style="max-width: 520px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 32px 28px; color: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+<body style="margin: 0; padding: 12px 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <div style="width: 90%; max-width: 460px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; color: #1e293b; box-sizing: border-box;">
     
-    <!-- Header with Galla Branding -->
-    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 24px;">
-      <div>
-        <span style="font-size: 20px; font-weight: 800; color: #0d9488; letter-spacing: -0.5px;">Galla</span>
-        <span style="font-size: 12px; color: #94a3b8; margin-left: 8px;">Salon Management</span>
-      </div>
-      <div style="background-color: ${badgeColor}15; color: ${badgeColor}; border: 1px solid ${badgeColor}40; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase;">
-        ${badgeText}
-      </div>
-    </div>
+    <!-- Header with Galla Branding & Status Badge -->
+    <table style="width: 100%; border-collapse: collapse; border-bottom: 1px solid #f1f5f9; margin-bottom: 10px;">
+      <tr>
+        <td style="vertical-align: middle; padding: 0 0 8px 0;">
+          <span style="font-size: 17px; font-weight: 800; color: #0d9488; letter-spacing: -0.5px;">Galla</span>
+          <span style="font-size: 11px; color: #94a3b8; margin-left: 6px;">Salon Management</span>
+        </td>
+        <td style="text-align: right; vertical-align: middle; padding: 0 0 8px 0;">
+          <span style="display: inline-block; background-color: ${badgeColor}18; color: ${badgeColor}; border: 1px solid ${badgeColor}40; padding: 2px 7px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase;">
+            ${badgeText}
+          </span>
+        </td>
+      </tr>
+    </table>
 
     <!-- Heading -->
-    <h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.3;">
+    <h2 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #0f172a; line-height: 1.3;">
       ${heading}
     </h2>
 
     <!-- Main Body Copy -->
-    <p style="margin: 0 0 20px 0; font-size: 14.5px; line-height: 1.6; color: #334155;">
+    <p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.45; color: #334155;">
       ${messageBody}
     </p>
 
     <!-- Details Box -->
-    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
         <tr>
-          <td style="color: #64748b; padding: 4px 0;">Salon Name:</td>
-          <td style="color: #0f172a; font-weight: 600; text-align: right; padding: 4px 0;">${salonName}</td>
+          <td style="color: #64748b; padding: 2px 0;">Salon:</td>
+          <td style="color: #0f172a; font-weight: 600; text-align: right; padding: 2px 0;">${salonName}</td>
         </tr>
         <tr>
-          <td style="color: #64748b; padding: 4px 0;">Current Plan:</td>
-          <td style="color: #0f172a; font-weight: 600; text-align: right; padding: 4px 0; text-transform: capitalize;">${planType}</td>
+          <td style="color: #64748b; padding: 2px 0;">Plan:</td>
+          <td style="color: #0f172a; font-weight: 600; text-align: right; padding: 2px 0; text-transform: capitalize;">${planType}</td>
         </tr>
         <tr>
-          <td style="color: #64748b; padding: 4px 0;">Expiration Date:</td>
-          <td style="color: #0f172a; font-weight: 600; text-align: right; padding: 4px 0;">${formattedDate}</td>
+          <td style="color: #64748b; padding: 2px 0;">Expires:</td>
+          <td style="color: #0f172a; font-weight: 600; text-align: right; padding: 2px 0;">${formattedDate}</td>
         </tr>
       </table>
     </div>
 
     <!-- Action Callout Box -->
-    <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 14px 16px; border-radius: 4px; margin-bottom: 24px;">
-      <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #166534; font-weight: 500;">
+    <div style="background-color: ${badgeColor}0d; border-left: 3px solid ${badgeColor}; padding: 7px 10px; border-radius: 4px; margin-bottom: 10px;">
+      <p style="margin: 0; font-size: 12px; line-height: 1.4; color: #1e293b; font-weight: 600;">
         ${actionCallout}
       </p>
     </div>
 
-    <p style="margin: 0 0 24px 0; font-size: 12.5px; line-height: 1.5; color: #64748b;">
-      Need assistance? Reply directly to this email or contact the Galla Support team.
+    <p style="margin: 0 0 10px 0; font-size: 11.5px; line-height: 1.4; color: #64748b;">
+      Need assistance? Reply directly to this email or contact Galla Support.
     </p>
 
     <!-- Footer -->
-    <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between;">
-      <span>&copy; ${new Date().getFullYear()} Galla Platform Inc.</span>
-      <span>Confidential &bull; Salon Ops</span>
-    </div>
+    <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #f1f5f9; font-size: 10.5px; color: #94a3b8;">
+      <tr>
+        <td style="padding: 6px 0 0 0;">&copy; ${new Date().getFullYear()} Galla Platform Inc.</td>
+        <td style="text-align: right; padding: 6px 0 0 0;">Salon Operations</td>
+      </tr>
+    </table>
 
   </div>
 </body>

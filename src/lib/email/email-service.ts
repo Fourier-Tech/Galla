@@ -55,30 +55,40 @@ export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): P
   <title>OTP Verification</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 20px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <div style="max-width: 440px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 28px 24px; color: #1e293b;">
-    <h2 style="margin: 0 0 14px 0; font-size: 20px; font-weight: 700; color: #0f172a;">
+<body style="margin: 0; padding: 12px 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <div style="width: 90%; max-width: 420px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; color: #1e293b; box-sizing: border-box;">
+    <!-- Header -->
+    <table style="width: 100%; border-collapse: collapse; border-bottom: 1px solid #f1f5f9; margin-bottom: 10px;">
+      <tr>
+        <td style="vertical-align: middle; padding: 0 0 8px 0;">
+          <span style="font-size: 17px; font-weight: 800; color: #0d9488; letter-spacing: -0.5px;">Galla</span>
+          <span style="font-size: 11px; color: #94a3b8; margin-left: 6px;">Salon Management</span>
+        </td>
+      </tr>
+    </table>
+
+    <h2 style="margin: 0 0 8px 0; font-size: 16.5px; font-weight: 700; color: #0f172a; line-height: 1.3;">
       OTP Verification
     </h2>
 
-    <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.5; color: #475569;">
+    <p style="margin: 0 0 10px 0; font-size: 13.5px; line-height: 1.45; color: #475569;">
       Your One-Time Password (OTP) for <strong>${salonName}</strong> is:
     </p>
 
-    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 34px; font-weight: 800; letter-spacing: 6px; color: #0d9488; margin: 20px 0; text-align: center;">
+    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 28px; font-weight: 800; letter-spacing: 5px; color: #0d9488; background-color: #f0fdfa; border: 1px dashed #99f6e4; border-radius: 6px; padding: 10px 0; margin: 10px 0; text-align: center;">
       ${otp}
     </div>
 
-    <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.5; color: #64748b;">
+    <p style="margin: 0 0 6px 0; font-size: 12px; line-height: 1.4; color: #64748b;">
       This OTP is valid for ${expiresInMinutes} minutes. Please do not share this code with anyone.
     </p>
 
-    <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.4; color: #94a3b8;">
+    <p style="margin: 0 0 10px 0; font-size: 11.5px; line-height: 1.3; color: #94a3b8;">
       If you did not request this OTP, you can safely ignore this email.
     </p>
 
-    <div style="border-top: 1px solid #f1f5f9; padding-top: 14px; font-size: 11.5px; color: #94a3b8;">
-      Galla &bull; Salon Management
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 8px; font-size: 10.5px; color: #94a3b8;">
+      &copy; ${new Date().getFullYear()} Galla Platform
     </div>
   </div>
 </body>
