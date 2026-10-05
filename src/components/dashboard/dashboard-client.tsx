@@ -1358,6 +1358,7 @@ export function DashboardClient({
       <RoleKeypadModal
         isOpen={isRoleLocked}
         salonName={salonProfile.name || salonName}
+        profileImageUrl={salonProfile.profileImageUrl}
         isEvicted={isEvicted}
         onRoleVerified={handleRoleVerified}
       />

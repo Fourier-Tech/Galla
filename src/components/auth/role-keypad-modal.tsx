@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { signOut } from "next-auth/react";
 import {
   Lock,
@@ -14,6 +15,7 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
+  Store,
 } from "lucide-react";
 import {
   verifyRolePinAction,
@@ -26,6 +28,7 @@ import { UserRole } from "@/types/dashboard";
 interface RoleKeypadModalProps {
   isOpen: boolean;
   salonName?: string;
+  profileImageUrl?: string | null;
   isEvicted?: boolean;
   onRoleVerified: (role: UserRole, activeSessionId?: string) => void;
 }
@@ -33,6 +36,7 @@ interface RoleKeypadModalProps {
 export function RoleKeypadModal({
   isOpen,
   salonName = "Salon",
+  profileImageUrl,
   isEvicted = false,
   onRoleVerified,
 }: RoleKeypadModalProps) {
@@ -40,6 +44,11 @@ export function RoleKeypadModal({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [retryCooldown, setRetryCooldown] = useState<number | null>(null);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [profileImageUrl]);
 
   // Forgot PIN sub-flow states
   const [isForgotMode, setIsForgotMode] = useState(false);
@@ -292,11 +301,27 @@ export function RoleKeypadModal({
              ========================================================================= */
           <>
             {/* Header */}
-            <div className="text-center space-y-1">
-              <div className="inline-flex p-2.5 rounded-full bg-galla-paper text-galla-teal mb-1 border border-galla-line">
-                <Lock className="h-5 w-5" />
+            <div className="text-center space-y-1.5">
+              <div className="flex justify-center mb-1.5">
+                {profileImageUrl && !imgError ? (
+                  <div className="h-16 w-16 rounded-[12px] overflow-hidden bg-galla-paper border border-galla-line shadow-xs flex items-center justify-center p-0.5">
+                    <Image
+                      src={profileImageUrl}
+                      alt={salonName}
+                      width={64}
+                      height={64}
+                      className="h-full w-full object-cover rounded-[10px]"
+                      unoptimized
+                      onError={() => setImgError(true)}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-14 w-14 rounded-[12px] bg-galla-paper border border-galla-line shadow-xs flex items-center justify-center text-galla-teal">
+                    <Store className="h-7 w-7 text-galla-teal" />
+                  </div>
+                )}
               </div>
-              <h2 className="font-bold text-[17px] text-galla-ink tracking-tight">
+              <h2 className="font-bold text-[18px] text-galla-ink tracking-tight">
                 {salonName}
               </h2>
               <p className="text-[12.5px] text-galla-ink-soft">
