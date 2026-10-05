@@ -20,6 +20,7 @@ import {
   Truck,
   Lock,
   KeyRound,
+  X,
 } from "lucide-react";
 import { TabId, UserRole } from "@/types/dashboard";
 
@@ -51,6 +52,8 @@ interface SidebarProps {
   profileImageUrl?: string;
   onLockCounter?: () => void;
   onOpenChangePins?: () => void;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export function Sidebar({
@@ -61,8 +64,34 @@ export function Sidebar({
   profileImageUrl,
   onLockCounter,
   onOpenChangePins,
+  isOpenMobile = false,
+  onCloseMobile,
 }: SidebarProps) {
   const pathname = usePathname();
+
+  // Close mobile drawer on Escape key press
+  React.useEffect(() => {
+    if (!isOpenMobile) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCloseMobile?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpenMobile, onCloseMobile]);
+
+  // Lock body scroll when mobile drawer is open
+  React.useEffect(() => {
+    if (isOpenMobile) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpenMobile]);
 
   // Gated navigation: Staff cannot see Analytics tab or Profile tab
   const visibleNav = NAV_ITEMS.filter(
@@ -97,13 +126,17 @@ export function Sidebar({
     await signOut({ callbackUrl: "/login" });
   };
 
-  return (
-    <aside className="w-[233px] shrink-0 h-screen sticky top-0 bg-galla-surface border-r border-galla-sidebar-border flex flex-col justify-between py-6">
+  const renderNavContent = (isMobile = false) => (
+    <div className="flex flex-col justify-between h-full overflow-y-auto">
       <div>
         {/* Brand Header */}
         <div className="px-5 mb-6">
           {/* Galla Platform Logo */}
-          <div className="relative h-8 w-full mb-3.5 flex justify-center">
+          <div
+            className={`relative h-8 mb-3.5 flex items-center ${
+              isMobile ? "justify-between" : "justify-center"
+            }`}
+          >
             <div className="relative h-8 w-24">
               <Image
                 src="/logo.png"
@@ -114,28 +147,38 @@ export function Sidebar({
                 sizes="96px"
               />
             </div>
+            {isMobile && (
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                aria-label="Close navigation"
+                className="p-1.5 -mr-2 rounded-[5px] text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
           </div>
 
-          {/* Shop Identity: Salon Image + Shop Name (No outlines, enlarged image) */}
-          <div className="flex items-center gap-3 py-1 border border-galla-line rounded-[5px] px-3 mt-8">
+          {/* Shop Identity: Salon Image + Shop Name */}
+          <div className="flex items-center gap-3 py-1 border border-galla-line rounded-[5px] px-3 mt-6">
             {profileImageUrl ? (
               <div className="h-11 w-11 rounded-[8px] overflow-hidden shrink-0 bg-galla-paper shadow-xs flex items-center justify-center">
                 <Image
                   src={profileImageUrl}
                   alt={salonName}
-                  width={5} 
-                  height={5}
+                  width={44}
+                  height={44}
                   className="h-full w-full object-cover"
                   unoptimized
                 />
               </div>
             ) : (
-              <div className="h-12 w-12 rounded-[8px] shrink-0 bg-galla-paper flex items-center justify-center text-galla-ink-soft">
-                <Store className="h-6 w-6" />
+              <div className="h-11 w-11 rounded-[8px] shrink-0 bg-galla-paper flex items-center justify-center text-galla-ink-soft">
+                <Store className="h-5 w-5" />
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="text-[17px] font-semibold text-galla-ink tracking-tight truncate">
+              <div className="text-[16px] font-semibold text-galla-ink tracking-tight truncate">
                 {salonName}
               </div>
             </div>
@@ -156,8 +199,9 @@ export function Sidebar({
                 onClick={(e) => {
                   e.preventDefault();
                   if (onSelectTab) onSelectTab(item.id);
+                  if (isMobile && onCloseMobile) onCloseMobile();
                 }}
-                className={`flex items-center gap-2.5 px-[13px] py-[8px] rounded-[5px] text-[14px] text-left transition-all cursor-pointer ${
+                className={`flex items-center gap-2.5 px-[13px] py-[8.5px] rounded-[5px] text-[14px] text-left transition-all cursor-pointer ${
                   isActive
                     ? "bg-galla-teal-soft text-galla-teal font-semibold border-l-[3px] border-galla-teal"
                     : "text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 font-normal border-l-[3px] border-transparent"
@@ -172,7 +216,7 @@ export function Sidebar({
       </div>
 
       {/* Footer Area: Account Role, Screen Lock & Sign Out */}
-      <div className="px-3.5 space-y-2">
+      <div className="px-3.5 space-y-2 pt-4">
         <div className="bg-galla-paper/80 border border-galla-line rounded-[5px] px-3 py-1.5 flex items-center justify-between shadow-2xs">
           <span className="text-[12px] font-normal text-galla-ink-soft">
             Counter Role
@@ -194,7 +238,10 @@ export function Sidebar({
         {onLockCounter && (
           <button
             type="button"
-            onClick={onLockCounter}
+            onClick={() => {
+              if (isMobile && onCloseMobile) onCloseMobile();
+              onLockCounter();
+            }}
             className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 transition-colors cursor-pointer"
           >
             <Lock className="h-3.5 w-3.5" />
@@ -206,7 +253,10 @@ export function Sidebar({
         {(role === "owner" || role === "admin") && onOpenChangePins && (
           <button
             type="button"
-            onClick={onOpenChangePins}
+            onClick={() => {
+              if (isMobile && onCloseMobile) onCloseMobile();
+              onOpenChangePins();
+            }}
             className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper/60 transition-colors cursor-pointer"
           >
             <KeyRound className="h-3.5 w-3.5" />
@@ -216,13 +266,46 @@ export function Sidebar({
 
         <button
           type="button"
-          onClick={handleSignOut}
+          onClick={() => {
+            if (isMobile && onCloseMobile) onCloseMobile();
+            handleSignOut();
+          }}
           className="w-full flex items-center gap-2 px-[11px] py-[6px] rounded-[5px] text-[12.5px] font-sans font-medium text-galla-ink-soft hover:text-red-700 hover:bg-red-50/60 transition-colors cursor-pointer"
         >
           <LogOut className="h-3.5 w-3.5" />
           <span>Sign Out</span>
         </button>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sticky Sidebar (Hidden on mobile) */}
+      <aside className="hidden md:flex flex-col w-[233px] shrink-0 h-screen sticky top-0 bg-galla-surface border-r border-galla-sidebar-border py-6 z-20">
+        {renderNavContent(false)}
+      </aside>
+
+      {/* Mobile Drawer Backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-xs transition-opacity duration-200 md:hidden ${
+          isOpenMobile
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        }`}
+        onClick={onCloseMobile}
+        aria-hidden="true"
+      />
+
+      {/* Mobile Drawer Panel */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[270px] max-w-[85vw] bg-galla-surface border-r border-galla-sidebar-border py-6 shadow-2xl flex flex-col transition-transform duration-250 ease-in-out md:hidden ${
+          isOpenMobile ? "translate-x-0" : "-translate-x-full"
+        }`}
+        aria-label="Navigation Menu"
+      >
+        {renderNavContent(true)}
+      </aside>
+    </>
   );
 }

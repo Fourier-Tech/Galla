@@ -18,6 +18,7 @@ import {
   OrderStatus,
 } from "@/types/dashboard";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { Menu } from "lucide-react";
 import { OverviewTab } from "@/components/dashboard/tabs/overview-tab";
 import { OrdersTab } from "@/components/dashboard/tabs/orders-tab";
 import { InventoryTab } from "@/components/dashboard/tabs/inventory-tab";
@@ -117,6 +118,7 @@ export function DashboardClient({
   const [isEvicted, setIsEvicted] = useState<boolean>(initialRole === "admin" ? false : initialIsEvicted);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(initialActiveSessionId);
   const [isChangePinOpen, setIsChangePinOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Sync refs so realtime websocket subscriptions always see current values without re-subscribing
   const roleRef = useRef(role);
@@ -326,6 +328,7 @@ export function DashboardClient({
     }
 
     setActiveTab(tab);
+    setIsMobileNavOpen(false);
 
     if (tab === "orders") {
       setOrdersFilter((targetFilter as any) || "all");
@@ -1148,16 +1151,53 @@ export function DashboardClient({
         profileImageUrl={salonProfile.profileImageUrl}
         onLockCounter={handleLockCounter}
         onOpenChangePins={() => setIsChangePinOpen(true)}
+        isOpenMobile={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
       />
 
-      {/* Main Tab Canvas (Table scrollable on overview, full scroll on other tabs) */}
+      {/* Main Tab Canvas (Full screen on mobile, table scrollable on overview, full scroll on other tabs) */}
       <main
-        className={`flex-1 min-w-0 h-screen px-8 lg:px-12 py-5 lg:py-6 ${
+        className={`flex-1 min-w-0 min-h-screen md:h-screen px-3 sm:px-6 md:px-8 lg:px-12 py-3 sm:py-5 lg:py-6 ${
           activeTab === "overview"
-            ? "overflow-hidden flex flex-col"
+            ? "overflow-y-auto md:overflow-hidden flex flex-col"
             : "overflow-y-auto"
         }`}
       >
+        {/* Mobile Header Bar (burger button to toggle left panel, shop name, active tab & role) */}
+        <div className="md:hidden flex items-center justify-between bg-galla-surface border border-galla-line rounded-[8px] px-3.5 py-2.5 mb-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen((prev) => !prev)}
+              aria-label="Toggle navigation menu"
+              className="p-1.5 -ml-1 text-galla-ink hover:text-galla-teal hover:bg-galla-paper rounded-[6px] transition-colors cursor-pointer shrink-0"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[14.5px] font-bold text-galla-ink tracking-tight truncate">
+                {salonProfile.name || salonName}
+              </span>
+              <span className="text-[11px] font-medium text-galla-ink-soft bg-galla-paper border border-galla-line px-1.5 py-0.5 rounded-[4px] capitalize shrink-0">
+                {activeTab}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-[4px] ${
+                role === "admin"
+                  ? "bg-purple-100 text-purple-800 border border-purple-300 font-bold"
+                  : role === "owner"
+                  ? "bg-galla-teal-soft text-galla-teal border border-galla-teal/20"
+                  : "bg-galla-brass-soft text-galla-brass border border-galla-brass/20"
+              }`}
+            >
+              {role === "admin" ? "Admin" : role === "owner" ? "Owner" : "Staff"}
+            </span>
+          </div>
+        </div>
         {/* HQ Admin Impersonation Top Banner */}
         {role === "admin" && (
           <div className="mb-4 bg-gradient-to-r from-purple-950 via-indigo-950 to-purple-950 text-white px-4 py-2.5 rounded-[8px] text-[13px] flex items-center justify-between shadow-sm border border-purple-800/80 shrink-0">
