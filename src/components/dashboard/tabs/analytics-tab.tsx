@@ -49,6 +49,8 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
       if (range === "custom" && customStart && customEnd) {
         params.set("startDate", customStart);
         params.set("endDate", customEnd);
+        params.set("customStart", customStart);
+        params.set("customEnd", customEnd);
       }
 
       const res = await fetch(`/api/analytics?${params.toString()}`, {
@@ -91,6 +93,35 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
     "30d": "Last 30 Days",
     custom: "Custom Range",
   };
+
+  const getActiveRangeLabel = () => {
+    if (range === "custom" && customStart && customEnd) {
+      const [sY, sM, sD] = customStart.split("-").map(Number);
+      const [eY, eM, eD] = customEnd.split("-").map(Number);
+      const sDate = new Date(sY, sM - 1, sD);
+      const eDate = new Date(eY, eM - 1, eD);
+      if (customStart === customEnd) {
+        return sDate.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      }
+      const sStr = sDate.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+      });
+      const eStr = eDate.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      return `${sStr} – ${eStr}`;
+    }
+    return rangeLabels[range] || "Custom Range";
+  };
+
+  const activeRangeLabel = getActiveRangeLabel();
 
   return (
     <div className="space-y-6 w-full pb-12">
@@ -161,7 +192,7 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
             <ExecutiveMetricsGrid
               metrics={data.executive}
               procurement={data.procurement}
-              rangeLabel={rangeLabels[range]}
+              rangeLabel={activeRangeLabel}
             />
           </section>
 
@@ -169,7 +200,7 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
           <section className="grid grid-cols-1 lg:grid-cols-[1.618fr_1fr] gap-[21px]">
             <CashflowTrendsCard
               timeline={data.cashflow.timeline}
-              rangeLabel={rangeLabels[range]}
+              rangeLabel={activeRangeLabel}
             />
             <RevenueMixCard mix={data.cashflow.revenueMix} />
           </section>
@@ -184,7 +215,7 @@ export function AnalyticsTab({}: AnalyticsTabProps) {
             <InternalConsumptionCard
               internalConsumption={data.internalConsumption}
               range={range}
-              rangeLabel={rangeLabels[range]}
+              rangeLabel={activeRangeLabel}
               customStart={customStart}
               customEnd={customEnd}
             />

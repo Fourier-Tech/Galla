@@ -1175,26 +1175,12 @@ export function DashboardClient({
     );
   };
 
-  // Calculate expiry warning state & 5-hour grace period live countdown
+  // Calculate expiry warning state (10 days or fewer)
   const expiryBannerData = React.useMemo(() => {
     if (!planExpiresAt || planType === "lifetime") return null;
     const now = Date.now();
     const expiresAtMs = new Date(planExpiresAt).getTime();
     const diffMs = expiresAtMs - now;
-    const GRACE_PERIOD_MS = 5 * 60 * 60 * 1000;
-
-    // In 5-hour grace period (expired but within 5 hours)
-    if (diffMs <= 0 && diffMs >= -GRACE_PERIOD_MS) {
-      const remainingGraceMs = GRACE_PERIOD_MS + diffMs;
-      const hoursLeft = Math.floor(remainingGraceMs / (1000 * 60 * 60));
-      const minsLeft = Math.floor((remainingGraceMs % (1000 * 60 * 60)) / (1000 * 60));
-      return {
-        type: "grace_period" as const,
-        hoursLeft,
-        minsLeft,
-        formattedTime: `${hoursLeft}h ${minsLeft}m`,
-      };
-    }
 
     // Near expiry (10 days or fewer)
     const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -1284,24 +1270,6 @@ export function DashboardClient({
           </div>
         )}
 
-        {/* 5-Hour Grace Period Alert Banner */}
-        {expiryBannerData?.type === "grace_period" && (
-          <div className="mb-4 bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white px-4 py-3 rounded-[8px] flex items-center justify-between shadow-md border border-red-700 shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                <Clock className="h-4 w-4 text-white animate-pulse" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[13.5px] font-bold tracking-tight">
-                  🚨 Urgent Notice: {planType === "trial" ? "Trial Expired" : "Plan Expired"} — 5-Hour Grace Period Active ({expiryBannerData.formattedTime} remaining)
-                </p>
-                <p className="text-[12px] text-red-100 mt-0.5">
-                  Your salon operations are temporarily active under a 5-hour grace period. Please activate your plan immediately to prevent service suspension. All your data is safely preserved.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Near Expiry Warning Banner (<= 10 days) */}
         {expiryBannerData?.type === "near_expiry" && (

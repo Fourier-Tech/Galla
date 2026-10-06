@@ -208,23 +208,8 @@ function HqSalonsContent() {
     const msUntilExpiry = new Date(salon.planExpiresAt).getTime() - Date.now();
     const hoursUntilExpiry = msUntilExpiry / (1000 * 60 * 60);
     const daysUntilExpiry = Math.ceil(msUntilExpiry / (1000 * 60 * 60 * 24));
-    const GRACE_PERIOD_MS = 5 * 60 * 60 * 1000;
-
-    // Grace Period: 0 to -5 hours
-    if (msUntilExpiry <= 0 && msUntilExpiry >= -GRACE_PERIOD_MS) {
-      const remainingGraceHours = Math.max(0, Math.ceil((GRACE_PERIOD_MS + msUntilExpiry) / (1000 * 60 * 60)));
-      return {
-        type: "grace_period",
-        label: `⚠️ In Grace Period (${remainingGraceHours}h left)`,
-        isNearExpiry: true,
-        isGracePeriod: true,
-        isExpired: false,
-        badgeCls: "bg-red-600 text-white font-bold animate-pulse shadow-xs",
-      };
-    }
-
-    // Past 5-hour grace period
-    if (msUntilExpiry < -GRACE_PERIOD_MS) {
+    // Expired (passed 12:00 AM midnight)
+    if (msUntilExpiry <= 0) {
       const isSuspended = salon.status === "suspended";
       return {
         type: "expired",
@@ -317,7 +302,7 @@ function HqSalonsContent() {
             onClick={handleRunExpiryCheck}
             disabled={checkingExpirations}
             className="flex items-center gap-1.5 px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-[6px] text-[12px] font-semibold text-amber-900 transition-colors cursor-pointer disabled:opacity-40 shadow-2xs"
-            title="Check all salon expirations, dispatch automated emails (10d, 3d, 1d, 0d), and enforce 5h grace period"
+            title="Check all salon expirations, dispatch automated emails (10d, 3d, 1d), and auto-suspend expired plans"
           >
             <Send className={`h-3.5 w-3.5 ${checkingExpirations ? "animate-spin" : ""}`} />
             <span>{checkingExpirations ? "Running Check…" : "Run Expiry Automation"}</span>
@@ -353,7 +338,7 @@ function HqSalonsContent() {
         </div>
       )}
 
-      {/* Near Expiry / Grace Period Alert Banner */}
+      {/* Near Expiry Alert Banner */}
       {nearExpirySalons.length > 0 && filterStatus !== "near_expiry" && (
         <div className="mb-5 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-300 rounded-[10px] p-4 flex items-center justify-between shadow-2xs">
           <div className="flex items-center gap-3">
@@ -362,10 +347,10 @@ function HqSalonsContent() {
             </div>
             <div>
               <h3 className="text-[14px] font-bold text-amber-950">
-                Action Needed: {nearExpirySalons.length} Salon Plan{nearExpirySalons.length !== 1 ? "s" : ""} Near Expiration or in Grace Period
+                Action Needed: {nearExpirySalons.length} Salon Plan{nearExpirySalons.length !== 1 ? "s" : ""} Near Expiration
               </h3>
               <p className="text-[12.5px] text-amber-800 mt-0.5">
-                Automated email reminders are running for 10-day, 3-day, 1-day, and expiration intervals with a 5-hour grace period before auto-suspension.
+                Automated email reminders are running for 10-day, 3-day, and 1-day intervals. Expired plans are auto-suspended at 12:00 AM midnight.
               </p>
             </div>
           </div>
@@ -472,7 +457,7 @@ function HqSalonsContent() {
               <tr>
                 <td colSpan={6} className="px-5 py-12 text-center text-galla-ink-soft text-[13px]">
                   {filterStatus === "near_expiry"
-                    ? "No salons currently near expiry or in grace period."
+                    ? "No salons currently near expiry."
                     : filterStatus === "suspended"
                     ? "No suspended salons."
                     : "No salons provisioned yet. Click \"Provision Salon\" above to create your first tenant."}

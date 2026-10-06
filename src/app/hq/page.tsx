@@ -12,8 +12,6 @@ async function getStats() {
   await connectToDatabase();
   const now = new Date();
   const tenDaysFromNow = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
-  const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-
   const [total, active, trial, suspended, nearExpiry] = await Promise.all([
     Tenant.countDocuments(),
     Tenant.countDocuments({ status: "active" }),
@@ -21,7 +19,7 @@ async function getStats() {
     Tenant.countDocuments({ status: "suspended" }),
     Tenant.countDocuments({
       planType: { $ne: "lifetime" },
-      planExpiresAt: { $gte: fiveHoursAgo, $lte: tenDaysFromNow },
+      planExpiresAt: { $gte: now, $lte: tenDaysFromNow },
       status: { $ne: "suspended" },
     }),
   ]);
@@ -63,10 +61,10 @@ export default async function HqDashboardPage() {
             </div>
             <div>
               <h3 className="text-[14px] font-bold text-amber-950">
-                {stats.nearExpiry} Salon Plan{stats.nearExpiry !== 1 ? "s" : ""} Near Expiry or in Grace Period
+                {stats.nearExpiry} Salon Plan{stats.nearExpiry !== 1 ? "s" : ""} Near Expiry
               </h3>
               <p className="text-[12.5px] text-amber-800 mt-0.5">
-                Automated email reminders are scheduled 10d, 3d, 1d, and 0d before expiration with a 5-hour grace period before auto-suspension.
+                Automated email reminders are scheduled 10d, 3d, and 1d before expiration. Expired plans are auto-suspended at 12:00 AM midnight.
               </p>
             </div>
           </div>

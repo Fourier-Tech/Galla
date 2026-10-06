@@ -37,7 +37,7 @@ interface SendExpiryEmailOptions {
   adminEmail: string;
   salonName: string;
   planType: "trial" | "active" | "lifetime";
-  stage: "10_days" | "3_days" | "1_day" | "expired" | "auto_suspended";
+  stage: "10_days" | "3_days" | "1_day" | "auto_suspended";
   expiresAt: Date;
 }
 
@@ -93,26 +93,15 @@ export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOp
 
     case "1_day":
       subject = isTrial
-        ? `🚨 Final Notice: Your Galla Trial expires tomorrow — ${salonName}`
-        : `🚨 Final Notice: Your Galla Plan expires tomorrow — ${salonName}`;
-      badgeText = "Expires Tomorrow";
+        ? `🚨 Final Notice: Your Galla Trial expires today — ${salonName}`
+        : `🚨 Final Notice: Your Galla Plan expires today — ${salonName}`;
+      badgeText = "Expires Tonight";
       badgeColor = "#dc2626"; // Red
-      heading = isTrial ? "Final Day of Your Trial" : "Plan Expires Tomorrow";
+      heading = isTrial ? "Final Day of Your Trial" : "Plan Expires Today";
       messageBody = isTrial
-        ? `This is your final notice: your free trial for <strong>${salonName}</strong> expires <strong>tomorrow (${formattedDate})</strong>. You need to activate a subscription plan to continue using Galla salon services.`
-        : `Your subscription plan for <strong>${salonName}</strong> expires <strong>tomorrow (${formattedDate})</strong>. Please finalize your plan renewal immediately.`;
+        ? `This is your final notice: your free trial for <strong>${salonName}</strong> expires <strong>tonight at 12:00 AM (${formattedDate})</strong>. You need to activate a subscription plan to continue using Galla salon services.`
+        : `Your subscription plan for <strong>${salonName}</strong> expires <strong>tonight at 12:00 AM (${formattedDate})</strong>. Please renew your plan today to prevent counter suspension.`;
       actionCallout = "Immediate action required: please activate your subscription to prevent counter interruption.";
-      break;
-
-    case "expired":
-      subject = `⚠️ Plan Expired: 5-Hour Grace Period Active — ${salonName}`;
-      badgeText = "5-Hour Grace Period Active";
-      badgeColor = "#dc2626"; // Red
-      heading = isTrial ? "Your Trial Has Expired" : "Your Subscription Plan Has Expired";
-      messageBody = isTrial
-        ? `Your trial period for <strong>${salonName}</strong> has expired as of <strong>${formattedDate}</strong>. We have granted a <strong>5-hour grace period</strong> during which your salon counter remains operational. You must activate a subscription plan within the next 5 hours to prevent automatic account suspension.`
-        : `Your subscription plan for <strong>${salonName}</strong> has expired as of <strong>${formattedDate}</strong>. We have granted a <strong>5-hour grace period</strong>. Please renew your subscription within the next 5 hours to avoid automatic counter suspension.`;
-      actionCallout = "Urgent: Activate your plan within 5 hours to keep your salon active.";
       break;
 
     case "auto_suspended":
@@ -120,7 +109,7 @@ export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOp
       badgeText = "Account Suspended";
       badgeColor = "#b91c1c"; // Dark red
       heading = "Salon Account Suspended";
-      messageBody = `The 5-hour grace period for <strong>${salonName}</strong> has ended without plan renewal, and your counter account has been automatically suspended.<br/><br/><strong>Important:</strong> None of your data has been deleted. All your order history, inventory, customer profiles, and financials are 100% safely preserved and will become immediately accessible upon plan reactivation.`;
+      messageBody = `Your subscription plan for <strong>${salonName}</strong> has expired as of <strong>${formattedDate}</strong>, and your counter account has been automatically suspended.<br/><br/><strong>Important:</strong> None of your data has been deleted. All your order history, inventory, customer profiles, and financials are 100% safely preserved and will become immediately accessible upon plan reactivation.`;
       actionCallout = "Please contact Galla Support or your platform administrator to reactivate your salon account.";
       break;
   }
@@ -256,9 +245,9 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
       "admin@galla.app";
 
     const now = Date.now();
-    const GRACE_PERIOD_MS = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
-    // Find all tenants that have an expiration date and are not lifetime
+    // ponytail: O(n) sequential scan is sufficient for current tenant volume (<1k salons).
+    // At >1k salons, index planExpiresAt, add { planExpiresAt: { $lte: new Date(now + 10 * 86400000) } }, and batch via cursor.
     const tenants = await Tenant.find({
       planType: { $ne: "lifetime" },
       planExpiresAt: { $ne: null },
@@ -343,30 +332,11 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
           }
         }
 
-        // Stage 4: At Expiry (0 ms down to -5 hours -> 5-hour grace period active)
-        if (msUntilExpiry <= 0 && msUntilExpiry >= -GRACE_PERIOD_MS) {
-          if (!updatedStages.includes("expired") && ownerEmail.includes("@")) {
-            const sent = await sendPlanExpiryNotificationEmail({
-              recipientEmail: ownerEmail,
-              adminEmail,
-              salonName: tenant.name,
-              planType: tenant.planType,
-              stage: "expired",
-              expiresAt: new Date(tenant.planExpiresAt),
-            });
-            if (sent) {
-              result.emailsSent++;
-              updatedStages.push("expired");
-              stagesModified = true;
-            }
-          }
-        }
-
-        // Stage 5: Past 5-hour Grace Period without activation -> Auto-suspend
-        if (msUntilExpiry < -GRACE_PERIOD_MS) {
+        // Stage 4: Expired (Midnight passed -> Auto-suspend immediately)
+        if (msUntilExpiry <= 0) {
           if (tenant.status !== "suspended") {
             console.warn(
-              `[PlanExpiry] Salon ${tenant.name} (${tenant._id}) has exceeded 5-hour grace period. Auto-suspending.`
+              `[PlanExpiry] Salon ${tenant.name} (${tenant._id}) plan expired. Auto-suspending.`
             );
             tenant.status = "suspended";
             tenant.suspendedReason = "plan_expired";
@@ -378,7 +348,7 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
                 event: "tenant_suspended",
                 data: {
                   reason: "plan_expired",
-                  message: "Your subscription plan has expired and grace period ended.",
+                  message: "Your subscription plan has expired.",
                 },
               });
             } catch (pusherErr) {
@@ -386,27 +356,27 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
             }
 
             result.autoSuspended++;
+          }
 
-            // Dispatch account suspended notification email
-            if (!updatedStages.includes("auto_suspended") && ownerEmail.includes("@")) {
-              const sent = await sendPlanExpiryNotificationEmail({
-                recipientEmail: ownerEmail,
-                adminEmail,
-                salonName: tenant.name,
-                planType: tenant.planType,
-                stage: "auto_suspended",
-                expiresAt: new Date(tenant.planExpiresAt),
-              });
-              if (sent) {
-                result.emailsSent++;
-                updatedStages.push("auto_suspended");
-                stagesModified = true;
-              }
+          // Dispatch account suspended notification email once
+          if (!updatedStages.includes("auto_suspended") && ownerEmail.includes("@")) {
+            const sent = await sendPlanExpiryNotificationEmail({
+              recipientEmail: ownerEmail,
+              adminEmail,
+              salonName: tenant.name,
+              planType: tenant.planType,
+              stage: "auto_suspended",
+              expiresAt: new Date(tenant.planExpiresAt),
+            });
+            if (sent) {
+              result.emailsSent++;
+              updatedStages.push("auto_suspended");
+              stagesModified = true;
             }
           }
         }
 
-        if (stagesModified) {
+        if (stagesModified || tenant.isModified("status")) {
           tenant.expiryNotificationStages = updatedStages;
           await tenant.save();
         }

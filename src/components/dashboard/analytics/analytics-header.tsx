@@ -75,7 +75,12 @@ export function AnalyticsHeader({
               type="date"
               value={customStartDate}
               max={customEndDate || undefined}
-              onChange={(e) => onCustomDateChange(e.target.value, customEndDate)}
+              onChange={(e) => {
+                const newStart = e.target.value;
+                if (!newStart) return;
+                const newEnd = customEndDate && newStart > customEndDate ? newStart : customEndDate;
+                onCustomDateChange(newStart, newEnd);
+              }}
               onClick={(e) => {
                 try {
                   (e.target as HTMLInputElement).showPicker?.();
@@ -88,7 +93,12 @@ export function AnalyticsHeader({
               type="date"
               value={customEndDate}
               min={customStartDate || undefined}
-              onChange={(e) => onCustomDateChange(customStartDate, e.target.value)}
+              onChange={(e) => {
+                const newEnd = e.target.value;
+                if (!newEnd) return;
+                const newStart = customStartDate && newEnd < customStartDate ? newEnd : customStartDate;
+                onCustomDateChange(newStart, newEnd);
+              }}
               onClick={(e) => {
                 try {
                   (e.target as HTMLInputElement).showPicker?.();

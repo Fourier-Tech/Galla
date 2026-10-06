@@ -461,8 +461,8 @@ export async function GET(request: Request) {
     // SECTION: CONSUMPTION DETAILS (Drill-Down)
     // ==========================================
     if (section === "consumption_details") {
-      const customStart = searchParams.get("startDate");
-      const customEnd = searchParams.get("endDate");
+      const customStart = searchParams.get("startDate") || searchParams.get("customStart");
+      const customEnd = searchParams.get("endDate") || searchParams.get("customEnd");
       const rangeParam = (searchParams.get("range") as AnalyticsRangePreset) || "30d";
 
       const { startDate, endDate } = resolveDateWindows(
@@ -740,19 +740,13 @@ export async function GET(request: Request) {
     // SECTION: MAIN (Executive KPIs, Procurement, Cashflow, Retention)
     // ==========================================
     const rangeParam = (searchParams.get("range") as AnalyticsRangePreset) || "30d";
-    const customStart = searchParams.get("customStart");
-    const customEnd = searchParams.get("customEnd");
+    const customStart = searchParams.get("startDate") || searchParams.get("customStart");
+    const customEnd = searchParams.get("endDate") || searchParams.get("customEnd");
 
     const { startDate, endDate, previousStartDate, previousEndDate } =
       resolveDateWindows(rangeParam, customStart, customEnd);
 
-    // 1. Ensure daily rollups exist for current range
-    await ensureDailyRollupsForRange(tenantId, startDate, endDate);
-
-    const { AnalyticsRollup } = await import(
-      "@/lib/db/models/analytics-rollup.model"
-    );
-
+    // 1. Ensure daily rollups exist for current range & comparison window
     const [
       currentRollups,
       previousRollups,
@@ -766,21 +760,8 @@ export async function GET(request: Request) {
       lineItemsUnitsAgg,
       tenderCountsAgg,
     ] = await Promise.all([
-      AnalyticsRollup.find({
-        tenantId,
-        periodType: "daily",
-        startDate: { $gte: startDate, $lte: endDate },
-      })
-        .sort({ startDate: 1 })
-        .lean(),
-
-      AnalyticsRollup.find({
-        tenantId,
-        periodType: "daily",
-        startDate: { $gte: previousStartDate, $lte: previousEndDate },
-      })
-        .sort({ startDate: 1 })
-        .lean(),
+      ensureDailyRollupsForRange(tenantId, startDate, endDate),
+      ensureDailyRollupsForRange(tenantId, previousStartDate, previousEndDate),
 
       Customer.aggregate([
         { $match: { tenantId, totalDue: { $gt: 0 } } },
@@ -1057,8 +1038,12 @@ export async function GET(request: Request) {
     const uncollectedDues = uncollectedDuesAgg[0]?.totalDue || 0;
 
     // Cashflow Timeline
+    const isSingleDay =
+      rangeParam === "today" ||
+      (rangeParam === "custom" && Boolean(customStart && customEnd && customStart === customEnd));
+
     const timeline = [];
-    if (rangeParam === "today") {
+    if (isSingleDay) {
       const [todayHourlyRev, todayHourlyExp] = await Promise.all([
         Order.aggregate([
           {
@@ -1096,11 +1081,14 @@ export async function GET(request: Request) {
       const expByHour = new Map<number, number>();
       todayHourlyExp.forEach((item: any) => expByHour.set(item._id, item.expense));
 
-      for (let h = 10; h <= 21; h++) {
+      const minHour = Math.min(10, ...Array.from(revByHour.keys()), ...Array.from(expByHour.keys()));
+      const maxHour = Math.max(21, ...Array.from(revByHour.keys()), ...Array.from(expByHour.keys()));
+
+      for (let h = minHour; h <= maxHour; h++) {
         const rev = revByHour.get(h) || 0;
         const exp = expByHour.get(h) || 0;
         const hourStr = `${h}:00`;
-        const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+        const label = h === 0 ? "12 AM" : h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
         timeline.push({
           date: hourStr,
           label,

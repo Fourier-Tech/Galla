@@ -144,19 +144,17 @@ export async function getDashboardInitialData(
   const salonName = tenant.name;
   const tenantObjectId = new Types.ObjectId(tenantId);
 
-  // Check plan expiry and 5-hour grace period
+  // Check plan expiry (auto-suspend immediately once midnight passed / expired)
   const now = Date.now();
-  const GRACE_PERIOD_MS = 5 * 60 * 60 * 1000;
   let tenantStatus = tenant.status || "active";
-  let isGracePeriodActive = false;
-  let gracePeriodRemainingMs = 0;
+  const isGracePeriodActive = false;
+  const gracePeriodRemainingMs = 0;
 
   if (tenant.planExpiresAt && tenant.planType !== "lifetime") {
     const expiresAtMs = new Date(tenant.planExpiresAt).getTime();
     const msPastExpiry = now - expiresAtMs;
 
-    if (msPastExpiry > GRACE_PERIOD_MS) {
-      // Past 5-hour grace period -> auto-suspend
+    if (msPastExpiry > 0) {
       if (tenant.status !== "suspended") {
         await Tenant.updateOne(
           { _id: tenant._id },
@@ -172,10 +170,6 @@ export async function getDashboardInitialData(
         } catch {}
       }
       tenantStatus = "suspended";
-    } else if (msPastExpiry > 0 && msPastExpiry <= GRACE_PERIOD_MS) {
-      // Within 5-hour grace period
-      isGracePeriodActive = true;
-      gracePeriodRemainingMs = GRACE_PERIOD_MS - msPastExpiry;
     }
   }
 
