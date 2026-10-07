@@ -12,16 +12,33 @@ export interface PlanExpiryCheckResult {
 }
 
 function createTransporter() {
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  let user = process.env.SMTP_USER?.trim();
+  let pass = process.env.SMTP_PASS?.trim();
+
+  if (user && user.startsWith('"') && user.endsWith('"')) {
+    user = user.slice(1, -1).trim();
+  }
+  if (pass && pass.startsWith('"') && pass.endsWith('"')) {
+    pass = pass.slice(1, -1).trim();
+  }
 
   if (!user || !pass) {
     return null;
   }
 
   const isGmail = user.includes("@gmail.com");
-  const host = process.env.SMTP_HOST || (isGmail ? "smtp.gmail.com" : "smtp.gmail.com");
-  const port = parseInt(process.env.SMTP_PORT || (host === "smtp.gmail.com" ? "465" : "587"), 10);
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+  }
+
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
   const secure = port === 465;
 
   return nodemailer.createTransport({
@@ -29,6 +46,9 @@ function createTransporter() {
     port,
     secure,
     auth: { user, pass },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 }
 
@@ -41,13 +61,14 @@ interface SendExpiryEmailOptions {
   expiresAt: Date;
 }
 
-export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOptions): Promise<boolean> {
+export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOptions): Promise<{ success: boolean; error?: string }> {
   const { recipientEmail, adminEmail, salonName, planType, stage, expiresAt } = options;
 
   const transporter = createTransporter();
   if (!transporter) {
-    console.warn(`[PlanExpiry] SMTP not configured. Skipped sending email for ${salonName} (${stage}).`);
-    return false;
+    const errorMsg = `SMTP credentials missing (SMTP_USER: ${Boolean(process.env.SMTP_USER)}, SMTP_PASS: ${Boolean(process.env.SMTP_PASS)})`;
+    console.warn(`[PlanExpiry] ${errorMsg}. Skipped sending email for ${salonName} (${stage}).`);
+    return { success: false, error: errorMsg };
   }
 
   const isTrial = planType === "trial";
@@ -214,10 +235,11 @@ export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOp
     console.log(
       `[PlanExpiry] Email successfully sent for ${salonName} (${stage}) to ${recipients.join(", ")} (Message-ID: ${info.messageId})`
     );
-    return true;
-  } catch (err) {
-    console.error(`[PlanExpiry] Failed to dispatch email for ${salonName} (${stage}):`, err);
-    return false;
+    return { success: true };
+  } catch (err: any) {
+    const errorMsg = err?.message || String(err);
+    console.error(`[PlanExpiry] Failed to dispatch email for ${salonName} (${stage}):`, errorMsg);
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -278,7 +300,7 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
         // Stage 1: 10 days prior (between 10 days and 3 days)
         if (msUntilExpiry <= 10 * 24 * 60 * 60 * 1000 && msUntilExpiry > 3 * 24 * 60 * 60 * 1000) {
           if (!updatedStages.includes("10_days") && ownerEmail.includes("@")) {
-            const sent = await sendPlanExpiryNotificationEmail({
+            const dispatch = await sendPlanExpiryNotificationEmail({
               recipientEmail: ownerEmail,
               adminEmail,
               salonName: tenant.name,
@@ -286,10 +308,12 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
               stage: "10_days",
               expiresAt: new Date(tenant.planExpiresAt),
             });
-            if (sent) {
+            if (dispatch.success) {
               result.emailsSent++;
               updatedStages.push("10_days");
               stagesModified = true;
+            } else if (dispatch.error) {
+              result.errors.push(`[${tenant.name}] 10_days email failed: ${dispatch.error}`);
             }
           }
         }
@@ -297,7 +321,7 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
         // Stage 2: 3 days prior (between 3 days and 1 day)
         if (msUntilExpiry <= 3 * 24 * 60 * 60 * 1000 && msUntilExpiry > 1 * 24 * 60 * 60 * 1000) {
           if (!updatedStages.includes("3_days") && ownerEmail.includes("@")) {
-            const sent = await sendPlanExpiryNotificationEmail({
+            const dispatch = await sendPlanExpiryNotificationEmail({
               recipientEmail: ownerEmail,
               adminEmail,
               salonName: tenant.name,
@@ -305,10 +329,12 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
               stage: "3_days",
               expiresAt: new Date(tenant.planExpiresAt),
             });
-            if (sent) {
+            if (dispatch.success) {
               result.emailsSent++;
               updatedStages.push("3_days");
               stagesModified = true;
+            } else if (dispatch.error) {
+              result.errors.push(`[${tenant.name}] 3_days email failed: ${dispatch.error}`);
             }
           }
         }
@@ -316,7 +342,7 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
         // Stage 3: 1 day prior (between 24 hours and 0 ms)
         if (msUntilExpiry <= 1 * 24 * 60 * 60 * 1000 && msUntilExpiry > 0) {
           if (!updatedStages.includes("1_day") && ownerEmail.includes("@")) {
-            const sent = await sendPlanExpiryNotificationEmail({
+            const dispatch = await sendPlanExpiryNotificationEmail({
               recipientEmail: ownerEmail,
               adminEmail,
               salonName: tenant.name,
@@ -324,10 +350,12 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
               stage: "1_day",
               expiresAt: new Date(tenant.planExpiresAt),
             });
-            if (sent) {
+            if (dispatch.success) {
               result.emailsSent++;
               updatedStages.push("1_day");
               stagesModified = true;
+            } else if (dispatch.error) {
+              result.errors.push(`[${tenant.name}] 1_day email failed: ${dispatch.error}`);
             }
           }
         }
@@ -360,7 +388,7 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
 
           // Dispatch account suspended notification email once
           if (!updatedStages.includes("auto_suspended") && ownerEmail.includes("@")) {
-            const sent = await sendPlanExpiryNotificationEmail({
+            const dispatch = await sendPlanExpiryNotificationEmail({
               recipientEmail: ownerEmail,
               adminEmail,
               salonName: tenant.name,
@@ -368,10 +396,12 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
               stage: "auto_suspended",
               expiresAt: new Date(tenant.planExpiresAt),
             });
-            if (sent) {
+            if (dispatch.success) {
               result.emailsSent++;
               updatedStages.push("auto_suspended");
               stagesModified = true;
+            } else if (dispatch.error) {
+              result.errors.push(`[${tenant.name}] auto_suspended email failed: ${dispatch.error}`);
             }
           }
         }

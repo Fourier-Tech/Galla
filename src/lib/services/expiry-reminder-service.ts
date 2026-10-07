@@ -26,16 +26,33 @@ export interface ExpiryCronSummary {
 }
 
 function createTransporter() {
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  let user = process.env.SMTP_USER?.trim();
+  let pass = process.env.SMTP_PASS?.trim();
+
+  if (user && user.startsWith('"') && user.endsWith('"')) {
+    user = user.slice(1, -1).trim();
+  }
+  if (pass && pass.startsWith('"') && pass.endsWith('"')) {
+    pass = pass.slice(1, -1).trim();
+  }
 
   if (!user || !pass) {
     return null;
   }
 
   const isGmail = user.includes("@gmail.com");
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+  }
+
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || (isGmail ? "465" : "587"), 10);
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
   const secure = port === 465;
 
   return nodemailer.createTransport({
@@ -43,6 +60,9 @@ function createTransporter() {
     port,
     secure,
     auth: { user, pass },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 }
 
