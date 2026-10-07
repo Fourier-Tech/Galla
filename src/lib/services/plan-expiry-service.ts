@@ -28,6 +28,7 @@ function createTransporter() {
 
   const isGmail = user.includes("@gmail.com");
   if (isGmail) {
+    pass = pass.replace(/\s+/g, "");
     return nodemailer.createTransport({
       service: "gmail",
       auth: { user, pass },
@@ -238,8 +239,11 @@ export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOp
     return { success: true };
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
-    console.error(`[PlanExpiry] Failed to dispatch email for ${salonName} (${stage}):`, errorMsg);
-    return { success: false, error: errorMsg };
+    const u = process.env.SMTP_USER?.trim() || "";
+    const p = process.env.SMTP_PASS?.replace(/\s+/g, "").trim() || "";
+    const debugInfo = `[diagnostics: user=${u}, passLen=${p.length}, starts=${p.slice(0, 2)}***, ends=***${p.slice(-2)}]`;
+    console.error(`[PlanExpiry] Failed to dispatch email for ${salonName} (${stage}):`, errorMsg, debugInfo);
+    return { success: false, error: `${errorMsg} ${debugInfo}` };
   }
 }
 

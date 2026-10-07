@@ -42,6 +42,7 @@ function createTransporter() {
 
   const isGmail = user.includes("@gmail.com");
   if (isGmail) {
+    pass = pass.replace(/\s+/g, "");
     return nodemailer.createTransport({
       service: "gmail",
       auth: { user, pass },
