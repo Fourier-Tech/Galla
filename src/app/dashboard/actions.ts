@@ -1093,7 +1093,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           const nameChanged = Boolean(
             trimmedName &&
             trimmedName !== "Walk-in Guest" &&
-            trimmedName !== oldName,
+            trimmedName.toLowerCase() !== (oldName || "").trim().toLowerCase(),
           );
 
           existingCustomer.phone = formattedPhone;
@@ -1123,7 +1123,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
           createdOrder.customerId = existingCustomer._id;
           await createdOrder.save({ session: dbSession });
 
-          // If customer name was changed for this mobile number, sync existing orders with this phone number permanently
+          // If customer name was changed for this mobile number, sync existing orders with this phone number permanently without bumping their updatedAt
           if (nameChanged && trimmedName) {
             await Order.updateMany(
               {
@@ -1149,7 +1149,7 @@ export async function createOrderAction(rawInput: unknown): Promise<{
                   "customerSnapshot.phone": formattedPhone,
                 },
               },
-              { session: dbSession },
+              { session: dbSession, timestamps: false },
             );
           }
         } else {
@@ -5710,7 +5710,6 @@ export async function getCustomerOrdersAction(input: {
         o.completedAt ? new Date(o.completedAt).getTime() : 0,
         latestPaymentDate ? new Date(latestPaymentDate).getTime() : 0,
         refundedDate ? new Date(refundedDate).getTime() : 0,
-        o.updatedAt ? new Date(o.updatedAt).getTime() : 0,
       ].filter(Boolean);
 
       const latestActivityDate =
@@ -6202,6 +6201,7 @@ export async function updateCustomerAction(rawInput: unknown): Promise<{
             "customerSnapshot.phone": customer.phone,
           },
         },
+        { timestamps: false },
       );
     }
 

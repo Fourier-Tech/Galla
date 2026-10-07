@@ -311,7 +311,6 @@ export async function getDashboardInitialData(
       latestPaymentDate ? new Date(latestPaymentDate).getTime() : 0,
       refundedDate ? new Date(refundedDate).getTime() : 0,
       returnedDate ? new Date(returnedDate).getTime() : 0,
-      o.updatedAt ? new Date(o.updatedAt).getTime() : 0,
     ].filter(Boolean);
 
     const latestActivityDate = candidateTimestamps.length > 0
