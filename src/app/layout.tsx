@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   description: "Clean Luxury Salon Operations, Inventory Intake, Order Lifecycles & Financial Analytics",
   icons: {
     icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Galla",
   },
 };
 
