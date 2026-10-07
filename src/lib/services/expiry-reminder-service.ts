@@ -32,6 +32,9 @@ function createTransporter() {
   if (user && user.startsWith('"') && user.endsWith('"')) {
     user = user.slice(1, -1).trim();
   }
+  if (user) {
+    user = user.replace(/\s+/g, "");
+  }
   if (pass && pass.startsWith('"') && pass.endsWith('"')) {
     pass = pass.slice(1, -1).trim();
   }
