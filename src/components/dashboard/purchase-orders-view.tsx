@@ -805,7 +805,8 @@ export function PurchaseOrdersView({
         ) : (
           /* Desktop Table View - All Bills */
           <div className="overflow-x-auto">
-            <div className="min-w-[920px]">
+            {/* Desktop Table View (Hidden on mobile) */}
+            <div className="hidden md:block min-w-[920px]">
               {/* Desktop Table Header - Matching Orders Tab Layout */}
               <div className="grid grid-cols-[115px_minmax(240px,1.5fr)_175px_140px_140px] gap-x-6 items-center px-[21px] py-[12px] bg-galla-paper/60 border-b border-galla-line text-[12px] font-medium text-galla-ink-soft">
                 <span>Order / Bill</span>
@@ -1228,6 +1229,167 @@ export function PurchaseOrdersView({
                 })
               )}
             </div>
+          </div>
+
+          {/* Mobile Purchase Bill Cards (Visible on phones only) */}
+          <div className="block md:hidden divide-y divide-galla-line bg-galla-surface">
+            {isLoading ? (
+              <div className="py-20 text-center text-galla-ink-soft font-sans text-[13px] flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
+                <span>Loading purchase bills...</span>
+              </div>
+            ) : paginatedOrders.length === 0 ? (
+              <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">
+                No purchase bills found matching current filter.
+              </div>
+            ) : (
+              paginatedOrders.map((po) => {
+                const billStatus = getBillStatus(po);
+                const isCompleted = billStatus.statusKey === "completed";
+                const isPendingPayment = !isCompleted && po.amountPending > 0;
+                const hasPendingDelivery = !isCompleted && po.stockAllocated === false;
+
+                const targetDeliveryDate = hasPendingDelivery ? po.expectedDeliveryDate : undefined;
+                const targetDueDate = isPendingPayment ? po.dueDate : undefined;
+
+                const itemsSummary =
+                  po.items && po.items.length > 0
+                    ? po.items
+                        .map(
+                          (it) =>
+                            `${it.productName} (${(it.quantityForSell || 0) + (it.quantityForUse || 0)} pcs)`
+                        )
+                        .join(", ")
+                    : undefined;
+
+                const waUrl = getSupplierWhatsAppReminderUrl({
+                  phone: po.supplierPhone,
+                  supplierName: po.supplierName,
+                  salonName: salonName,
+                  poNumber: po.purchaseOrderNumber,
+                  dealerInvoiceNumber: po.dealerInvoiceNumber,
+                  deliveryDate: targetDeliveryDate,
+                  deliveryTime: po.deliveryTime,
+                  dueDate: targetDueDate,
+                  totalAmount: po.totalAmount,
+                  amountPaid: po.amountPaid,
+                  amountPending: po.amountPending,
+                });
+
+                return (
+                  <div
+                    key={`m-po-${po.id}`}
+                    onClick={() => setSelectedBillForDetails(po)}
+                    className="p-3.5 hover:bg-galla-paper/50 active:bg-galla-paper/80 transition-colors cursor-pointer space-y-2.5"
+                  >
+                    {/* Top Row: PO Number, Date & Status */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="tabular-nums text-[12px] font-bold text-galla-ink bg-galla-paper px-2 py-0.5 rounded border border-galla-line shrink-0 shadow-2xs">
+                          #{formatDisplayNumber(po.purchaseOrderNumber)}
+                        </span>
+                        <span className="text-[12px] text-galla-ink-soft truncate font-sans">
+                          {formatOrderTime(po.createdAt || po.invoiceDate)}
+                        </span>
+                      </div>
+                      <StatusPill status={billStatus.pillStatus} customLabel={billStatus.label} />
+                    </div>
+
+                    {/* Supplier & Items */}
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[15px] text-galla-ink leading-tight truncate">
+                        {po.supplierName}
+                      </div>
+                      {po.dealerInvoiceNumber && (
+                        <div className="font-sans text-[11.5px] text-galla-ink-soft mt-0.5 truncate">
+                          Dealer Invoice #{po.dealerInvoiceNumber}
+                        </div>
+                      )}
+                      {itemsSummary && (
+                        <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
+                          {itemsSummary}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Financials Bar */}
+                    <div className="flex items-center justify-between py-2 px-3 rounded-[6px] bg-galla-paper/70 border border-galla-line/70 text-[12px]">
+                      <div className="flex items-center gap-3.5">
+                        <div>
+                          <span className="text-galla-ink-soft text-[10.5px] block font-medium">Total Bill</span>
+                          <span className="font-bold text-galla-ink tabular-nums text-[13px]">{formatRupee(po.totalAmount)}</span>
+                        </div>
+                        <div>
+                          <span className="text-galla-ink-soft text-[10.5px] block font-medium">Paid</span>
+                          <span className="font-semibold text-emerald-700 tabular-nums text-[13px]">{formatRupee(po.amountPaid)}</span>
+                        </div>
+                      </div>
+
+                      {po.amountPending > 0 ? (
+                        <div className="text-right">
+                          <span className="text-rose-700 font-semibold text-[10.5px] block">Pending Due</span>
+                          <span className="font-bold text-rose-700 tabular-nums text-[13px]">{formatRupee(po.amountPending)}</span>
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <span className="text-emerald-700 font-semibold text-[11px] block">Fully Settled</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions Row */}
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <div className="flex items-center gap-1.5">
+                        {po.supplierPhone && (
+                          <a
+                            href={`tel:${po.supplierPhone.replace(/\s+/g, "")}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2.5 py-1.5 rounded-[5px] bg-galla-surface hover:bg-galla-paper border border-galla-line text-galla-ink transition-colors shadow-2xs active:scale-95"
+                            title={`Call ${po.supplierName}`}
+                          >
+                            <Phone className="h-3.5 w-3.5 text-galla-teal" />
+                            <span>Call</span>
+                          </a>
+                        )}
+                        {waUrl && po.supplierPhone && (
+                          <a
+                            href={waUrl}
+                            onClick={(e) => e.stopPropagation()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2.5 py-1.5 rounded-[5px] bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 transition-colors shadow-2xs active:scale-95"
+                            title="Send WhatsApp update to supplier"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
+                            <span>WhatsApp</span>
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {billStatus.statusKey !== "completed" ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenPayNow(po);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-semibold px-3 py-1.5 rounded-[5px] bg-galla-teal text-white hover:opacity-95 transition-opacity shadow-xs active:scale-95"
+                          >
+                            Settle Bill
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-sans text-[12px] text-emerald-700 font-medium">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span>Settled</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}

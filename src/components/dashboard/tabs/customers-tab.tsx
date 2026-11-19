@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Search, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, AlertCircle, Phone, MessageSquare } from "lucide-react";
 import { DashboardCustomer, DashboardOrder } from "@/types/dashboard";
 import { formatPhoneNumber, formatRupee, formatNoteDisplay } from "@/lib/utils";
 import { CustomerDetailsView } from "@/components/dashboard/customer-details-view";
@@ -167,59 +167,155 @@ export function CustomersTab({
               <div
                 key={customer.phone}
                 onClick={() => setSelectedCustomer(customer)}
-                className="flex items-center justify-between px-[20px] py-[15px] hover:bg-galla-paper/40 transition-all cursor-pointer group"
+                className="hover:bg-galla-paper/40 transition-all cursor-pointer group select-none"
               >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-bold text-[13px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
-                    {initials}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-sans font-semibold text-[15px] text-galla-ink group-hover:text-galla-teal transition-colors">
-                        {customer.name}
-                      </span>
-                      {customer.outstandingDue && customer.outstandingDue > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
-                          <AlertCircle className="h-3 w-3" />
-                          <span>Due: {formatRupee(customer.outstandingDue)}</span>
-                        </span>
-                      ) : null}
+                {/* Desktop Customer Row (Visible on tablet/desktop) */}
+                <div className="hidden sm:flex items-center justify-between px-[20px] py-[15px]">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="h-10 w-10 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-bold text-[13px] flex items-center justify-center shrink-0 group-hover:bg-galla-teal group-hover:text-white transition-colors">
+                      {initials}
                     </div>
-                    <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft mt-0.5">
-                      <span className="tabular-nums text-[13px]">{customer.phone}</span>
-                      {customer.totalSpent && customer.totalSpent > 0 ? (
-                        <>
-                          <span>&bull;</span>
-                          <span>
-                            Spent: <strong className="text-galla-ink font-semibold">{formatRupee(customer.totalSpent)}</strong>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-sans font-semibold text-[15px] text-galla-ink group-hover:text-galla-teal transition-colors">
+                          {customer.name}
+                        </span>
+                        {customer.outstandingDue && customer.outstandingDue > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Due: {formatRupee(customer.outstandingDue)}</span>
                           </span>
-                        </>
-                      ) : null}
-                    </div>
-                    {customer.notes && (
-                      <div
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
-                        title={`Note: ${formatNoteDisplay(customer.notes)}`}
-                      >
-                        <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
-                          Note
-                        </span>
-                        <span className="truncate font-medium">{formatNoteDisplay(customer.notes)}</span>
+                        ) : null}
                       </div>
-                    )}
+                      <div className="flex items-center gap-2 text-[12.5px] text-galla-ink-soft mt-0.5">
+                        <span className="tabular-nums text-[13px]">{customer.phone}</span>
+                        {customer.totalSpent && customer.totalSpent > 0 ? (
+                          <>
+                            <span>&bull;</span>
+                            <span>
+                              Spent: <strong className="text-galla-ink font-semibold">{formatRupee(customer.totalSpent)}</strong>
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                      {customer.notes && (
+                        <div
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] mt-1 max-w-full shadow-2xs"
+                          title={`Note: ${formatNoteDisplay(customer.notes)}`}
+                        >
+                          <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
+                            Note
+                          </span>
+                          <span className="truncate font-medium">{formatNoteDisplay(customer.notes)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-right shrink-0">
+                    <div>
+                      <div className="font-sans font-semibold text-[14px] text-galla-ink">
+                        {customer.visits} {customer.visits === 1 ? "visit" : "visits"}
+                      </div>
+                      <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
+                        Last visit: {customer.lastVisit}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 text-right shrink-0">
-                  <div>
-                    <div className="font-sans font-semibold text-[14px] text-galla-ink">
-                      {customer.visits} {customer.visits === 1 ? "visit" : "visits"}
+                {/* Mobile Customer Card (Visible on phones only) */}
+                <div className="flex sm:hidden flex-col p-3.5 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="h-9 w-9 rounded-full bg-galla-teal/10 border border-galla-teal/20 text-galla-teal font-bold text-[12px] flex items-center justify-center shrink-0">
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-sans font-semibold text-[14.5px] text-galla-ink leading-tight truncate">
+                            {customer.name}
+                          </span>
+                          {customer.outstandingDue && customer.outstandingDue > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-sans px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                              <AlertCircle className="h-3 w-3" />
+                              <span>Due: {formatRupee(customer.outstandingDue)}</span>
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="font-sans text-[12px] text-galla-ink-soft tabular-nums mt-0.5">
+                          {customer.phone}
+                        </div>
+                      </div>
                     </div>
-                    <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5">
-                      Last visit: {customer.lastVisit}
+                    <div className="text-right shrink-0">
+                      <span className="font-sans font-semibold text-[12.5px] text-galla-ink block">
+                        {customer.visits} {customer.visits === 1 ? "visit" : "visits"}
+                      </span>
+                      <span className="font-sans text-[11px] text-galla-ink-soft block mt-0.5">
+                        {customer.lastVisit}
+                      </span>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-galla-ink-soft/40 group-hover:text-galla-teal group-hover:translate-x-0.5 transition-all" />
+
+                  {customer.notes && (
+                    <div
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-amber-50/90 border border-amber-200 text-amber-950 font-sans text-[11.5px] max-w-full shadow-2xs"
+                      title={`Note: ${formatNoteDisplay(customer.notes)}`}
+                    >
+                      <span className="font-semibold not-italic text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded shrink-0">
+                        Note
+                      </span>
+                      <span className="truncate font-medium">{formatNoteDisplay(customer.notes)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-galla-line/60">
+                    <div className="text-[12px] font-sans text-galla-ink-soft">
+                      {customer.totalSpent && customer.totalSpent > 0 ? (
+                        <span>Spent: <strong className="text-galla-ink font-semibold">{formatRupee(customer.totalSpent)}</strong></span>
+                      ) : (
+                        <span>No spend recorded</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {customer.phone && (
+                        <a
+                          href={`tel:${customer.phone.replace(/\D/g, "")}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2.5 py-1.5 rounded-[5px] bg-galla-surface hover:bg-galla-paper border border-galla-line text-galla-ink transition-colors shadow-2xs active:scale-95"
+                          title={`Call ${customer.name}`}
+                        >
+                          <Phone className="h-3.5 w-3.5 text-galla-teal" />
+                          <span>Call</span>
+                        </a>
+                      )}
+                      {customer.phone && (() => {
+                        const cleaned = customer.phone.replace(/\D/g, "");
+                        const standardNumber =
+                          cleaned.length === 10
+                            ? `91${cleaned}`
+                            : cleaned.startsWith("0") && cleaned.length === 11
+                            ? `91${cleaned.slice(1)}`
+                            : cleaned;
+                        return (
+                          <a
+                            href={`https://api.whatsapp.com/send/?phone=${standardNumber}`}
+                            onClick={(e) => e.stopPropagation()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2.5 py-1.5 rounded-[5px] bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 transition-colors shadow-2xs active:scale-95"
+                            title={`Message ${customer.name} on WhatsApp`}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
+                            <span>WhatsApp</span>
+                          </a>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </div>
               </div>
             );

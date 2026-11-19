@@ -301,8 +301,8 @@ export function ServicesTab({
 
       {/* Filter Pills & Reset Action */}
       {subView === "services" ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setSelectedCategory("all")}
@@ -348,8 +348,8 @@ export function ServicesTab({
           )}
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full sm:w-auto">
             {[
               { id: "all", label: `All Packages (${packages.length})` },
               { id: "active", label: `Active Deals (${activePackagesCount})` },
@@ -393,8 +393,10 @@ export function ServicesTab({
         /* SERVICES VIEW */
         <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
           {filteredServices.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[760px]">
+            <>
+              {/* Desktop Table View (Hidden on mobile) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[760px]">
                 <thead>
                   <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
                     <th className={`${isReadOnly ? "w-[48%]" : "w-[42%]"} py-3.5 pl-6 pr-4 text-left font-medium`}>Service &amp; Notes</th>
@@ -533,6 +535,106 @@ export function ServicesTab({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Service Cards (Visible on phones only) */}
+            <div className="block md:hidden divide-y divide-galla-line bg-galla-surface">
+              {filteredServices.map((service) => (
+                <div key={`m-srv-${service.id}`} className="p-3.5 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-[15px] text-galla-ink leading-tight">
+                        {service.name}
+                      </div>
+                      {service.description && (
+                        <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5 line-clamp-1">
+                          {service.description}
+                        </p>
+                      )}
+                    </div>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-[11px] font-sans text-galla-ink shrink-0">
+                      <Tag className="h-3 w-3 text-galla-ink-soft shrink-0" />
+                      <span>{service.category}</span>
+                    </span>
+                  </div>
+
+                  {service.products && service.products.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
+                        <ShoppingBag className="h-3 w-3 shrink-0" />
+                        <span>
+                          {service.products.length} product{service.products.length > 1 ? "s" : ""} consumed ({service.products.map((pr) => `${pr.quantity}x ${pr.name}`).join(", ")})
+                        </span>
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-galla-line/50">
+                    <div className="font-bold text-[15px] text-galla-ink tabular-nums">
+                      {formatRupee(service.price)}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {isReadOnly ? (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                          service.isActive ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {service.isActive ? "Active" : "Disabled"}
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleService(service)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-semibold transition-colors cursor-pointer border ${
+                              service.isActive
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : "bg-gray-100 text-gray-600 border-gray-200"
+                            }`}
+                          >
+                            {service.isActive ? (
+                              <>
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                                <span>Active</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-3 w-3 text-gray-400 shrink-0" />
+                                <span>Disabled</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEditService(service)}
+                            className="p-1.5 rounded-[4px] border border-galla-line hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
+                            title="Edit"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteConfirm({
+                                type: "service",
+                                id: service.id,
+                                name: service.name,
+                              })
+                            }
+                            className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
           ) : (
             <div className="p-10 text-center space-y-2">
               <div className="inline-flex p-3 rounded-full bg-galla-paper text-galla-ink-soft mb-1">

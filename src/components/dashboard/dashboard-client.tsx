@@ -36,8 +36,12 @@ import { RoleKeypadModal } from "@/components/auth/role-keypad-modal";
 import { ChangePinModal } from "@/components/dashboard/modals/change-pin-modal";
 import { lockRoleSessionAction } from "@/app/actions/auth-actions";
 import { transferStockAction, completeOrderAction } from "@/app/dashboard/actions";
-import { formatPhoneNumber, getPhoneDigits, BillStatusKey, formatDisplayNumber } from "@/lib/utils";
+import { formatPhoneNumber, getPhoneDigits, BillStatusKey, formatDisplayNumber, getOrderPendingDue } from "@/lib/utils";
 import { useTenantSubscription } from "@/lib/realtime/pusher-client";
+import { signOut } from "next-auth/react";
+import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
+import { MobileMoreDrawer } from "@/components/dashboard/mobile-more-drawer";
+import { MobileSpeedDialFab } from "@/components/dashboard/mobile-speed-dial-fab";
 
 interface DashboardClientProps {
   tenantId?: string;
@@ -127,6 +131,7 @@ export function DashboardClient({
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(initialActiveSessionId);
   const [isChangePinOpen, setIsChangePinOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
 
   // Sync refs so realtime websocket subscriptions always see current values without re-subscribing
   const roleRef = useRef(role);
@@ -230,6 +235,19 @@ export function DashboardClient({
     await lockRoleSessionAction();
     setIsRoleLocked(true);
     isRoleLockedRef.current = true;
+  };
+
+  const handleSignOut = async () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("galla_role_session");
+      try {
+        const bc = new BroadcastChannel("galla_role_channel");
+        bc.postMessage({ type: "ROLE_LOGOUT" });
+        bc.close();
+      } catch { }
+    }
+    await lockRoleSessionAction();
+    await signOut({ callbackUrl: "/login" });
   };
 
   const handleRoleVerified = (newRole: UserRole, newActiveSessionId?: string) => {
@@ -394,6 +412,15 @@ export function DashboardClient({
   const [services, setServices] = useState<DashboardService[]>(initialServices);
   const [packages, setPackages] = useState<DashboardPackage[]>(initialPackages);
   const [customerReplacements, setCustomerReplacements] = useState<DashboardCustomerReplacement[]>(initialCustomerReplacements);
+
+  // Urgent counts for mobile bottom navigation badges
+  const urgentOrdersCount = React.useMemo(() => {
+    return orders.filter((o) => {
+      const isDue = (getOrderPendingDue(o) || 0) > 0;
+      const isAdvance = o.status === "advance_paid" || o.status === "paid_full";
+      return isDue || isAdvance;
+    }).length;
+  }, [orders]);
   const [salonProfile, setSalonProfile] = useState<DashboardSalonProfile>(
     initialSalonProfile || {
       id: "",
@@ -1211,7 +1238,7 @@ export function DashboardClient({
 
       {/* Main Tab Canvas (Full screen on mobile, table scrollable on overview, full scroll on other tabs) */}
       <main
-        className={`flex-1 min-w-0 min-h-screen md:h-screen px-3 sm:px-6 md:px-8 lg:px-12 py-3 sm:py-5 lg:py-6 ${activeTab === "overview"
+        className={`flex-1 min-w-0 min-h-screen md:h-screen px-3 sm:px-6 md:px-8 lg:px-12 pt-3 sm:pt-5 lg:pt-6 pb-24 md:pb-6 ${activeTab === "overview"
             ? "overflow-y-auto md:overflow-hidden flex flex-col"
             : "overflow-y-auto"
           }`}
@@ -1221,7 +1248,7 @@ export function DashboardClient({
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
-              onClick={() => setIsMobileNavOpen((prev) => !prev)}
+              onClick={() => setIsMobileMoreOpen(true)}
               aria-label="Toggle navigation menu"
               className="p-1.5 -ml-1 text-galla-ink hover:text-galla-teal hover:bg-galla-paper rounded-[6px] transition-colors cursor-pointer shrink-0"
             >
@@ -1471,6 +1498,37 @@ export function DashboardClient({
       <ChangePinModal
         isOpen={isChangePinOpen}
         onClose={() => setIsChangePinOpen(false)}
+      />
+
+      {/* Mobile Bottom Navigation Deck */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        onOpenMore={() => setIsMobileMoreOpen(true)}
+        urgentOrdersCount={urgentOrdersCount}
+      />
+
+      {/* Mobile More Navigation Drawer (Bottom Sheet) */}
+      <MobileMoreDrawer
+        isOpen={isMobileMoreOpen}
+        onClose={() => setIsMobileMoreOpen(false)}
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        role={role}
+        salonName={salonProfile.name || salonName}
+        profileImageUrl={salonProfile.profileImageUrl}
+        onLockCounter={handleLockCounter}
+        onOpenChangePins={() => setIsChangePinOpen(true)}
+        onSignOut={handleSignOut}
+      />
+
+      {/* Mobile Context-Aware Speed Dial FAB */}
+      <MobileSpeedDialFab
+        onOpenNewOrder={() => setIsNewOrderOpen(true)}
+        onOpenNewExpense={() => setIsNewExpenseOpen(true)}
+        onOpenStockIn={() => {
+          handleSelectTab("inventory");
+        }}
       />
     </div>
   );

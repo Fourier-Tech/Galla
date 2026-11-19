@@ -22,7 +22,7 @@ export function CashflowTrendsCard({ timeline, rangeLabel }: CashflowTrendsCardP
   return (
     <div className="bg-galla-surface border border-galla-line rounded-[5px] p-[21px] flex flex-col justify-between h-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
           <h3 className="text-[15px] font-bold text-galla-ink">
             Cash Flow &mdash; Collections vs Expenses
@@ -31,7 +31,7 @@ export function CashflowTrendsCard({ timeline, rangeLabel }: CashflowTrendsCardP
             Daily operational cash-in versus outflow trends ({rangeLabel})
           </p>
         </div>
-        <div className="flex items-center gap-4 text-[12px] font-sans">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[12px] font-sans">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-xs bg-[#2F6F52]" />
             <span className="text-galla-ink-soft">Collections (Cash In)</span>

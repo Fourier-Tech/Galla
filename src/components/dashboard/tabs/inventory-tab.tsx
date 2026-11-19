@@ -508,7 +508,7 @@ export function InventoryTab({
 
       {/* 2. Category Pills Filter & Reset Action (Second Row, matching Orders & Expenses tab) */}
       {existingCategories.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full sm:flex-wrap">
           <button
             type="button"
             onClick={() => handleFilterClick("all")}
@@ -553,7 +553,8 @@ export function InventoryTab({
 
       {/* Inventory Table */}
       <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View (Hidden on mobile) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[920px]">
             <thead>
               <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
@@ -756,6 +757,171 @@ export function InventoryTab({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Product Cards (Visible on phones only) */}
+        <div className={`block md:hidden divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
+          {displayedProducts.length === 0 ? (
+            <div className="py-12 text-center text-galla-ink-soft text-[13px] font-sans">
+              No products found matching your search or category filter.
+            </div>
+          ) : (
+            displayedProducts.map((product) => {
+              const isLowStock =
+                product.isActive !== false &&
+                product.sell <= (product.lowStockThreshold ?? 2);
+              const isInactive = product.isActive === false;
+
+              return (
+                <div
+                  key={`m-prod-${product.id}`}
+                  className={`p-3.5 space-y-2.5 transition-colors ${
+                    isInactive ? "opacity-60 bg-gray-50/50" : "hover:bg-galla-paper/40"
+                  }`}
+                >
+                  {/* Top Row: Name & Variant Badges */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-[15px] text-galla-ink leading-tight">
+                          {product.name}
+                        </span>
+                        {product.name.includes("(Old)") && (
+                          <span className="text-[10px] font-normal px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                            Old Batch
+                          </span>
+                        )}
+                        {product.name.includes("(New)") && (
+                          <span className="text-[10px] font-normal px-1.5 py-0.2 rounded bg-blue-50 text-blue-800 border border-blue-200 shrink-0">
+                            New Batch
+                          </span>
+                        )}
+                        {higherProfitProductIds.has(String(product.id)) && (
+                          <span
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs shrink-0"
+                            title="Higher profit margin"
+                          >
+                            <TrendingUp className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                            <span>More Margin</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {product.description && (
+                        <p className="text-[12px] text-galla-ink-soft mt-0.5 line-clamp-1">
+                          {product.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Category tag */}
+                    {product.category && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-[11px] font-sans text-galla-ink shrink-0">
+                        <Tag className="h-3 w-3 text-galla-ink-soft shrink-0" />
+                        <span>{product.category}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dual Stock Indicators Box */}
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[6px] bg-galla-paper/70 border border-galla-line/70 text-[12px]">
+                    {/* Retail Stock */}
+                    <div className="flex items-center justify-between border-r border-galla-line/60 pr-2">
+                      <span className="text-galla-ink-soft text-[11.5px]">🛍️ Retail Stock</span>
+                      <span
+                        className={`font-bold tabular-nums text-[13px] px-1.5 py-0.2 rounded ${
+                          isLowStock
+                            ? "bg-rose-100 text-rose-800 font-bold animate-pulse"
+                            : "text-galla-ink"
+                        }`}
+                      >
+                        {product.sell} pcs
+                      </span>
+                    </div>
+
+                    {/* Salon Use Stock */}
+                    <div className="flex items-center justify-between pl-1">
+                      <span className="text-galla-ink-soft text-[11.5px]">💆 Salon Use</span>
+                      <span className="font-bold text-galla-ink tabular-nums text-[13px]">
+                        {product.use} pcs
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Pricing & Expiry Line */}
+                  <div className="flex items-center justify-between text-[12px] pt-0.5">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <span className="text-galla-ink-soft text-[10.5px] block">Selling Price</span>
+                        <span className="font-bold text-galla-ink tabular-nums text-[13.5px]">
+                          {formatRupee(product.price)}
+                        </span>
+                      </div>
+                      {typeof product.purchaseCost === "number" && (
+                        <div>
+                          <span className="text-galla-ink-soft text-[10.5px] block">Purchase Cost</span>
+                          <span className="font-medium text-galla-ink-soft tabular-nums text-[12.5px]">
+                            {formatRupee(product.purchaseCost)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {product.expiryDate && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-sans text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-[4px] shrink-0">
+                        <Calendar className="h-3 w-3 text-amber-600 shrink-0" />
+                        <span>Exp: {new Date(product.expiryDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-galla-line/50">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenTransfer(product)}
+                      disabled={product.sell <= 0 || isInactive}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-galla-teal-soft/80 hover:bg-galla-teal-soft text-galla-teal border border-galla-teal/30 font-sans text-[12px] font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs active:scale-95"
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5" />
+                      <span>Move to Salon Use</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(product)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-galla-ink-soft hover:text-galla-teal hover:bg-galla-paper rounded-[5px] text-[12px] font-medium border border-galla-line transition-colors cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span>Edit</span>
+                      </button>
+
+                      {isInactive ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(product)}
+                          className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded border border-emerald-200 cursor-pointer"
+                        >
+                          Reactivate
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setProductToDelete(product)}
+                          disabled={isDeleting}
+                          className="p-1.5 text-galla-ink-soft hover:text-red-600 hover:bg-red-50 rounded-[5px] transition-colors cursor-pointer disabled:opacity-50"
+                          title="Delete product"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Pagination Footer (20 per page on-demand, matching Orders tab) */}

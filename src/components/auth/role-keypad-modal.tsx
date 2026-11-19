@@ -122,9 +122,18 @@ export function RoleKeypadModal({
     }
   }, [onRoleVerified]);
 
+  const triggerHaptic = useCallback(() => {
+    if (typeof window !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate(12);
+      } catch {}
+    }
+  }, []);
+
   const handleDigit = useCallback(
     (digit: string) => {
       if (retryCooldownRef.current || isSubmittingRef.current) return;
+      triggerHaptic();
       if (pinRef.current.length < 6) {
         const next = pinRef.current + digit;
         setPin(next);
@@ -134,20 +143,22 @@ export function RoleKeypadModal({
         }
       }
     },
-    [handleSubmitPin]
+    [handleSubmitPin, triggerHaptic]
   );
 
   const handleBackspace = useCallback(() => {
     if (retryCooldownRef.current || isSubmittingRef.current) return;
+    triggerHaptic();
     setPin((prev) => prev.slice(0, -1));
     setError(null);
-  }, []);
+  }, [triggerHaptic]);
 
   const handleClear = useCallback(() => {
     if (retryCooldownRef.current || isSubmittingRef.current) return;
+    triggerHaptic();
     setPin("");
     setError(null);
-  }, []);
+  }, [triggerHaptic]);
 
   const handleSignOut = async () => {
     if (typeof window !== "undefined") {
@@ -282,8 +293,8 @@ export function RoleKeypadModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-[370px] bg-white border border-galla-line rounded-[8px] p-6 shadow-sm space-y-5">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150">
+      <div className="w-full max-w-[390px] bg-white border-t sm:border border-galla-line rounded-t-[20px] sm:rounded-[8px] p-5 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 duration-200">
         {/* Eviction Warning */}
         {isEvicted && (
           <div className="p-3 rounded-[6px] bg-amber-50 border border-amber-200 text-amber-900 text-[12.5px] flex items-start gap-2 leading-snug">
@@ -372,7 +383,7 @@ export function RoleKeypadModal({
                   type="button"
                   disabled={loading || Boolean(retryCooldown)}
                   onClick={() => handleDigit(digit)}
-                  className="h-12 rounded-[6px] bg-galla-paper/70 hover:bg-galla-paper active:bg-galla-paper/90 border border-galla-line text-[18px] font-semibold text-galla-ink transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
+                  className="h-13 sm:h-12 rounded-[8px] sm:rounded-[6px] bg-galla-paper/70 hover:bg-galla-paper active:bg-galla-paper border border-galla-line text-[20px] sm:text-[18px] font-semibold text-galla-ink transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-95"
                 >
                   {digit}
                 </button>
@@ -383,7 +394,7 @@ export function RoleKeypadModal({
                 type="button"
                 disabled={loading || pin.length === 0 || Boolean(retryCooldown)}
                 onClick={handleClear}
-                className="h-12 rounded-[6px] bg-galla-paper/40 hover:bg-galla-paper border border-galla-line text-[12px] font-medium text-galla-ink-soft hover:text-galla-ink transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                className="h-13 sm:h-12 rounded-[8px] sm:rounded-[6px] bg-galla-paper/40 hover:bg-galla-paper border border-galla-line text-[12.5px] font-medium text-galla-ink-soft hover:text-galla-ink transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95"
               >
                 Clear
               </button>
@@ -393,7 +404,7 @@ export function RoleKeypadModal({
                 type="button"
                 disabled={loading || Boolean(retryCooldown)}
                 onClick={() => handleDigit("0")}
-                className="h-12 rounded-[6px] bg-galla-paper/70 hover:bg-galla-paper active:bg-galla-paper/90 border border-galla-line text-[18px] font-semibold text-galla-ink transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
+                className="h-13 sm:h-12 rounded-[8px] sm:rounded-[6px] bg-galla-paper/70 hover:bg-galla-paper active:bg-galla-paper border border-galla-line text-[20px] sm:text-[18px] font-semibold text-galla-ink transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-95"
               >
                 0
               </button>
@@ -403,9 +414,9 @@ export function RoleKeypadModal({
                 type="button"
                 disabled={loading || pin.length === 0 || Boolean(retryCooldown)}
                 onClick={handleBackspace}
-                className="h-12 rounded-[6px] bg-galla-paper/40 hover:bg-galla-paper border border-galla-line text-galla-ink-soft hover:text-galla-ink flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                className="h-13 sm:h-12 rounded-[8px] sm:rounded-[6px] bg-galla-paper/40 hover:bg-galla-paper border border-galla-line text-galla-ink-soft hover:text-galla-ink flex items-center justify-center transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95"
               >
-                <Delete className="h-4 w-4" />
+                <Delete className="h-5 w-5 sm:h-4 sm:w-4" />
               </button>
             </div>
 
@@ -414,7 +425,7 @@ export function RoleKeypadModal({
               type="button"
               disabled={loading || pin.length !== 6 || Boolean(retryCooldown)}
               onClick={() => handleSubmitPin()}
-              className="w-full inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[13.5px] font-medium py-2.5 rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center gap-2 bg-galla-teal hover:opacity-95 text-white text-[14px] font-medium py-3 sm:py-2.5 rounded-[8px] sm:rounded-[6px] shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed active:scale-[0.98]"
             >
               {loading ? (
                 <>
