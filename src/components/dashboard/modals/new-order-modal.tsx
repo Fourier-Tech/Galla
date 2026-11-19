@@ -8,6 +8,7 @@ import {
   Check,
   Trash2,
   ArrowLeft,
+  ArrowRight,
   Calendar,
   ShoppingBag,
   CheckCircle2,
@@ -509,6 +510,7 @@ export function NewOrderModal({
   const [catalogTab, setCatalogTab] = useState<"services" | "packages" | "products">("services");
   const [catalogSearch, setCatalogSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>([]);
+  const [isMobileBillOpen, setIsMobileBillOpen] = useState(false);
   const [liveProducts, setLiveProducts] = useState<DashboardProduct[]>(initialProducts);
   const [, setIsLoadingProducts] = useState(false);
 
@@ -919,6 +921,7 @@ export function NewOrderModal({
     setShowSuggestions(false);
     setInspectingOrder(null);
     setCreatedOrderResult(null);
+    setIsMobileBillOpen(false);
   };
 
   const handleClose = () => {
@@ -1297,28 +1300,60 @@ export function NewOrderModal({
       <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start flex-1">
 
         {/* ====================================================== */}
-        {/* RIGHT COLUMN: BILL                                     */}
-        {/* ====================================================== */}
-        <aside className="bg-galla-surface border border-galla-line rounded-[8px] shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2">
+        {/* Backdrop for Mobile Slide-Up Bill Sheet */}
+        {isMobileBillOpen && (
+          <div
+            className="fixed inset-0 z-45 bg-black/50 backdrop-blur-xs lg:hidden"
+            onClick={() => setIsMobileBillOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* RIGHT COLUMN: BILL (Desktop sidebar & Mobile slide-up sheet) */}
+        <aside
+          className={`${
+            isMobileBillOpen
+              ? "fixed inset-x-0 bottom-0 z-50 max-h-[92vh] rounded-t-[18px] border-t border-galla-line shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-200"
+              : "hidden lg:flex"
+          } bg-galla-surface overflow-hidden lg:border lg:border-galla-line lg:rounded-[8px] lg:shadow-xs lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2`}
+        >
+          {isMobileBillOpen && (
+            <div className="w-10 h-1 rounded-full bg-galla-line mx-auto mt-2.5 mb-0.5 shrink-0 lg:hidden" />
+          )}
+
           {/* Bill Header */}
           <div className="p-4 border-b border-galla-line/60 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <h2 className="text-[15px] font-bold text-galla-ink">Bill</h2>
+              <h2 className="text-[15px] font-bold text-galla-ink">
+                {isMobileBillOpen ? "Review Bill & Checkout" : "Bill"}
+              </h2>
               {selectedItems.length > 0 && (
                 <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-galla-teal-soft text-galla-teal">
                   {selectedItems.length} {selectedItems.length === 1 ? "item" : "items"}
                 </span>
               )}
             </div>
-            {selectedItems.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedItems([])}
-                className="text-[12px] text-galla-ink-soft hover:text-rose-600 transition-colors cursor-pointer"
-              >
-                Clear all
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedItems([])}
+                  className="text-[12px] text-galla-ink-soft hover:text-rose-600 transition-colors cursor-pointer"
+                >
+                  Clear all
+                </button>
+              )}
+              {isMobileBillOpen && (
+                <button
+                  type="button"
+                  onClick={() => setIsMobileBillOpen(false)}
+                  className="p-1 -mr-1 rounded-[6px] text-galla-ink-soft hover:text-galla-ink hover:bg-galla-paper transition-colors cursor-pointer lg:hidden"
+                  title="Close bill and add more items"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Selected Items List */}
@@ -1653,7 +1688,7 @@ export function NewOrderModal({
         {/* ====================================================== */}
         {/* LEFT COLUMN: CUSTOMER, CATALOG & PAYMENT               */}
         {/* ====================================================== */}
-        <main className="space-y-5 min-w-0 order-1">
+        <main className="space-y-5 min-w-0 order-1 pb-28 lg:pb-0">
 
           {/* Card 1: Customer Details */}
           <section className="bg-galla-surface border border-galla-line rounded-[8px] p-5 shadow-xs space-y-4">
@@ -2532,6 +2567,30 @@ export function NewOrderModal({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Mobile Sticky Bottom Cart Bar */}
+      {selectedItems.length > 0 && !isMobileBillOpen && (
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-galla-surface/95 backdrop-blur-md border-t border-galla-line px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(30,18,23,0.08)] flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-150 select-none">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-10 w-10 rounded-full bg-galla-teal-soft border border-galla-teal/30 flex items-center justify-center text-galla-teal font-bold shrink-0">
+              {selectedItems.reduce((sum, i) => sum + (i.quantity || 1), 0)}
+            </div>
+            <div className="min-w-0">
+              <span className="text-[11px] text-galla-ink-soft block font-medium">Estimated Bill</span>
+              <span className="text-[16px] font-bold text-galla-ink tabular-nums leading-tight">{formatRupee(finalTotal)}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsMobileBillOpen(true)}
+            className="px-5 py-2.5 rounded-[6px] bg-galla-teal hover:opacity-95 text-white font-semibold text-[13.5px] shadow-sm active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
+          >
+            <span>Review &amp; Pay</span>
+            <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
       )}
     </div>

@@ -48,7 +48,7 @@ export function AnalyticsHeader({
 
       {/* Date Range Controls */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center p-0.5 rounded-[5px] bg-galla-paper border border-galla-line">
+        <div className="inline-flex items-center p-0.5 rounded-[5px] bg-galla-paper border border-galla-line max-w-full overflow-x-auto no-scrollbar">
           {PRESETS.map((p) => {
             const isActive = range === p.key;
             return (
@@ -56,7 +56,7 @@ export function AnalyticsHeader({
                 key={p.key}
                 type="button"
                 onClick={() => onRangeChange(p.key)}
-                className={`px-3 py-1.5 rounded-[4px] font-sans text-[12px] transition-all ${
+                className={`px-3 py-1.5 rounded-[4px] font-sans text-[12px] transition-all shrink-0 ${
                   isActive
                     ? "bg-galla-surface text-galla-ink shadow-xs border border-galla-line font-semibold"
                     : "text-galla-ink-soft hover:text-galla-ink font-normal"

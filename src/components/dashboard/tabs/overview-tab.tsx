@@ -303,7 +303,8 @@ export function OverviewTab({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Desktop Header Action Buttons */}
+        <div className="hidden md:flex items-center gap-2.5">
           {onNavigateToAdvanceOrders && (
             <button
               onClick={onNavigateToAdvanceOrders}
@@ -463,6 +464,55 @@ export function OverviewTab({
             <span>New Order</span>
           </button>
         </div>
+
+        {/* Mobile Urgent Action Chips Carousel */}
+        {(upcomingAdvanceOrders.length > 0 || dueOrdersToClear.length > 0 || urgentSupplierItems.length > 0 || urgentDealerReplacements.length > 0) && (
+          <div className="flex md:hidden items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full">
+            {upcomingAdvanceOrders.length > 0 && onNavigateToAdvanceOrders && (
+              <button
+                type="button"
+                onClick={onNavigateToAdvanceOrders}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[12px] font-semibold shrink-0 active:scale-95 shadow-xs"
+              >
+                <Calendar className="h-3.5 w-3.5 text-amber-700" />
+                <span>{upcomingAdvanceOrders.length} Advance Booking{upcomingAdvanceOrders.length > 1 ? "s" : ""}</span>
+              </button>
+            )}
+
+            {dueOrdersToClear.length > 0 && onNavigateToDueOrders && (
+              <button
+                type="button"
+                onClick={onNavigateToDueOrders}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-300 text-rose-900 text-[12px] font-semibold shrink-0 active:scale-95 shadow-xs"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 text-rose-700" />
+                <span>{dueOrdersToClear.length} Dues to Clear</span>
+              </button>
+            )}
+
+            {urgentSupplierItems.length > 0 && onNavigateToStockDeliveries && (
+              <button
+                type="button"
+                onClick={() => onNavigateToStockDeliveries("pending")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-300 text-rose-900 text-[12px] font-semibold shrink-0 active:scale-95 shadow-xs"
+              >
+                <Truck className="h-3.5 w-3.5 text-rose-700" />
+                <span>{urgentSupplierItems.length} Stock Deliver{urgentSupplierItems.length > 1 ? "ies" : "y"}</span>
+              </button>
+            )}
+
+            {urgentDealerReplacements.length > 0 && onNavigateToReplacementOrders && (
+              <button
+                type="button"
+                onClick={onNavigateToReplacementOrders}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-300 text-purple-900 text-[12px] font-semibold shrink-0 active:scale-95 shadow-xs"
+              >
+                <ArrowRight className="h-3.5 w-3.5 text-purple-700" />
+                <span>{urgentDealerReplacements.length} Replacement{urgentDealerReplacements.length > 1 ? "s" : ""}</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 5 Major KPI Numbers Grid (Fixed) */}
@@ -689,7 +739,8 @@ export function OverviewTab({
 
         <div className="flex-1 flex flex-col min-h-0 bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
           <div className="overflow-x-auto flex-1 flex flex-col min-h-0">
-            <div className="min-w-[900px] flex-1 flex flex-col">
+            {/* Desktop Table View (Hidden on mobile) */}
+            <div className="hidden md:flex min-w-[900px] flex-1 flex-col">
               {/* Sticky Table Header */}
               <div className="shrink-0 grid grid-cols-[115px_minmax(180px,1.5fr)_165px_140px_185px] gap-x-6 items-center px-[21px] py-[11px] bg-galla-paper/70 border-b border-galla-line text-[12px] font-medium text-galla-ink-soft z-10">
                 <span>Order</span>
@@ -1276,6 +1327,222 @@ export function OverviewTab({
 
                 )}
               </div>
+            </div>
+
+            {/* Mobile Card List View (Visible on phones only) */}
+            <div className="block md:hidden overflow-y-auto divide-y divide-galla-line flex-1 min-h-0 bg-galla-surface">
+              {recent24hOrders.map((order) => {
+                const refundBreakdown = getOrderRefundBreakdown(order);
+                const isPartialRefund = refundBreakdown.isPartialRefund;
+                const { effectiveOrderAmount, effectivePaid, effectiveDue } = getOrderEffectiveBilling(order);
+                const effectiveStatus = getOrderEffectiveStatus(order) as OrderStatus;
+                const isReplacementOrder =
+                  effectiveStatus === "replacement" ||
+                  effectiveStatus === "replacement_pending";
+                const isDueOrder = getOrderPendingDue(order) > 0;
+                const isPendingOrder =
+                  effectiveStatus === "advance_paid" ||
+                  effectiveStatus === "paid_full" ||
+                  isReplacementOrder ||
+                  (effectiveStatus === "created" && isDueOrder);
+                const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
+                const isAppointmentDue = !isPendingOrder || !order.scheduledFor || (urgency !== null && urgency.daysAway <= 0);
+
+                const isToday = urgency?.tone === "today";
+                const isTomorrow = urgency?.tone === "tomorrow";
+
+                const waUrl = getWhatsAppReminderUrl({
+                  phone: order.customerPhone,
+                  customerName: order.customer,
+                  salonName: salonName || "our salon",
+                  bookingDate: order.scheduledFor,
+                  bookingTime: order.scheduledTime,
+                  orderType: order.type,
+                  productName: order.itemsSummary,
+                  orderId: order.id,
+                  pendingAmount: Math.max(0, order.amount - order.paid),
+                  isPaymentDue: isDueOrder,
+                  isReplacement: isReplacementOrder,
+                  isTomorrow: isTomorrow,
+                  isToday: isToday,
+                });
+
+                return (
+                  <div
+                    key={`mobile-${order.id}`}
+                    onClick={() => setSelectedOrderDetails(order)}
+                    className="p-3.5 hover:bg-galla-paper/50 active:bg-galla-paper/80 transition-colors cursor-pointer space-y-2.5"
+                  >
+                    {/* Top Row: Order ID, Time & Status */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="tabular-nums text-[12px] font-bold text-galla-ink bg-galla-paper px-2 py-0.5 rounded border border-galla-line shrink-0 shadow-2xs">
+                          #{formatDisplayNumber(order.id)}
+                        </span>
+                        <span className="text-[12px] text-galla-ink-soft truncate font-sans">
+                          {order.time}
+                        </span>
+                      </div>
+                      <StatusPill
+                        status={effectiveStatus}
+                        customLabel={
+                          isPartialRefund && order.refundAmount
+                            ? `${formatRupee(order.refundAmount)} Refunded`
+                            : undefined
+                        }
+                      />
+                    </div>
+
+                    {/* Customer & Items Summary */}
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[15px] text-galla-ink leading-tight truncate">
+                        {order.customer}
+                      </div>
+                      <div className="font-sans text-[12.5px] text-galla-ink-soft mt-0.5 truncate">
+                        {order.type} {order.itemsSummary ? `• ${order.itemsSummary}` : ""}
+                      </div>
+                      {order.notes && (
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-950 text-[11px] mt-1 max-w-full truncate">
+                          <span className="font-semibold text-[10px] bg-amber-200 px-1 rounded shrink-0">Note</span>
+                          <span className="truncate">{formatNoteDisplay(order.notes)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Financial Figures Bar */}
+                    <div className="flex items-center justify-between py-2 px-3 rounded-[6px] bg-galla-paper/70 border border-galla-line/70 text-[12px]">
+                      <div className="flex items-center gap-3.5">
+                        <div>
+                          <span className="text-galla-ink-soft text-[10.5px] block font-medium">Total</span>
+                          <span className="font-bold text-galla-ink tabular-nums text-[13px]">{formatRupee(effectiveOrderAmount)}</span>
+                        </div>
+                        <div>
+                          <span className="text-galla-ink-soft text-[10.5px] block font-medium">Paid</span>
+                          <span className="font-semibold text-emerald-700 tabular-nums text-[13px]">{formatRupee(effectivePaid)}</span>
+                        </div>
+                      </div>
+
+                      {effectiveDue > 0 ? (
+                        <div className="text-right">
+                          <span className="text-rose-700 font-semibold text-[10.5px] block">Due Balance</span>
+                          <span className="font-bold text-rose-700 tabular-nums text-[13px]">{formatRupee(effectiveDue)}</span>
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <span className="text-galla-ink-soft text-[10.5px] block font-medium">Payment Mode</span>
+                          <span className="capitalize font-medium text-galla-ink">{order.paymentMode || "Cash"}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Action Buttons Row */}
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      {/* Contact Actions */}
+                      <div className="flex items-center gap-1.5">
+                        {order.customerPhone && (
+                          <a
+                            href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2.5 py-1.5 rounded-[5px] bg-galla-surface hover:bg-galla-paper border border-galla-line text-galla-ink transition-colors shadow-2xs active:scale-95"
+                            title={`Call ${order.customer}`}
+                          >
+                            <Phone className="h-3.5 w-3.5 text-galla-teal" />
+                            <span>Call</span>
+                          </a>
+                        )}
+                        {waUrl && order.customerPhone && (
+                          <a
+                            href={waUrl}
+                            onClick={(e) => e.stopPropagation()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2.5 py-1.5 rounded-[5px] bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 transition-colors shadow-2xs active:scale-95"
+                            title="Send WhatsApp update"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
+                            <span>WhatsApp</span>
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Settlement / Complete Actions */}
+                      <div className="flex items-center gap-1.5">
+                        {isAppointmentDue && (effectiveStatus === "paid_full" || effectiveStatus === "advance_paid" || isReplacementOrder) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const isRep = effectiveStatus === "replacement_pending" || effectiveStatus === "replacement";
+                              const hasDeliverable = isRep || order.type === "Product sale" || Boolean(order.lineItems?.some((li) => !li.fulfilled));
+                              if (hasDeliverable && onOpenSettle) {
+                                onOpenSettle(order);
+                              } else if (onCompleteOrder) {
+                                handleComplete(order.id);
+                              }
+                            }}
+                            disabled={loadingId === order.id}
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2.5 py-1.5 rounded-[5px] bg-green-50 text-green-800 border border-green-300 hover:bg-green-100 transition-colors shadow-2xs active:scale-95"
+                          >
+                            {loadingId === order.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-green-700" />
+                            ) : (
+                              <>
+                                <span>Done</span>
+                                <Check className="h-3.5 w-3.5 text-green-700" />
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {effectiveDue > 0 && onOpenSettle && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenSettle(order);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11.5px] font-sans font-semibold px-3 py-1.5 rounded-[5px] bg-galla-teal text-white hover:opacity-95 transition-opacity shadow-xs active:scale-95"
+                          >
+                            Settle Due
+                          </button>
+                        )}
+
+                        {canOrderBeRefunded(order) && onOpenRefund && (effectiveStatus === "completed" || effectiveStatus === "replacement_completed") && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenRefund(order);
+                            }}
+                            className="inline-flex items-center text-[11.5px] font-sans font-medium px-2 py-1.5 rounded-[5px] bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 transition-colors shadow-2xs"
+                          >
+                            Refund
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {recent24hOrders.length === 0 && (
+                <div className="p-8 text-center font-sans text-[13px] text-galla-ink-soft space-y-1.5">
+                  {searchQuery ? (
+                    <>
+                      <p>No counter orders matching &ldquo;{searchQuery}&rdquo;</p>
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="text-galla-teal hover:underline text-[12px] font-medium cursor-pointer"
+                      >
+                        Clear search filter
+                      </button>
+                    </>
+                  ) : (
+                    <p>No orders recorded in the last 24 hours.</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

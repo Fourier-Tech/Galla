@@ -509,7 +509,7 @@ export function ExpensesTab({
 
       {/* Filter Pills & Reset Action */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-nowrap md:flex-wrap pb-1 max-w-full">
           {FILTER_OPTIONS.map((opt) => {
             const isActive = filter === opt.id;
             const count = categoryCounts[opt.id] ?? 0;
@@ -517,7 +517,7 @@ export function ExpensesTab({
               <button
                 key={opt.id}
                 onClick={() => handleCategoryClick(opt.id)}
-                className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${
+                className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border shrink-0 ${
                   isActive
                     ? "bg-galla-teal text-white border-galla-teal shadow-xs"
                     : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
