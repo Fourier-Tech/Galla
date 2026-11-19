@@ -391,7 +391,7 @@ export function ServicesTab({
       {/* MAIN CONTENT AREA */}
       {subView === "services" ? (
         /* SERVICES VIEW */
-        <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
+        <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none overflow-visible shadow-none">
           {filteredServices.length > 0 ? (
             <>
               {/* Desktop Table View (Hidden on mobile) */}

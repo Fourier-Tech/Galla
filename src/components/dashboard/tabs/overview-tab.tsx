@@ -732,7 +732,7 @@ export function OverviewTab({
                 {tomorrowList.length > 0 ? (
                   <>
                     <strong className="font-semibold text-rose-900">
-                      🚨 Urgent (Inform Salon): {tomorrowList.length} client replacement{tomorrowList.length > 1 ? "s" : ""} expected tomorrow
+                      Urgent (Inform Salon): {tomorrowList.length} client replacement{tomorrowList.length > 1 ? "s" : ""} expected tomorrow
                     </strong>{" "}
                     &mdash; {tomorrowList.map((r) => `${r.customerName} (#${formatDisplayNumber(r.orderNumber)})`).join(", ")}.
                     {pendingDealerReplacements.length > tomorrowList.length && (
@@ -744,7 +744,7 @@ export function OverviewTab({
                 ) : (
                   <>
                     <strong className="font-semibold text-rose-900">
-                      ⚠️ {overdueOrTodayList.length} client replacement{overdueOrTodayList.length > 1 ? "s" : ""} due today / overdue
+                      {overdueOrTodayList.length} client replacement{overdueOrTodayList.length > 1 ? "s" : ""} due today / overdue
                     </strong>{" "}
                     &mdash; {overdueOrTodayList.map((r) => `${r.customerName} (#${formatDisplayNumber(r.orderNumber)})`).join(", ")}.
                   </>
@@ -936,9 +936,9 @@ export function OverviewTab({
                                 : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                             const badgeLabel = isOverdue
-                              ? `⚠️ Overdue Due Date (${fullSlotStr})`
+                              ? `Overdue Due Date (${fullSlotStr})`
                               : isToday
-                                ? `🚨 Due Today (${fullSlotStr})`
+                                ? `Due Today (${fullSlotStr})`
                                 : `Due: ${fullSlotStr}`;
 
                             const showContactOptions = isUrgent;
@@ -1039,22 +1039,22 @@ export function OverviewTab({
 
                           const badgeLabel = isReplacementOrder
                             ? isTomorrow
-                              ? `🚨 Urgent: Replacement Delivery Tomorrow (${fullSlotStr})`
+                              ? `Urgent: Replacement Delivery Tomorrow (${fullSlotStr})`
                               : isToday
-                              ? `🛍️ Replacement Delivery Today (${fullSlotStr})`
+                              ? `Replacement Delivery Today (${fullSlotStr})`
                               : isOverdue
-                              ? `⚠️ Replacement Delivery Overdue (${fullSlotStr})`
+                              ? `Replacement Delivery Overdue (${fullSlotStr})`
                               : `Expected Delivery: ${fullSlotStr}`
                             : isOverdue
-                              ? `⚠️ Overdue (${dateStr}${suffix})`
+                              ? `Overdue (${dateStr}${suffix})`
                               : isProductSale && isTomorrow
-                              ? `🚨 Urgent (Tomorrow${suffix})`
+                              ? `Urgent (Tomorrow${suffix})`
                               : isProductSale && isToday
-                                ? `🛍️ Pickup Today${suffix}`
+                                ? `Pickup Today${suffix}`
                                 : isToday
-                                  ? `🚨 Today${suffix}`
+                                  ? `Today${suffix}`
                                   : isTomorrow
-                                    ? `⏰ Tomorrow${suffix}`
+                                    ? `Tomorrow${suffix}`
                                     : `Booked: ${dateStr}${suffix}`;
 
                           const showContactOptions = isReplacementOrder

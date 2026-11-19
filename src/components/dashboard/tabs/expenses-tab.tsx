@@ -564,8 +564,8 @@ export function ExpensesTab({
       )}
 
       {/* Expenses List */}
-      <div className="bg-galla-surface border border-galla-line rounded-[5px] overflow-hidden">
-        <div className={`divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
+      <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[5px] overflow-hidden bg-transparent border-0 rounded-none shadow-none">
+        <div className={`md:divide-y md:divide-galla-line space-y-2.5 md:space-y-0 ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
           {displayedExpenses.map((expense) => {
             const isLoading = loadingDetailsId === expense.id;
 
@@ -581,7 +581,7 @@ export function ExpensesTab({
                     handleExpenseClick(expense);
                   }
                 }}
-                className="flex items-center justify-between px-[21px] py-[16px] hover:bg-galla-paper/60 transition-colors cursor-pointer group select-none"
+                className="flex items-center justify-between px-[20px] py-[15px] hover:bg-galla-paper/60 transition-colors cursor-pointer group select-none bg-galla-surface md:bg-transparent border border-galla-line/80 md:border-0 rounded-[10px] md:rounded-none shadow-xs md:shadow-none"
                 title="Click to view details"
               >
                 <div className="min-w-0 flex-1 pr-4">

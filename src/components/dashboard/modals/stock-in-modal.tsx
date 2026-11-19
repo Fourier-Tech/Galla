@@ -1320,7 +1320,7 @@ export function StockInModal({
                           Item #{idx + 1}
                         </span>
                         <span className="text-[13px] font-semibold text-galla-ink">
-                          {item.isNewProduct ? "✨ New Catalog Product" : "Catalog Product"}
+                          {item.isNewProduct ? "New Catalog Product" : "Catalog Product"}
                         </span>
                       </div>
 
@@ -1374,7 +1374,7 @@ export function StockInModal({
                           </optgroup>
                         )}
                         <optgroup label="New Product Entry">
-                          <option value="__new__">✨ + Add New Product...</option>
+                          <option value="__new__">+ Add New Product...</option>
                         </optgroup>
                       </select>
                     </div>
@@ -1605,7 +1605,7 @@ export function StockInModal({
                       if (!isPriceChanged) return null;
                       return (
                         <div className="text-[11.5px] font-sans text-blue-800 bg-blue-50/80 border border-blue-200/80 px-2.5 py-1.5 rounded-[6px]">
-                          ✨ <strong>New Price Detected:</strong> Incoming stock will be automatically saved as a separate <em>(New)</em> batch, leaving current stock as <em>(Old)</em>.
+                          <strong>New Price Detected:</strong> Incoming stock will be automatically saved as a separate <em>(New)</em> batch, leaving current stock as <em>(Old)</em>.
                         </div>
                       );
                     })()}

@@ -16,14 +16,17 @@ import {
   TrendingUp,
   Calendar,
   Truck,
+  ShoppingBag,
+  Scissors,
 } from "lucide-react";
 import { DashboardProduct, DashboardExpense, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
-import { formatRupee } from "@/lib/utils";
+import { formatRupee, formatBookingDate, formatDisplayNumber, getBillStatus } from "@/lib/utils";
 import { TransferStockModal } from "@/components/dashboard/modals/transfer-stock-modal";
 import { StockInModal } from "@/components/dashboard/modals/stock-in-modal";
 import { ProductModal } from "@/components/dashboard/modals/product-modal";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { SettleReplacementModal } from "@/components/dashboard/modals/settle-replacement-modal";
+import { PurchaseBillDetailsModal } from "@/components/dashboard/modals/purchase-bill-details-modal";
 import { deleteProductAction } from "@/app/dashboard/actions";
 
 interface InventoryTabProps {
@@ -90,11 +93,37 @@ export function InventoryTab({
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<DashboardProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<DashboardProduct | null>(null);
+  const [selectedIncomingPO, setSelectedIncomingPO] = useState<DashboardPurchaseOrder | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Map each product to active registered purchase orders awaiting delivery
+  const productIncomingOrderMap = useMemo(() => {
+    const map = new Map<string, { po: DashboardPurchaseOrder; qty: number; arrivalDate?: string }>();
+    (purchaseOrders || []).forEach((po) => {
+      const isCompleted = getBillStatus(po).statusKey === "completed";
+      const hasPendingDelivery = !isCompleted && po.stockAllocated === false;
+      if (!hasPendingDelivery) return;
+
+      const targetDate = po.expectedDeliveryDate || po.dueDate;
+      const dateStr = targetDate ? formatBookingDate(targetDate) : undefined;
+
+      (po.items || []).forEach((item) => {
+        const pId = String(item.productId);
+        const itemQty = (item.quantityForSell || 0) + (item.quantityForUse || 0);
+        if (!map.has(pId)) {
+          map.set(pId, { po, qty: itemQty, arrivalDate: dateStr });
+        } else {
+          const existing = map.get(pId)!;
+          existing.qty += itemQty;
+        }
+      });
+    });
+    return map;
+  }, [purchaseOrders]);
 
   // Lock background scrolling when any inventory modal is open
   const isAnyModalOpen = Boolean(
-    transferTargetProduct || settleTargetProduct || isStockInModalOpen || isProductModalOpen || productToDelete
+    transferTargetProduct || settleTargetProduct || isStockInModalOpen || isProductModalOpen || productToDelete || selectedIncomingPO
   );
 
   useEffect(() => {
@@ -471,22 +500,6 @@ export function InventoryTab({
         </div>
       </div>
 
-      {/* Mobile Incoming Deliveries Fast-Action Link */}
-      {onNavigateToDeliveries && (
-        <button
-          type="button"
-          onClick={onNavigateToDeliveries}
-          className="md:hidden w-full flex items-center justify-between px-3.5 py-2.5 rounded-[9px] bg-amber-50/90 border border-amber-300 text-amber-950 font-sans text-[12.5px] font-medium shadow-2xs active:scale-98 transition-all"
-        >
-          <div className="flex items-center gap-2">
-            <Truck className="h-4 w-4 text-amber-700 shrink-0" />
-            <span>Check Incoming Deliveries &amp; Supplier Bills</span>
-          </div>
-          <span className="font-bold text-amber-800 text-[13px]">&rarr;</span>
-        </button>
-      )}
-
-
       {/* 1. Search Bar (First Row, matching Orders & Expenses tab) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Search Bar */}
@@ -572,7 +585,7 @@ export function InventoryTab({
       )}
 
       {/* Inventory Table */}
-      <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
+      <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none overflow-visible shadow-none">
         {/* Desktop Table View (Hidden on mobile) */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[920px]">
@@ -605,6 +618,7 @@ export function InventoryTab({
                     product.isActive !== false &&
                     product.sell <= (product.lowStockThreshold ?? 2);
                   const isInactive = product.isActive === false;
+                  const incomingInfo = productIncomingOrderMap.get(String(product.id));
 
                   return (
                     <tr
@@ -643,16 +657,31 @@ export function InventoryTab({
                             {product.description}
                           </div>
                         )}
-                        {product.expiryDate && (
-                          <div className="mt-1 flex items-center gap-1">
+                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                          {product.expiryDate && (
                             <span className="inline-flex items-center gap-1 text-[10.5px] font-sans text-amber-800 bg-amber-50/90 border border-amber-200/80 px-1.5 py-0.5 rounded-[3px]">
                               <Calendar className="h-3 w-3 text-amber-600 shrink-0" />
                               <span>
                                 Exp: {new Date(product.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                               </span>
                             </span>
-                          </div>
-                        )}
+                          )}
+                          {incomingInfo && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedIncomingPO(incomingInfo.po)}
+                              className="inline-flex items-center gap-1 text-[10.5px] font-sans text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-[3px] cursor-pointer transition-colors shadow-2xs group"
+                              title="Click to view registered purchase order and supplier delivery details"
+                            >
+                              <Truck className="h-3 w-3 text-amber-700 shrink-0" />
+                              <span className="font-medium">+{incomingInfo.qty} pcs incoming</span>
+                              {incomingInfo.arrivalDate && (
+                                <span className="text-amber-700 text-[10px]">&bull; {incomingInfo.arrivalDate}</span>
+                              )}
+                              <span className="text-amber-800 text-[9.5px] font-bold group-hover:underline">&bull; View Bill</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* Category Badge */}
@@ -792,6 +821,7 @@ export function InventoryTab({
                 product.sell <= (product.lowStockThreshold ?? 2);
               const isInactive = product.isActive === false;
               const totalPieces = (product.sell || 0) + (product.use || 0);
+              const incomingInfo = productIncomingOrderMap.get(String(product.id));
 
               return (
                 <div
@@ -862,11 +892,38 @@ export function InventoryTab({
                     </div>
                   </div>
 
+                  {/* Registered Incoming Order Banner (Direct 1-tap PO navigation) */}
+                  {incomingInfo && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIncomingPO(incomingInfo.po)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-amber-50/90 border border-amber-300 text-amber-950 text-[12px] font-sans hover:bg-amber-100 transition-all text-left shadow-2xs group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Truck className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                        <span className="font-semibold text-amber-900 truncate">
+                          Incoming: +{incomingInfo.qty} pcs
+                        </span>
+                        {incomingInfo.arrivalDate && (
+                          <span className="text-amber-800 text-[11px] shrink-0 font-normal">
+                            &bull; Due {incomingInfo.arrivalDate}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-semibold text-amber-900 group-hover:underline shrink-0 ml-1">
+                        View Order &rarr;
+                      </span>
+                    </button>
+                  )}
+
                   {/* Dual Stock Indicators Box */}
                   <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[8px] bg-galla-paper/70 border border-galla-line/70 text-[12px]">
                     {/* Retail Shelf Stock */}
                     <div className="flex items-center justify-between border-r border-galla-line/60 pr-2.5">
-                      <span className="text-galla-ink-soft text-[11.5px] font-medium">🛍️ Retail Shelf</span>
+                      <span className="inline-flex items-center gap-1.5 text-galla-ink-soft text-[11.5px] font-medium">
+                        <ShoppingBag className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
+                        <span>Retail Shelf</span>
+                      </span>
                       <span
                         className={`font-bold tabular-nums text-[13px] ${
                           isLowStock ? "text-rose-700" : "text-galla-ink"
@@ -878,12 +935,27 @@ export function InventoryTab({
 
                     {/* Salon Internal Use Stock */}
                     <div className="flex items-center justify-between pl-1">
-                      <span className="text-galla-ink-soft text-[11.5px] font-medium">💆 Salon Use</span>
+                      <span className="inline-flex items-center gap-1.5 text-galla-ink-soft text-[11.5px] font-medium">
+                        <Scissors className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
+                        <span>Salon Use</span>
+                      </span>
                       <span className="font-bold text-galla-ink tabular-nums text-[13px]">
                         {product.use} pcs
                       </span>
                     </div>
                   </div>
+
+                  {/* Defective Stock Notice */}
+                  {product.defectiveStock > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSettleTargetProduct(product)}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[6px] bg-rose-50 border border-rose-200 text-rose-800 text-[11.5px] font-medium hover:bg-rose-100 transition-colors shadow-2xs group cursor-pointer"
+                    >
+                      <span className="font-sans">Defective / Return Stock: {product.defectiveStock} pcs</span>
+                      <span className="text-[11px] font-bold text-rose-700 group-hover:underline">Settle with Dealer &rarr;</span>
+                    </button>
+                  )}
 
                   {/* Pricing & Expiry Line */}
                   <div className="flex items-center justify-between text-[12px] pt-0.5">
@@ -1077,7 +1149,7 @@ export function InventoryTab({
               </p>
               {zeroStockOldBatchProductIds.has(String(productToDelete.id)) && (
                 <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-[4px] leading-relaxed">
-                  💡 This old batch has 0 stock. Deleting it will keep your inventory clean and automatically restore the active new batch to its clean original product name.
+                  Note: This old batch has 0 stock. Deleting it will keep your inventory clean and automatically restore the active new batch to its clean original product name.
                 </p>
               )}
             </div>
@@ -1090,6 +1162,13 @@ export function InventoryTab({
         onClose={() => {
           if (!isDeleting) setProductToDelete(null);
         }}
+      />
+
+      {/* Incoming Purchase Bill Details Modal */}
+      <PurchaseBillDetailsModal
+        bill={selectedIncomingPO}
+        isOpen={Boolean(selectedIncomingPO)}
+        onClose={() => setSelectedIncomingPO(null)}
       />
     </div>
   );

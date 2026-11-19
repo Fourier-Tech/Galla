@@ -588,13 +588,13 @@ export function CustomerDetailsView({
         </div>
 
         {/* Orders Table */}
-        <div className="bg-galla-surface border border-galla-line rounded-[8px] overflow-hidden shadow-2xs">
+        <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[8px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none shadow-none">
           {isLoading ? (
             <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">
               Loading order history...
             </div>
           ) : filteredOrders.length > 0 ? (
-            <div className="divide-y divide-galla-line">
+            <div className="md:divide-y md:divide-galla-line space-y-3 md:space-y-0">
               {filteredOrders.map((order) => {
                 const returnEvents = Array.isArray(order.returns) ? order.returns : [];
                 const returnRefundTotal = returnEvents
@@ -613,7 +613,7 @@ export function CustomerDetailsView({
                   <div
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="p-3.5 sm:p-4 hover:bg-galla-paper/40 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    className="p-3.5 sm:p-4 hover:bg-galla-paper/40 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group bg-galla-surface md:bg-transparent border border-galla-line/80 md:border-0 rounded-[10px] md:rounded-none shadow-xs md:shadow-none"
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="h-8 w-8 rounded-[6px] bg-galla-paper border border-galla-line flex items-center justify-center shrink-0 mt-0.5 group-hover:border-galla-teal/40 transition-colors">

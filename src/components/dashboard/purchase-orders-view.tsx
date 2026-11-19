@@ -664,7 +664,7 @@ export function PurchaseOrdersView({
       </div>
 
       {/* Bills / Returns Container */}
-      <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
+      <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none overflow-visible shadow-none">
         {isReturnsFilter ? (
           /* Returns List View - matching Expenses Tab style */
           <div className="divide-y divide-galla-line">
@@ -864,9 +864,9 @@ export function PurchaseOrdersView({
                     : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                   const deliveryBadgeLabel = isDeliveryToday
-                    ? `🚨 Delivery Today (${fullDeliverySlot})`
+                    ? `Delivery Today (${fullDeliverySlot})`
                     : isDeliveryOverdue
-                    ? `⚠️ Delivery Overdue (${fullDeliverySlot})`
+                    ? `Delivery Overdue (${fullDeliverySlot})`
                     : `Expected: ${fullDeliverySlot}`;
 
                   // Payment Due Date & Urgency
@@ -883,9 +883,9 @@ export function PurchaseOrdersView({
                     : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                   const dueBadgeLabel = isPaymentDueToday
-                    ? `🚨 Payment Due Today (${dueDateStr})`
+                    ? `Payment Due Today (${dueDateStr})`
                     : isPaymentOverdue
-                    ? `⚠️ Payment Overdue (${dueDateStr})`
+                    ? `Payment Overdue (${dueDateStr})`
                     : `Due: ${dueDateStr}`;
 
                   const showContactOptions = Boolean(

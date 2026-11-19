@@ -629,14 +629,14 @@ export function SupplierDetailsView({
         </div>
 
         {/* Bills Table / List */}
-        <div className="bg-galla-surface border border-galla-line rounded-[8px] overflow-hidden shadow-2xs">
+        <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[8px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none shadow-none">
           {isLoading ? (
             <div className="p-12 text-center font-sans text-[13px] text-galla-ink-soft">
               <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-galla-teal" />
               <span>Loading purchase bills...</span>
             </div>
           ) : filteredBills.length > 0 ? (
-            <div className="divide-y divide-galla-line">
+            <div className="md:divide-y md:divide-galla-line space-y-3 md:space-y-0">
               {filteredBills.map((bill) => {
                 const isPaidFull = bill.paymentStatus === "paid" || bill.amountPending <= 0;
                 const pendingBalance = Math.max(0, bill.amountPending);
@@ -676,9 +676,9 @@ export function SupplierDetailsView({
                     : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                 const dBadgeLabel = isDelivToday
-                  ? `🚨 Delivery Today (${dFullSlot})`
+                  ? `Delivery Today (${dFullSlot})`
                   : isDelivOverdue
-                    ? `⚠️ Delivery Overdue (${dFullSlot})`
+                    ? `Delivery Overdue (${dFullSlot})`
                     : `Expected: ${dFullSlot}`;
 
                 // Payment Due Date & Urgency
@@ -697,9 +697,9 @@ export function SupplierDetailsView({
                     : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                 const dueBadgeLabel = isDueToday
-                  ? `🚨 Payment Due Today (${dueDateStr})`
+                  ? `Payment Due Today (${dueDateStr})`
                   : isDueOverdue
-                    ? `⚠️ Payment Overdue (${dueDateStr})`
+                    ? `Payment Overdue (${dueDateStr})`
                     : `Due: ${dueDateStr}`;
 
                 const showContactOptions = Boolean(
@@ -730,7 +730,7 @@ export function SupplierDetailsView({
                   <div
                     key={bill.id}
                     onClick={() => setSelectedBill(bill)}
-                    className="p-3.5 sm:p-4 hover:bg-galla-paper/40 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    className="p-3.5 sm:p-4 hover:bg-galla-paper/40 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group bg-galla-surface md:bg-transparent border border-galla-line/80 md:border-0 rounded-[10px] md:rounded-none shadow-xs md:shadow-none"
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="h-8 w-8 rounded-[6px] bg-galla-paper border border-galla-line flex items-center justify-center shrink-0 mt-0.5 group-hover:border-galla-teal/40 transition-colors">
