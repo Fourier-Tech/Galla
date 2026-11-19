@@ -537,12 +537,15 @@ export function ServicesTab({
             </div>
 
             {/* Mobile Service Cards (Visible on phones only) */}
-            <div className="block md:hidden divide-y divide-galla-line bg-galla-surface">
+            <div className="block md:hidden space-y-3 p-1 pb-8">
               {filteredServices.map((service) => (
-                <div key={`m-srv-${service.id}`} className="p-3.5 space-y-2.5">
+                <div
+                  key={`m-srv-${service.id}`}
+                  className="bg-galla-surface border border-galla-line/80 rounded-[12px] p-4 shadow-xs space-y-3"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-[15px] text-galla-ink leading-tight">
+                      <div className="font-bold text-[15.5px] text-galla-ink leading-tight">
                         {service.name}
                       </div>
                       {service.description && (
@@ -559,7 +562,7 @@ export function ServicesTab({
 
                   {service.products && service.products.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
                         <ShoppingBag className="h-3 w-3 shrink-0" />
                         <span>
                           {service.products.length} product{service.products.length > 1 ? "s" : ""} consumed ({service.products.map((pr) => `${pr.quantity}x ${pr.name}`).join(", ")})
@@ -568,7 +571,7 @@ export function ServicesTab({
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between pt-1 border-t border-galla-line/50">
+                  <div className="flex items-center justify-between pt-2.5 border-t border-galla-line/50">
                     <div className="font-bold text-[15px] text-galla-ink tabular-nums">
                       {formatRupee(service.price)}
                     </div>

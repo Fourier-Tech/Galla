@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
+import { Plus, AlertTriangle, AlertCircle, Wallet, Check, Loader2, Search, X, ArrowRight, Calendar, Phone, MessageSquare, Truck, CheckCircle2, Package } from "lucide-react";
 import { DashboardOrder, DashboardProduct, DashboardSupplier, DashboardPurchaseOrder, DashboardCustomerReplacement, OrderStatus } from "@/types/dashboard";
 import { StatBlock } from "@/components/dashboard/stat-block";
 import { StatusPill } from "@/components/dashboard/status-pill";
@@ -513,6 +513,71 @@ export function OverviewTab({
             )}
           </div>
         )}
+
+        {/* Mobile Quick Insight Tiles: Fast human lookup for Stock & Incoming Deliveries */}
+        <div className="grid grid-cols-2 gap-2 pt-0.5 md:hidden w-full">
+          {/* Quick Product Stock Finder */}
+          {onNavigateToInventory && (
+            <button
+              type="button"
+              onClick={onNavigateToInventory}
+              className="flex items-center gap-2.5 p-2.5 rounded-[9px] bg-galla-surface border border-galla-line hover:border-galla-teal/40 active:scale-95 transition-all text-left shadow-2xs"
+            >
+              <div className="h-8 w-8 rounded-[7px] bg-teal-50 border border-teal-200 text-galla-teal flex items-center justify-center shrink-0">
+                <Package className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-semibold text-[12.5px] text-galla-ink block leading-tight truncate">
+                  Check Stock
+                </span>
+                <span className="text-[11px] text-galla-ink-soft truncate block mt-0.5">
+                  {products.length} products
+                </span>
+              </div>
+            </button>
+          )}
+
+          {/* Incoming Stock Deliveries */}
+          {onNavigateToStockDeliveries && (
+            <button
+              type="button"
+              onClick={() => onNavigateToStockDeliveries("advance")}
+              className={`flex items-center gap-2.5 p-2.5 rounded-[9px] border active:scale-95 transition-all text-left shadow-2xs ${
+                supplierItemsToday.length > 0
+                  ? "bg-rose-50/90 border-rose-300"
+                  : urgentSupplierItems.length > 0
+                  ? "bg-amber-50/90 border-amber-300"
+                  : "bg-galla-surface border-galla-line hover:border-galla-teal/40"
+              }`}
+            >
+              <div
+                className={`h-8 w-8 rounded-[7px] flex items-center justify-center shrink-0 border ${
+                  supplierItemsToday.length > 0
+                    ? "bg-rose-100 border-rose-300 text-rose-700"
+                    : urgentSupplierItems.length > 0
+                    ? "bg-amber-100 border-amber-300 text-amber-800"
+                    : "bg-amber-50/70 border-amber-200 text-amber-700"
+                }`}
+              >
+                <Truck className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-semibold text-[12.5px] text-galla-ink block leading-tight truncate">
+                  Deliveries
+                </span>
+                <span className="text-[11px] truncate block mt-0.5 font-sans">
+                  {supplierItemsToday.length > 0 ? (
+                    <strong className="text-rose-700 font-semibold">{supplierItemsToday.length} due today</strong>
+                  ) : urgentSupplierDeliveries.length > 0 ? (
+                    <strong className="text-amber-800 font-semibold">{urgentSupplierDeliveries.length} expected</strong>
+                  ) : (
+                    <span className="text-galla-ink-soft">None pending</span>
+                  )}
+                </span>
+              </div>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 5 Major KPI Numbers Grid (Fixed) */}
@@ -737,8 +802,8 @@ export function OverviewTab({
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs">
+          <div className="md:overflow-x-auto flex-1 flex flex-col min-h-0">
             {/* Desktop Table View (Hidden on mobile) */}
             <div className="hidden md:flex min-w-[900px] flex-1 flex-col">
               {/* Sticky Table Header */}
@@ -1329,8 +1394,8 @@ export function OverviewTab({
               </div>
             </div>
 
-            {/* Mobile Card List View (Visible on phones only) */}
-            <div className="block md:hidden overflow-y-auto divide-y divide-galla-line flex-1 min-h-0 bg-galla-surface">
+            {/* Mobile Card Deck View (Independent Elevated Cards on Phone) */}
+            <div className="block md:hidden overflow-y-auto flex-1 min-h-0 space-y-3 p-1 pb-8">
               {recent24hOrders.map((order) => {
                 const refundBreakdown = getOrderRefundBreakdown(order);
                 const isPartialRefund = refundBreakdown.isPartialRefund;
@@ -1371,7 +1436,7 @@ export function OverviewTab({
                   <div
                     key={`mobile-${order.id}`}
                     onClick={() => setSelectedOrderDetails(order)}
-                    className="p-3.5 hover:bg-galla-paper/50 active:bg-galla-paper/80 transition-colors cursor-pointer space-y-2.5"
+                    className="bg-galla-surface border border-galla-line/80 rounded-[12px] p-4 shadow-xs space-y-3 hover:border-galla-teal/40 active:scale-[0.99] transition-all cursor-pointer"
                   >
                     {/* Top Row: Order ID, Time & Status */}
                     <div className="flex items-center justify-between gap-2">
@@ -1436,7 +1501,7 @@ export function OverviewTab({
                     </div>
 
                     {/* Quick Action Buttons Row */}
-                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-galla-line/50">
                       {/* Contact Actions */}
                       <div className="flex items-center gap-1.5">
                         {order.customerPhone && (
