@@ -1426,7 +1426,7 @@ function TransferStockModalContent({
               {/* Sibling batch advice */}
               {lowerProfitSibling ? (
                 <div className="text-[11.5px] font-sans text-amber-900 bg-amber-50/90 border border-amber-200/90 p-2.5 rounded-[6px] leading-relaxed flex items-start gap-2">
-                  <span className="text-base shrink-0">⚠️</span>
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-700 mt-0.5" />
                   <div>
                     <strong>Keep for Retail:</strong> This batch earns {formatRupee(unitProfit)} profit. Use &ldquo;{lowerProfitSibling.name}&rdquo; ({formatRupee(Math.max(0, lowerProfitSibling.price - (lowerProfitSibling.purchaseCost || 0)))}/unit) for salon use instead.
                   </div>

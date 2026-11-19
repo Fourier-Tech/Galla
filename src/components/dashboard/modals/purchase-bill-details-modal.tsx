@@ -725,23 +725,27 @@ export function PurchaseBillDetailsModal({
                 {/* Urgent badges */}
                 <div className="flex items-center gap-2 flex-wrap">
                   {isDeliveryToday && (
-                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
-                      🚨 Delivery Expected Today
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                      <Clock className="h-3.5 w-3.5 text-rose-700 shrink-0" />
+                      <span>Delivery Expected Today</span>
                     </span>
                   )}
                   {isDeliveryOverdue && (
-                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
-                      ⚠️ Delivery Overdue
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
+                      <AlertCircle className="h-3.5 w-3.5 text-red-700 shrink-0" />
+                      <span>Delivery Overdue</span>
                     </span>
                   )}
                   {isDueToday && (
-                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
-                      🚨 Payment Due Today
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                      <Clock className="h-3.5 w-3.5 text-rose-700 shrink-0" />
+                      <span>Payment Due Today</span>
                     </span>
                   )}
                   {isDueOverdue && (
-                    <span className="px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
-                      ⚠️ Payment Overdue
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-bold bg-red-100 text-red-800 border border-red-300">
+                      <AlertCircle className="h-3.5 w-3.5 text-red-700 shrink-0" />
+                      <span>Payment Overdue</span>
                     </span>
                   )}
                 </div>

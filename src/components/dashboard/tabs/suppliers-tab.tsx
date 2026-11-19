@@ -320,7 +320,7 @@ export function SuppliersTab({
       {subView === "suppliers" && (
         <div className="space-y-4">
           {/* Suppliers List Card */}
-          <div className="bg-galla-surface border border-galla-line rounded-[8px] divide-y divide-galla-line overflow-hidden shadow-2xs">
+          <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[8px] md:divide-y md:divide-galla-line overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none shadow-none space-y-3 md:space-y-0">
             {paginatedSuppliers.map((supplier) => {
               const initials = supplier.name
                 ? supplier.name
@@ -339,7 +339,7 @@ export function SuppliersTab({
                 <div
                   key={supplier.id}
                   onClick={() => setSelectedSupplier(supplier)}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-[20px] py-[15px] hover:bg-galla-paper/40 transition-all cursor-pointer group"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-[20px] py-[15px] hover:bg-galla-paper/40 transition-all cursor-pointer group bg-galla-surface md:bg-transparent border border-galla-line/80 md:border-0 rounded-[12px] md:rounded-none shadow-xs md:shadow-none"
                 >
                   {/* Left: Avatar & Info */}
                   <div className="flex items-start sm:items-center gap-3.5 min-w-0">

@@ -626,7 +626,7 @@ export function OrdersTab({
       </div>
 
       {/* Order List */}
-      <div className="bg-galla-surface border border-galla-line rounded-[6px] overflow-hidden shadow-2xs">
+      <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none overflow-visible shadow-none">
         <div className="overflow-x-auto">
           {/* Desktop Table View (Hidden on mobile) */}
           <div className="hidden md:block min-w-[920px]">
@@ -757,9 +757,9 @@ export function OrdersTab({
                             : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                           const badgeLabel = isOverdue
-                            ? `⚠️ Overdue Due Date (${fullSlotStr})`
+                            ? `Overdue Due Date (${fullSlotStr})`
                             : isToday
-                            ? `🚨 Due Today (${fullSlotStr})`
+                            ? `Due Today (${fullSlotStr})`
                             : `Due: ${fullSlotStr}`;
 
                           const showContactOptions = isUrgent;
@@ -892,34 +892,34 @@ export function OrdersTab({
 
                         const badgeLabel = isReplacementOrder
                           ? isTomorrow
-                            ? `🚨 Urgent: Replacement Delivery Tomorrow (${fullSlotStr})`
+                            ? `Urgent: Replacement Delivery Tomorrow (${fullSlotStr})`
                             : isToday
-                            ? `🛍️ Replacement Delivery Today (${fullSlotStr})`
+                            ? `Replacement Delivery Today (${fullSlotStr})`
                             : isOverdue
-                            ? `⚠️ Replacement Delivery Overdue (${fullSlotStr})`
+                            ? `Replacement Delivery Overdue (${fullSlotStr})`
                             : `Expected Delivery: ${fullSlotStr}`
                           : isPaymentDueOrder
                           ? isTomorrow
-                            ? `🚨 Urgent: Due Tomorrow (${fullSlotStr})`
+                            ? `Urgent: Due Tomorrow (${fullSlotStr})`
                             : isToday
-                            ? `⚠️ Payment Due Today (${fullSlotStr})`
+                            ? `Payment Due Today (${fullSlotStr})`
                             : isOverdue
-                            ? `⚠️ Payment Overdue (${fullSlotStr})`
+                            ? `Payment Overdue (${fullSlotStr})`
                             : `Payment Due: ${fullSlotStr}`
                           : isProductSale
                           ? isTomorrow
-                            ? `🚨 Urgent: Expected Tomorrow (${fullSlotStr})`
+                            ? `Urgent: Expected Tomorrow (${fullSlotStr})`
                             : isToday
-                              ? `🛍️ Ready for Pickup Today (${fullSlotStr})`
+                              ? `Ready for Pickup Today (${fullSlotStr})`
                               : isOverdue
-                                ? `⚠️ Pickup Overdue (${fullSlotStr})`
+                                ? `Pickup Overdue (${fullSlotStr})`
                                 : `Expected Pickup: ${fullSlotStr}`
                           : isToday
-                            ? `🚨 Today (${fullSlotStr})`
+                            ? `Today (${fullSlotStr})`
                             : isTomorrow
-                              ? `⏰ Tomorrow (${fullSlotStr})`
+                              ? `Tomorrow (${fullSlotStr})`
                               : isOverdue
-                                ? `⚠️ Overdue (${fullSlotStr})`
+                                ? `Overdue (${fullSlotStr})`
                                 : `Booked for: ${fullSlotStr}`;
 
                         // Show Call & Msg on:

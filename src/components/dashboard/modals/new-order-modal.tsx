@@ -1177,8 +1177,8 @@ export function NewOrderModal({
         className="fixed inset-0 z-50 bg-galla-paper flex items-center justify-center p-4"
       >
         <div className="bg-galla-surface border border-galla-line rounded-[8px] p-8 max-w-md w-full text-center shadow-xl space-y-5">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-bold shadow-2xs">
-            ✓
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-2xs">
+            <Check className="h-8 w-8 text-emerald-700" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-galla-ink">Order Created Successfully</h2>
