@@ -9,3 +9,5 @@ export const metadata: Metadata = {
 export default function LoginPage() {
   return <LoginForm />;
 }
+
+// This is a client component, so we can use hooks and other client-side features here.
