@@ -15,6 +15,7 @@ import {
   ArrowRightLeft,
   TrendingUp,
   Calendar,
+  Truck,
 } from "lucide-react";
 import { DashboardProduct, DashboardExpense, DashboardSupplier, DashboardPurchaseOrder } from "@/types/dashboard";
 import { formatRupee } from "@/lib/utils";
@@ -28,6 +29,8 @@ import { deleteProductAction } from "@/app/dashboard/actions";
 interface InventoryTabProps {
   products: DashboardProduct[];
   suppliers?: DashboardSupplier[];
+  purchaseOrders?: DashboardPurchaseOrder[];
+  onNavigateToDeliveries?: () => void;
   onMoveStock?: (id: number | string) => void;
   onStockInSuccess?: (
     updatedProducts: DashboardProduct[],
@@ -55,6 +58,8 @@ interface InventoryTabProps {
 export function InventoryTab({
   products,
   suppliers = [],
+  purchaseOrders = [],
+  onNavigateToDeliveries,
   onMoveStock,
   onStockInSuccess,
   onTransferSuccess,
@@ -466,6 +471,21 @@ export function InventoryTab({
         </div>
       </div>
 
+      {/* Mobile Incoming Deliveries Fast-Action Link */}
+      {onNavigateToDeliveries && (
+        <button
+          type="button"
+          onClick={onNavigateToDeliveries}
+          className="md:hidden w-full flex items-center justify-between px-3.5 py-2.5 rounded-[9px] bg-amber-50/90 border border-amber-300 text-amber-950 font-sans text-[12.5px] font-medium shadow-2xs active:scale-98 transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Truck className="h-4 w-4 text-amber-700 shrink-0" />
+            <span>Check Incoming Deliveries &amp; Supplier Bills</span>
+          </div>
+          <span className="font-bold text-amber-800 text-[13px]">&rarr;</span>
+        </button>
+      )}
+
 
       {/* 1. Search Bar (First Row, matching Orders & Expenses tab) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -760,7 +780,7 @@ export function InventoryTab({
         </div>
 
         {/* Mobile Product Cards (Visible on phones only) */}
-        <div className={`block md:hidden divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
+        <div className={`block md:hidden space-y-3 p-1 pb-8 ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
           {displayedProducts.length === 0 ? (
             <div className="py-12 text-center text-galla-ink-soft text-[13px] font-sans">
               No products found matching your search or category filter.
@@ -771,19 +791,20 @@ export function InventoryTab({
                 product.isActive !== false &&
                 product.sell <= (product.lowStockThreshold ?? 2);
               const isInactive = product.isActive === false;
+              const totalPieces = (product.sell || 0) + (product.use || 0);
 
               return (
                 <div
                   key={`m-prod-${product.id}`}
-                  className={`p-3.5 space-y-2.5 transition-colors ${
-                    isInactive ? "opacity-60 bg-gray-50/50" : "hover:bg-galla-paper/40"
+                  className={`bg-galla-surface border border-galla-line/80 rounded-[12px] p-4 shadow-xs space-y-3 transition-all ${
+                    isInactive ? "opacity-60 bg-gray-50/50" : "hover:border-galla-teal/40"
                   }`}
                 >
-                  {/* Top Row: Name & Variant Badges */}
-                  <div className="flex items-start justify-between gap-2">
+                  {/* Top Row: Name, Category & Immediate Stock Status Badge */}
+                  <div className="flex items-start justify-between gap-2.5">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-[15px] text-galla-ink leading-tight">
+                        <span className="font-bold text-[15.5px] text-galla-ink leading-tight">
                           {product.name}
                         </span>
                         {product.name.includes("(Old)") && (
@@ -807,41 +828,57 @@ export function InventoryTab({
                         )}
                       </div>
 
-                      {product.description && (
-                        <p className="text-[12px] text-galla-ink-soft mt-0.5 line-clamp-1">
-                          {product.description}
-                        </p>
+                      {product.category && (
+                        <div className="flex items-center gap-1 text-[11px] font-sans text-galla-ink-soft mt-1">
+                          <Tag className="h-3 w-3 text-galla-ink-soft shrink-0" />
+                          <span>{product.category}</span>
+                        </div>
                       )}
                     </div>
 
-                    {/* Category tag */}
-                    {product.category && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-[11px] font-sans text-galla-ink shrink-0">
-                        <Tag className="h-3 w-3 text-galla-ink-soft shrink-0" />
-                        <span>{product.category}</span>
-                      </span>
-                    )}
+                    {/* Stock Status Badge (Human POV: Instantly tells if you have it) */}
+                    <div className="shrink-0 text-right">
+                      {totalPieces > 0 ? (
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-2xs ${
+                            isLowStock
+                              ? "bg-amber-50 text-amber-900 border-amber-300"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-300"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              isLowStock ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
+                            }`}
+                          />
+                          <span>{totalPieces} in stock</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-300 shadow-2xs">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                          <span>Out of Stock</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Dual Stock Indicators Box */}
-                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[6px] bg-galla-paper/70 border border-galla-line/70 text-[12px]">
-                    {/* Retail Stock */}
-                    <div className="flex items-center justify-between border-r border-galla-line/60 pr-2">
-                      <span className="text-galla-ink-soft text-[11.5px]">🛍️ Retail Stock</span>
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-[8px] bg-galla-paper/70 border border-galla-line/70 text-[12px]">
+                    {/* Retail Shelf Stock */}
+                    <div className="flex items-center justify-between border-r border-galla-line/60 pr-2.5">
+                      <span className="text-galla-ink-soft text-[11.5px] font-medium">🛍️ Retail Shelf</span>
                       <span
-                        className={`font-bold tabular-nums text-[13px] px-1.5 py-0.2 rounded ${
-                          isLowStock
-                            ? "bg-rose-100 text-rose-800 font-bold animate-pulse"
-                            : "text-galla-ink"
+                        className={`font-bold tabular-nums text-[13px] ${
+                          isLowStock ? "text-rose-700" : "text-galla-ink"
                         }`}
                       >
                         {product.sell} pcs
                       </span>
                     </div>
 
-                    {/* Salon Use Stock */}
+                    {/* Salon Internal Use Stock */}
                     <div className="flex items-center justify-between pl-1">
-                      <span className="text-galla-ink-soft text-[11.5px]">💆 Salon Use</span>
+                      <span className="text-galla-ink-soft text-[11.5px] font-medium">💆 Salon Use</span>
                       <span className="font-bold text-galla-ink tabular-nums text-[13px]">
                         {product.use} pcs
                       </span>
@@ -852,14 +889,14 @@ export function InventoryTab({
                   <div className="flex items-center justify-between text-[12px] pt-0.5">
                     <div className="flex items-center gap-3">
                       <div>
-                        <span className="text-galla-ink-soft text-[10.5px] block">Selling Price</span>
+                        <span className="text-galla-ink-soft text-[10.5px] block font-medium">Selling Price</span>
                         <span className="font-bold text-galla-ink tabular-nums text-[13.5px]">
                           {formatRupee(product.price)}
                         </span>
                       </div>
                       {typeof product.purchaseCost === "number" && (
                         <div>
-                          <span className="text-galla-ink-soft text-[10.5px] block">Purchase Cost</span>
+                          <span className="text-galla-ink-soft text-[10.5px] block font-medium">Purchase Cost</span>
                           <span className="font-medium text-galla-ink-soft tabular-nums text-[12.5px]">
                             {formatRupee(product.purchaseCost)}
                           </span>
@@ -876,7 +913,7 @@ export function InventoryTab({
                   </div>
 
                   {/* Actions Row */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-galla-line/50">
+                  <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-galla-line/50">
                     <button
                       type="button"
                       onClick={() => handleOpenTransfer(product)}

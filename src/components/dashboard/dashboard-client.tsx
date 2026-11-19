@@ -1383,6 +1383,8 @@ export function DashboardClient({
             <InventoryTab
               products={products}
               suppliers={suppliers}
+              purchaseOrders={purchaseOrders}
+              onNavigateToDeliveries={() => handleNavigateToStockDeliveries("advance")}
               onMoveStock={handleMoveStock}
               onTransferSuccess={handleTransferSuccess}
               onStockInSuccess={handleStockInSuccess}

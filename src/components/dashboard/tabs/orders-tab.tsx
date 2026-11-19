@@ -1248,7 +1248,7 @@ export function OrdersTab({
         </div>
 
         {/* Mobile Order Cards (Visible on phones only) */}
-        <div className={`block md:hidden divide-y divide-galla-line ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
+        <div className={`block md:hidden space-y-3 p-1 pb-8 ${isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}`}>
           {sortedOrders.map((order) => {
             const refundBreakdown = getOrderRefundBreakdown(order);
             const isPartialRefund = refundBreakdown.isPartialRefund;
@@ -1287,7 +1287,7 @@ export function OrdersTab({
               <div
                 key={`m-ord-${order.id}`}
                 onClick={() => setSelectedOrderDetails(order)}
-                className="p-3.5 hover:bg-galla-paper/50 active:bg-galla-paper/80 transition-colors cursor-pointer space-y-2.5"
+                className="bg-galla-surface border border-galla-line/80 rounded-[12px] p-4 shadow-xs space-y-3 hover:border-galla-teal/40 active:scale-[0.99] transition-all cursor-pointer"
               >
                 {/* Top Row: Order ID, Time & Status */}
                 <div className="flex items-center justify-between gap-2">
@@ -1353,7 +1353,7 @@ export function OrdersTab({
                 </div>
 
                 {/* Quick Action Buttons Row */}
-                <div className="flex items-center justify-between gap-2 pt-0.5">
+                <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-galla-line/50">
                   {/* Contact Actions */}
                   <div className="flex items-center gap-1.5">
                     {order.customerPhone && (

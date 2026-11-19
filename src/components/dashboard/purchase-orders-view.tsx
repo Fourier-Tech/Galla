@@ -18,6 +18,7 @@ import {
   Calendar,
   ArrowUpDown,
   Undo2,
+  Truck,
 } from "lucide-react";
 import { DashboardPurchaseOrder, DashboardSupplier, DashboardExpense, DashboardProduct, DashboardPurchaseOrderReturn } from "@/types/dashboard";
 import {
@@ -1232,7 +1233,7 @@ export function PurchaseOrdersView({
           </div>
 
           {/* Mobile Purchase Bill Cards (Visible on phones only) */}
-          <div className="block md:hidden divide-y divide-galla-line bg-galla-surface">
+          <div className="block md:hidden space-y-3 p-1 pb-8">
             {isLoading ? (
               <div className="py-20 text-center text-galla-ink-soft font-sans text-[13px] flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin text-galla-teal" />
@@ -1280,7 +1281,7 @@ export function PurchaseOrdersView({
                   <div
                     key={`m-po-${po.id}`}
                     onClick={() => setSelectedBillForDetails(po)}
-                    className="p-3.5 hover:bg-galla-paper/50 active:bg-galla-paper/80 transition-colors cursor-pointer space-y-2.5"
+                    className="bg-galla-surface border border-galla-line/80 rounded-[12px] p-4 shadow-xs space-y-3 hover:border-galla-teal/40 active:scale-[0.99] transition-all cursor-pointer"
                   >
                     {/* Top Row: PO Number, Date & Status */}
                     <div className="flex items-center justify-between gap-2">
@@ -1294,6 +1295,14 @@ export function PurchaseOrdersView({
                       </div>
                       <StatusPill status={billStatus.pillStatus} customLabel={billStatus.label} />
                     </div>
+
+                    {/* Pending Delivery Highlight */}
+                    {hasPendingDelivery && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-amber-50 border border-amber-200 text-amber-900 text-[11.5px] font-sans font-medium">
+                        <Truck className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                        <span>Delivery Expected: <strong>{targetDeliveryDate || "Pending from supplier"}</strong></span>
+                      </div>
+                    )}
 
                     {/* Supplier & Items */}
                     <div className="min-w-0">
@@ -1338,7 +1347,7 @@ export function PurchaseOrdersView({
                     </div>
 
                     {/* Actions Row */}
-                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-galla-line/50">
                       <div className="flex items-center gap-1.5">
                         {po.supplierPhone && (
                           <a
