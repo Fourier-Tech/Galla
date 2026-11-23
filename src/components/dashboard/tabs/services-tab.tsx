@@ -25,6 +25,7 @@ import {
 } from "@/types/dashboard";
 import { ServiceModal } from "@/components/dashboard/modals/service-modal";
 import { PackageModal } from "@/components/dashboard/modals/package-modal";
+import { ThemedFilterDropdown } from "@/components/dashboard/themed-filter-dropdown";
 import {
   toggleServiceStatusAction,
   deleteServiceAction,
@@ -131,6 +132,27 @@ export function ServicesTab({
 
   // Quick stats
   const activePackagesCount = packages.filter((p) => p.isActive).length;
+
+  // Category dropdown options
+  const serviceCategoryOptions = useMemo(() => {
+    return existingCategories.map((cat) => ({
+      value: cat,
+      label: cat,
+      count: services.filter((s) => s.category === cat).length,
+    }));
+  }, [existingCategories, services]);
+
+  const packageFilterOptions = useMemo(
+    () => [
+      { value: "active", label: "Active Deals", count: activePackagesCount },
+      {
+        value: "fixed",
+        label: "Fixed Deals",
+        count: packages.filter((p) => p.pricingType === "fixed").length,
+      },
+    ],
+    [activePackagesCount, packages]
+  );
 
   // Handlers for Services
   const handleToggleService = async (service: DashboardService) => {
@@ -277,49 +299,23 @@ export function ServicesTab({
 
           {/* Filter Dropdown */}
           {subView === "services" ? (
-            <div className="relative w-full sm:w-52 lg:w-60 shrink-0">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className={`w-full appearance-none pl-3 pr-8 py-2 rounded-[5px] text-[13px] font-sans font-medium border transition-all cursor-pointer shadow-xs outline-none focus:ring-1 focus:ring-galla-teal ${
-                  selectedCategory !== "all"
-                    ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold"
-                    : "bg-galla-surface text-galla-ink border-galla-line hover:border-galla-ink-soft/40"
-                }`}
-              >
-                <option value="all">All Categories ({services.length})</option>
-                {existingCategories.map((cat) => {
-                  const count = services.filter((s) => s.category === cat).length;
-                  return (
-                    <option key={cat} value={cat}>
-                      {cat} ({count})
-                    </option>
-                  );
-                })}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-galla-ink-soft">
-                <ChevronDown className="h-4 w-4" />
-              </div>
-            </div>
+            <ThemedFilterDropdown
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              options={serviceCategoryOptions}
+              allLabel="All Categories"
+              totalCount={services.length}
+              className="sm:w-56 lg:w-64 shrink-0"
+            />
           ) : (
-            <div className="relative w-full sm:w-48 lg:w-56 shrink-0">
-              <select
-                value={packageFilter}
-                onChange={(e) => setPackageFilter(e.target.value as "all" | "active" | "fixed")}
-                className={`w-full appearance-none pl-3 pr-8 py-2 rounded-[5px] text-[13px] font-sans font-medium border transition-all cursor-pointer shadow-xs outline-none focus:ring-1 focus:ring-galla-teal ${
-                  packageFilter !== "all"
-                    ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold"
-                    : "bg-galla-surface text-galla-ink border-galla-line hover:border-galla-ink-soft/40"
-                }`}
-              >
-                <option value="all">All Packages ({packages.length})</option>
-                <option value="active">Active Deals ({activePackagesCount})</option>
-                <option value="fixed">Fixed Deals ({packages.filter((p) => p.pricingType === "fixed").length})</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-galla-ink-soft">
-                <ChevronDown className="h-4 w-4" />
-              </div>
-            </div>
+            <ThemedFilterDropdown
+              value={packageFilter}
+              onChange={(val) => setPackageFilter(val as "all" | "active" | "fixed")}
+              options={packageFilterOptions}
+              allLabel="All Packages"
+              totalCount={packages.length}
+              className="sm:w-52 lg:w-60 shrink-0"
+            />
           )}
 
           {/* Active Filter Clear indicator if filtered */}

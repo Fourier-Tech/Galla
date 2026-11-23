@@ -29,6 +29,7 @@ import { ProductModal } from "@/components/dashboard/modals/product-modal";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { SettleReplacementModal } from "@/components/dashboard/modals/settle-replacement-modal";
 import { PurchaseBillDetailsModal } from "@/components/dashboard/modals/purchase-bill-details-modal";
+import { ThemedFilterDropdown } from "@/components/dashboard/themed-filter-dropdown";
 import { deleteProductAction } from "@/app/dashboard/actions";
 
 interface InventoryTabProps {
@@ -208,6 +209,15 @@ export function InventoryTab({
     ) as string[];
     return cats.sort();
   }, [products]);
+
+  // Options for themed category dropdown
+  const inventoryCategoryOptions = useMemo(() => {
+    return existingCategories.map((cat) => ({
+      value: cat,
+      label: cat,
+      count: products.filter((p) => p.isActive !== false && p.category === cat).length,
+    }));
+  }, [existingCategories, products]);
 
   // Identify products with higher profit among old/new batches or price variants
   const higherProfitProductIds = useMemo(() => {
@@ -549,32 +559,14 @@ export function InventoryTab({
 
           {/* Category Dropdown */}
           {existingCategories.length > 0 && (
-            <div className="relative w-full sm:w-52 lg:w-60 shrink-0">
-              <select
-                value={selectedCategory}
-                onChange={(e) => handleFilterClick(e.target.value)}
-                className={`w-full appearance-none pl-3 pr-8 py-2 rounded-[5px] text-[13px] font-sans font-medium border transition-all cursor-pointer shadow-xs outline-none focus:ring-1 focus:ring-galla-teal ${
-                  selectedCategory !== "all"
-                    ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold"
-                    : "bg-galla-surface text-galla-ink border-galla-line hover:border-galla-ink-soft/40"
-                }`}
-              >
-                <option value="all">All Categories ({products.filter((p) => p.isActive !== false).length})</option>
-                {existingCategories.map((cat) => {
-                  const count = products.filter(
-                    (p) => p.isActive !== false && p.category === cat
-                  ).length;
-                  return (
-                    <option key={cat} value={cat}>
-                      {cat} ({count})
-                    </option>
-                  );
-                })}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-galla-ink-soft">
-                <ChevronDown className="h-4 w-4" />
-              </div>
-            </div>
+            <ThemedFilterDropdown
+              value={selectedCategory}
+              onChange={handleFilterClick}
+              options={inventoryCategoryOptions}
+              allLabel="All Categories"
+              totalCount={products.filter((p) => p.isActive !== false).length}
+              className="sm:w-56 lg:w-64 shrink-0"
+            />
           )}
 
           {/* Reset Action */}
