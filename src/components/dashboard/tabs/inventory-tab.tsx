@@ -12,6 +12,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ArrowRightLeft,
   TrendingUp,
   Calendar,
@@ -94,7 +96,13 @@ export function InventoryTab({
   const [productToEdit, setProductToEdit] = useState<DashboardProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<DashboardProduct | null>(null);
   const [selectedIncomingPO, setSelectedIncomingPO] = useState<DashboardPurchaseOrder | null>(null);
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Collapse expanded descriptions whenever filter, search, or pagination changes
+  useEffect(() => {
+    setExpandedProductId(null);
+  }, [selectedCategory, searchQuery, page, filterLowStockOnly]);
 
   // Map each product to active registered purchase orders awaiting delivery
   const productIncomingOrderMap = useMemo(() => {
@@ -588,7 +596,7 @@ export function InventoryTab({
       <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none overflow-visible shadow-none">
         {/* Desktop Table View (Hidden on mobile) */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[920px]">
+          <table className="w-full text-left border-collapse min-w-[920px] table-fixed">
             <thead>
               <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
                 <th className="w-[24%] py-3.5 pl-6 pr-4 text-left font-medium">Product</th>
@@ -619,15 +627,24 @@ export function InventoryTab({
                     product.sell <= (product.lowStockThreshold ?? 2);
                   const isInactive = product.isActive === false;
                   const incomingInfo = productIncomingOrderMap.get(String(product.id));
+                  const isExpanded = expandedProductId === String(product.id);
+                  const hasDesc = Boolean(product.description?.trim());
 
                   return (
                     <tr
                       key={product.id}
-                      className={`hover:bg-galla-paper/40 transition-colors ${isInactive ? "opacity-60 bg-gray-50/50" : ""
-                        }`}
+                      onClick={() => {
+                        if (hasDesc) {
+                          setExpandedProductId((prev) => (prev === String(product.id) ? null : String(product.id)));
+                        }
+                      }}
+                      className={`transition-colors select-none ${isInactive ? "opacity-60 bg-gray-50/50" : ""} ${
+                        hasDesc ? "cursor-pointer" : ""
+                      } ${isExpanded ? "bg-galla-paper/60" : "hover:bg-galla-paper/40"}`}
+                      title={hasDesc ? (isExpanded ? "Click to collapse description" : "Click to view full description") : undefined}
                     >
                       {/* Product Name */}
-                      <td className="py-3.5 pl-6 pr-4 align-middle">
+                      <td className="py-3.5 pl-6 pr-4 align-top">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-sans font-semibold text-[14px] text-galla-ink">
                             {product.name}
@@ -652,11 +669,26 @@ export function InventoryTab({
                             </span>
                           )}
                         </div>
-                        {product.description && (
-                          <div className="font-sans text-[12px] text-galla-ink-soft truncate max-w-xs mt-0.5" title={product.description}>
-                            {product.description}
+
+                        {hasDesc && (
+                          <div className="mt-1">
+                            {isExpanded ? (
+                              <div className="text-[12px] font-sans text-galla-ink leading-relaxed bg-galla-paper/90 p-2.5 rounded-[5px] border border-galla-line/80 whitespace-normal break-words shadow-2xs">
+                                <p>{product.description}</p>
+                                <span className="text-[10px] text-galla-teal font-medium mt-1 inline-flex items-center gap-1 hover:underline">
+                                  <ChevronUp className="h-3 w-3" />
+                                  <span>Click row to collapse</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="font-sans text-[12px] text-galla-ink-soft truncate max-w-full hover:text-galla-ink transition-colors flex items-center gap-1">
+                                <span className="truncate">{product.description}</span>
+                                <ChevronDown className="h-3 w-3 shrink-0 text-galla-ink-soft/60" />
+                              </div>
+                            )}
                           </div>
                         )}
+
                         <div className="mt-1 flex items-center gap-2 flex-wrap">
                           {product.expiryDate && (
                             <span className="inline-flex items-center gap-1 text-[10.5px] font-sans text-amber-800 bg-amber-50/90 border border-amber-200/80 px-1.5 py-0.5 rounded-[3px]">
@@ -669,7 +701,10 @@ export function InventoryTab({
                           {incomingInfo && (
                             <button
                               type="button"
-                              onClick={() => setSelectedIncomingPO(incomingInfo.po)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedIncomingPO(incomingInfo.po);
+                              }}
                               className="inline-flex items-center gap-1 text-[10.5px] font-sans text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-[3px] cursor-pointer transition-colors shadow-2xs group"
                               title="Click to view registered purchase order and supplier delivery details"
                             >
@@ -685,7 +720,7 @@ export function InventoryTab({
                       </td>
 
                       {/* Category Badge */}
-                      <td className="py-3.5 px-4 align-middle">
+                      <td className="py-3.5 px-4 align-top">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-galla-paper border border-galla-line text-[12px] font-sans text-galla-ink whitespace-nowrap">
                           <Tag className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
                           <span>{product.category || "General Supplies"}</span>
@@ -693,12 +728,12 @@ export function InventoryTab({
                       </td>
 
                       {/* Purchase Price */}
-                      <td className="py-3.5 px-4 text-right align-middle font-normal text-[14px] text-galla-ink-soft tabular-nums whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-right align-top font-normal text-[14px] text-galla-ink-soft tabular-nums whitespace-nowrap">
                         {formatRupee(product.purchaseCost || 0)}
                       </td>
 
                       {/* Sell Price & Margin */}
-                      <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-right align-top whitespace-nowrap">
                         <div className="font-semibold text-[15px] text-galla-ink tabular-nums">
                           {formatRupee(product.price)}
                         </div>
@@ -716,7 +751,7 @@ export function InventoryTab({
                       </td>
 
                       {/* Sell Stock */}
-                      <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-center align-top whitespace-nowrap">
                         <div className="flex flex-col items-center justify-center gap-1.5">
                           <div className="inline-flex items-center justify-center gap-2">
                             <span
@@ -734,7 +769,10 @@ export function InventoryTab({
                           {product.defectiveStock > 0 && (
                             <button
                               type="button"
-                              onClick={() => setSettleTargetProduct(product)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSettleTargetProduct(product);
+                              }}
                               className="inline-flex items-center gap-1 text-[10px] font-sans text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 px-1.5 py-0.5 rounded font-medium whitespace-nowrap cursor-pointer transition-colors shadow-2xs group"
                               title="Click to settle / receive replacement from dealer"
                             >
@@ -746,15 +784,18 @@ export function InventoryTab({
                       </td>
 
                       {/* Use Stock */}
-                      <td className="py-3.5 px-4 text-center align-middle font-sans text-[13.5px] text-galla-ink-soft tabular-nums whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-center align-top font-sans text-[13.5px] text-galla-ink-soft tabular-nums whitespace-nowrap">
                         {product.use} pcs
                       </td>
 
                       {/* Transfer / Use */}
-                      <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-center align-top whitespace-nowrap">
                         <button
                           type="button"
-                          onClick={() => handleOpenTransfer(product)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenTransfer(product);
+                          }}
                           disabled={product.sell <= 0 && product.use <= 0}
                           className="inline-flex items-center gap-1 text-[12.5px] font-sans font-medium text-galla-teal hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                           title="Transfer between retail and salon use, or deduct consumed stock"
@@ -765,11 +806,14 @@ export function InventoryTab({
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 pl-4 pr-6 text-right align-middle whitespace-nowrap">
+                      <td className="py-3.5 pl-4 pr-6 text-right align-top whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
-                            onClick={() => handleOpenEdit(product)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEdit(product);
+                            }}
                             className="p-1.5 text-galla-ink-soft hover:text-galla-teal hover:bg-galla-paper rounded transition-colors cursor-pointer"
                             title="Edit product details"
                           >
@@ -779,7 +823,10 @@ export function InventoryTab({
                           {zeroStockOldBatchProductIds.has(String(product.id)) ? (
                             <button
                               type="button"
-                              onClick={() => setProductToDelete(product)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setProductToDelete(product);
+                              }}
                               disabled={isDeleting}
                               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-sans font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-[4px] shadow-2xs transition-all cursor-pointer ring-1 ring-rose-400/50 group"
                               title="This old batch has 0 stock while a new batch exists. Click to delete if this old price batch will not return."
@@ -790,7 +837,10 @@ export function InventoryTab({
                           ) : (
                             <button
                               type="button"
-                              onClick={() => setProductToDelete(product)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setProductToDelete(product);
+                              }}
                               disabled={isDeleting}
                               className="p-1.5 text-galla-ink-soft hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer disabled:opacity-50"
                               title="Delete product permanently"
@@ -822,12 +872,23 @@ export function InventoryTab({
               const isInactive = product.isActive === false;
               const totalPieces = (product.sell || 0) + (product.use || 0);
               const incomingInfo = productIncomingOrderMap.get(String(product.id));
+              const isExpanded = expandedProductId === String(product.id);
+              const hasDesc = Boolean(product.description?.trim());
 
               return (
                 <div
                   key={`m-prod-${product.id}`}
-                  className={`bg-galla-surface border border-galla-line/80 rounded-[12px] p-4 shadow-xs space-y-3 transition-all ${
-                    isInactive ? "opacity-60 bg-gray-50/50" : "hover:border-galla-teal/40"
+                  onClick={() => {
+                    if (hasDesc) {
+                      setExpandedProductId((prev) => (prev === String(product.id) ? null : String(product.id)));
+                    }
+                  }}
+                  className={`bg-galla-surface border rounded-[12px] p-4 shadow-xs space-y-3 transition-all ${
+                    isInactive ? "opacity-60 bg-gray-50/50" : ""
+                  } ${hasDesc ? "cursor-pointer" : ""} ${
+                    isExpanded
+                      ? "border-galla-teal/60 ring-1 ring-galla-teal/30"
+                      : "border-galla-line/80 hover:border-galla-teal/40"
                   }`}
                 >
                   {/* Top Row: Name, Category & Immediate Stock Status Badge */}
@@ -857,6 +918,25 @@ export function InventoryTab({
                           </span>
                         )}
                       </div>
+
+                      {hasDesc && (
+                        <div className="mt-1">
+                          {isExpanded ? (
+                            <div className="text-[12px] font-sans text-galla-ink leading-relaxed bg-galla-paper/90 p-2.5 rounded-[6px] border border-galla-line/80 whitespace-normal break-words shadow-2xs">
+                              <p>{product.description}</p>
+                              <span className="text-[10.5px] text-galla-teal font-medium mt-1 inline-flex items-center gap-1">
+                                <ChevronUp className="h-3 w-3" />
+                                <span>Tap to collapse</span>
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-[12px] font-sans text-galla-ink-soft">
+                              <p className="line-clamp-1">{product.description}</p>
+                              <ChevronDown className="h-3 w-3 shrink-0 text-galla-ink-soft/60" />
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {product.category && (
                         <div className="flex items-center gap-1 text-[11px] font-sans text-galla-ink-soft mt-1">
@@ -896,7 +976,10 @@ export function InventoryTab({
                   {incomingInfo && (
                     <button
                       type="button"
-                      onClick={() => setSelectedIncomingPO(incomingInfo.po)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIncomingPO(incomingInfo.po);
+                      }}
                       className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-amber-50/90 border border-amber-300 text-amber-950 text-[12px] font-sans hover:bg-amber-100 transition-all text-left shadow-2xs group cursor-pointer"
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -949,7 +1032,10 @@ export function InventoryTab({
                   {product.defectiveStock > 0 && (
                     <button
                       type="button"
-                      onClick={() => setSettleTargetProduct(product)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSettleTargetProduct(product);
+                      }}
                       className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[6px] bg-rose-50 border border-rose-200 text-rose-800 text-[11.5px] font-medium hover:bg-rose-100 transition-colors shadow-2xs group cursor-pointer"
                     >
                       <span className="font-sans">Defective / Return Stock: {product.defectiveStock} pcs</span>
@@ -988,7 +1074,10 @@ export function InventoryTab({
                   <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-galla-line/50">
                     <button
                       type="button"
-                      onClick={() => handleOpenTransfer(product)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenTransfer(product);
+                      }}
                       disabled={product.sell <= 0 || isInactive}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-galla-teal-soft/80 hover:bg-galla-teal-soft text-galla-teal border border-galla-teal/30 font-sans text-[12px] font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs active:scale-95"
                     >
@@ -999,7 +1088,10 @@ export function InventoryTab({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => handleOpenEdit(product)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEdit(product);
+                        }}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-galla-ink-soft hover:text-galla-teal hover:bg-galla-paper rounded-[5px] text-[12px] font-medium border border-galla-line transition-colors cursor-pointer"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1009,7 +1101,10 @@ export function InventoryTab({
                       {isInactive ? (
                         <button
                           type="button"
-                          onClick={() => handleOpenEdit(product)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEdit(product);
+                          }}
                           className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded border border-emerald-200 cursor-pointer"
                         >
                           Reactivate
@@ -1017,7 +1112,10 @@ export function InventoryTab({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setProductToDelete(product)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProductToDelete(product);
+                          }}
                           disabled={isDeleting}
                           className="p-1.5 text-galla-ink-soft hover:text-red-600 hover:bg-red-50 rounded-[5px] transition-colors cursor-pointer disabled:opacity-50"
                           title="Delete product"

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Package,
   Plus,
@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   Percent,
   X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   DashboardService,
@@ -60,6 +62,16 @@ export function ServicesTab({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [packageFilter, setPackageFilter] = useState<"all" | "active" | "fixed">("all");
+
+  // Track expanded descriptions for services and packages
+  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
+  const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
+
+  // Automatically collapse any expanded description when view, category, filter or search changes
+  useEffect(() => {
+    setExpandedServiceId(null);
+    setExpandedPackageId(null);
+  }, [subView, selectedCategory, searchQuery, packageFilter]);
 
   // Modals state
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -396,7 +408,7 @@ export function ServicesTab({
             <>
               {/* Desktop Table View (Hidden on mobile) */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[760px]">
+                <table className="w-full text-left border-collapse min-w-[760px] table-fixed">
                 <thead>
                   <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
                     <th className={`${isReadOnly ? "w-[48%]" : "w-[42%]"} py-3.5 pl-6 pr-4 text-left font-medium`}>Service &amp; Notes</th>
@@ -410,53 +422,251 @@ export function ServicesTab({
                 </thead>
 
                 <tbody className="divide-y divide-galla-line">
-                  {filteredServices.map((service) => (
-                    <tr
-                      key={service.id}
-                      className="hover:bg-galla-paper/40 transition-colors"
-                    >
-                      {/* Name & description */}
-                      <td className="py-3.5 pl-6 pr-4 align-middle">
-                        <div className="font-semibold text-[15px] text-galla-ink">
+                  {filteredServices.map((service) => {
+                    const isExpanded = expandedServiceId === service.id;
+                    const hasDesc = Boolean(service.description?.trim());
+
+                    return (
+                      <tr
+                        key={service.id}
+                        onClick={() => {
+                          if (hasDesc) {
+                            setExpandedServiceId((prev) => (prev === service.id ? null : service.id));
+                          }
+                        }}
+                        className={`transition-colors select-none ${
+                          hasDesc ? "cursor-pointer" : ""
+                        } ${isExpanded ? "bg-galla-paper/60" : "hover:bg-galla-paper/40"}`}
+                        title={hasDesc ? (isExpanded ? "Click to collapse description" : "Click to view full description") : undefined}
+                      >
+                        {/* Name & description */}
+                        <td className="py-3.5 pl-6 pr-4 align-top">
+                          <div className="font-semibold text-[15px] text-galla-ink">
+                            {service.name}
+                          </div>
+
+                          {hasDesc && (
+                            <div className="mt-1">
+                              {isExpanded ? (
+                                <div className="text-[12.5px] font-sans text-galla-ink leading-relaxed bg-galla-paper/90 p-2.5 rounded-[5px] border border-galla-line/80 whitespace-normal break-words shadow-2xs">
+                                  <p>{service.description}</p>
+                                  <span className="text-[10.5px] text-galla-teal font-medium mt-1 inline-flex items-center gap-1 hover:underline">
+                                    <ChevronUp className="h-3 w-3" />
+                                    <span>Click row to collapse</span>
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="font-sans text-[12px] text-galla-ink-soft truncate max-w-full hover:text-galla-ink transition-colors flex items-center gap-1">
+                                  <span className="truncate">{service.description}</span>
+                                  <ChevronDown className="h-3 w-3 shrink-0 text-galla-ink-soft/60" />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {service.products && service.products.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
+                                <ShoppingBag className="h-3 w-3 shrink-0" />
+                                <span>
+                                  {service.products.length} product{service.products.length > 1 ? "s" : ""} consumed (
+                                  {service.products.map((pr) => `${pr.quantity}x ${pr.name}`).join(", ")})
+                                </span>
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Category */}
+                        <td className="py-3.5 px-4 align-top">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-galla-paper border border-galla-line text-[12px] font-sans text-galla-ink whitespace-nowrap">
+                            <Tag className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
+                            <span>{service.category}</span>
+                          </span>
+                        </td>
+
+                        {/* Price */}
+                        <td className="py-3.5 px-4 text-right align-top font-semibold text-[15px] text-galla-ink tabular-nums whitespace-nowrap">
+                          {formatRupee(service.price)}
+                        </td>
+
+                        {/* Status Toggle / Badge */}
+                        <td className="py-3.5 px-4 text-center align-top whitespace-nowrap">
+                          <div className="flex justify-center">
+                            {isReadOnly ? (
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold border ${
+                                  service.isActive
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : "bg-gray-100 text-gray-600 border-gray-200"
+                                }`}
+                              >
+                                {service.isActive ? (
+                                  <>
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                    <span>Active</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                    <span>Disabled</span>
+                                  </>
+                                )}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleService(service);
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold transition-colors cursor-pointer border ${
+                                  service.isActive
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                                    : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                                }`}
+                                title="Click to toggle availability"
+                              >
+                                {service.isActive ? (
+                                  <>
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                    <span>Active</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                    <span>Disabled</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Actions */}
+                        {!isReadOnly && (
+                          <td className="py-3.5 pl-4 pr-6 text-right align-top whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditService(service);
+                                }}
+                                className="p-1.5 rounded-[4px] hover:bg-galla-paper text-galla-ink-soft hover:text-galla-teal transition-colors cursor-pointer"
+                                title="Edit Service"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirm({
+                                    type: "service",
+                                    id: service.id,
+                                    name: service.name,
+                                  });
+                                }}
+                                className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
+                                title="Delete Service"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Service Cards (Visible on phones only) */}
+            <div className="block md:hidden space-y-3 p-1 pb-8">
+              {filteredServices.map((service) => {
+                const isExpanded = expandedServiceId === service.id;
+                const hasDesc = Boolean(service.description?.trim());
+
+                return (
+                  <div
+                    key={`m-srv-${service.id}`}
+                    onClick={() => {
+                      if (hasDesc) {
+                        setExpandedServiceId((prev) => (prev === service.id ? null : service.id));
+                      }
+                    }}
+                    className={`bg-galla-surface border rounded-[12px] p-4 shadow-xs space-y-3 transition-all ${
+                      hasDesc ? "cursor-pointer" : ""
+                    } ${
+                      isExpanded
+                        ? "border-galla-teal/60 ring-1 ring-galla-teal/30"
+                        : "border-galla-line/80 hover:border-galla-teal/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-[15.5px] text-galla-ink leading-tight">
                           {service.name}
                         </div>
-                        {service.description && (
-                          <div className="font-sans text-[12px] text-galla-ink-soft truncate mt-0.5">
-                            {service.description}
+                        {hasDesc && (
+                          <div className="mt-1">
+                            {isExpanded ? (
+                              <div className="text-[12px] font-sans text-galla-ink leading-relaxed bg-galla-paper/90 p-2.5 rounded-[6px] border border-galla-line/80 whitespace-normal break-words shadow-2xs">
+                                <p>{service.description}</p>
+                                <span className="text-[10.5px] text-galla-teal font-medium mt-1 inline-flex items-center gap-1">
+                                  <ChevronUp className="h-3 w-3" />
+                                  <span>Tap card to collapse</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-[12px] font-sans text-galla-ink-soft">
+                                <p className="line-clamp-1">{service.description}</p>
+                                <ChevronDown className="h-3 w-3 shrink-0 text-galla-ink-soft/60" />
+                              </div>
+                            )}
                           </div>
                         )}
-                        {service.products && service.products.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
-                              <ShoppingBag className="h-3 w-3 shrink-0" />
-                              <span>
-                                {service.products.length} product{service.products.length > 1 ? "s" : ""} consumed (
-                                {service.products.map((pr) => `${pr.quantity}x ${pr.name}`).join(", ")})
-                              </span>
-                            </span>
-                          </div>
-                        )}
-                      </td>
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-[11px] font-sans text-galla-ink shrink-0">
+                        <Tag className="h-3 w-3 text-galla-ink-soft shrink-0" />
+                        <span>{service.category}</span>
+                      </span>
+                    </div>
 
-                      {/* Category */}
-                      <td className="py-3.5 px-4 align-middle">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-galla-paper border border-galla-line text-[12px] font-sans text-galla-ink whitespace-nowrap">
-                          <Tag className="h-3.5 w-3.5 text-galla-ink-soft shrink-0" />
-                          <span>{service.category}</span>
+                    {service.products && service.products.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
+                          <ShoppingBag className="h-3 w-3 shrink-0" />
+                          <span>
+                            {service.products.length} product{service.products.length > 1 ? "s" : ""} consumed ({service.products.map((pr) => `${pr.quantity}x ${pr.name}`).join(", ")})
+                          </span>
                         </span>
-                      </td>
+                      </div>
+                    )}
 
-                      {/* Price */}
-                      <td className="py-3.5 px-4 text-right align-middle font-semibold text-[15px] text-galla-ink tabular-nums whitespace-nowrap">
+                    <div className="flex items-center justify-between pt-2.5 border-t border-galla-line/50">
+                      <div className="font-bold text-[15px] text-galla-ink tabular-nums">
                         {formatRupee(service.price)}
-                      </td>
+                      </div>
 
-                      {/* Status Toggle / Badge */}
-                      <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
-                        <div className="flex justify-center">
-                          {isReadOnly ? (
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold border ${
+                      <div className="flex items-center gap-1.5">
+                        {isReadOnly ? (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                            service.isActive ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {service.isActive ? "Active" : "Disabled"}
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleService(service);
+                              }}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-semibold transition-colors cursor-pointer border ${
                                 service.isActive
                                   ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                   : "bg-gray-100 text-gray-600 border-gray-200"
@@ -464,178 +674,51 @@ export function ServicesTab({
                             >
                               {service.isActive ? (
                                 <>
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
                                   <span>Active</span>
                                 </>
                               ) : (
                                 <>
-                                  <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                                  <span>Disabled</span>
-                                </>
-                              )}
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleService(service)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[11.5px] font-semibold transition-colors cursor-pointer border ${
-                                service.isActive
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                                  : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
-                              }`}
-                              title="Click to toggle availability"
-                            >
-                              {service.isActive ? (
-                                <>
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                                  <span>Active</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                  <XCircle className="h-3 w-3 text-gray-400 shrink-0" />
                                   <span>Disabled</span>
                                 </>
                               )}
                             </button>
-                          )}
-                        </div>
-                      </td>
 
-                      {/* Actions */}
-                      {!isReadOnly && (
-                        <td className="py-3.5 pl-4 pr-6 text-right align-middle whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
-                              onClick={() => handleEditService(service)}
-                              className="p-1.5 rounded-[4px] hover:bg-galla-paper text-galla-ink-soft hover:text-galla-teal transition-colors cursor-pointer"
-                              title="Edit Service"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditService(service);
+                              }}
+                              className="p-1.5 rounded-[4px] border border-galla-line hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
+                              title="Edit"
                             >
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
+
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setDeleteConfirm({
                                   type: "service",
                                   id: service.id,
                                   name: service.name,
-                                })
-                              }
-                              className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600 transition-colors cursor-pointer"
-                              title="Delete Service"
+                                });
+                              }}
+                              className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600"
+                              title="Delete"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Service Cards (Visible on phones only) */}
-            <div className="block md:hidden space-y-3 p-1 pb-8">
-              {filteredServices.map((service) => (
-                <div
-                  key={`m-srv-${service.id}`}
-                  className="bg-galla-surface border border-galla-line/80 rounded-[12px] p-4 shadow-xs space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-[15.5px] text-galla-ink leading-tight">
-                        {service.name}
+                          </>
+                        )}
                       </div>
-                      {service.description && (
-                        <p className="font-sans text-[12px] text-galla-ink-soft mt-0.5 line-clamp-1">
-                          {service.description}
-                        </p>
-                      )}
-                    </div>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-paper border border-galla-line text-[11px] font-sans text-galla-ink shrink-0">
-                      <Tag className="h-3 w-3 text-galla-ink-soft shrink-0" />
-                      <span>{service.category}</span>
-                    </span>
-                  </div>
-
-                  {service.products && service.products.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-galla-teal-soft/60 text-galla-teal text-[11px] font-sans font-medium">
-                        <ShoppingBag className="h-3 w-3 shrink-0" />
-                        <span>
-                          {service.products.length} product{service.products.length > 1 ? "s" : ""} consumed ({service.products.map((pr) => `${pr.quantity}x ${pr.name}`).join(", ")})
-                        </span>
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-2.5 border-t border-galla-line/50">
-                    <div className="font-bold text-[15px] text-galla-ink tabular-nums">
-                      {formatRupee(service.price)}
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      {isReadOnly ? (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
-                          service.isActive ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          {service.isActive ? "Active" : "Disabled"}
-                        </span>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleService(service)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-semibold transition-colors cursor-pointer border ${
-                              service.isActive
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                : "bg-gray-100 text-gray-600 border-gray-200"
-                            }`}
-                          >
-                            {service.isActive ? (
-                              <>
-                                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                                <span>Active</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="h-3 w-3 text-gray-400 shrink-0" />
-                                <span>Disabled</span>
-                              </>
-                            )}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleEditService(service)}
-                            className="p-1.5 rounded-[4px] border border-galla-line hover:bg-galla-paper text-galla-ink-soft hover:text-galla-ink"
-                            title="Edit"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteConfirm({
-                                type: "service",
-                                id: service.id,
-                                name: service.name,
-                              })
-                            }
-                            className="p-1.5 rounded-[4px] hover:bg-red-50 text-galla-ink-soft hover:text-red-600"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
           ) : (
@@ -685,14 +768,34 @@ export function ServicesTab({
                     {/* Header: Title & Badges */}
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div
+                          className={`min-w-0 flex-1 ${pkg.description ? "cursor-pointer" : ""}`}
+                          onClick={() => {
+                            if (pkg.description?.trim()) {
+                              setExpandedPackageId((prev) => (prev === pkg.id ? null : pkg.id));
+                            }
+                          }}
+                        >
                           <h3 className="font-semibold text-[15px] text-galla-ink tracking-tight truncate">
                             {pkg.name}
                           </h3>
                           {pkg.description && (
-                            <p className="font-sans text-[12.5px] text-galla-ink-soft line-clamp-2 mt-0.5">
-                              {pkg.description}
-                            </p>
+                            <div className="mt-1">
+                              {expandedPackageId === pkg.id ? (
+                                <div className="text-[12.5px] font-sans text-galla-ink leading-relaxed bg-galla-paper/90 p-2.5 rounded-[5px] border border-galla-line/80 whitespace-normal break-words shadow-2xs">
+                                  <p>{pkg.description}</p>
+                                  <span className="text-[10.5px] text-galla-teal font-medium mt-1 inline-flex items-center gap-1 hover:underline">
+                                    <ChevronUp className="h-3 w-3" />
+                                    <span>Click to collapse</span>
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-[12.5px] font-sans text-galla-ink-soft">
+                                  <p className="line-clamp-2">{pkg.description}</p>
+                                  <ChevronDown className="h-3 w-3 shrink-0 text-galla-ink-soft/60" />
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
 
@@ -709,7 +812,10 @@ export function ServicesTab({
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handleTogglePackage(pkg)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTogglePackage(pkg);
+                            }}
                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[3px] text-[11px] font-semibold shrink-0 transition-colors cursor-pointer ${
                               pkg.isActive
                                 ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
