@@ -1313,9 +1313,9 @@ export function NewOrderModal({
         <aside
           className={`${
             isMobileBillOpen
-              ? "fixed inset-x-0 bottom-0 z-50 max-h-[92vh] rounded-t-[18px] border-t border-galla-line shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-200"
+              ? "fixed inset-x-0 bottom-0 z-50 max-h-[92vh] rounded-t-[18px] border-t border-galla-line shadow-2xl animate-in slide-in-from-bottom duration-200"
               : "hidden lg:flex"
-          } bg-galla-surface overflow-hidden lg:border lg:border-galla-line lg:rounded-[8px] lg:shadow-xs lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2`}
+          } flex flex-col bg-galla-surface overflow-hidden lg:border lg:border-galla-line lg:rounded-[8px] lg:shadow-xs lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-92px)] order-2`}
         >
           {isMobileBillOpen && (
             <div className="w-10 h-1 rounded-full bg-galla-line mx-auto mt-2.5 mb-0.5 shrink-0 lg:hidden" />
