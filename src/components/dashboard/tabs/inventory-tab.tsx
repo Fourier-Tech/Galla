@@ -508,89 +508,87 @@ export function InventoryTab({
         </div>
       </div>
 
-      {/* 1. Search Bar (First Row, matching Orders & Expenses tab) */}
+      {/* 1. Search Bar & Filter Controls (Top Row) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Search Bar */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line w-full sm:w-72 focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all shadow-xs">
-          <Search className="h-4 w-4 text-galla-ink-soft shrink-0" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSearchQuery(val);
-              setPage(1);
-              const inMem = filterInMemory(selectedCategory, val, filterLowStockOnly);
-              setTotalCount(inMem.length);
-              setDisplayedProducts(inMem.slice(0, pageSize));
-            }}
-            placeholder="Search products by name or category..."
-            className="w-full bg-transparent font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 outline-none"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setDebouncedSearch("");
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1">
+          {/* Search Bar */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-[5px] bg-galla-surface border border-galla-line w-full sm:w-64 lg:w-72 focus-within:border-galla-teal focus-within:ring-1 focus-within:ring-galla-teal transition-all shadow-xs">
+            <Search className="h-4 w-4 text-galla-ink-soft shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchQuery(val);
                 setPage(1);
-                const inMem = filterInMemory(selectedCategory, "", filterLowStockOnly);
+                const inMem = filterInMemory(selectedCategory, val, filterLowStockOnly);
                 setTotalCount(inMem.length);
                 setDisplayedProducts(inMem.slice(0, pageSize));
               }}
-              className="text-galla-ink-soft hover:text-galla-ink cursor-pointer p-0.5"
-              title="Clear search"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 2. Category Pills Filter & Reset Action (Second Row, matching Orders & Expenses tab) */}
-      {existingCategories.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full sm:flex-wrap">
-          <button
-            type="button"
-            onClick={() => handleFilterClick("all")}
-            className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${selectedCategory === "all"
-                ? "bg-galla-teal text-white border-galla-teal shadow-xs"
-                : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
-              }`}
-          >
-            All Categories ({products.filter((p) => p.isActive !== false).length})
-          </button>
-          {existingCategories.map((cat) => {
-            const count = products.filter(
-              (p) => p.isActive !== false && p.category === cat
-            ).length;
-            const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
-            return (
+              placeholder="Search products by name or category..."
+              className="w-full bg-transparent font-sans text-[13px] text-galla-ink placeholder:text-galla-ink-soft/50 outline-none"
+            />
+            {searchQuery && (
               <button
                 type="button"
-                key={cat}
-                onClick={() => handleFilterClick(cat)}
-                className={`px-[13px] py-[6px] rounded-[5px] text-[13px] font-sans font-medium transition-all cursor-pointer border ${isSelected
-                    ? "bg-galla-teal text-white border-galla-teal shadow-xs"
-                    : "bg-galla-surface text-galla-ink-soft border-galla-line hover:text-galla-ink hover:border-galla-ink-soft/40"
-                  }`}
+                onClick={() => {
+                  setSearchQuery("");
+                  setDebouncedSearch("");
+                  setPage(1);
+                  const inMem = filterInMemory(selectedCategory, "", filterLowStockOnly);
+                  setTotalCount(inMem.length);
+                  setDisplayedProducts(inMem.slice(0, pageSize));
+                }}
+                className="text-galla-ink-soft hover:text-galla-ink cursor-pointer p-0.5"
+                title="Clear search"
               >
-                {cat} ({count})
+                <X className="h-3.5 w-3.5" />
               </button>
-            );
-          })}
+            )}
+          </div>
 
+          {/* Category Dropdown */}
+          {existingCategories.length > 0 && (
+            <div className="relative w-full sm:w-52 lg:w-60 shrink-0">
+              <select
+                value={selectedCategory}
+                onChange={(e) => handleFilterClick(e.target.value)}
+                className={`w-full appearance-none pl-3 pr-8 py-2 rounded-[5px] text-[13px] font-sans font-medium border transition-all cursor-pointer shadow-xs outline-none focus:ring-1 focus:ring-galla-teal ${
+                  selectedCategory !== "all"
+                    ? "bg-galla-teal/10 text-galla-teal border-galla-teal/40 font-semibold"
+                    : "bg-galla-surface text-galla-ink border-galla-line hover:border-galla-ink-soft/40"
+                }`}
+              >
+                <option value="all">All Categories ({products.filter((p) => p.isActive !== false).length})</option>
+                {existingCategories.map((cat) => {
+                  const count = products.filter(
+                    (p) => p.isActive !== false && p.category === cat
+                  ).length;
+                  return (
+                    <option key={cat} value={cat}>
+                      {cat} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-galla-ink-soft">
+                <ChevronDown className="h-4 w-4" />
+              </div>
+            </div>
+          )}
+
+          {/* Reset Action */}
           {(searchQuery || selectedCategory !== "all" || filterLowStockOnly) && (
             <button
               type="button"
               onClick={handleResetFilters}
-              className="ml-auto text-[12.5px] font-sans text-galla-teal hover:underline font-medium cursor-pointer whitespace-nowrap py-1"
+              className="text-[12.5px] font-sans text-galla-teal hover:underline font-medium cursor-pointer whitespace-nowrap py-1 sm:ml-1"
             >
-              Reset all filters
+              Reset filters
             </button>
           )}
         </div>
-      )}
+      </div>
 
       {/* Inventory Table */}
       <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none overflow-visible shadow-none">
