@@ -596,17 +596,17 @@ export function InventoryTab({
       <div className="md:bg-galla-surface md:border md:border-galla-line md:rounded-[6px] md:overflow-hidden md:shadow-2xs bg-transparent border-0 rounded-none overflow-visible shadow-none">
         {/* Desktop Table View (Hidden on mobile) */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[920px] table-fixed">
+          <table className="w-full text-left border-collapse min-w-[980px] table-fixed">
             <thead>
               <tr className="border-b border-galla-line bg-galla-paper/70 text-[12px] font-medium text-galla-ink-soft">
-                <th className="w-[24%] py-3.5 pl-6 pr-4 text-left font-medium">Product</th>
-                <th className="w-[18%] py-3.5 px-4 text-left font-semibold">Category</th>
-                <th className="w-[12%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Purchase Price</th>
-                <th className="w-[11%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Sell Price</th>
-                <th className="w-[12%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Sell Stock</th>
-                <th className="w-[9%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Use Stock</th>
-                <th className="w-[8%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Move / Use</th>
-                <th className="w-[6%] py-3.5 pl-4 pr-6 text-right font-semibold whitespace-nowrap">Actions</th>
+                <th className="w-[25%] py-3.5 pl-6 pr-4 text-left font-medium">Product</th>
+                <th className="w-[12%] py-3.5 px-4 text-left font-semibold">Category</th>
+                <th className="w-[11%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Purchase Price</th>
+                <th className="w-[12%] py-3.5 px-4 text-right font-semibold whitespace-nowrap">Sell Price</th>
+                <th className="w-[11%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Sell Stock</th>
+                <th className="w-[8%] py-3.5 px-4 text-center font-semibold whitespace-nowrap">Use Stock</th>
+                <th className="w-[11%] min-w-[110px] py-3.5 px-3 text-center font-semibold whitespace-nowrap">Move / Use</th>
+                <th className="w-[10%] min-w-[90px] py-3.5 pl-2 pr-6 text-right font-semibold whitespace-nowrap">Actions</th>
               </tr>
             </thead>
 
@@ -789,7 +789,7 @@ export function InventoryTab({
                       </td>
 
                       {/* Transfer / Use */}
-                      <td className="py-3.5 px-4 text-center align-top whitespace-nowrap">
+                      <td className="py-3.5 px-3 text-center align-top whitespace-nowrap">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -797,7 +797,7 @@ export function InventoryTab({
                             handleOpenTransfer(product);
                           }}
                           disabled={product.sell <= 0 && product.use <= 0}
-                          className="inline-flex items-center gap-1 text-[12.5px] font-sans font-medium text-galla-teal hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                          className="inline-flex items-center gap-1.5 text-[12.5px] font-sans font-medium text-galla-teal hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                           title="Transfer between retail and salon use, or deduct consumed stock"
                         >
                           <span>Move / Use</span>
@@ -806,7 +806,7 @@ export function InventoryTab({
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 pl-4 pr-6 text-right align-top whitespace-nowrap">
+                      <td className="py-3.5 pl-2 pr-6 text-right align-top whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
