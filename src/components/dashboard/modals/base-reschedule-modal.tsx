@@ -23,6 +23,7 @@ export interface BaseRescheduleModalProps {
   salonName?: string;
   orderType?: string;
   isReplacement?: boolean;
+  isPaymentDue?: boolean;
   productName?: string;
   orderNumber?: string;
   dueAmount?: number;
@@ -38,6 +39,7 @@ export interface BaseRescheduleModalProps {
   confirmDialogTitle?: string;
   extraHeaderControl?: React.ReactNode;
   onSave: (payload: { newDate: string; newTime?: string }) => Promise<{ success: boolean; error?: string }>;
+  zIndex?: string;
 }
 
 export function BaseRescheduleModal(props: BaseRescheduleModalProps) {
@@ -60,6 +62,7 @@ function BaseRescheduleModalContent({
   salonName,
   orderType,
   isReplacement,
+  isPaymentDue,
   productName,
   orderNumber,
   dueAmount,
@@ -75,6 +78,7 @@ function BaseRescheduleModalContent({
   confirmDialogTitle,
   extraHeaderControl,
   onSave,
+  zIndex = "z-[60]",
 }: BaseRescheduleModalProps) {
   const todayStr = getLocalDateString();
   const resolvedInitialDate = initialDate ? getLocalDateString(initialDate) : todayStr;
@@ -130,7 +134,7 @@ function BaseRescheduleModalContent({
       });
 
       if (res.success) {
-        if (customerPhone) {
+        if (!isPaymentDue && customerPhone) {
           setSavedDate(newDate);
           setSavedTime(showTimePicker ? newTime.trim() || undefined : undefined);
           setRescheduledSuccess(true);
@@ -171,7 +175,7 @@ function BaseRescheduleModalContent({
       : null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div className={`fixed inset-0 ${zIndex} flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150`}>
       <div className="bg-galla-surface border border-galla-line rounded-[8px] shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-galla-line bg-galla-paper/40">
@@ -222,7 +226,12 @@ function BaseRescheduleModalContent({
                   <span>Send Update to Customer on WhatsApp</span>
                 </div>
                 <p className="text-[11.5px] text-emerald-900/80 leading-snug">
-                  Notify {entityName} {customerPhone ? `(${customerPhone})` : ""} about the new scheduled pickup date.
+                  Notify {entityName} {customerPhone ? `(${customerPhone})` : ""}{" "}
+                  {isReplacement
+                    ? "about the new scheduled replacement delivery date."
+                    : orderType === "Product sale"
+                    ? "about the new scheduled pickup date."
+                    : "about the new scheduled appointment date."}
                 </p>
                 <a
                   href={whatsappUrl}

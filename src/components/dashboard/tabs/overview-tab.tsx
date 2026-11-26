@@ -223,13 +223,50 @@ export function OverviewTab({
     });
   }, [orders, searchQuery]);
 
-  // Advance bookings due near (Today, Tomorrow, or Day after tomorrow)
+  // Advance bookings due near (Today, Tomorrow, or Day after tomorrow) - excludes completed & cancelled orders
   const upcomingAdvanceOrders = useMemo(() => {
     return orders.filter((o) => {
+      const effStatus = getOrderEffectiveStatus(o);
+      if (
+        effStatus === "completed" ||
+        effStatus === "replacement_completed" ||
+        effStatus === "fulfilled" ||
+        effStatus === "cancelled_refunded" ||
+        effStatus === "cancelled_converted"
+      ) {
+        return false;
+      }
       if ((o.status !== "advance_paid" && o.status !== "paid_full") || !o.scheduledFor) return false;
       const urgency = getBookingUrgency(o.scheduledFor);
       if (!urgency) return false;
       return urgency.daysAway >= 0 && urgency.daysAway <= 2;
+    });
+  }, [orders]);
+
+  // Advance orders scheduled for TODAY - only pending/uncompleted orders highlight the button
+  const todayAdvanceOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (!o.scheduledFor) return false;
+      const effStatus = getOrderEffectiveStatus(o);
+      if (
+        effStatus === "completed" ||
+        effStatus === "replacement_completed" ||
+        effStatus === "fulfilled" ||
+        effStatus === "cancelled_refunded" ||
+        effStatus === "cancelled_converted"
+      ) {
+        return false;
+      }
+      // Must be an advance booking order (NOT a pending payment due / debt collection order)
+      const isAdvance =
+        effStatus === "advance_paid" ||
+        effStatus === "paid_full" ||
+        effStatus === "replacement" ||
+        effStatus === "replacement_pending";
+      if (!isAdvance) return false;
+
+      const urgency = getBookingUrgency(o.scheduledFor);
+      return urgency?.tone === "today";
     });
   }, [orders]);
 
@@ -308,32 +345,34 @@ export function OverviewTab({
           {onNavigateToAdvanceOrders && (
             <button
               onClick={onNavigateToAdvanceOrders}
-              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${upcomingAdvanceOrders.length > 0
-                  ? "bg-amber-50/90 hover:bg-amber-100 border-amber-300 text-amber-900 ring-2 ring-amber-400/40"
+              className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${
+                todayAdvanceOrders.length > 0
+                  ? "bg-rose-50/90 hover:bg-rose-100 border-rose-300 text-rose-900 ring-2 ring-rose-400/40"
                   : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
-                }`}
+              }`}
               title={
-                upcomingAdvanceOrders.length > 0
-                  ? `${upcomingAdvanceOrders.length} advance booking(s) near (Today - 2 days)`
+                todayAdvanceOrders.length > 0
+                  ? `${todayAdvanceOrders.length} advance order(s) scheduled for Today!`
                   : "View Advance Bookings"
               }
             >
               <div className="relative flex items-center justify-center">
-                <Calendar className={`h-4 w-4 ${upcomingAdvanceOrders.length > 0 ? "text-amber-700" : "text-galla-ink-soft"}`} />
-                {upcomingAdvanceOrders.length > 0 && (
+                <Calendar className={`h-4 w-4 ${todayAdvanceOrders.length > 0 ? "text-rose-700" : "text-galla-ink-soft"}`} />
+                {todayAdvanceOrders.length > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
                   </span>
                 )}
               </div>
               <span>Advance Bookings</span>
-              {upcomingAdvanceOrders.length > 0 && (
+              {todayAdvanceOrders.length > 0 && (
                 <span
-                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-amber-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${upcomingAdvanceOrders.length > 9 ? "min-w-5 px-1.5" : "w-5"
-                    }`}
+                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-rose-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${
+                    todayAdvanceOrders.length > 9 ? "min-w-5 px-1.5" : "w-5"
+                  }`}
                 >
-                  {upcomingAdvanceOrders.length}
+                  {todayAdvanceOrders.length}
                 </span>
               )}
             </button>
@@ -466,16 +505,18 @@ export function OverviewTab({
         </div>
 
         {/* Mobile Urgent Action Chips Carousel */}
-        {(upcomingAdvanceOrders.length > 0 || dueOrdersToClear.length > 0 || urgentSupplierItems.length > 0 || urgentDealerReplacements.length > 0) && (
+        {(todayAdvanceOrders.length > 0 || dueOrdersToClear.length > 0 || urgentSupplierItems.length > 0 || urgentDealerReplacements.length > 0) && (
           <div className="flex md:hidden items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full">
-            {upcomingAdvanceOrders.length > 0 && onNavigateToAdvanceOrders && (
+            {todayAdvanceOrders.length > 0 && onNavigateToAdvanceOrders && (
               <button
                 type="button"
                 onClick={onNavigateToAdvanceOrders}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[12px] font-semibold shrink-0 active:scale-95 shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-300 text-rose-900 text-[12px] font-semibold shrink-0 active:scale-95 shadow-xs"
               >
-                <Calendar className="h-3.5 w-3.5 text-amber-700" />
-                <span>{upcomingAdvanceOrders.length} Advance Booking{upcomingAdvanceOrders.length > 1 ? "s" : ""}</span>
+                <Calendar className="h-3.5 w-3.5 text-rose-700" />
+                <span>
+                  {todayAdvanceOrders.length} Today&apos;s Advance Order{todayAdvanceOrders.length > 1 ? "s" : ""}
+                </span>
               </button>
             )}
 
@@ -825,10 +866,10 @@ export function OverviewTab({
                   const isReplacementOrder =
                     effectiveStatus === "replacement" ||
                     effectiveStatus === "replacement_pending";
-                  const isDueOrder = getOrderPendingDue(order) > 0;
+                  const isAdvanceOrder = effectiveStatus === "advance_paid" || effectiveStatus === "paid_full";
+                  const isDueOrder = getOrderPendingDue(order) > 0 && !isAdvanceOrder;
                   const isPendingOrder =
-                    effectiveStatus === "advance_paid" ||
-                    effectiveStatus === "paid_full" ||
+                    isAdvanceOrder ||
                     isReplacementOrder ||
                     (effectiveStatus === "created" && isDueOrder);
                   const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
@@ -849,18 +890,6 @@ export function OverviewTab({
                         <div className="font-semibold text-[15px] text-galla-ink leading-snug truncate">
                           {order.customer}
                         </div>
-                        {order.customerPhone && (
-                          <div className="tabular-nums text-[13px] font-normal text-galla-ink-soft mt-0.5 truncate">
-                            <a
-                              href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:text-galla-teal hover:underline transition-colors"
-                              title={`Call ${order.customer}: ${order.customerPhone}`}
-                            >
-                              {formatPhoneNumber(order.customerPhone)}
-                            </a>
-                          </div>
-                        )}
                         <div className="font-sans text-[12px] text-galla-ink-soft truncate">
                           {order.type} &bull; {order.time}
                         </div>
@@ -930,9 +959,9 @@ export function OverviewTab({
                             const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
 
                             const badgeStyle = isOverdue
-                              ? "text-red-900 bg-red-100 border-red-300 font-semibold"
+                              ? "text-red-900 bg-red-100 border-red-300"
                               : isToday
-                                ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
+                                ? "text-rose-800 bg-rose-50 border-rose-300"
                                 : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                             const badgeLabel = isOverdue
@@ -959,33 +988,35 @@ export function OverviewTab({
                               : null;
 
                             return (
-                              <div className="space-y-1 mt-0.5">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setReschedulingOrder(order);
-                                  }}
-                                  className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${badgeStyle}`}
-                                  title="Click to reschedule payment due date"
-                                >
-                                  <Calendar className="h-3 w-3 shrink-0" />
-                                  <span>{badgeLabel}</span>
-                                  <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
-                                    Reschedule
-                                  </span>
-                                </button>
+                              <div className="mt-1.5 space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setReschedulingOrder(order);
+                                    }}
+                                    className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] font-medium shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${badgeStyle}`}
+                                    title="Click to reschedule payment due date"
+                                  >
+                                    <Calendar className="h-3 w-3 shrink-0" />
+                                    <span>{badgeLabel}</span>
+                                    <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                      Reschedule
+                                    </span>
+                                  </button>
+                                </div>
 
                                 {showContactOptions && (
-                                  <div className="flex items-center gap-1.5 pt-0.5">
+                                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
                                     {order.customerPhone ? (
                                       <a
                                         href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
                                         onClick={(e) => e.stopPropagation()}
-                                        className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
+                                        className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
                                         title={`Call client: ${order.customerPhone}`}
                                       >
-                                        <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
+                                        <Phone className="h-3 w-3 text-amber-800 shrink-0" />
                                         <span>Call</span>
                                       </a>
                                     ) : null}
@@ -996,23 +1027,52 @@ export function OverviewTab({
                                         onClick={(e) => e.stopPropagation()}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
+                                        className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
                                         title="Send pending balance reminder via WhatsApp"
                                       >
-                                        <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
+                                        <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
                                         <span>WhatsApp Msg</span>
                                       </a>
                                     ) : null}
+
+                                    {!order.customerPhone && (
+                                      <span className="text-[11px] text-galla-ink-soft/70 italic">
+                                        No phone recorded
+                                      </span>
+                                    )}
                                   </div>
                                 )}
                               </div>
                             );
                           }
 
+                          if (!urgency) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReschedulingOrder(order);
+                                }}
+                                className="inline-flex items-center gap-1 font-sans text-[11.5px] text-galla-ink-soft bg-galla-paper border border-galla-line/80 px-2 py-0.5 rounded-[4px] mt-1 font-normal hover:opacity-85 transition-all cursor-pointer group"
+                                title="Click to reschedule appointment date and time"
+                              >
+                                <Calendar className="h-3 w-3 text-galla-ink-soft shrink-0" />
+                                <span>
+                                  Booked for: {formatBookingDate(order.scheduledFor)}
+                                  {order.scheduledTime ? ` at ${formatAppointmentTime(order.scheduledTime)}` : ""}
+                                </span>
+                                <span className="text-[10px] opacity-75 underline ml-0.5 group-hover:opacity-100 font-normal">
+                                  Reschedule
+                                </span>
+                              </button>
+                            );
+                          }
+
                           const isProductSale = order.type === "Product sale";
-                          const isToday = urgency?.tone === "today";
-                          const isTomorrow = urgency?.tone === "tomorrow";
-                          const isOverdue = urgency?.tone === "overdue";
+                          const isToday = urgency.tone === "today";
+                          const isTomorrow = urgency.tone === "tomorrow";
+                          const isOverdue = urgency.tone === "overdue";
 
                           const badgeStyle = isReplacementOrder
                             ? isTomorrow
@@ -1023,19 +1083,20 @@ export function OverviewTab({
                               ? "text-red-900 bg-red-100 border-red-300 font-semibold"
                               : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal"
                             : (isProductSale && isTomorrow)
-                            ? "text-rose-800 bg-rose-50/90 border-rose-300 font-semibold"
+                            ? "text-rose-800 bg-rose-50 border-rose-300 font-semibold"
                             : isToday
-                              ? "text-rose-800 bg-rose-50/90 border-rose-200"
+                              ? "text-rose-800 bg-rose-50 border-rose-200"
                               : isTomorrow
-                                ? "text-amber-800 bg-amber-50/90 border-amber-200"
+                                ? "text-amber-900 bg-amber-50 border-amber-300"
                                 : isOverdue
                                   ? "text-red-900 bg-red-100 border-red-300 font-semibold"
                                   : "text-galla-ink-soft bg-galla-paper border-galla-line/80 font-normal";
 
                           const dateStr = formatBookingDate(order.scheduledFor);
                           const timeStr = order.scheduledTime ? formatAppointmentTime(order.scheduledTime) : null;
-                          const suffix = timeStr ? ` • ${timeStr}` : "";
                           const fullSlotStr = timeStr ? `${dateStr}, ${timeStr}` : dateStr;
+
+                          const isPaymentDueOrder = isDueOrder;
 
                           const badgeLabel = isReplacementOrder
                             ? isTomorrow
@@ -1045,23 +1106,35 @@ export function OverviewTab({
                               : isOverdue
                               ? `Replacement Delivery Overdue (${fullSlotStr})`
                               : `Expected Delivery: ${fullSlotStr}`
-                            : isOverdue
-                              ? `Overdue (${dateStr}${suffix})`
-                              : isProductSale && isTomorrow
-                              ? `Urgent (Tomorrow${suffix})`
-                              : isProductSale && isToday
-                                ? `Pickup Today${suffix}`
-                                : isToday
-                                  ? `Today${suffix}`
-                                  : isTomorrow
-                                    ? `Tomorrow${suffix}`
-                                    : `Booked: ${dateStr}${suffix}`;
+                            : isPaymentDueOrder
+                            ? isTomorrow
+                              ? `Urgent: Due Tomorrow (${fullSlotStr})`
+                              : isToday
+                              ? `Payment Due Today (${fullSlotStr})`
+                              : isOverdue
+                              ? `Payment Overdue (${fullSlotStr})`
+                              : `Payment Due: ${fullSlotStr}`
+                            : isProductSale
+                            ? isTomorrow
+                              ? `Urgent: Expected Tomorrow (${fullSlotStr})`
+                              : isToday
+                                ? `Ready for Pickup Today (${fullSlotStr})`
+                                : isOverdue
+                                  ? `Pickup Overdue (${fullSlotStr})`
+                                  : `Expected Pickup: ${fullSlotStr}`
+                            : isToday
+                              ? `Today (${fullSlotStr})`
+                              : isTomorrow
+                                ? `Tomorrow (${fullSlotStr})`
+                                : isOverdue
+                                  ? `Overdue (${fullSlotStr})`
+                                  : `Booked for: ${fullSlotStr}`;
 
                           const showContactOptions = isReplacementOrder
                             ? (isToday || isOverdue)
                             : isProductSale
                             ? (isToday || isOverdue)
-                            : isTomorrow;
+                            : (isToday || isTomorrow || isOverdue);
 
                           const waUrl = showContactOptions
                             ? getWhatsAppReminderUrl({
@@ -1081,7 +1154,7 @@ export function OverviewTab({
                             : null;
 
                           return (
-                            <div className="space-y-1 mt-0.5">
+                            <div className="mt-1.5 space-y-1.5">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <button
                                   type="button"
@@ -1089,7 +1162,7 @@ export function OverviewTab({
                                     e.stopPropagation();
                                     setReschedulingOrder(order);
                                   }}
-                                  className={`inline-flex items-center gap-1 font-sans text-[11px] border px-1.5 py-0.2 rounded-[4px] font-medium shadow-2xs hover:opacity-85 transition-all cursor-pointer group ${badgeStyle}`}
+                                  className={`inline-flex items-center gap-1 font-sans text-[11.5px] border px-2 py-0.5 rounded-[4px] font-medium shadow-2xs hover:opacity-85 hover:shadow-xs transition-all cursor-pointer group ${badgeStyle}`}
                                   title={
                                     isReplacementOrder
                                       ? "Click to reschedule replacement delivery date"
@@ -1107,15 +1180,15 @@ export function OverviewTab({
                               </div>
 
                               {showContactOptions && (
-                                <div className="flex items-center gap-1.5 pt-0.5">
+                                <div className="flex flex-wrap items-center gap-2 pt-0.5">
                                   {order.customerPhone ? (
                                     <a
                                       href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
                                       onClick={(e) => e.stopPropagation()}
-                                      className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs"
+                                      className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-amber-100/70 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
                                       title={`Call client: ${order.customerPhone}`}
                                     >
-                                      <Phone className="h-2.5 w-2.5 text-amber-800 shrink-0" />
+                                      <Phone className="h-3 w-3 text-amber-800 shrink-0" />
                                       <span>Call</span>
                                     </a>
                                   ) : null}
@@ -1126,13 +1199,19 @@ export function OverviewTab({
                                       onClick={(e) => e.stopPropagation()}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-0.5 text-[10.5px] font-sans font-medium px-1.5 py-0.2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs"
+                                      className="inline-flex items-center gap-1 text-[11.5px] font-sans font-medium px-2 py-0.5 rounded-[4px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
                                       title={isReplacementOrder ? "Notify customer that replacement product has arrived via WhatsApp" : isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
                                     >
-                                      <MessageSquare className="h-2.5 w-2.5 text-emerald-700 shrink-0" />
-                                      <span>{isReplacementOrder ? "WhatsApp Msg" : isProductSale ? "WhatsApp Msg" : "Reminder"}</span>
+                                      <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
+                                      <span>{isReplacementOrder ? "WhatsApp Msg" : isProductSale ? "WhatsApp Msg" : "WhatsApp Reminder"}</span>
                                     </a>
                                   ) : null}
+
+                                  {!order.customerPhone && (
+                                    <span className="text-[11px] text-galla-ink-soft/70 italic">
+                                      No phone recorded
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1404,10 +1483,10 @@ export function OverviewTab({
                 const isReplacementOrder =
                   effectiveStatus === "replacement" ||
                   effectiveStatus === "replacement_pending";
-                const isDueOrder = getOrderPendingDue(order) > 0;
+                const isAdvanceOrder = effectiveStatus === "advance_paid" || effectiveStatus === "paid_full";
+                const isDueOrder = getOrderPendingDue(order) > 0 && !isAdvanceOrder;
                 const isPendingOrder =
-                  effectiveStatus === "advance_paid" ||
-                  effectiveStatus === "paid_full" ||
+                  isAdvanceOrder ||
                   isReplacementOrder ||
                   (effectiveStatus === "created" && isDueOrder);
                 const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;

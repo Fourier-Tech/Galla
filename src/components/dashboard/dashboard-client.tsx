@@ -29,6 +29,7 @@ import { AnalyticsTab } from "@/components/dashboard/tabs/analytics-tab";
 import { ProfileTab } from "@/components/dashboard/tabs/profile-tab";
 import { ServicesTab } from "@/components/dashboard/tabs/services-tab";
 import { NewOrderModal } from "@/components/dashboard/modals/new-order-modal";
+import { AdvanceBookingsModal } from "@/components/dashboard/modals/advance-bookings-modal";
 import { NewExpenseModal } from "@/components/dashboard/modals/new-expense-modal";
 import { RefundOrderModal } from "@/components/dashboard/modals/refund-order-modal";
 import { SettleOrderModal } from "@/components/dashboard/modals/settle-order-modal";
@@ -329,7 +330,9 @@ export function DashboardClient({
       const matchedTab = resolveTabFromPathname(window.location.pathname);
       const params = new URLSearchParams(window.location.search);
       const filterParam = params.get("filter");
+      const viewParam = params.get("view");
 
+      setIsAdvanceBookingsOpen(viewParam === "advance_bookings");
       setActiveTab(matchedTab);
       if (matchedTab === "orders") {
         setOrdersFilter((filterParam as any) || "all");
@@ -340,6 +343,13 @@ export function DashboardClient({
         setBillsNavKey((k) => k + 1);
       }
     };
+
+    // Check initial view param on load
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("view") === "advance_bookings") {
+      setIsAdvanceBookingsOpen(true);
+    }
+
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
@@ -377,8 +387,13 @@ export function DashboardClient({
   }, []);
 
   const handleNavigateToAdvanceOrders = useCallback(() => {
-    handleSelectTab("orders", "advance_paid");
-  }, [handleSelectTab]);
+    setIsAdvanceBookingsOpen(true);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", "advance_bookings");
+      window.history.pushState({ view: "advance_bookings" }, "", url.toString());
+    }
+  }, []);
 
   const handleNavigateToReplacementOrders = useCallback(() => {
     handleSelectTab("orders", "replacement");
@@ -691,6 +706,7 @@ export function DashboardClient({
   }, []);
 
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
+  const [isAdvanceBookingsOpen, setIsAdvanceBookingsOpen] = useState(false);
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);
   const [refundOrder, setRefundOrder] = useState<DashboardOrder | null>(null);
   const [settleOrder, setSettleOrder] = useState<DashboardOrder | null>(null);
@@ -1454,6 +1470,15 @@ export function DashboardClient({
       </main>
 
       {/* Action Modals */}
+      <AdvanceBookingsModal
+        isOpen={isAdvanceBookingsOpen}
+        onClose={() => setIsAdvanceBookingsOpen(false)}
+        salonName={salonProfile.name || salonName}
+        onOpenSettle={(order) => setSettleOrder(order)}
+        onOpenReschedule={handleRescheduleOrder}
+        onOpenRefund={(order) => setRefundOrder(order)}
+      />
+
       <NewOrderModal
         isOpen={isNewOrderOpen}
         onClose={() => setIsNewOrderOpen(false)}
