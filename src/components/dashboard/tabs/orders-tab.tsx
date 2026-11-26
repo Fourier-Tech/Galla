@@ -646,10 +646,10 @@ export function OrdersTab({
                 const { effectiveOrderAmount, effectivePaid, effectiveDue } = getOrderEffectiveBilling(order);
                 const effectiveStatus = getOrderEffectiveStatus(order) as OrderStatus;
                 const isReplacementOrder = effectiveStatus === "replacement_pending" || effectiveStatus === "replacement";
-                const isDueOrder = getOrderPendingDue(order) > 0;
+                const isAdvanceOrder = effectiveStatus === "advance_paid" || effectiveStatus === "paid_full";
+                const isDueOrder = getOrderPendingDue(order) > 0 && !isAdvanceOrder;
                 const isPendingOrder =
-                  effectiveStatus === "advance_paid" ||
-                  effectiveStatus === "paid_full" ||
+                  isAdvanceOrder ||
                   isReplacementOrder ||
                   (effectiveStatus === "created" && isDueOrder);
                 const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;
@@ -670,18 +670,6 @@ export function OrdersTab({
                       <div className="font-semibold text-[15px] text-galla-ink leading-snug truncate">
                         {order.customer}
                       </div>
-                      {order.customerPhone && (
-                        <div className="tabular-nums text-[13px] text-galla-ink-soft mt-0.5 truncate">
-                          <a
-                            href={`tel:${order.customerPhone.replace(/\s+/g, "")}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="hover:text-galla-teal hover:underline transition-colors"
-                            title={`Call ${order.customer}: ${order.customerPhone}`}
-                          >
-                            {formatPhoneNumber(order.customerPhone)}
-                          </a>
-                        </div>
-                      )}
                       <div className="font-sans text-[12px] text-galla-ink-soft mt-0.5 truncate">
                         {order.type} &bull; {order.time}
                       </div>
@@ -925,12 +913,12 @@ export function OrdersTab({
                         // Show Call & Msg on:
                         // - Replacement order: on delivery day (isToday) or overdue
                         // - Product sale: on scheduled pickup day (isToday) or overdue
-                        // - Service booking: 1 day before (isTomorrow)
+                        // - Service or Package advance booking: on appointment day (isToday) or 1 day before (isTomorrow)
                         const showContactOptions = isReplacementOrder
                           ? (isToday || isOverdue)
                           : isProductSale
                           ? (isToday || isOverdue)
-                          : isTomorrow;
+                          : (isToday || isTomorrow || isOverdue);
 
                         const waUrl = showContactOptions
                           ? getWhatsAppReminderUrl({
@@ -994,7 +982,7 @@ export function OrdersTab({
                                     title={isReplacementOrder ? "Notify customer that replacement product has arrived via WhatsApp" : isProductSale ? "Send pickup ready notification via WhatsApp" : "Send reminder via WhatsApp"}
                                   >
                                     <MessageSquare className="h-3 w-3 text-emerald-700 shrink-0" />
-                                    <span>{isReplacementOrder ? "WhatsApp Msg" : isProductSale ? "WhatsApp (Msg)" : "WhatsApp Reminder"}</span>
+                                    <span>{isReplacementOrder ? "WhatsApp Msg" : isProductSale ? "WhatsApp Msg" : "WhatsApp Reminder"}</span>
                                   </a>
                                 ) : null}
 
@@ -1255,10 +1243,10 @@ export function OrdersTab({
             const { effectiveOrderAmount, effectivePaid, effectiveDue } = getOrderEffectiveBilling(order);
             const effectiveStatus = getOrderEffectiveStatus(order) as OrderStatus;
             const isReplacementOrder = effectiveStatus === "replacement_pending" || effectiveStatus === "replacement";
-            const isDueOrder = getOrderPendingDue(order) > 0;
+            const isAdvanceOrder = effectiveStatus === "advance_paid" || effectiveStatus === "paid_full";
+            const isDueOrder = getOrderPendingDue(order) > 0 && !isAdvanceOrder;
             const isPendingOrder =
-              effectiveStatus === "advance_paid" ||
-              effectiveStatus === "paid_full" ||
+              isAdvanceOrder ||
               isReplacementOrder ||
               (effectiveStatus === "created" && isDueOrder);
             const urgency = (isPendingOrder || isDueOrder) && order.scheduledFor ? getBookingUrgency(order.scheduledFor) : null;

@@ -369,16 +369,21 @@ export function getWhatsAppReminderUrl(options: {
     return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
   }
 
-  // Service appointment reminder format
-  const message = formattedTime
-    ? `Hello ${options.customerName}! 👋\n\n` +
-    `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate} at ${formattedTime}).\n\n` +
+  // Service or Package appointment reminder format
+  const appointmentTiming = options.isToday
+    ? "today"
+    : options.isTomorrow
+    ? "tomorrow"
+    : `on ${formattedDate}`;
+
+  const timingDetails = formattedTime ? ` (${formattedDate} at ${formattedTime})` : ` (${formattedDate})`;
+
+  const message =
+    `Hello ${options.customerName}! 👋\n\n` +
+    `This is a friendly reminder from *${options.salonName || "our salon"}* for your appointment ${appointmentTiming}${timingDetails}.\n\n` +
     `Please let us know if you need to reschedule or adjust your time.\n\n` +
-    `We look forward to welcoming you!`
-    : `Hello ${options.customerName}! 👋\n\n` +
-    `This is a friendly reminder from ${options.salonName || "our salon"} for your appointment tomorrow (${formattedDate}).\n\n` +
-    `Please reply with your preferred time to visit the salon, or let us know if you need to reschedule.\n\n` +
-    `We look forward to welcoming you!`;
+    `We look forward to welcoming you!\n\n` +
+    `Thank you!`;
 
   return `https://api.whatsapp.com/send/?phone=${standardNumber}&text=${encodeURIComponent(message)}`;
 }

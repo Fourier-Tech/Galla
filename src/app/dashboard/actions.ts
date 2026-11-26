@@ -8493,5 +8493,146 @@ export async function sendShopExpiryDigestAction(options?: {
   }
 }
 
+/**
+ * Fetches all advance bookings for a given month and year in IST (Asia/Kolkata).
+ * Excludes cancelled orders (cancelled_refunded, cancelled_converted).
+ * Returns non-cancelled orders scheduled within that calendar month.
+ */
+export async function getAdvanceBookingsForMonthAction(year: number, month: number): Promise<{
+  success: boolean;
+  orders: DashboardOrder[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, orders: [], error: "Unauthorized" };
+    }
+    const tenantId = await resolveTenantId(session);
+    if (!tenantId) {
+      return { success: false, orders: [], error: "Tenant not found for session" };
+    }
+
+    await connectToDatabase();
+
+    // In IST (UTC+5:30):
+    // Construct exact start of month: YYYY-MM-01T00:00:00+05:30 -> UTC
+    // Construct end of month: next month 1st 00:00:00+05:30 -> UTC
+    const startStr = `${year}-${String(month).padStart(2, "0")}-01T00:00:00+05:30`;
+    const startDate = new Date(startStr);
+
+    let nextYear = year;
+    let nextMonth = month + 1;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    const endStr = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+05:30`;
+    const endDate = new Date(endStr);
+
+    // Query non-cancelled, non-debt orders that have scheduledFor within this date range.
+    // Advance bookings are specifically advance orders for services, packages, products, or replacements.
+    const orders = await Order.find({
+      tenantId,
+      status: {
+        $in: [
+          "advance_paid",
+          "paid_full",
+          "replacement",
+          "replacement_pending",
+          "replacement_completed",
+          "completed",
+          "fulfilled",
+        ],
+      },
+      scheduledFor: { $gte: startDate, $lt: endDate },
+    })
+      .sort({ scheduledFor: 1, scheduledTime: 1 })
+      .lean();
+
+    const advanceOrders = orders.filter((order: any) => {
+      // Exclude pure debt collection orders (pay later orders created with pending balance)
+      if (order.status === "created") return false;
+      const isDueDebt =
+        (order.amountPending || 0) > 0 &&
+        order.status !== "advance_paid" &&
+        order.status !== "paid_full";
+      if (isDueDebt) return false;
+      return true;
+    });
+
+    const mappedOrders: DashboardOrder[] = advanceOrders.map((order: any) => ({
+      id: String(order.orderNumber),
+      customer: order.customerSnapshot?.name || "Walk-in Guest",
+      type: (order.orderType as OrderType) || "service_booking",
+      amount: order.totalAmount,
+      paid: order.amountPaid,
+      status: order.status,
+      time: formatOrderTime(order.createdAt),
+      itemsSummary: (order.lineItems || []).map((li: any) => li.name).join(", "),
+      lineItems: resolveOrderLineItems(order.lineItems, order.returns),
+      payments: (order.payments || []).map((p: any) => ({
+        amount: p.amount,
+        mode: p.mode || p.paymentMode || "cash",
+        recordedAt: p.recordedAt
+          ? new Date(p.recordedAt).toISOString()
+          : new Date().toISOString(),
+        recordedBy: p.recordedBy,
+        type: p.type || undefined,
+      })),
+      refundAmount: order.refundDetails?.refundAmount,
+      refundMode: order.refundDetails?.refundMode,
+      refundReason: order.refundDetails?.refundReason,
+      refundedAt: order.refundDetails?.refundedAt
+        ? new Date(order.refundDetails.refundedAt).toISOString()
+        : undefined,
+      scheduledFor: order.scheduledFor
+        ? new Date(order.scheduledFor).toISOString()
+        : undefined,
+      scheduledTime: order.scheduledTime || order.appointmentTime || undefined,
+      notes: order.notes,
+      customerPhone: order.customerSnapshot?.phone
+        ? formatPhoneNumber(order.customerSnapshot.phone)
+        : undefined,
+      createdAt: order.createdAt
+        ? new Date(order.createdAt).toISOString()
+        : undefined,
+      returns: (order.returns || []).map((ret: any) => ({
+        returnNumber: ret.returnNumber,
+        lineItemId: ret.lineItemId ? ret.lineItemId.toString() : undefined,
+        lineItemIndex: ret.lineItemIndex,
+        productId: ret.productId ? ret.productId.toString() : undefined,
+        productName: ret.productName,
+        quantity: ret.quantity,
+        unitPrice: ret.unitPrice,
+        refundAmount: ret.refundAmount,
+        dueDeduction: ret.dueDeduction,
+        cashRefund: ret.cashRefund,
+        returnCondition: ret.returnCondition,
+        customerResolution: ret.customerResolution,
+        refundMode: ret.refundMode,
+        supplierClaim: ret.supplierClaim,
+        notes: ret.notes,
+        recordedBy: ret.recordedBy,
+        returnedAt: ret.returnedAt ? new Date(ret.returnedAt).toISOString() : undefined,
+      })),
+      recordedBy: order.recordedBy,
+    }));
+
+    return {
+      success: true,
+      orders: mappedOrders,
+    };
+  } catch (err: any) {
+    console.error("Failed to fetch advance bookings for month:", err);
+    return {
+      success: false,
+      orders: [],
+      error: err.message || "Failed to fetch advance bookings",
+    };
+  }
+}
+
+
 
 

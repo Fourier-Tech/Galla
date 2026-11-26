@@ -12,6 +12,7 @@ interface RescheduleOrderModalProps {
   onClose: () => void;
   onRescheduleSuccess: (updatedOrder: DashboardOrder) => void;
   salonName?: string;
+  zIndex?: string;
 }
 
 export function RescheduleOrderModal({
@@ -20,6 +21,7 @@ export function RescheduleOrderModal({
   onClose,
   onRescheduleSuccess,
   salonName,
+  zIndex,
 }: RescheduleOrderModalProps) {
   if (!isOpen || !order) return null;
 
@@ -85,6 +87,7 @@ export function RescheduleOrderModal({
       salonName={salonName}
       orderType={order.type}
       isReplacement={isReplacementOrder}
+      isPaymentDue={isDueOrder}
       productName={order.itemsSummary}
       orderNumber={formatDisplayNumber(order.id)}
       dueAmount={order.amount > order.paid ? order.amount - order.paid : undefined}
@@ -95,8 +98,9 @@ export function RescheduleOrderModal({
       dateLabel={dateLabel}
       initialDate={order.scheduledFor}
       initialTime={order.scheduledTime}
-      showTimePicker={true}
+      showTimePicker={!isDueOrder}
       submitButtonLabel={submitButtonLabel}
+      zIndex={zIndex}
       onSave={async ({ newDate, newTime }) => {
         const res = await rescheduleOrderAction({
           orderId: order.id,
