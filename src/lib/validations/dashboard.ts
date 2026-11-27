@@ -50,6 +50,8 @@ export const completeOrderSchema = z.object({
   allowSellStockUsage: z.boolean().optional(),
   allowUseStockUsage: z.boolean().optional(),
   notes: z.string().optional(),
+  settlementType: z.enum(["complete", "pending_due"]).optional(),
+  dueDate: z.string().optional(),
 });
 
 export type CompleteOrderInput = z.infer<typeof completeOrderSchema>;

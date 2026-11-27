@@ -1337,7 +1337,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: parseResult.error.issues[0].message };
     }
 
-    const { orderId, remainingAmount, paymentMode, notes, allowSellStockUsage, allowUseStockUsage } = parseResult.data;
+    const { orderId, remainingAmount, paymentMode, notes, allowSellStockUsage, allowUseStockUsage, settlementType, dueDate } = parseResult.data;
     await connectToDatabase();
 
     const tenantId = await resolveTenantId(session);
@@ -1358,7 +1358,11 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       return { success: false, error: "Cannot complete an order that has been cancelled or refunded." };
     }
 
-    const { order, isReplacementOrder, amountToCollect } = await withTransaction(async (dbSession) => {
+    const { order, isReplacementOrder, amountToCollect } = await withTransaction<{
+      order: any;
+      isReplacementOrder: boolean;
+      amountToCollect: number;
+    }>(async (dbSession) => {
       const order = await Order.findOne(query).session(dbSession);
       if (!order) {
         throw new Error("Order not found");
@@ -1369,6 +1373,9 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       if (order.status === "cancelled_refunded" || order.status === "cancelled_converted") {
         throw new Error("Cannot complete an order that has been cancelled or refunded.");
       }
+
+      const isReplacementOrder =
+        order.status === "replacement_pending" || order.status === "replacement";
 
       // Validate stock for all unfulfilled products and package products before allowing completion!
       if (order.lineItems && order.lineItems.length > 0) {
@@ -1441,33 +1448,67 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       const amountToCollect =
         remainingAmount !== undefined ? remainingAmount : defaultRemaining;
 
-      // If counter adjusted the remaining price (e.g. concession discount or add-on)
-      if (remainingAmount !== undefined && remainingAmount !== defaultRemaining) {
-        if (amountToCollect < defaultRemaining) {
-          const concession = defaultRemaining - amountToCollect;
-          order.discountAmount = (order.discountAmount || 0) + concession;
+      const isPendingDue = settlementType === "pending_due";
+
+      if (isPendingDue) {
+        // Customer takes service/product, but does not clear full remaining balance.
+        // Record partial/collected payment if any:
+        if (amountToCollect > 0) {
+          order.amountPaid += amountToCollect;
+          order.payments.push({
+            amount: amountToCollect,
+            mode: paymentMode,
+            recordedAt: new Date(),
+            recordedBy: userRole === "staff" ? "staff" : "owner",
+            type: "settlement",
+          });
+          order.paymentMode = paymentMode;
         }
-        order.totalAmount = order.amountPaid + amountToCollect;
+
+        const remainingPending = Math.max(0, order.totalAmount - order.amountPaid);
+        if (remainingPending > 0) {
+          order.amountPending = remainingPending;
+          order.status = "created"; // In Galla, pending payment due orders use status 'created'
+          if (dueDate) {
+            const parsedDueDate = new Date(dueDate);
+            if (!isNaN(parsedDueDate.getTime())) {
+              order.scheduledFor = parsedDueDate;
+              order.scheduledTime = undefined;
+            }
+          }
+        } else {
+          // If collected amount covered the full balance
+          order.amountPending = 0;
+          order.status = isReplacementOrder ? "replacement_completed" : "completed";
+          order.completedAt = new Date();
+        }
+      } else {
+        // Standard "Complete" settlement
+        // If counter adjusted the remaining price (e.g. concession discount or add-on)
+        if (remainingAmount !== undefined && remainingAmount !== defaultRemaining) {
+          if (amountToCollect < defaultRemaining) {
+            const concession = defaultRemaining - amountToCollect;
+            order.discountAmount = (order.discountAmount || 0) + concession;
+          }
+          order.totalAmount = order.amountPaid + amountToCollect;
+        }
+
+        if (amountToCollect > 0) {
+          order.amountPaid += amountToCollect;
+          order.payments.push({
+            amount: amountToCollect,
+            mode: paymentMode,
+            recordedAt: new Date(),
+            recordedBy: userRole === "staff" ? "staff" : "owner",
+            type: "settlement",
+          });
+          order.paymentMode = paymentMode;
+        }
+
+        order.amountPending = 0;
+        order.status = isReplacementOrder ? "replacement_completed" : "completed";
+        order.completedAt = new Date();
       }
-
-      if (amountToCollect > 0) {
-        order.amountPaid += amountToCollect;
-        order.payments.push({
-          amount: amountToCollect,
-          mode: paymentMode,
-          recordedAt: new Date(),
-          recordedBy: userRole === "staff" ? "staff" : "owner",
-          type: "settlement",
-        });
-        order.paymentMode = paymentMode;
-      }
-
-      const isReplacementOrder =
-        order.status === "replacement_pending" || order.status === "replacement";
-
-      order.amountPending = 0;
-      order.status = isReplacementOrder ? "replacement_completed" : "completed";
-      order.completedAt = new Date();
 
       if (notes?.trim()) {
         order.notes = order.notes
@@ -1479,6 +1520,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
       if (order.customerSnapshot?.phone) {
         const cleanPhone = formatPhoneNumber(order.customerSnapshot.phone);
         const rawDigits = cleanPhone.replace(/\D/g, "").slice(-10);
+        const balanceReduction = isPendingDue ? amountToCollect : defaultRemaining;
         await Customer.findOneAndUpdate(
           {
             tenantId,
@@ -1492,7 +1534,7 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
           {
             $inc: {
               "stats.totalSpend": amountToCollect,
-              "stats.outstandingBalance": -defaultRemaining,
+              "stats.outstandingBalance": -balanceReduction,
             },
           },
           { session: dbSession },
@@ -1621,9 +1663,9 @@ export async function completeOrderAction(rawInput: unknown): Promise<{
     const calculatedTodayPaid =
       order.payments && Array.isArray(order.payments)
         ? order.payments
-          .filter((p) => p.recordedAt && checkIsToday(p.recordedAt))
+          .filter((p: any) => p.recordedAt && checkIsToday(p.recordedAt))
           .reduce(
-            (sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0),
+            (sum: number, p: any) => sum + (typeof p.amount === "number" ? p.amount : 0),
             0,
           )
         : amountToCollect;
