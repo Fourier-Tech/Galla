@@ -710,6 +710,7 @@ export function DashboardClient({
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);
   const [refundOrder, setRefundOrder] = useState<DashboardOrder | null>(null);
   const [settleOrder, setSettleOrder] = useState<DashboardOrder | null>(null);
+  const [lastSettledOrder, setLastSettledOrder] = useState<DashboardOrder | null>(null);
 
   // Directly use pre-saved O(1) persisted metrics (no client-side recomputation)
   const expensesTotal = todayExpense;
@@ -900,6 +901,7 @@ export function DashboardClient({
   };
 
   const handleSettleSuccess = (updatedOrder: DashboardOrder) => {
+    setLastSettledOrder(updatedOrder);
     setOrders((prev) =>
       prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o))
     );
@@ -1477,6 +1479,7 @@ export function DashboardClient({
         onOpenSettle={(order) => setSettleOrder(order)}
         onOpenReschedule={handleRescheduleOrder}
         onOpenRefund={(order) => setRefundOrder(order)}
+        lastSettledOrder={lastSettledOrder}
       />
 
       <NewOrderModal

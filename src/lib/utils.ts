@@ -346,10 +346,12 @@ export function getWhatsAppReminderUrl(options: {
     const dueAmountStr = options.pendingAmount && options.pendingAmount > 0
       ? ` of *${formatRupee(options.pendingAmount)}*`
       : "";
+    const isPastDue = options.bookingDate ? new Date(options.bookingDate).getTime() < new Date().setHours(0, 0, 0, 0) : false;
+    const dueTiming = isPastDue && formattedDate ? ` which was due on *${formattedDate}*` : "";
 
     const message =
       `Hello ${options.customerName}! 👋\n\n` +
-      `This is a friendly reminder from *${options.salonName || "our salon"}* regarding your pending balance${dueAmountStr}.\n\n` +
+      `This is a friendly reminder from *${options.salonName || "our salon"}* regarding your pending balance${dueAmountStr}${dueTiming}.\n\n` +
       `Please let us know when you would like to clear the payment, or visit us at your convenience.\n\n` +
       `Thank you!`;
 
