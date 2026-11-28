@@ -1,145 +1,178 @@
-import nodemailer from "nodemailer";
-
-export interface SendForgotPinOtpOptions {
-  to: string;
-  salonName: string;
-  otp: string;
-  expiresInMinutes?: number;
-}
-
 /**
- * Creates Nodemailer transporter using environment SMTP settings.
- * Returns null if SMTP is not configured.
+ * Central Transactional Email Service — Galla Platform / FourierTech
+ * Primary Dispatcher: Brevo REST API v3 (noreply@fouriertech.in)
+ * Secondary Fallback: SMTP / Nodemailer
+ * Tertiary Fallback: Local Development Console Mock
  */
-function createTransporter() {
-  let user = process.env.SMTP_USER?.trim();
-  let pass = process.env.SMTP_PASS?.trim();
 
-  if (user && user.startsWith('"') && user.endsWith('"')) {
-    user = user.slice(1, -1).trim();
-  }
-  if (user) {
-    user = user.replace(/\s+/g, "");
-  }
-  if (pass && pass.startsWith('"') && pass.endsWith('"')) {
-    pass = pass.slice(1, -1).trim();
-  }
+import { sendViaBrevo, verifyBrevoConnection } from "./brevo-client";
+import { renderOtpEmail } from "./templates/otp-template";
+import { renderWelcomeEmail } from "./templates/welcome-template";
+import { renderPasswordResetEmail } from "./templates/password-reset-template";
+import { renderOrderReceiptEmail } from "./templates/order-receipt-template";
+import { renderNotificationEmail } from "./templates/notification-template";
+import {
+  SendEmailOptions,
+  SendEmailResult,
+  SendForgotPinOtpOptions,
+  SendWelcomeOptions,
+  SendPasswordResetOptions,
+  SendOrderReceiptOptions,
+  SendNotificationOptions,
+  GALLA_EMAIL_IDENTITIES,
+} from "./types";
 
-  if (!user || !pass) {
-    return null;
-  }
+// Re-export all types and identities for consumer convenience
+export * from "./types";
+export { verifyBrevoConnection } from "./brevo-client";
 
-  const isGmail = user.includes("@gmail.com");
-  if (isGmail) {
-    pass = pass.replace(/\s+/g, "");
-    return nodemailer.createTransport({
-      service: "gmail",
-      auth: { user, pass },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-  }
-
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const secure = port === 465;
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
+/**
+ * Sends a generic transactional email using Brevo.
+ */
+export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
+  return sendViaBrevo(options);
 }
 
 /**
- * Sends a clean, modern, professional verification email with the 6-digit OTP
- * to the salon owner for resetting forgotten Role PINs.
+ * Dispatches a 6-digit verification code OTP for forgotten Role PIN reset or verification.
+ * Reply-To routes to Galla Support (galla.support@fouriertech.in).
  */
 export async function sendForgotPinOtpEmail(options: SendForgotPinOtpOptions): Promise<boolean> {
   const { to, salonName, otp, expiresInMinutes = 15 } = options;
 
   console.log(`[Email] Dispatching role PIN reset OTP to ${to} (${salonName})...`);
 
-  const transporter = createTransporter();
-  if (!transporter) {
-    console.error("[Email] SMTP credentials missing (SMTP_USER / SMTP_PASS).");
+  const { html, text } = renderOtpEmail({
+    salonName,
+    otp,
+    expiresInMinutes,
+    purpose: "Role PIN Reset",
+  });
+
+  const result = await sendViaBrevo({
+    to,
+    subject: `Your OTP is ${otp} — Galla`,
+    html,
+    text,
+    replyTo: GALLA_EMAIL_IDENTITIES.SUPPORT,
+    tags: ["otp", "pin-reset"],
+  });
+
+  if (!result.success) {
+    console.error(`[Email] Failed to dispatch PIN reset OTP to ${to}:`, result.error);
     return false;
   }
 
-  const htmlContent = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>OTP Verification</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 12px 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <div style="width: 90%; max-width: 420px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; color: #1e293b; box-sizing: border-box;">
-    <!-- Header -->
-    <table style="width: 100%; border-collapse: collapse; border-bottom: 1px solid #f1f5f9; margin-bottom: 10px;">
-      <tr>
-        <td style="vertical-align: middle; padding: 0 0 8px 0;">
-          <span style="font-size: 17px; font-weight: 800; color: #0d9488; letter-spacing: -0.5px;">Galla</span>
-          <span style="font-size: 11px; color: #94a3b8; margin-left: 6px;">Salon Management</span>
-        </td>
-      </tr>
-    </table>
-
-    <h2 style="margin: 0 0 8px 0; font-size: 16.5px; font-weight: 700; color: #0f172a; line-height: 1.3;">
-      OTP Verification
-    </h2>
-
-    <p style="margin: 0 0 10px 0; font-size: 13.5px; line-height: 1.45; color: #475569;">
-      Your One-Time Password (OTP) for <strong>${salonName}</strong> is:
-    </p>
-
-    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 28px; font-weight: 800; letter-spacing: 5px; color: #0d9488; background-color: #f0fdfa; border: 1px dashed #99f6e4; border-radius: 6px; padding: 10px 0; margin: 10px 0; text-align: center;">
-      ${otp}
-    </div>
-
-    <p style="margin: 0 0 6px 0; font-size: 12px; line-height: 1.4; color: #64748b;">
-      This OTP is valid for ${expiresInMinutes} minutes. Please do not share this code with anyone.
-    </p>
-
-    <p style="margin: 0 0 10px 0; font-size: 11.5px; line-height: 1.3; color: #94a3b8;">
-      If you did not request this OTP, you can safely ignore this email.
-    </p>
-
-    <div style="border-top: 1px solid #f1f5f9; padding-top: 8px; font-size: 10.5px; color: #94a3b8;">
-      &copy; ${new Date().getFullYear()} Galla Platform
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-
-  try {
-    const fromAddress =
-      process.env.EMAIL_FROM ||
-      process.env.SMTP_FROM ||
-      `"Galla" <${process.env.SMTP_USER || "no-reply@galla.app"}>`;
-
-    const info = await transporter.sendMail({
-      from: fromAddress,
-      to,
-      subject: `Your OTP is ${otp} — Galla`,
-      html: htmlContent,
-      text: `Your OTP for ${salonName} is: ${otp}\n\nThis OTP is valid for ${expiresInMinutes} minutes. Please do not share this code with anyone.`,
-    });
-
-    console.log(`[Email] OTP email successfully sent to ${to} (Message-ID: ${info.messageId})`);
-    return true;
-  } catch (err) {
-    console.error("[Email] Failed to send PIN reset OTP email:", err);
-    return false;
-  }
+  console.log(`[Email] OTP email successfully sent to ${to} (Message-ID: ${result.messageId || "n/a"})`);
+  return true;
 }
 
+/**
+ * Dispatches a welcome onboarding email to a newly provisioned salon owner.
+ * Reply-To routes to Galla Contact (galla.contact@fouriertech.in).
+ */
+export async function sendWelcomeEmail(options: SendWelcomeOptions): Promise<SendEmailResult> {
+  const { to, salonName, ownerName, loginUrl, tempPassword } = options;
 
+  const { html, text } = renderWelcomeEmail({
+    salonName,
+    ownerName,
+    loginUrl,
+    tempPassword,
+  });
 
+  return sendViaBrevo({
+    to,
+    subject: `Welcome to Galla — ${salonName}`,
+    html,
+    text,
+    replyTo: GALLA_EMAIL_IDENTITIES.CONTACT,
+    tags: ["welcome", "onboarding"],
+  });
+}
+
+/**
+ * Dispatches a secure account password reset email.
+ * Reply-To routes to Galla Support (galla.support@fouriertech.in).
+ */
+export async function sendPasswordResetEmail(options: SendPasswordResetOptions): Promise<SendEmailResult> {
+  const { to, salonName, resetUrl, expiresInMinutes = 30 } = options;
+
+  const { html, text } = renderPasswordResetEmail({
+    salonName,
+    resetUrl,
+    expiresInMinutes,
+  });
+
+  return sendViaBrevo({
+    to,
+    subject: `Reset your Galla password — ${salonName}`,
+    html,
+    text,
+    replyTo: GALLA_EMAIL_IDENTITIES.SUPPORT,
+    tags: ["password-reset"],
+  });
+}
+
+/**
+ * Dispatches an itemized order receipt / booking confirmation to a customer.
+ * Reply-To routes to Galla Support / Billing for customer invoice questions.
+ */
+export async function sendOrderReceiptEmail(options: SendOrderReceiptOptions): Promise<SendEmailResult> {
+  const { to, customerName, salonName, orderNumber } = options;
+
+  const { html, text } = renderOrderReceiptEmail(options);
+
+  return sendViaBrevo({
+    to: { email: to, name: customerName },
+    subject: `Receipt for ${orderNumber} — ${salonName}`,
+    html,
+    text,
+    replyTo: GALLA_EMAIL_IDENTITIES.BILLING,
+    tags: ["order-receipt"],
+  });
+}
+
+/**
+ * Dispatches a billing or subscription lifecycle email (plan renewal, plan expiry, invoices).
+ * Reply-To routes strictly to Galla Billing (galla.billing@fouriertech.in).
+ */
+export async function sendBillingEmail(options: SendEmailOptions): Promise<SendEmailResult> {
+  return sendViaBrevo({
+    ...options,
+    replyTo: options.replyTo || GALLA_EMAIL_IDENTITIES.BILLING,
+    tags: [...(options.tags || []), "billing"],
+  });
+}
+
+/**
+ * Dispatches an administrative alert or status notification.
+ * Reply-To defaults to Galla Support.
+ */
+export async function sendNotificationEmail(options: SendNotificationOptions): Promise<SendEmailResult> {
+  const { to, title, message, salonName, actionUrl, actionLabel } = options;
+
+  const { html, text } = renderNotificationEmail({
+    title,
+    message,
+    salonName,
+    actionUrl,
+    actionLabel,
+  });
+
+  return sendViaBrevo({
+    to,
+    subject: `${title} — Galla`,
+    html,
+    text,
+    replyTo: GALLA_EMAIL_IDENTITIES.SUPPORT,
+    tags: ["notification"],
+  });
+}
+
+/**
+ * Verifies the email sending configuration and service connectivity.
+ */
+export async function verifyEmailConfig() {
+  return verifyBrevoConnection();
+}

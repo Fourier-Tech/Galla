@@ -355,7 +355,7 @@ export async function requestForgotPinOtpAction(): Promise<{
     if (!sent) {
       return {
         success: false,
-        error: "Unable to dispatch verification code email. Please verify SMTP settings.",
+        error: "Unable to dispatch verification code email. Please contact support or try again.",
       };
     }
 
@@ -367,7 +367,7 @@ export async function requestForgotPinOtpAction(): Promise<{
     console.error("[AuthAction] requestForgotPinOtpAction error:", error);
     return {
       success: false,
-      error: "Unable to send verification code. Please check SMTP settings or try again.",
+      error: "Unable to send verification code. Please try again or contact support.",
     };
   }
 }
