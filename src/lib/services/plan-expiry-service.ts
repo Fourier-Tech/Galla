@@ -2,58 +2,13 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant, ITenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { triggerTenantEvent } from "@/lib/realtime/pusher-server";
-import nodemailer from "nodemailer";
+import { sendBillingEmail } from "@/lib/email/email-service";
 
 export interface PlanExpiryCheckResult {
   totalChecked: number;
   emailsSent: number;
   autoSuspended: number;
   errors: string[];
-}
-
-function createTransporter() {
-  let user = process.env.SMTP_USER?.trim();
-  let pass = process.env.SMTP_PASS?.trim();
-
-  if (user && user.startsWith('"') && user.endsWith('"')) {
-    user = user.slice(1, -1).trim();
-  }
-  if (user) {
-    user = user.replace(/\s+/g, "");
-  }
-  if (pass && pass.startsWith('"') && pass.endsWith('"')) {
-    pass = pass.slice(1, -1).trim();
-  }
-
-  if (!user || !pass) {
-    return null;
-  }
-
-  const isGmail = user.includes("@gmail.com");
-  if (isGmail) {
-    pass = pass.replace(/\s+/g, "");
-    return nodemailer.createTransport({
-      service: "gmail",
-      auth: { user, pass },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-  }
-
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const secure = port === 465;
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
 }
 
 interface SendExpiryEmailOptions {
@@ -67,13 +22,6 @@ interface SendExpiryEmailOptions {
 
 export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOptions): Promise<{ success: boolean; error?: string }> {
   const { recipientEmail, adminEmail, salonName, planType, stage, expiresAt } = options;
-
-  const transporter = createTransporter();
-  if (!transporter) {
-    const errorMsg = `SMTP credentials missing (SMTP_USER: ${Boolean(process.env.SMTP_USER)}, SMTP_PASS: ${Boolean(process.env.SMTP_PASS)})`;
-    console.warn(`[PlanExpiry] ${errorMsg}. Skipped sending email for ${salonName} (${stage}).`);
-    return { success: false, error: errorMsg };
-  }
 
   const isTrial = planType === "trial";
   const formattedDate = expiresAt.toLocaleDateString("en-IN", {
@@ -218,35 +166,32 @@ export async function sendPlanExpiryNotificationEmail(options: SendExpiryEmailOp
   `.trim();
 
   try {
-    const fromAddress =
-      process.env.EMAIL_FROM ||
-      process.env.SMTP_FROM ||
-      `"Galla Platform" <${process.env.SMTP_USER || "no-reply@galla.app"}>`;
-
     const recipients = [recipientEmail];
     if (adminEmail && adminEmail !== recipientEmail) {
       recipients.push(adminEmail);
     }
 
-    const info = await transporter.sendMail({
-      from: fromAddress,
-      to: recipients.join(", "),
+    const result = await sendBillingEmail({
+      to: recipients,
       subject,
       html: htmlContent,
       text: `${heading}\n\n${messageBody.replace(/<[^>]*>/g, "")}\n\nSalon: ${salonName}\nExpiration Date: ${formattedDate}\n\n${actionCallout}`,
+      tags: ["plan-expiry", stage],
     });
 
+    if (!result.success) {
+      console.error(`[PlanExpiry] Failed to dispatch email for ${salonName} (${stage}):`, result.error);
+      return { success: false, error: result.error };
+    }
+
     console.log(
-      `[PlanExpiry] Email successfully sent for ${salonName} (${stage}) to ${recipients.join(", ")} (Message-ID: ${info.messageId})`
+      `[PlanExpiry] Email successfully sent for ${salonName} (${stage}) to ${recipients.join(", ")} (Message-ID: ${result.messageId || "n/a"})`
     );
     return { success: true };
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
-    const u = process.env.SMTP_USER?.trim() || "";
-    const p = process.env.SMTP_PASS?.replace(/\s+/g, "").trim() || "";
-    const debugInfo = `[diagnostics: user=${u}, passLen=${p.length}, starts=${p.slice(0, 2)}***, ends=***${p.slice(-2)}]`;
-    console.error(`[PlanExpiry] Failed to dispatch email for ${salonName} (${stage}):`, errorMsg, debugInfo);
-    return { success: false, error: `${errorMsg} ${debugInfo}` };
+    console.error(`[PlanExpiry] Failed to dispatch email for ${salonName} (${stage}):`, errorMsg);
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -270,8 +215,8 @@ export async function processPlanExpirations(): Promise<PlanExpiryCheckResult> {
 
     const adminEmail =
       process.env.ADMIN_NOTIFICATION_EMAIL ||
-      process.env.SMTP_USER ||
-      "admin@galla.app";
+      process.env.EMAIL_BILLING_ADDRESS ||
+      "galla.billing@fouriertech.in";
 
     const now = Date.now();
 

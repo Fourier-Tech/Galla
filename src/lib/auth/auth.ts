@@ -20,16 +20,21 @@ export class SuspendedAccountError extends CredentialsSignin {
   code = "account_suspended";
 }
 
-// In production / Vercel, ensure NEXTAUTH_URL and AUTH_URL do not point to localhost
+// In production / Vercel, ensure NEXTAUTH_URL and AUTH_URL do not point to localhost or legacy domains
 if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-  const isLocal = (u?: string) => Boolean(u && (u.includes("localhost") || u.includes("127.0.0.1")));
-  if (isLocal(process.env.NEXTAUTH_URL) || isLocal(process.env.AUTH_URL)) {
-    const liveHost =
-      process.env.VERCEL_PROJECT_PRODUCTION_URL ||
-      process.env.VERCEL_URL ||
-      "galla-five.vercel.app";
-    process.env.NEXTAUTH_URL = `https://${liveHost}`;
-    process.env.AUTH_URL = `https://${liveHost}`;
+  const isInvalidUrl = (u?: string) =>
+    Boolean(
+      u &&
+        (u.includes("localhost") ||
+          u.includes("127.0.0.1") ||
+          u.includes("vercel.app"))
+    );
+  if (isInvalidUrl(process.env.NEXTAUTH_URL) || isInvalidUrl(process.env.AUTH_URL) || !process.env.NEXTAUTH_URL) {
+    const canonicalHost = (
+      process.env.NEXT_PUBLIC_APP_URL || "https://galla.fouriertech.in"
+    ).replace(/^https?:\/\//, "");
+    process.env.NEXTAUTH_URL = `https://${canonicalHost}`;
+    process.env.AUTH_URL = `https://${canonicalHost}`;
   }
 }
 
@@ -211,22 +216,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return session;
     },
     async redirect({ url, baseUrl }) {
+      const canonicalBase =
+        process.env.NEXT_PUBLIC_APP_URL || "https://galla.fouriertech.in";
       let resolvedBase = baseUrl;
       if (
         (process.env.NODE_ENV === "production" || process.env.VERCEL) &&
-        (resolvedBase.includes("localhost") || resolvedBase.includes("127.0.0.1"))
+        (resolvedBase.includes("localhost") ||
+          resolvedBase.includes("127.0.0.1") ||
+          resolvedBase.includes("vercel.app"))
       ) {
-        const liveHost =
-          process.env.VERCEL_PROJECT_PRODUCTION_URL ||
-          process.env.VERCEL_URL ||
-          "galla-five.vercel.app";
-        resolvedBase = `https://${liveHost}`;
+        resolvedBase = canonicalBase;
       }
 
       if (url.startsWith("/")) return `${resolvedBase}${url}`;
       try {
         const urlObj = new URL(url);
         const baseObj = new URL(resolvedBase);
+        // If redirect target points to legacy vercel.app, rewrite straight to canonical host
+        if (urlObj.host.includes("vercel.app")) {
+          return `${resolvedBase}${urlObj.pathname}${urlObj.search}`;
+        }
         if (urlObj.host === baseObj.host) return url;
       } catch {
         // fallback

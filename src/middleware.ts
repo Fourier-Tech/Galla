@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // ==========================================
+  // CANONICAL DOMAIN ENFORCEMENT
+  // ==========================================
+  // Permanently 301-redirect any legacy vercel.app URLs to galla.fouriertech.in
+  const host = request.headers.get("host") || "";
+  if (host.includes("vercel.app")) {
+    const canonicalHost = (
+      process.env.NEXT_PUBLIC_APP_URL || "https://galla.fouriertech.in"
+    ).replace(/^https?:\/\//, "");
+    const targetUrl = new URL(request.url);
+    targetUrl.protocol = "https:";
+    targetUrl.host = canonicalHost;
+    targetUrl.port = "";
+    return NextResponse.redirect(targetUrl, 301);
+  }
+
   const { pathname } = request.nextUrl;
   
   // ==========================================

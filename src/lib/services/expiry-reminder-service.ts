@@ -1,9 +1,9 @@
-import nodemailer from "nodemailer";
 import { Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { Tenant } from "@/lib/db/models/tenant.model";
 import { User } from "@/lib/db/models/user.model";
 import { Product } from "@/lib/db/models/product.model";
+import { sendEmail, GALLA_EMAIL_IDENTITIES } from "@/lib/email/email-service";
 
 export interface ExpiryDigestResult {
   success: boolean;
@@ -23,51 +23,6 @@ export interface ExpiryCronSummary {
   emailsSent: number;
   totalItemsNotified: number;
   failures: Array<{ shopId: string; shopName?: string; error: string }>;
-}
-
-function createTransporter() {
-  let user = process.env.SMTP_USER?.trim();
-  let pass = process.env.SMTP_PASS?.trim();
-
-  if (user && user.startsWith('"') && user.endsWith('"')) {
-    user = user.slice(1, -1).trim();
-  }
-  if (user) {
-    user = user.replace(/\s+/g, "");
-  }
-  if (pass && pass.startsWith('"') && pass.endsWith('"')) {
-    pass = pass.slice(1, -1).trim();
-  }
-
-  if (!user || !pass) {
-    return null;
-  }
-
-  const isGmail = user.includes("@gmail.com");
-  if (isGmail) {
-    pass = pass.replace(/\s+/g, "");
-    return nodemailer.createTransport({
-      service: "gmail",
-      auth: { user, pass },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-  }
-
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const secure = port === 465;
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
 }
 
 function formatDate(date: Date): string {
@@ -177,22 +132,6 @@ export async function sendExpiryDigest(
       itemsFound: 0,
       emailSent: false,
       message: "No expiring items pending notification",
-    };
-  }
-
-  const transporter = createTransporter();
-  if (!transporter) {
-    console.warn(
-      `[ExpiryDigest] SMTP not configured. Unable to send digest email for ${tenant.name}.`
-    );
-    return {
-      success: false,
-      shopId: tenant._id.toString(),
-      shopName: tenant.name,
-      recipientEmail,
-      itemsFound: expiringItems.length,
-      emailSent: false,
-      error: "SMTP credentials missing on server",
     };
   }
 
@@ -311,13 +250,7 @@ export async function sendExpiryDigest(
   `.trim();
 
   try {
-    const fromAddress =
-      process.env.EMAIL_FROM ||
-      process.env.SMTP_FROM ||
-      `"Galla Platform" <${process.env.SMTP_USER || "no-reply@galla.app"}>`;
-
-    const info = await transporter.sendMail({
-      from: fromAddress,
+    const result = await sendEmail({
       to: recipientEmail,
       subject: `Stock Expiry Alert: ${expiringItems.length} item${expiringItems.length > 1 ? "s" : ""} nearing expiry — ${tenant.name}`,
       html: htmlContent,
@@ -328,10 +261,25 @@ export async function sendExpiryDigest(
               `- ${item.name} (${item.category}): Sell ${item.sellStock}, Use ${item.useStock} | Expires: ${formatDate(new Date(item.expiryDate!))}`
           )
           .join("\n"),
+      replyTo: GALLA_EMAIL_IDENTITIES.SUPPORT,
+      tags: ["stock-expiry-digest"],
     });
 
+    if (!result.success) {
+      console.error(`[ExpiryDigest] Failed to send digest email for ${tenant.name}:`, result.error);
+      return {
+        success: false,
+        shopId: tenant._id.toString(),
+        shopName: tenant.name,
+        recipientEmail,
+        itemsFound: expiringItems.length,
+        emailSent: false,
+        error: result.error,
+      };
+    }
+
     console.log(
-      `[ExpiryDigest] Digest email sent for ${tenant.name} to ${recipientEmail} (${expiringItems.length} items) [Message-ID: ${info.messageId}]`
+      `[ExpiryDigest] Digest email sent for ${tenant.name} to ${recipientEmail} (${expiringItems.length} items) [Message-ID: ${result.messageId || "n/a"}]`
     );
 
     // Duplicate prevention: Mark notified items in DB
