@@ -8572,23 +8572,65 @@ export async function getAdvanceBookingsForMonthAction(year: number, month: numb
     const endStr = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+05:30`;
     const endDate = new Date(endStr);
 
+    const nowFormatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+    });
+    const [nowY, nowM] = nowFormatter.format(new Date()).split("-").map(Number);
+    const isCurrentMonth = year === nowY && month === nowM;
+
     // Query non-cancelled, non-debt orders that have scheduledFor within this date range.
-    // Advance bookings are specifically advance orders for services, packages, products, or replacements.
+    // When viewing the current month, also include past uncompleted advance bookings so they can be actioned.
+    const dateQuery = isCurrentMonth
+      ? {
+          $or: [
+            {
+              status: {
+                $in: [
+                  "advance_paid",
+                  "paid_full",
+                  "replacement",
+                  "replacement_pending",
+                  "replacement_completed",
+                  "completed",
+                  "fulfilled",
+                ],
+              },
+              scheduledFor: { $gte: startDate, $lt: endDate },
+            },
+            {
+              status: {
+                $in: [
+                  "advance_paid",
+                  "paid_full",
+                  "replacement",
+                  "replacement_pending",
+                ],
+              },
+              scheduledFor: { $lt: startDate },
+            },
+          ],
+        }
+      : {
+          status: {
+            $in: [
+              "advance_paid",
+              "paid_full",
+              "replacement",
+              "replacement_pending",
+              "replacement_completed",
+              "completed",
+              "fulfilled",
+            ],
+          },
+          scheduledFor: { $gte: startDate, $lt: endDate },
+        };
+
     const orders = await Order.find({
       tenantId,
-      status: {
-        $in: [
-          "advance_paid",
-          "paid_full",
-          "replacement",
-          "replacement_pending",
-          "replacement_completed",
-          "completed",
-          "fulfilled",
-        ],
-      },
-      scheduledFor: { $gte: startDate, $lt: endDate },
-    })
+      ...dateQuery,
+    } as any)
       .sort({ scheduledFor: 1, scheduledTime: 1 })
       .lean();
 

@@ -270,6 +270,32 @@ export function OverviewTab({
     });
   }, [orders]);
 
+  // Advance orders scheduled for past dates that are not yet settled or completed
+  const overdueAdvanceOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (!o.scheduledFor) return false;
+      const effStatus = getOrderEffectiveStatus(o);
+      if (
+        effStatus === "completed" ||
+        effStatus === "replacement_completed" ||
+        effStatus === "fulfilled" ||
+        effStatus === "cancelled_refunded" ||
+        effStatus === "cancelled_converted"
+      ) {
+        return false;
+      }
+      const isAdvance =
+        effStatus === "advance_paid" ||
+        effStatus === "paid_full" ||
+        effStatus === "replacement" ||
+        effStatus === "replacement_pending";
+      if (!isAdvance) return false;
+
+      const urgency = getBookingUrgency(o.scheduledFor);
+      return urgency !== null && urgency.daysAway < 0;
+    });
+  }, [orders]);
+
   // Customer payments due to clear: Due orders scheduled for Today or Overdue
   const dueOrdersToClear = useMemo(() => {
     return orders.filter((o) => {
@@ -348,31 +374,51 @@ export function OverviewTab({
               className={`relative inline-flex items-center gap-1.5 font-sans text-[13px] font-medium px-[13px] py-[7px] rounded-[5px] shadow-xs transition-all cursor-pointer border ${
                 todayAdvanceOrders.length > 0
                   ? "bg-rose-50/90 hover:bg-rose-100 border-rose-300 text-rose-900 ring-2 ring-rose-400/40"
-                  : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
+                  : overdueAdvanceOrders.length > 0
+                    ? "bg-amber-50/90 hover:bg-amber-100 border-amber-300 text-amber-900 ring-2 ring-amber-400/40"
+                    : "bg-galla-surface hover:bg-galla-paper border-galla-line text-galla-ink"
               }`}
               title={
                 todayAdvanceOrders.length > 0
                   ? `${todayAdvanceOrders.length} advance order(s) scheduled for Today!`
-                  : "View Advance Bookings"
+                  : overdueAdvanceOrders.length > 0
+                    ? `${overdueAdvanceOrders.length} past advance booking(s) pending resolution`
+                    : "View Advance Bookings"
               }
             >
               <div className="relative flex items-center justify-center">
-                <Calendar className={`h-4 w-4 ${todayAdvanceOrders.length > 0 ? "text-rose-700" : "text-galla-ink-soft"}`} />
-                {todayAdvanceOrders.length > 0 && (
+                <Calendar
+                  className={`h-4 w-4 ${
+                    todayAdvanceOrders.length > 0
+                      ? "text-rose-700"
+                      : overdueAdvanceOrders.length > 0
+                        ? "text-amber-700"
+                        : "text-galla-ink-soft"
+                  }`}
+                />
+                {(todayAdvanceOrders.length > 0 || overdueAdvanceOrders.length > 0) && (
                   <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+                    <span
+                      className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        todayAdvanceOrders.length > 0 ? "bg-rose-400" : "bg-amber-400"
+                      }`}
+                    ></span>
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${
+                        todayAdvanceOrders.length > 0 ? "bg-rose-600" : "bg-amber-600"
+                      }`}
+                    ></span>
                   </span>
                 )}
               </div>
               <span>Advance Bookings</span>
-              {todayAdvanceOrders.length > 0 && (
+              {(todayAdvanceOrders.length > 0 || overdueAdvanceOrders.length > 0) && (
                 <span
-                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold bg-rose-600 text-white leading-none shadow-2xs shrink-0 tabular-nums ${
-                    todayAdvanceOrders.length > 9 ? "min-w-5 px-1.5" : "w-5"
-                  }`}
+                  className={`ml-1 inline-flex items-center justify-center h-5 rounded-full text-[11px] font-bold text-white leading-none shadow-2xs shrink-0 tabular-nums ${
+                    todayAdvanceOrders.length > 0 ? "bg-rose-600" : "bg-amber-600"
+                  } ${(todayAdvanceOrders.length > 0 ? todayAdvanceOrders.length : overdueAdvanceOrders.length) > 9 ? "min-w-5 px-1.5" : "w-5"}`}
                 >
-                  {todayAdvanceOrders.length}
+                  {todayAdvanceOrders.length > 0 ? todayAdvanceOrders.length : overdueAdvanceOrders.length}
                 </span>
               )}
             </button>
@@ -505,7 +551,7 @@ export function OverviewTab({
         </div>
 
         {/* Mobile Urgent Action Chips Carousel */}
-        {(todayAdvanceOrders.length > 0 || dueOrdersToClear.length > 0 || urgentSupplierItems.length > 0 || urgentDealerReplacements.length > 0) && (
+        {(todayAdvanceOrders.length > 0 || overdueAdvanceOrders.length > 0 || dueOrdersToClear.length > 0 || urgentSupplierItems.length > 0 || urgentDealerReplacements.length > 0) && (
           <div className="flex md:hidden items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full">
             {todayAdvanceOrders.length > 0 && onNavigateToAdvanceOrders && (
               <button
@@ -516,6 +562,19 @@ export function OverviewTab({
                 <Calendar className="h-3.5 w-3.5 text-rose-700" />
                 <span>
                   {todayAdvanceOrders.length} Today&apos;s Advance Order{todayAdvanceOrders.length > 1 ? "s" : ""}
+                </span>
+              </button>
+            )}
+
+            {todayAdvanceOrders.length === 0 && overdueAdvanceOrders.length > 0 && onNavigateToAdvanceOrders && (
+              <button
+                type="button"
+                onClick={onNavigateToAdvanceOrders}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[12px] font-semibold shrink-0 active:scale-95 shadow-xs"
+              >
+                <Calendar className="h-3.5 w-3.5 text-amber-700" />
+                <span>
+                  {overdueAdvanceOrders.length} Past Booking{overdueAdvanceOrders.length > 1 ? "s" : ""} Pending
                 </span>
               </button>
             )}

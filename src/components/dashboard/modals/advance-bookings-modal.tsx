@@ -14,8 +14,10 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   CheckCircle2,
+  MessageCircle,
   X,
 } from "lucide-react";
 import { DashboardOrder } from "@/types/dashboard";
@@ -29,6 +31,7 @@ import {
   getOrderPendingDue,
   formatDisplayNumber,
   formatRupee,
+  getWhatsAppReminderUrl,
 } from "@/lib/utils";
 
 /**
@@ -141,6 +144,7 @@ interface AdvanceBookingsModalProps {
   onOpenSettle?: (order: DashboardOrder) => void;
   onOpenReschedule?: (order: DashboardOrder) => void;
   onOpenRefund?: (order: DashboardOrder) => void;
+  lastSettledOrder?: DashboardOrder | null;
 }
 
 export function AdvanceBookingsModal({
@@ -150,6 +154,7 @@ export function AdvanceBookingsModal({
   onOpenSettle,
   onOpenReschedule,
   onOpenRefund,
+  lastSettledOrder,
 }: AdvanceBookingsModalProps) {
   const todayIST = useMemo(() => getISTDateString(new Date()), []);
   const todayYear = useMemo(() => {
@@ -174,6 +179,22 @@ export function AdvanceBookingsModal({
     useState<DashboardOrder | null>(null);
   const [reschedulingOrder, setReschedulingOrder] =
     useState<DashboardOrder | null>(null);
+  const [showOverdueDrawer, setShowOverdueDrawer] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (lastSettledOrder) {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === lastSettledOrder.id ? { ...o, ...lastSettledOrder } : o
+        )
+      );
+      if (selectedOrderDetails?.id === lastSettledOrder.id) {
+        setSelectedOrderDetails((prev) =>
+          prev ? { ...prev, ...lastSettledOrder } : null
+        );
+      }
+    }
+  }, [lastSettledOrder, selectedOrderDetails?.id]);
 
   const updateUrlParams = useCallback(
     (newDate: string, newService: string | null) => {
@@ -327,6 +348,16 @@ export function AdvanceBookingsModal({
   const selectedDateOrders = useMemo(() => {
     return ordersByDate[selectedDate] || [];
   }, [ordersByDate, selectedDate]);
+
+  // Active past advance bookings not yet marked completed or rescheduled
+  const overdueOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (!isAdvanceBookingOrder(o)) return false;
+      if (isOrderCompleted(o)) return false;
+      const dateKey = getISTDateString(o.scheduledFor);
+      return Boolean(dateKey && dateKey < todayIST);
+    });
+  }, [orders, todayIST]);
 
   // Selected date booked items split into 3 distinct categories: Services, Packages, and Product sell
   const { selectedDateServices, selectedDatePackages, selectedDateProducts } =
@@ -658,7 +689,7 @@ export function AdvanceBookingsModal({
 
       {/* Global Error Banner */}
       {error && (
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4">
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4 shrink-0">
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[12.5px] rounded-[5px] flex items-center justify-between gap-2 shadow-2xs">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -671,6 +702,122 @@ export function AdvanceBookingsModal({
             >
               <X className="h-4 w-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Overdue Past Advance Bookings Alert Banner */}
+      {overdueOrders.length > 0 && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4 shrink-0">
+          <div className="bg-amber-50/90 border border-amber-300 rounded-[8px] p-3.5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-amber-800" />
+                </div>
+                <div>
+                  <h3 className="text-[13.5px] font-bold text-amber-950">
+                    {overdueOrders.length} Past Booking{overdueOrders.length > 1 ? "s" : ""} Need Action
+                  </h3>
+                  <p className="text-[12px] text-amber-900/80">
+                    Past appointments/pickups not yet marked completed or rescheduled.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOverdueDrawer((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-amber-100/90 hover:bg-amber-200/90 border border-amber-300/80 text-[12px] font-semibold text-amber-950 transition-colors cursor-pointer self-start sm:self-center"
+              >
+                <span>{showOverdueDrawer ? "Hide Past Bookings" : `Review (${overdueOrders.length})`}</span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform ${
+                    showOverdueDrawer ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            </div>
+
+            {showOverdueDrawer && (
+              <div className="mt-3 pt-3 border-t border-amber-200/80 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {overdueOrders.map((order) => {
+                  const waUrl = getWhatsAppReminderUrl({
+                    phone: order.customerPhone,
+                    customerName: order.customer,
+                    salonName: salonName || "our salon",
+                    bookingDate: order.scheduledFor,
+                    bookingTime: order.scheduledTime,
+                    orderType: order.type as any,
+                    productName: order.itemsSummary,
+                    orderId: order.id,
+                  });
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="bg-white/95 border border-amber-200 rounded-[6px] p-3 flex flex-col justify-between gap-2.5 shadow-2xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-[13px] text-galla-ink truncate">
+                              {order.customer}
+                            </span>
+                            <span className="tabular-nums text-[11px] font-semibold text-galla-ink-soft bg-galla-paper px-1.5 py-0.2 rounded border border-galla-line shrink-0">
+                              #{formatDisplayNumber(order.id)}
+                            </span>
+                          </div>
+                          <p className="text-[11.5px] text-amber-900 font-medium mt-0.5">
+                            Booked for: {formatBookingDate(order.scheduledFor)}{" "}
+                            {order.scheduledTime ? `• ${formatAppointmentTime(order.scheduledTime)}` : ""}
+                          </p>
+                          <p className="text-[11.5px] text-galla-ink-soft truncate mt-0.5">
+                            {order.itemsSummary || order.type}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectDate(getISTDateString(order.scheduledFor))}
+                          className="text-[11px] font-semibold text-galla-teal hover:underline shrink-0 cursor-pointer"
+                        >
+                          View Date &rarr;
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1 border-t border-galla-line/50">
+                        <button
+                          type="button"
+                          onClick={() => onOpenSettle?.(order)}
+                          className="flex-1 inline-flex items-center justify-center gap-1 py-1 px-2 rounded-[4px] bg-emerald-600 hover:bg-emerald-700 text-white text-[11.5px] font-semibold transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>Settle &amp; Complete</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReschedulingOrder(order)}
+                          className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-[4px] bg-galla-paper hover:bg-galla-line/60 border border-galla-line text-galla-ink text-[11.5px] font-medium transition-colors cursor-pointer"
+                        >
+                          <Clock className="h-3.5 w-3.5 text-galla-ink-soft" />
+                          <span>Reschedule</span>
+                        </button>
+                        {waUrl && (
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center p-1.5 rounded-[4px] bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] border border-[#25D366]/30 transition-colors cursor-pointer"
+                            title="Send WhatsApp Reminder"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -749,6 +896,14 @@ export function AdvanceBookingsModal({
                     aria-label={`${cell.dateStr}: ${cell.orderCount} orders`}
                   >
                     <span className="leading-none">{cell.dayNumber}</span>
+
+                    {/* Overdue past uncompleted indicator dot */}
+                    {!cell.isAllCompleted && cell.orderCount > 0 && cell.dateStr < todayIST && !isSelected && (
+                      <span
+                        className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-white"
+                        title="Past uncompleted booking(s)"
+                      />
+                    )}
 
                     {/* Today indicator dot */}
                     {isToday && !isSelected && (
